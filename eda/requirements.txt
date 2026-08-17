@@ -1,0 +1,13 @@
+# EDA 阶段依赖（离线分析工具，不进 Maven 构建）
+# EDA stage dependencies (offline analysis tool, not part of the Maven build)
+#
+# 安装 / install: pip3 install -r eda/requirements.txt
+# 版本下限说明 / lower bounds:
+#   pandas >= 1.3   —— read_csv 的 on_bad_lines 参数自 1.3 起可用（畸形行跳过并计数）
+#   numpy  >= 1.20  —— 数组 API 与 bincount/searchsorted 用法的稳定基线
+#   matplotlib >= 3.3 —— 仅 report_gen.py 需要；run_eda.py 不依赖
+# 已在 pandas 3.0 / numpy 2.4 / matplotlib 3.11 上实测通过。
+# Verified on pandas 3.0, numpy 2.4, matplotlib 3.11.
+pandas>=1.3
+numpy>=1.20
+matplotlib>=3.3

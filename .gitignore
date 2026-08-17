@@ -1,0 +1,22 @@
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+
+# EDA 产出与缓存（可由 eda/ 脚本重新生成，不入库）
+# EDA outputs and cache (regenerable by the eda/ scripts, not tracked)
+eda_output/
+*.png.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
