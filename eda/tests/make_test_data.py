@@ -179,6 +179,38 @@ def main(argv=None) -> int:
     injected.append("%s: empty file" % os.path.basename(empty))
     n_files += 1
 
+    # --- 补丁 01 专项注入 / patch-01-specific injections ------------------
+    # ① 非 .csv 扩展名的**数据文件**——首轮 .csv 过滤会漏掉，补丁须发现并并入统计。
+    #    Data files with non-.csv extensions — dropped by the old .csv filter; patch must
+    #    discover and include them.
+    epoch = int(start.timestamp())
+    for ext in (".data", ".txt", ""):   # 含"无扩展名" / including "no extension"
+        name = "2022_02_03_1200%s%s" % ("00" if ext else "01", ext)  # 紧凑时间名 / compact time
+        path = os.path.join(out_dir, name)
+        build_file(path, epoch + 100000, 30, DEVICES, rng, 3, {"header": bool(ext != "")})
+        injected.append("%s: non-.csv-extension DATA file (must be discovered+included)" % name)
+        n_files += 1
+
+    # ② 真正的**非数据文件**——须计入发现总数、进 unmatched 清单，但不入五层聚合。
+    #    Genuine non-data files — counted in discovery and unmatched, but not aggregated.
+    readme = os.path.join(out_dir, "README.txt")
+    with open(readme, "w", encoding="utf-8") as fh:
+        fh.write("Erol/SYNERGIA dataset\nSensor columns: Temperature, Humidity, ...\n")
+    injected.append("README.txt: non-data file (prose)")
+    n_files += 1
+
+    fake_zip = os.path.join(out_dir, "archive_2022.zip")
+    with open(fake_zip, "wb") as fh:
+        fh.write(b"PK\x03\x04" + bytes(range(256)) * 8)   # 伪二进制 / pseudo-binary
+    injected.append("archive_2022.zip: non-data file (binary)")
+    n_files += 1
+
+    cfg = os.path.join(out_dir, "notes.json")
+    with open(cfg, "w", encoding="utf-8") as fh:
+        fh.write('{"note": "not a data file", "n": 1}\n')
+    injected.append("notes.json: non-data file (json)")
+    n_files += 1
+
     print("生成完成 / generated: %d 个 CSV → %s" % (n_files, out_dir))
     print("注入的边界情形 / injected edge cases:")
     for line in injected:

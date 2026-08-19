@@ -35,13 +35,16 @@ class Aggregator:
 
     def __init__(self):
         self.files = {
-            "total": 0, "ok": 0, "failed": 0,
-            "bytes_total": 0, "lines_raw": 0, "rows_parsed": 0,
+            "total": 0, "ok": 0, "failed": 0, "non_data": 0,
+            "bytes_total": 0, "bytes_data": 0, "bytes_non_data": 0,
+            "lines_raw": 0, "rows_parsed": 0,
             "rows_malformed": 0, "rows_bad_time": 0, "rows_bad_key": 0, "rows_bad_value": 0,
             "with_header": 0, "without_header": 0, "accel_truncated": 0,
             "skew_sampled": 0,
         }
-        self.patterns = {}
+        self.patterns = {}          # 细粒度命名模式 / fine-grained name pattern histogram
+        self.name_classes = {}      # 三类归属计数（补丁 01）/ three-class histogram
+        self.unmatched = []         # name_class=="unmatched" 的逐文件记录 / unmatched records
         self.errors = {}
         self.weekly_files = {}
         self.time_min = None
@@ -81,19 +84,36 @@ class Aggregator:
     # ------------------------------------------------------------------
     def add(self, payload: dict) -> None:
         self.files["total"] += 1
-        self.files["bytes_total"] += int(payload.get("bytes", 0))
+        nbytes = int(payload.get("bytes", 0))
+        self.files["bytes_total"] += nbytes
         pattern = payload.get("name_pattern", "unparsed")
         self.patterns[pattern] = self.patterns.get(pattern, 0) + 1
+        cls = payload.get("name_class", "unmatched")
+        self.name_classes[cls] = self.name_classes.get(cls, 0) + 1
 
+        # 补丁 01：name_class=="unmatched" 的文件逐一登记，绝不静默消失。
+        # Patch 01: every unmatched-class file is recorded so none disappears silently.
+        if cls == "unmatched":
+            self._add_unmatched_row(payload)
+
+        is_data = bool(payload.get("is_data_file", False))
         if not payload.get("ok", False):
-            self.files["failed"] += 1
             err = payload.get("error") or "unknown error"
             key = err.split(":")[0].strip()
             self.errors[key] = self.errors.get(key, 0) + 1
+            if is_data:
+                # 数据文件但未能使用（超大 / 无有效行 / 读失败）/ a data file we could not use
+                self.files["failed"] += 1
+                self.files["bytes_data"] += nbytes
+            else:
+                # 非数据文件（说明文件、压缩包、二进制、空文件……）/ non-data file
+                self.files["non_data"] += 1
+                self.files["bytes_non_data"] += nbytes
             self._add_inventory_row(payload)
             return
 
         self.files["ok"] += 1
+        self.files["bytes_data"] += nbytes
         self.files["lines_raw"] += int(payload.get("lines_raw", 0))
         for k in ("rows_parsed", "rows_malformed", "rows_bad_time", "rows_bad_key", "rows_bad_value"):
             self.files[k] += int(payload.get(k, 0))
@@ -169,6 +189,27 @@ class Aggregator:
         self._add_inventory_row(payload)
 
     # ------------------------------------------------------------------
+    def _add_unmatched_row(self, payload: dict) -> None:
+        """
+        登记一个 name_class=="unmatched" 的文件（补丁 01 交付物 unmatched_files.csv）。
+        Record one unmatched-class file (patch 01 deliverable unmatched_files.csv).
+        """
+        self.unmatched.append(
+            {
+                "rel_path": payload.get("path", ""),
+                "file_name": payload.get("name", ""),
+                "name_pattern": payload.get("name_pattern", ""),
+                "bytes": int(payload.get("bytes", 0)),
+                "schema_parsable": int(bool(payload.get("schema_parsable"))),
+                "is_data_file": int(bool(payload.get("is_data_file"))),
+                "included_in_stats": int(bool(payload.get("ok")) and bool(payload.get("is_data_file"))),
+                "rows_parsed": int(payload.get("rows_parsed", 0)),
+                "reason": payload.get("error") or "",
+                "first_line_summary": payload.get("first_line_summary", ""),
+            }
+        )
+
+    # ------------------------------------------------------------------
     def _add_inventory_row(self, payload: dict) -> None:
         t_min, t_max = payload.get("time_min"), payload.get("time_max")
         span = (int(t_max) - int(t_min)) if (t_min is not None and t_max is not None) else ""
@@ -177,8 +218,11 @@ class Aggregator:
                 "rel_path": payload.get("path", ""),
                 "file_name": payload.get("name", ""),
                 "name_pattern": payload.get("name_pattern", ""),
+                "name_class": payload.get("name_class", ""),
                 "bytes": payload.get("bytes", 0),
                 "ok": int(bool(payload.get("ok"))),
+                "is_data_file": int(bool(payload.get("is_data_file"))),
+                "schema_parsable": int(bool(payload.get("schema_parsable"))),
                 "error": payload.get("error") or "",
                 "has_header": int(bool(payload.get("has_header"))),
                 "lines_raw": payload.get("lines_raw", 0),
@@ -262,6 +306,11 @@ class Aggregator:
             "schema": 1,
             "files": self.files,
             "patterns": self.patterns,
+            "name_classes": self.name_classes,
+            # 按相对路径排序，使进程池乱序归并下产物确定（与 gaps/accel 同处理）。
+            # Sorted by relative path so the output is deterministic under out-of-order
+            # pool merging (same treatment as gaps/accel records).
+            "unmatched": sorted(self.unmatched, key=lambda r: r["rel_path"]),
             "errors": self.errors,
             "weekly_files": self.weekly_files,
             "time_min": self.time_min,

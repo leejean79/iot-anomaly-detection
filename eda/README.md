@@ -73,7 +73,7 @@ Each script's five delivery elements are in its module docstring.
 
 | 层 | 内容 | 产出 |
 |---|---|---|
-| **E1 清单** | 文件总数/命名模式/字节数、逐文件台账、覆盖时间线、按周文件数 | `file_inventory.csv`, `files_per_week.csv/.png` |
+| **E1 清单** | 发现文件总数/命名三类归属/字节数、逐文件台账、覆盖时间线、按周文件数、**未匹配清单**（补丁 01） | `file_inventory.csv`, `unmatched_files.csv`, `files_per_week.csv/.png` |
 | **E2 完整性** | 设备×传感器行数矩阵、uptime 在场矩阵（**DEV-Q2**）、缺口分析、采样轮齐全率、重复时间戳 | `device_sensor_counts.csv`, `uptime_matrix.csv`, `uptime_timeline.png`, `round_completeness.csv`, `gaps_top100.csv`, `gap_summary.csv`, `gap_duration_hist.png` |
 | **E3 数值** | 逐设备×逐通道统计（Welford + 直方图分位数）、非法值、**DEV-Q1 Accelerometer 证据**、MIC 分布、RSSI 电平、单位合理性 | `channel_stats.csv`, `channel_stats_monthly.csv`, `accel_nonzero.csv`, `unit_sanity.csv`, `mic_distribution.csv`, `degenerate_channels.csv` |
 | **E4 节奏** | 到达间隔分布与分位数（**M1 watermark 依据**）、跨设备时钟相位 | `interarrival_quantiles.csv`, `interarrival_distribution.png`, `clock_skew_sample.csv` |
@@ -81,6 +81,33 @@ Each script's five delivery elements are in its module docstring.
 | **汇总** | 五层结果 + 图表引用 + **M1 设计参数建议（交接文档 §6 八问）** + 与 §3 数据事实的对照 | `eda_report.md` |
 
 ---
+
+## 3b. 补丁 01：文件发现缺口修复 / Patch 01: file-discovery gap fix
+
+首轮实现以 `.csv` 扩展名过滤文件发现，导致非 `.csv` 扩展名的数据文件被静默跳过
+（用户实测 3747 个文件中 276 个未被发现）。补丁 01 的修正：
+
+1. **发现与分类分离**：`inventory.list_all_files` **无条件递归列举全部常规文件**
+   （不按扩展名/命名过滤，不跟随符号链接），发现数 == `find <dir> -type f | wc -l`；
+   命名模式只用于**分类**为三类 `dashed_data` / `dashed_plain` / `unmatched`。
+2. **内容判定入统计**：`scan.sniff_schema` 只读文件前缀（默认 64 KB）判定是否为四列
+   `Time,DeviceId,Sensor,Value` 数据文件——凡内容符合 schema 者（无论扩展名、无论命名）
+   照常进入五层聚合；非数据文件（说明文件、压缩包、二进制、空文件）计数但不聚合。
+3. **零静默跳过**：每个被发现的文件在 `file_inventory.csv` 有且仅有一行；
+   `unmatched_files.csv` 单列所有 `unmatched` 类文件（文件名、字节、首行摘要、是否可解析、
+   是否入统计）；报告 §1 打印归属恒等式 `发现 = 成功 + 失败数据文件 + 非数据文件`。
+4. **报告 §7**：补扫结论——未匹配命名形态清单、覆盖期是否延伸过 2022-07-25 / 是否含
+   2022-08/09（DF-10 解冻依据）、与本地清点（3747/2.46 GB）对账。
+   可选 `--baseline <首轮 aggregate.json>` 生成关键指标差异表（§7.3）。
+
+缓存 schema 已升级（SCHEMA=2），旧缓存自动失效并触发一次全量重扫（实测约 42 s）。
+
+```bash
+# 补扫（沿用断点续跑，只补算新发现的文件）/ rescan (resume picks up newly discovered files)
+python3 eda/run_eda.py --data-dir <CSV_DIR> --output-dir eda_output --workers 6
+# 出报告，并与首轮聚合做差异对照 / render report with a baseline diff
+python3 eda/report_gen.py --output-dir eda_output --baseline <首轮 aggregate.json>
+```
 
 ## 4. 实现要点 / Implementation notes
 

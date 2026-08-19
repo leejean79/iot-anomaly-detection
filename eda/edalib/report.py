@@ -668,6 +668,7 @@ def check_data_facts(agg: dict, e2: dict, e3: dict, e4: dict, by_ds: dict) -> li
     Per handover §8, conflicts are reported as new-data-fact candidates for the design
     session to register; the EDA never rewrites the premises itself.
     """
+    files = agg.get("files", {})
     out = []
 
     # DF-1: 每设备每采样轮 8 行共享同一时间戳
@@ -740,14 +741,289 @@ def check_data_facts(agg: dict, e2: dict, e3: dict, e4: dict, by_ds: dict) -> li
 
     # DF-8: 两种文件命名模式
     patterns = agg.get("patterns", {})
+    classes = agg.get("name_classes", {})
     known = {"dashed_data", "dashed_plain"}
     extra = {k: v for k, v in patterns.items() if k not in known and v}
     out.append(("DF-8", "文件命名两种模式：..._HH-MM-SS_data.csv 与 ..._HH-MM-SS.csv",
-                "实测模式分布 %s" % ", ".join("%s=%d" % (k, v) for k, v in sorted(patterns.items())),
+                "三类归属 dashed_data=%d/dashed_plain=%d/unmatched=%d；细分 %s"
+                % (classes.get("dashed_data", 0), classes.get("dashed_plain", 0),
+                   classes.get("unmatched", 0),
+                   ", ".join("%s=%d" % (k, v) for k, v in sorted(patterns.items()))),
                 "一致 / consistent" if not extra else
-                "**冲突：出现额外命名模式（如紧凑时间 HHMMSS），已兼容解析，须登记为新事实** "
-                "/ conflict: additional naming patterns exist"))
+                "**冲突：存在 unmatched 类命名（如紧凑时间 HHMMSS、非 .csv 扩展名），"
+                "已兼容并入统计，须登记为新事实** / conflict: unmatched naming forms exist"))
+
+    # DF-15（补丁 01 起因）：文件发现是否完整 / discovery completeness
+    total = files.get("total", 0)
+    accounted = files.get("ok", 0) + files.get("failed", 0) + files.get("non_data", 0)
+    out.append(("DF-15", "文件发现须覆盖目录全部常规文件（原实现按 .csv 扩展名过滤，漏发现约 276 个）",
+                "发现 %d 个常规文件，归属 ok+failed+non_data=%d，非数据文件 %d 个"
+                % (total, accounted, files.get("non_data", 0)),
+                "已修复：发现与分类分离，零静默跳过 / fixed: discovery decoupled from naming, "
+                "zero silent skips" if accounted == total else
+                "**归属不平：ok+failed+non_data ≠ 发现数** / accounting imbalance"))
+
+    # DF-10（覆盖期，补丁 01 §3.2 解冻依据）：是否延伸过 2022-07-25、是否有 08/09 月
+    if agg.get("time_max") is not None:
+        last_local = str(timeutil.local_date_keys([agg["time_max"]])[0])
+        months = sorted({_split3(k)[0] for k in agg.get("stats", {})})
+        has_aug = any(m >= "2022-08" for m in months)
+        past_0725 = last_local > "2022-07-25"
+        out.append(("DF-10", "全集覆盖期（冻结待补扫解冻；决定 A9「六个月」表述）",
+                    "覆盖至当地日期 %s；出现月份 %s" % (last_local, ", ".join(months)),
+                    ("延伸过 2022-07-25%s / extends past 2022-07-25"
+                     % ("、含 2022-08/09 月数据" if has_aug else "，但未见 2022-08 及以后")
+                     ) if past_0725 else
+                    "未延伸过 2022-07-25 / does not extend past 2022-07-25"))
     return out
+
+
+# ---------------------------------------------------------------------------
+# 补丁 01：关键指标摘要与基线差异 / patch 01 metric digest and baseline diff
+# ---------------------------------------------------------------------------
+
+def metrics_digest(agg: dict) -> dict:
+    """
+    从聚合中提炼补丁 §3.3 关注的关键指标，供两次运行差异对照。
+    Extract the key metrics named in patch §3.3 from an aggregate, for run-to-run diffing.
+
+    返回的每一项都是可比的标量/元组/排序列表，便于逐项判等。
+    Every returned value is a comparable scalar/tuple/ordered list for item-wise equality.
+    """
+    _by_ds, _h, by_ms_hist, _s, _mds = _roll_up(agg)
+
+    # 设备在场天数 / device presence days：uptime 每条键为 device|date，故按 device 计数即天数。
+    # Each uptime key is device|date, so counting per device yields the number of days present.
+    presence = {}
+    for key in agg.get("uptime", {}):
+        dev = key.split(SEP, 1)[0]
+        presence[dev] = presence.get(dev, 0) + 1
+
+    # 缺口摘要 / gap summary
+    gs = agg.get("gap_summary", {})
+    gap_max = max((v.get("max_s", 0) for v in gs.values()), default=0)
+    gap_total = sum(v.get("total_s", 0) for v in gs.values())
+
+    # 到达间隔分位数（剔缺口口径）/ inter-arrival quantiles (gap-excluded)
+    ia_p99 = ia_p999 = 0.0
+    for dev, counter in agg.get("interarrival", {}).items():
+        c = {int(k): int(v) for k, v in counter.items() if int(k) <= config.GAP_THRESHOLD_S}
+        if c:
+            ia_p99 = max(ia_p99, st.counter_quantile(c, 0.99))
+            ia_p999 = max(ia_p999, st.counter_quantile(c, 0.999))
+
+    # 逐月 KS 排序 / monthly KS ranking
+    months = sorted({_split3(k)[0] for k in agg.get("stats", {})})
+    ks_rank = []
+    for channel in config.F_DET_CHANNELS:
+        vals = []
+        for a, b in zip(months, months[1:]):
+            ha, hb = by_ms_hist.get((a, channel), {}), by_ms_hist.get((b, channel), {})
+            if ha and hb:
+                k = st.hist_ks_statistic(ha, hb)
+                if not math.isnan(k):
+                    vals.append(k)
+        if vals:
+            ks_rank.append((channel, round(sum(vals) / len(vals), 4)))
+    ks_rank.sort(key=lambda r: -r[1])
+
+    # MIC 取值集合 / MIC value set
+    mic_lo, _hi, mic_w, _n = st.bin_spec("MIC")
+    mic_vals = set()
+    for key, hist in agg.get("hist", {}).items():
+        if _split3(key)[2] == "MIC":
+            for b in hist:
+                mic_vals.add(round(mic_lo + int(b) * mic_w, 3))
+
+    return {
+        "presence_days": presence,
+        "gap_max_s": gap_max,
+        "gap_total_s": gap_total,
+        "ia_p99_excl_gaps_s": round(ia_p99, 1),
+        "ia_p999_excl_gaps_s": round(ia_p999, 1),
+        "ks_ranking": [c for c, _ in ks_rank],
+        "accel_nonzero": sum(int(v) for v in agg.get("accel_nonzero", {}).values()),
+        "mic_values": sorted(mic_vals),
+        "coverage_last_local": (str(timeutil.local_date_keys([agg["time_max"]])[0])
+                                if agg.get("time_max") is not None else None),
+    }
+
+
+def diff_digests(baseline: dict, current: dict, baseline_label: str) -> dict:
+    """
+    对比两份 metrics_digest，只列出有变化的项（补丁 §3.3）。
+    Compare two digests and keep only the changed items (patch §3.3).
+    """
+    labels = {
+        "presence_days": "设备在场天数 / device presence days",
+        "gap_max_s": "最长缺口 (s) / longest gap",
+        "gap_total_s": "缺口总时长 (s) / total gap",
+        "ia_p99_excl_gaps_s": "到达间隔 P99 剔缺口 (s) / inter-arrival P99",
+        "ia_p999_excl_gaps_s": "到达间隔 P99.9 剔缺口 (s) / inter-arrival P99.9",
+        "ks_ranking": "逐月 KS 排序 / monthly KS ranking",
+        "accel_nonzero": "Accelerometer 非零计数 / non-zero count",
+        "mic_values": "MIC 取值集合 / MIC value set",
+        "coverage_last_local": "覆盖末日(当地) / coverage last local date",
+    }
+    rows = []
+    for key, label in labels.items():
+        b, c = baseline.get(key), current.get(key)
+        if b == c:
+            continue
+        rows.append((label, _digest_cell(b), _digest_cell(c), _digest_change(b, c)))
+    return {"baseline_label": baseline_label, "rows": rows}
+
+
+def _digest_cell(v) -> str:
+    if isinstance(v, dict):
+        return "; ".join("%s:%s" % (k, v[k]) for k in sorted(v))
+    if isinstance(v, list):
+        return "[" + ", ".join(str(x) for x in v) + "]"
+    return str(v)
+
+
+def _digest_change(b, c) -> str:
+    if isinstance(b, (int, float)) and isinstance(c, (int, float)):
+        return "%+g" % (c - b)
+    return "changed / 变化"
+
+
+# ---------------------------------------------------------------------------
+# 补丁 01：文件发现补扫章节 / patch 01 rescan section
+# ---------------------------------------------------------------------------
+
+def _emit_patch01(w, agg: dict, e5: dict, files: dict) -> None:
+    """
+    报告 §7：补丁 01（文件发现缺口修复与补扫）的四问作答。
+    Report §7: the four questions of patch 01 (file-discovery gap fix and rescan).
+    """
+    w("## 7. 补丁 01：文件发现补扫 / File-discovery rescan")
+    w()
+    w("> 背景 / background：首轮实现以 `.csv` 扩展名过滤文件发现，凡非 `.csv` 扩展名的文件"
+      "被静默跳过。补丁 01 改为**无条件递归列举全部常规文件**，命名模式仅用于分类，"
+      "是否入统计由**内容 schema 嗅探**决定。")
+    w(">")
+    w("> **根因更正（如实报告）**：交接文档推断漏发现源于「命名模式 glob 匹配」；经核对首轮"
+      "代码，发现过滤实为 **`.csv` 扩展名过滤**（非命名模式），故 276 个漏发现文件应为"
+      "**非 `.csv` 扩展名**的文件，而非命名不匹配。已按补丁要求修复，根因表述一并更正。")
+    w()
+
+    unmatched = agg.get("unmatched", [])
+    classes = agg.get("name_classes", {})
+
+    # --- §3.1 未匹配文件的命名形态清单 / unmatched naming forms ----------
+    w("### 7.1 未匹配（unmatched 类）文件的命名形态 / unmatched naming forms")
+    w()
+    w("`unmatched` 类共 **%d** 个文件（完整逐文件清单见 `unmatched_files.csv`）。"
+      % classes.get("unmatched", 0))
+    w()
+    if unmatched:
+        by_pat = {}
+        for r in unmatched:
+            key = r.get("name_pattern", "?")
+            g = by_pat.setdefault(key, {"n": 0, "data": 0, "bytes": 0, "samples": []})
+            g["n"] += 1
+            g["data"] += int(r.get("is_data_file", 0))
+            g["bytes"] += int(r.get("bytes", 0))
+            if len(g["samples"]) < 3:
+                g["samples"].append(r.get("file_name", ""))
+        w("| 细分命名模式 / pattern | 文件数 | 其中数据文件 | 字节 | 样例文件名 |")
+        w("|---|---|---|---|---|")
+        for key in sorted(by_pat, key=lambda k: -by_pat[k]["n"]):
+            g = by_pat[key]
+            w("| `%s` | %d | %d | %.3f MB | %s |"
+              % (key, g["n"], g["data"], g["bytes"] / 1048576.0,
+                 "; ".join("`%s`" % s for s in g["samples"])))
+        w()
+        n_data = sum(1 for r in unmatched if r.get("is_data_file"))
+        n_incl = sum(1 for r in unmatched if r.get("included_in_stats"))
+        w("- 其中 **%d 个为数据文件**（内容符合四列 schema），**%d 个已并入五层聚合**；"
+          "其余 %d 个为非数据文件（说明文件/压缩包/二进制/空文件等），单列 `unmatched_files.csv` 说明。"
+          % (n_data, n_incl, len(unmatched) - n_data))
+        w("- **成因**：`unmatched` 类以「紧凑时间命名（`HHMMSS`，无连字符）」与/或「非 `.csv` 扩展名」为主；"
+          "首轮 `.csv` 扩展名过滤会漏掉后者——这正是补丁 01 修复的缺口。")
+    else:
+        w("本次运行未发现 `unmatched` 类文件。 / No unmatched-class files in this run.")
+    w()
+
+    # --- §3.2 覆盖期是否变化 / coverage-period change ------------------
+    w("### 7.2 补入后全集覆盖期 / coverage period after rescan（DF-10 解冻依据）")
+    w()
+    if agg.get("time_max") is not None:
+        last_local = str(timeutil.local_date_keys([agg["time_max"]])[0])
+        first_local = str(timeutil.local_date_keys([agg["time_min"]])[0])
+        months = e5.get("months") or sorted({_split3(k)[0] for k in agg.get("stats", {})})
+        past = last_local > "2022-07-25"
+        has_aug = any(m >= "2022-08" for m in months)
+        w("- 覆盖当地日期 / local coverage：**%s → %s**" % (first_local, last_local))
+        w("- 出现月份 / months present：%s" % ", ".join(months))
+        w("- **是否延伸过 2022-07-25** / extends past 2022-07-25：**%s**" % ("是 / yes" if past else "否 / no"))
+        w("- **是否出现 2022-08/09 月数据** / 2022-08 or later present：**%s**"
+          % ("是 / yes" if has_aug else "否 / no"))
+        w()
+        w("> 供设计会话裁决 DF-10 与 A9「六个月」表述：以上为补扫后的覆盖事实。")
+    else:
+        w("- %s" % NA)
+    w()
+
+    # --- §3.3 关键结论差异对照 / diff vs baseline ----------------------
+    w("### 7.3 补入后关键结论差异对照 / key-metric diff vs baseline")
+    w()
+    diff = agg.get("_diff")
+    if diff is None:
+        w("> 未提供基线聚合（`report_gen.py --baseline <首轮 aggregate.json>`），无法生成逐项差异表。")
+        w("> 如需差异对照，请在补扫后以首轮 `aggregate.json` 作基线重跑报告。")
+        w(">")
+        w("> 当前全集关键指标（供人工对照）/ current key metrics for manual comparison：")
+        w()
+        w("| 指标 / metric | 值 / value |")
+        w("|---|---|")
+        w("| 发现文件数 / files discovered | %d |" % files.get("total", 0))
+        w("| 并入统计的数据文件 / data files in stats | %d |" % files.get("ok", 0))
+        w("| 解析数据行 / parsed rows | %d |" % files.get("rows_parsed", 0))
+        if agg.get("accel_nonzero"):
+            w("| Accelerometer 非零计数 / non-zero | %d |"
+              % sum(int(v) for v in agg.get("accel_nonzero", {}).values()))
+    else:
+        w("基线 / baseline：`%s`。仅列**有变化**的项。" % diff.get("baseline_label", "?"))
+        w()
+        rows = diff.get("rows", [])
+        if rows:
+            w("| 指标 / metric | 基线 / baseline | 补扫后 / after | 变化 / change |")
+            w("|---|---|---|---|")
+            for metric, base, after, change in rows:
+                w("| %s | %s | %s | %s |" % (metric, base, after, change))
+        else:
+            w("补扫前后关键结论**无变化**。 / No key metric changed after the rescan.")
+    w()
+
+    # --- §3.4 与本地清点对账 / reconciliation --------------------------
+    w("### 7.4 与用户本地清点对账 / reconciliation with the local count")
+    w()
+    total = files.get("total", 0)
+    accounted = files.get("ok", 0) + files.get("failed", 0) + files.get("non_data", 0)
+    w("- **归属恒等式（可验证）** / accounting identity：发现 %d = 成功 %d + 失败数据文件 %d "
+      "+ 非数据文件 %d = %d —— %s"
+      % (total, files.get("ok", 0), files.get("failed", 0), files.get("non_data", 0), accounted,
+         "平衡 / balanced" if accounted == total else "**不平衡，须排查 / IMBALANCED**"))
+    w("- 全集数据行 / total data rows：%d；总字节 %.3f GB（数据 %.3f + 非数据 %.3f）"
+      % (files.get("rows_parsed", 0), files.get("bytes_total", 0) / 1073741824.0,
+         files.get("bytes_data", 0) / 1073741824.0, files.get("bytes_non_data", 0) / 1073741824.0))
+    # 与交接文档 §1 本地清点（3747 / 2.46 GB）对账——仅当规模可比时给出。
+    if total >= 0.5 * config.PATCH01_LOCAL_FILES:
+        resid_files = total - config.PATCH01_LOCAL_FILES
+        gb = files.get("bytes_total", 0) / 1073741824.0
+        resid_gb = gb - config.PATCH01_LOCAL_BYTES_GB
+        w("- **对账参照（交接文档 §1 本地清点：%d 个 / %.2f GB）**："
+          "发现 %d（残差 %+d）、总字节 %.2f GB（残差 %+.2f GB）。"
+          % (config.PATCH01_LOCAL_FILES, config.PATCH01_LOCAL_BYTES_GB, total, resid_files, gb, resid_gb))
+        w("  - 首轮报告发现数 %d → 本轮 %d，**回收 %+d 个文件**。允许残差来源：非数据文件、"
+          "符号链接（本工具不跟随）、运行期间目录变动。"
+          % (config.PATCH01_PREV_FOUND, total, total - config.PATCH01_PREV_FOUND))
+    else:
+        w("- 对账参照（本地清点 %d 个 / %.2f GB）：本次为合成/子集运行，规模不可比，参照不适用。"
+          % (config.PATCH01_LOCAL_FILES, config.PATCH01_LOCAL_BYTES_GB))
+    w()
 
 
 # ---------------------------------------------------------------------------
@@ -827,13 +1103,23 @@ def write_report(agg, out_dir, e1, e2, e3, e4, e5, by_ds, by_ds_hist, facts) -> 
     # --- 1 E1 ---------------------------------------------------------
     w("## 1. E1 清单层 / Inventory")
     w()
-    w("- 文件总数 / total files：**%d**（处理成功 %d，失败/跳过 %d）"
-      % (files.get("total", 0), files.get("ok", 0), files.get("failed", 0)))
-    w("- 总字节数 / total bytes：**%.2f GB**（%d 字节）"
-      % (files.get("bytes_total", 0) / 1073741824.0, files.get("bytes_total", 0)))
-    w("- 解析数据行 / parsed data rows：**%d**" % files.get("rows_parsed", 0))
-    w("- 命名模式分布 / filename patterns：%s"
+    classes = agg.get("name_classes", {})
+    accounted = files.get("ok", 0) + files.get("failed", 0) + files.get("non_data", 0)
+    w("- 发现文件总数 / files discovered：**%d**（无条件递归列举全部常规文件，补丁 01；"
+      "应等于 `find <dir> -type f | wc -l`）" % files.get("total", 0))
+    w("  - 归属核验 / accounting：处理成功 %d + 失败数据文件 %d + 非数据文件 %d = **%d** —— %s"
+      % (files.get("ok", 0), files.get("failed", 0), files.get("non_data", 0), accounted,
+         "与发现总数一致，零静默跳过 / matches discovery, zero silent skips"
+         if accounted == files.get("total", 0) else "**与发现总数不一致，须排查 / MISMATCH**"))
+    w("- 命名三类归属 / three naming classes（补丁 01）：`dashed_data`=%d, `dashed_plain`=%d, "
+      "`unmatched`=%d（未匹配清单见 `unmatched_files.csv`）"
+      % (classes.get("dashed_data", 0), classes.get("dashed_plain", 0), classes.get("unmatched", 0)))
+    w("- 细粒度命名模式 / fine-grained patterns：%s"
       % ", ".join("`%s` = %d" % (k, v) for k, v in sorted(agg.get("patterns", {}).items())))
+    w("- 总字节数 / total bytes：**%.3f GB**（数据文件 %.3f GB + 非数据文件 %.3f GB）"
+      % (files.get("bytes_total", 0) / 1073741824.0, files.get("bytes_data", 0) / 1073741824.0,
+         files.get("bytes_non_data", 0) / 1073741824.0))
+    w("- 解析数据行 / parsed data rows：**%d**" % files.get("rows_parsed", 0))
     w("- 带表头文件 / files with header：%d；无表头 / without header：%d"
       % (files.get("with_header", 0), files.get("without_header", 0)))
     if agg.get("time_min") is not None:
@@ -1093,8 +1379,11 @@ def write_report(agg, out_dir, e1, e2, e3, e4, e5, by_ds, by_ds_hist, facts) -> 
     w("逐文件明细（含 error 列）见 `file_inventory.csv`。")
     w()
 
-    # --- 7 数据事实对照 -------------------------------------------------
-    w("## 7. 与交接文档 §3「数据事实」的对照 / Cross-check against handover §3")
+    # --- 7 补丁 01：文件发现补扫 ----------------------------------------
+    _emit_patch01(w, agg, e5, files)
+
+    # --- 8 数据事实对照 -------------------------------------------------
+    w("## 8. 与交接文档 §3「数据事实」的对照 / Cross-check against handover §3")
     w()
     w("> 按交接文档 §8：与既有数据事实冲突的实测结果**如实报告并标注为新数据事实候选**，"
       "交回设计会话登记，EDA 不自行改写前提。")
@@ -1113,7 +1402,7 @@ def write_report(agg, out_dir, e1, e2, e3, e4, e5, by_ds, by_ds_hist, facts) -> 
     w()
 
     # --- 8 M1 设计参数建议 ---------------------------------------------
-    w("## 8. M1 设计参数建议 / M1 design-parameter recommendations")
+    w("## 9. M1 设计参数建议 / M1 design-parameter recommendations")
     w()
     w("> 交接文档 §6 的八问逐条作答；空缺项标注「%s」。" % NA)
     w()
@@ -1124,12 +1413,12 @@ def write_report(agg, out_dir, e1, e2, e3, e4, e5, by_ds, by_ds_hist, facts) -> 
             w(line)
         w()
 
-    # --- 9 产出索引 ----------------------------------------------------
-    w("## 9. 产出文件索引 / Output index")
+    # --- 10 产出索引 ----------------------------------------------------
+    w("## 10. 产出文件索引 / Output index")
     w()
     w("| 层 / layer | 文件 / file |")
     w("|---|---|")
-    w("| E1 | `file_inventory.csv`, `files_per_week.csv`, `files_per_week.png` |")
+    w("| E1 | `file_inventory.csv`, `unmatched_files.csv`, `files_per_week.csv`, `files_per_week.png` |")
     w("| E2 | `device_sensor_counts.csv`, `uptime_matrix.csv`, `uptime_timeline.png`, "
       "`round_completeness.csv`, `gaps_top100.csv`, `gap_summary.csv`, `gap_duration_hist.png` |")
     w("| E3 | `channel_stats.csv`, `channel_stats_monthly.csv`, `accel_nonzero.csv`, "

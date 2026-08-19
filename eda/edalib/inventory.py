@@ -62,30 +62,76 @@ def parse_filename(name: str) -> dict:
     return {"pattern": pattern, "name_ts_utc": ts, "parsed": True}
 
 
-def list_csv_files(data_dir: str, recursive: bool = True) -> list:
+# 三类命名归属（补丁 01：发现与分类分离）/ three naming classes (patch 01)
+# dashed_data : ..._HH-MM-SS_data.csv
+# dashed_plain: ..._HH-MM-SS.csv
+# unmatched   : 其余一切（紧凑时间名、非 .csv 扩展名、无扩展名、说明文件、压缩包……）
+#               everything else (compact-time names, non-.csv extensions, readme, zip, ...)
+DASHED_CLASSES = ("dashed_data", "dashed_plain")
+
+
+def name_class(name: str) -> str:
     """
-    列出数据目录下的全部 .csv 文件（默认递归），按相对路径排序返回绝对路径。
-    List every .csv file under the data directory (recursive by default), returned as
-    absolute paths sorted by relative path.
+    文件名 → 三类之一（dashed_data / dashed_plain / unmatched）。
+    Filename → one of the three classes.
+
+    命名模式**只用于分类**，绝不用于决定是否处理文件——处理与否由内容 schema 判定
+    （见 scan.sniff_schema）。这是补丁 01 的核心修正：发现与分类彻底分离。
+    The naming pattern is used ONLY for classification, never to decide whether a file is
+    processed; that decision is made from the content schema (scan.sniff_schema). This is
+    the core of patch 01: discovery and classification are fully decoupled.
+    """
+    p = parse_filename(name)["pattern"]
+    return p if p in DASHED_CLASSES else "unmatched"
+
+
+def list_all_files(data_dir: str, recursive: bool = True) -> list:
+    """
+    **无条件**列举目录下全部常规文件（补丁 01）——不按扩展名、不按命名模式过滤。
+    List EVERY regular file under the directory (patch 01) with NO extension or
+    naming-pattern filter, so that discovery count == `find <dir> -type f | wc -l`.
+
+    背景 / background：原 `list_csv_files` 以 `.csv` 扩展名过滤，导致非 .csv 扩展名的
+    数据文件被静默跳过（用户实测 3747 个文件中 276 个未被发现）。补丁 01 要求发现阶段
+    对文件一视同仁，凡文件必有归属，是否入统计交由内容判定。
+    The old `list_csv_files` filtered on the `.csv` extension, silently dropping data files
+    with other extensions (276 of the user's 3747 files went missing). Patch 01 requires
+    discovery to be filter-free; every file gets an accounting, and content decides inclusion.
 
     排序用相对路径而非文件名时间：文件名不可信是既定前提，排序只需稳定可复现。
-    Sorting uses the relative path rather than the filename timestamp: filenames are
-    untrusted by design, and the ordering only needs to be stable and reproducible.
+    Sorted by relative path (filenames are untrusted; ordering only needs to be reproducible).
+
+    符号链接不跟随（followlinks=False，os.walk 默认），避免环与目录外逃逸。
+    Symlinks are not followed (os.walk default), avoiding cycles and escapes outside the tree.
     """
     data_dir = os.path.abspath(os.path.expanduser(data_dir))
     found = []
     if recursive:
         for root, _dirs, files in os.walk(data_dir):
             for fn in files:
-                if fn.lower().endswith(".csv"):
-                    found.append(os.path.join(root, fn))
+                full = os.path.join(root, fn)
+                # 只收常规文件；跳过 FIFO/socket/设备节点等特殊文件（同样会被计数于发现日志）。
+                # Regular files only; skip FIFOs/sockets/device nodes (still logged as skipped).
+                if os.path.isfile(full) and not os.path.islink(full):
+                    found.append(full)
     else:
         for fn in os.listdir(data_dir):
             full = os.path.join(data_dir, fn)
-            if fn.lower().endswith(".csv") and os.path.isfile(full):
+            if os.path.isfile(full) and not os.path.islink(full):
                 found.append(full)
     found.sort(key=lambda p: os.path.relpath(p, data_dir))
     return found
+
+
+# 向后兼容别名（旧调用点/测试可能引用）/ backward-compat alias
+def list_csv_files(data_dir: str, recursive: bool = True) -> list:
+    """
+    已弃用 / deprecated：保留别名指向 list_all_files，避免旧调用点断裂。
+    补丁 01 起，发现不再按扩展名过滤——此函数名保留仅为兼容，行为与 list_all_files 相同。
+    Kept as an alias to list_all_files so older call sites keep working; since patch 01 the
+    behaviour is identical (no extension filter).
+    """
+    return list_all_files(data_dir, recursive)
 
 
 def select_skew_sample(paths: list, data_dir: str) -> set:

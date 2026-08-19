@@ -123,6 +123,24 @@ SENTINEL_VALUES = [-999.0, -9999.0, -99.0, 999999.0]
 
 DEFAULT_DATA_DIR = "/Users/lijing/Downloads/fwlmb11wni392kodtyljkw4n2/files_csv"
 DEFAULT_OUTPUT_DIR = "eda_output"
+
+# 补丁 01：内容 schema 嗅探参数 / patch 01: content-schema sniffing
+# 只读文件前缀判定"是否为四列数据文件"，避免为一个大压缩包/二进制文件读入全量。
+# Only a prefix is read to decide "is this a 4-column data file", so a large archive or
+# binary file is never fully loaded just to reject it.
+SNIFF_BYTES = 65536                 # 嗅探读取的前缀字节数 / prefix bytes read for sniffing
+SNIFF_SAMPLE_LINES = 20             # 抽样判定的数据行数 / sample data lines to test
+SNIFF_MATCH_RATIO = 0.6            # 达标比例（抽样行中符合四列 schema 的占比）/ pass ratio
+FIRST_LINE_SUMMARY_MAX = 160       # unmatched_files.csv 首行摘要截断长度 / first-line clip
+UNMATCHED_FILENAME = "unmatched_files.csv"
+
+# 补丁 01 §3.4 对账参照：用户本地清点数（交接文档 §1）。仅用于报告中的最终对账行；
+# 与合成/子集运行无关时报告会自动标注"参照不适用"。
+# Patch 01 §3.4 reconciliation reference: the user's local file/byte count (handover §1).
+# Used only for the final reconciliation line; flagged "not applicable" on synthetic/subset runs.
+PATCH01_LOCAL_FILES = 3747
+PATCH01_LOCAL_BYTES_GB = 2.46
+PATCH01_PREV_FOUND = 3471          # 首轮报告的发现数（漏发现的对照基线）/ prior run's count
 CACHE_SUBDIR = "_cache"          # 逐文件部分聚合缓存（断点续跑）/ per-file partials (resume)
 AGGREGATE_FILENAME = "aggregate.json"   # run_eda.py 的全集聚合产物 / global aggregate
 INVENTORY_FILENAME = "file_inventory.csv"

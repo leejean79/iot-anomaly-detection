@@ -50,11 +50,29 @@ check $? "全量扫描无崩溃 / full scan without crash"
 grep -q "畸形跳过" "$WORK/full.log" && grep -q "失败" "$WORK/full.log"
 check $? "畸形行与异常文件已计数 / malformed rows and bad files counted"
 
+echo "== 2b. 补丁 01：发现完整性 / patch-01 discovery ============="
+# 发现文件数须等于 find -type f（补丁 01 核心验收）
+find_count=$(find "$DATA" -type f | wc -l | tr -d ' ')
+inv_count=$(( $(wc -l < "$OUT/file_inventory.csv") - 1 ))   # 去表头 / minus header
+[ "$find_count" -eq "$inv_count" ]
+check $? "发现数 = find -type f（$find_count = $inv_count）/ discovery == find count, zero silent skips"
+grep -q "一致 / matches" "$WORK/full.log"
+check $? "归属恒等式 ok+failed+non_data = 发现数 / accounting identity balances"
+[ -s "$OUT/unmatched_files.csv" ]
+check $? "unmatched_files.csv 已交付 / unmatched_files.csv delivered"
+# 非数据文件应出现在 unmatched 清单 / non-data files listed
+grep -q "README.txt" "$OUT/unmatched_files.csv" && grep -q "archive_2022.zip" "$OUT/unmatched_files.csv"
+check $? "非数据文件进入 unmatched 清单 / non-data files present in unmatched list"
+# 非 .csv 扩展名的数据文件应被并入统计（included_in_stats=1）
+grep -E "2022_02_03_120000\.data,.*,1,1," "$OUT/unmatched_files.csv" >/dev/null 2>&1 || \
+  awk -F, '$2 ~ /2022_02_03_1200/ && $7==1' "$OUT/unmatched_files.csv" | grep -q .
+check $? "非 .csv 扩展名数据文件已并入统计 / non-.csv data files included in stats"
+
 echo "== 3. 断点续跑 / resume ====================================="
 cp "$OUT/aggregate.json" "$WORK/aggregate_first.json"
 python3 "$REPO/eda/run_eda.py" --data-dir "$DATA" --output-dir "$OUT" --workers 3 \
   > "$WORK/resume.log" 2>&1
-n_total=$(ls "$DATA"/*.csv "$DATA"/sub/*.csv 2>/dev/null | wc -l | tr -d ' ')
+n_total=$(find "$DATA" -type f | wc -l | tr -d ' ')
 grep -q "缓存命中 / cache hits : $n_total / $n_total" "$WORK/resume.log"
 check $? "第二次运行全部命中缓存 / every file served from cache"
 python3 - "$WORK/aggregate_first.json" "$OUT/aggregate.json" <<'PY'
@@ -102,8 +120,15 @@ check $? "损坏缓存不致崩溃 / corrupt cache does not crash the run"
 echo "== 5. 报告生成 / report generation =========================="
 python3 "$REPO/eda/report_gen.py" --output-dir "$OUT" > "$WORK/report.log" 2>&1
 check $? "report_gen.py 无崩溃 / no crash"
+grep -q "## 7. 补丁 01" "$OUT/eda_report.md"
+check $? "报告含补丁 01 章节 / report contains the patch-01 section"
 
-for f in file_inventory.csv device_sensor_counts.csv uptime_matrix.csv gaps_top100.csv \
+# 基线差异表：以自身为基线应产出"无变化" / diff table: self-baseline should show no change
+python3 "$REPO/eda/report_gen.py" --output-dir "$OUT" --baseline "$WORK/aggregate_first.json" \
+  > "$WORK/report_diff.log" 2>&1
+check $? "带 --baseline 的报告生成无崩溃 / report with --baseline runs"
+
+for f in file_inventory.csv unmatched_files.csv device_sensor_counts.csv uptime_matrix.csv gaps_top100.csv \
          round_completeness.csv channel_stats.csv channel_stats_monthly.csv accel_nonzero.csv \
          unit_sanity.csv interarrival_quantiles.csv clock_skew_sample.csv \
          ks_adjacent_months.csv seasonal_trend.png eda_report.md \

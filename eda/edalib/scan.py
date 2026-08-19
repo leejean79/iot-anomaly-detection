@@ -29,7 +29,13 @@ import pandas as pd
 
 from . import config, timeutil
 
-SCHEMA = 1
+# SCHEMA=2（补丁 01）：payload 新增 name_class / is_data_file / schema_parsable /
+# first_line_summary 字段，且非数据文件不再计为"失败数据文件"。schema 递增使旧缓存整体
+# 失效并触发重扫（首轮实测约 42 s，成本可忽略）。
+# SCHEMA=2 (patch 01): the payload gains name_class / is_data_file / schema_parsable /
+# first_line_summary, and non-data files are no longer counted as failed data files.
+# Bumping the schema invalidates every old cache entry and forces a rescan (~42 s).
+SCHEMA = 2
 SEP = "|"
 
 
@@ -39,7 +45,7 @@ SEP = "|"
 
 def _base_payload(path: str, data_dir: str) -> dict:
     st = os.stat(path)
-    from .inventory import parse_filename
+    from .inventory import parse_filename, name_class
 
     name = os.path.basename(path)
     info = parse_filename(name)
@@ -50,7 +56,12 @@ def _base_payload(path: str, data_dir: str) -> dict:
         "bytes": int(st.st_size),
         "mtime": float(st.st_mtime),
         "name_pattern": info["pattern"],
+        "name_class": name_class(name),         # 三类归属 / three-class assignment
         "name_ts_utc": info["name_ts_utc"],
+        # 补丁 01：内容判定字段 / patch 01 content-decision fields
+        "is_data_file": False,                   # 内容是否为四列数据 / content is 4-col data
+        "schema_parsable": False,                # 首行/抽样是否符合 schema / schema sniff result
+        "first_line_summary": "",                # 首行摘要（unmatched 清单用）/ first-line summary
         "ok": True,
         "error": None,
         "has_header": False,
@@ -83,6 +94,58 @@ def _base_payload(path: str, data_dir: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# 内容 schema 嗅探（补丁 01）/ content-schema sniffing (patch 01)
+# ---------------------------------------------------------------------------
+
+def sniff_schema(prefix: bytes):
+    """
+    由文件前缀判定是否为四列 `Time,DeviceId,Sensor,Value` 数据文件。
+    Decide from a file prefix whether this is a 4-column Time,DeviceId,Sensor,Value file.
+
+    返回 / returns: (has_header, looks_like_data, first_line_summary)
+      has_header         首行是否为表头 / first line is the header
+      looks_like_data    内容是否像四列数据（表头，或抽样行多数符合四列+Time/Value 可解析）
+                         content looks like the 4-col schema (header, or a majority of
+                         sampled rows have 4 fields with parsable Time and Value)
+      first_line_summary 首行内容摘要（供 unmatched_files.csv）/ first-line summary
+
+    判据宽容但明确 / permissive but explicit:
+      - 命中表头即判为数据文件（后续解析若无有效行，仍按"失败数据文件"计，而非非数据文件）；
+      - 无表头时，抽样前若干非空行，统计"恰四列且第 1 列可解析为数、第 4 列可解析为浮点"的
+        比例，达到 SNIFF_MATCH_RATIO 判为数据文件。
+      - A header match alone qualifies; without a header, a majority of sampled non-empty
+        lines must have exactly 4 fields with a numeric field[0] and a float-parsable field[3].
+    """
+    # 首个非空行 / first non-empty line
+    text = prefix.decode("utf-8", errors="replace")
+    lines = [ln for ln in text.splitlines()]
+    first_nonempty = next((ln for ln in lines if ln.strip() != ""), "")
+    summary = first_nonempty.strip()[: config.FIRST_LINE_SUMMARY_MAX]
+
+    has_header = first_nonempty.strip().lower().startswith("time,deviceid")
+    if has_header:
+        return True, True, summary
+
+    # 无表头：抽样判定 / no header: sample-based decision
+    sample = [ln for ln in lines if ln.strip() != ""][: config.SNIFF_SAMPLE_LINES]
+    if not sample:
+        return False, False, summary
+    good = 0
+    for ln in sample:
+        parts = ln.split(",")
+        if len(parts) != 4:
+            continue
+        try:
+            float(parts[0])          # Time epoch
+            float(parts[3])          # Value
+        except ValueError:
+            continue
+        good += 1
+    looks_like_data = (good / len(sample)) >= config.SNIFF_MATCH_RATIO
+    return False, looks_like_data, summary
+
+
+# ---------------------------------------------------------------------------
 # 主扫描函数 / main scan entry
 # ---------------------------------------------------------------------------
 
@@ -100,50 +163,74 @@ def scan_file(path: str, data_dir: str, sample_skew: bool = False,
     try:
         payload = _base_payload(path, data_dir)
     except OSError as exc:  # stat 失败（权限/竞态删除）/ stat failed
+        from .inventory import name_class as _nc
+        nm = os.path.basename(path)
         return {
-            "schema": SCHEMA, "path": os.path.basename(path), "name": os.path.basename(path),
-            "bytes": 0, "mtime": 0.0, "name_pattern": "unparsed", "name_ts_utc": None,
-            "ok": False, "error": "stat failed: %s" % exc, "has_header": False,
-            "lines_raw": 0, "rows_parsed": 0, "rows_malformed": 0, "rows_bad_time": 0,
-            "rows_bad_key": 0, "rows_bad_value": 0, "time_min": None, "time_max": None,
-            "n_rounds": 0, "stats": {}, "hist": {}, "nan": {}, "sentinel": {}, "oor": {},
-            "uptime": {}, "daily": {}, "rounds": {}, "round_size": {},
-            "dup_extra_rows": 0, "dup_keys": 0, "accel_zero": {}, "accel_nonzero": {},
-            "accel_records": [], "accel_truncated": False, "skew": None,
+            "schema": SCHEMA, "path": os.path.basename(path), "name": nm,
+            "bytes": 0, "mtime": 0.0, "name_pattern": "unparsed", "name_class": _nc(nm),
+            "name_ts_utc": None, "is_data_file": False, "schema_parsable": False,
+            "first_line_summary": "", "ok": False, "error": "stat failed: %s" % exc,
+            "has_header": False, "lines_raw": 0, "rows_parsed": 0, "rows_malformed": 0,
+            "rows_bad_time": 0, "rows_bad_key": 0, "rows_bad_value": 0, "time_min": None,
+            "time_max": None, "n_rounds": 0, "stats": {}, "hist": {}, "nan": {},
+            "sentinel": {}, "oor": {}, "uptime": {}, "daily": {}, "rounds": {},
+            "round_size": {}, "dup_extra_rows": 0, "dup_keys": 0, "accel_zero": {},
+            "accel_nonzero": {}, "accel_records": [], "accel_truncated": False, "skew": None,
         }
 
     if payload["bytes"] == 0:
+        # 空文件：非数据文件，进 unmatched 清单，不计入"失败数据文件"。
+        # Empty file: a non-data file; listed in unmatched, not counted as a failed data file.
         payload["ok"] = False
         payload["error"] = "empty file"
         return payload
 
-    if payload["bytes"] > max_file_mb * 1024 * 1024:
-        # 超大文件超出"逐文件载入"的内存前提，跳过并计数（保护 <2GB 内存约束）。
-        # Oversized files break the load-one-file-at-a-time memory premise: skip and count.
-        payload["ok"] = False
-        payload["error"] = "file larger than --max-file-mb (%.1f MB)" % (payload["bytes"] / 1048576.0)
-        return payload
-
+    # --- 内容嗅探（补丁 01）：只读前缀判定是否为数据文件 --------------------
+    # --- content sniff (patch 01): read only a prefix to decide data-file-ness ----
     try:
         with open(path, "rb") as fh:
-            raw = fh.read()
+            prefix = fh.read(config.SNIFF_BYTES)
+            has_header, looks_like_data, summary = sniff_schema(prefix)
+            payload["has_header"] = has_header
+            payload["schema_parsable"] = looks_like_data
+            payload["first_line_summary"] = summary
+            if not looks_like_data:
+                # 内容不符合四列 schema：非数据文件（说明文件、压缩包、二进制……）。
+                # 计入发现总数与 unmatched 清单，但不进入五层聚合，也不算"失败数据文件"。
+                # Content is not the 4-col schema: a non-data file (readme, archive, binary...).
+                # Counted in discovery and the unmatched listing, but neither aggregated nor
+                # counted as a failed data file.
+                payload["ok"] = False
+                payload["error"] = "non-data file (schema mismatch)"
+                payload["is_data_file"] = False
+                return payload
+            # 是数据文件：读入其余部分（前缀已在手，避免二次全量读取小文件）。
+            # It is a data file: read the remainder (prefix already in hand).
+            payload["is_data_file"] = True
+            if payload["bytes"] > max_file_mb * 1024 * 1024:
+                # 数据文件但超大：超出逐文件载入的内存前提，跳过并计数（保护 <2GB 约束）。
+                # A data file, but oversized: skip and count to protect the <2 GB premise.
+                payload["ok"] = False
+                payload["error"] = "file larger than --max-file-mb (%.1f MB)" % (
+                    payload["bytes"] / 1048576.0)
+                return payload
+            rest = fh.read() if payload["bytes"] > len(prefix) else b""
     except OSError as exc:
         payload["ok"] = False
         payload["error"] = "read failed: %s" % exc
         return payload
 
+    raw = prefix + rest
     stripped = raw.rstrip()
     if not stripped:
         payload["ok"] = False
         payload["error"] = "blank file"
+        payload["is_data_file"] = False
         return payload
 
     # 原始行数（尾部空行已剔除；文件内部空行的处理为近似，见报告注记）
     # Raw line count (trailing blanks stripped; interior blank lines are approximate)
     payload["lines_raw"] = stripped.count(b"\n") + 1
-
-    first_line = stripped.split(b"\n", 1)[0].strip().lower()
-    payload["has_header"] = first_line.startswith(b"time,deviceid")
 
     try:
         with warnings.catch_warnings():

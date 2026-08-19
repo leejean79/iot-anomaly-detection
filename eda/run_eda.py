@@ -154,11 +154,21 @@ def _process_one(task):
 # 台账写出 / inventory writing
 # ---------------------------------------------------------------------------
 
+# 补丁 01：台账新增 name_class / is_data_file / schema_parsable 三列——每个被发现的文件
+# 都在此表有一行，"零静默跳过"可由本表逐行核验。
+# Patch 01: the ledger gains name_class / is_data_file / schema_parsable, so every
+# discovered file has exactly one row here and "zero silent skips" is auditable from it.
 INVENTORY_FIELDS = [
-    "rel_path", "file_name", "name_pattern", "bytes", "ok", "error", "has_header",
+    "rel_path", "file_name", "name_pattern", "name_class", "bytes", "ok",
+    "is_data_file", "schema_parsable", "error", "has_header",
     "lines_raw", "rows_parsed", "rows_malformed", "rows_bad_time", "rows_bad_key",
     "rows_bad_value", "time_min_epoch", "time_max_epoch", "time_min_utc",
     "time_max_utc", "span_s", "n_rounds", "n_devices", "skew_sampled",
+]
+
+UNMATCHED_FIELDS = [
+    "rel_path", "file_name", "name_pattern", "bytes", "schema_parsable",
+    "is_data_file", "included_in_stats", "rows_parsed", "reason", "first_line_summary",
 ]
 
 
@@ -168,6 +178,21 @@ def write_inventory(rows, out_path: str) -> None:
     rows = sorted(rows, key=lambda r: (r["time_min_epoch"] == "", r["time_min_epoch"], r["rel_path"]))
     with open(out_path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=INVENTORY_FIELDS)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+
+
+def write_unmatched(rows, out_path: str) -> None:
+    """
+    写出 unmatched_files.csv（补丁 01 交付物）：name_class=="unmatched" 的逐文件清单。
+    Write unmatched_files.csv (patch 01 deliverable): every unmatched-class file.
+    """
+    import csv
+
+    rows = sorted(rows, key=lambda r: (-int(r["is_data_file"]), r["name_pattern"], r["rel_path"]))
+    with open(out_path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=UNMATCHED_FIELDS)
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
@@ -238,16 +263,21 @@ def main(argv=None) -> int:
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(cache_dir, exist_ok=True)
 
+    # 补丁 01：无条件列举全部常规文件（不按扩展名/命名过滤），发现数须等于
+    # `find <dir> -type f | wc -l`（符号链接除外）。
+    # Patch 01: list every regular file unconditionally (no extension/name filter); the
+    # discovery count must equal `find <dir> -type f | wc -l` (symlinks excluded).
     print("[1/4] 扫描文件清单 / listing files: %s" % data_dir)
-    paths = inventory.list_csv_files(data_dir, recursive=args.recursive)
+    paths = inventory.list_all_files(data_dir, recursive=args.recursive)
     total_found = len(paths)
     if args.limit and args.limit > 0:
         paths = paths[: args.limit]
     if not paths:
-        print("[错误 / error] 目录下没有 .csv 文件 / no .csv files found", file=sys.stderr)
+        print("[错误 / error] 目录下没有常规文件 / no regular files found", file=sys.stderr)
         return 2
-    print("      发现 %d 个 CSV，本次处理 %d 个 / found %d, processing %d"
+    print("      发现 %d 个常规文件，本次处理 %d 个 / found %d regular files, processing %d"
           % (total_found, len(paths), total_found, len(paths)))
+    print("      （核验 / verify: 应等于 `find %s -type f | wc -l`）" % data_dir)
 
     skew_files = inventory.select_skew_sample(paths, data_dir) if args.skew_sample else set()
     print("      时钟相位抽样文件 / clock-phase sample files: %d" % len(skew_files))
@@ -333,21 +363,36 @@ def main(argv=None) -> int:
     print("[4/4] 写出产出 / writing outputs -> %s" % out_dir)
     inv_path = os.path.join(out_dir, config.INVENTORY_FILENAME)
     write_inventory(agg.inventory_rows, inv_path)
+    unmatched_path = os.path.join(out_dir, config.UNMATCHED_FILENAME)
+    write_unmatched(agg.unmatched, unmatched_path)
     agg_path = os.path.join(out_dir, config.AGGREGATE_FILENAME)
     with open(agg_path, "w", encoding="utf-8") as fh:
         json.dump(result, fh, separators=(",", ":"))
 
     files = result["files"]
+    accounted = files["ok"] + files["failed"] + files["non_data"]
+    classes = result.get("name_classes", {})
     print("\n===== 扫描摘要 / scan summary =====")
-    print("  文件 / files          : %d 处理成功, %d 失败（详见 file_inventory.csv 的 error 列）"
+    print("  发现文件 / discovered : %d（归属核验 ok+failed+non_data = %d，%s）"
+          % (files["total"], accounted,
+             "一致 / matches" if accounted == files["total"] else "**不一致 / MISMATCH**"))
+    print("  命名三类 / name class : %s"
+          % ", ".join("%s=%d" % (c, classes.get(c, 0))
+                      for c in ("dashed_data", "dashed_plain", "unmatched")))
+    print("  数据文件 / data files : %d 处理成功, %d 失败（超大/无有效行/读错误）"
           % (files["ok"], files["failed"]))
+    print("  非数据文件 / non-data : %d（空文件/说明文件/压缩包/二进制；见 unmatched_files.csv）"
+          % files["non_data"])
     print("  数据行 / data rows    : %d 解析成功, %d 畸形跳过, %d 值不可解析"
           % (files["rows_parsed"], files["rows_malformed"], files["rows_bad_value"]))
+    print("  字节 / bytes          : 总计 %.3f GB（数据 %.3f GB + 非数据 %.3f GB）"
+          % (files["bytes_total"] / 1073741824.0, files["bytes_data"] / 1073741824.0,
+             files["bytes_non_data"] / 1073741824.0))
     print("  缓存命中 / cache hits : %d / %d" % (n_cached, len(tasks)))
     print("  用时 / elapsed        : %.1f s (%.2f min)" % (elapsed, elapsed / 60.0))
     print("  峰值内存 / peak RSS   : 主进程 %.0f MB, 单子进程最大 %.0f MB, 估计总计 %.0f MB"
           % (self_peak, child_peak, self_peak + child_peak * workers))
-    print("  产出 / outputs        : %s, %s" % (inv_path, agg_path))
+    print("  产出 / outputs        : %s, %s, %s" % (inv_path, unmatched_path, agg_path))
     print("\n下一步 / next: python3 eda/report_gen.py --output-dir %s" % out_dir)
     return 0
 

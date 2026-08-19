@@ -61,6 +61,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="产出目录（同时是 aggregate.json 的默认位置）/ output directory")
     p.add_argument("--aggregate", default=None,
                    help="聚合文件路径，默认 <output-dir>/aggregate.json / aggregate file path")
+    p.add_argument("--baseline", default=None,
+                   help="首轮 aggregate.json 作基线，生成补丁 §7.3 关键指标差异表（可选）"
+                        " / a prior aggregate.json as baseline for the patch §7.3 diff table")
     return p
 
 
@@ -101,6 +104,22 @@ def main(argv=None) -> int:
     if run.get("limit"):
         print("[提示 / note] 本聚合来自 --limit %s 的子集运行，报告结论仅对该子集有效。"
               % run["limit"])
+
+    # 补丁 01：若提供基线聚合，计算关键指标差异并注入 agg["_diff"]（供报告 §7.3）。
+    # Patch 01: if a baseline aggregate is given, compute the metric diff for report §7.3.
+    if args.baseline:
+        base_path = os.path.abspath(os.path.expanduser(args.baseline))
+        try:
+            with open(base_path, encoding="utf-8") as fh:
+                base_agg = json.load(fh)
+            diff = report.diff_digests(report.metrics_digest(base_agg),
+                                       report.metrics_digest(agg),
+                                       os.path.basename(base_path))
+            agg["_diff"] = diff
+            print("[基线 / baseline] 差异项 %d 个 / %d changed metric(s)" % (len(diff["rows"]), len(diff["rows"])))
+        except Exception as exc:  # noqa: BLE001
+            print("[警告 / warning] 基线聚合无法用于差异对照，已跳过 §7.3 差异表 / baseline unusable: %s: %s"
+                  % (type(exc).__name__, exc), file=sys.stderr)
 
     print("[1/6] 卷积聚合视角 / rolling up aggregate views")
     by_ds, by_ds_hist, by_ms_hist, by_s_hist, by_mds = report._roll_up(agg)
