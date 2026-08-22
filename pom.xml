@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  iot-anomaly-detection —— IoT/PMU 流式异常检测系统 Maven 基座
+  IoT/PMU streaming anomaly-detection system — Maven base POM
+  ============================================================================
+  说明 / Notes（ENV 阶段 DEV-D9）:
+    - 本 POM 自 FA-iForest-master fork（groupId 同为 com.leejean）。
+      Forked from FA-iForest-master (same groupId com.leejean).
+    - 相对旧 POM 的改动仅两类 / only two kinds of change vs the old POM:
+        (a) 坐标改名 / coordinates renamed:
+              artifactId  FA-iForest → iot-anomaly-detection
+        (b) 裁剪 flink-table / flink-avro 依赖（本项目不用 Table API / Avro）
+              trimmed the flink-table-* and flink-avro dependencies (unused here).
+    - 保留项（资产清单，勿动）/ preserved assets (do not touch):
+        Smile 的 Kotlin 全排除、dependencyManagement 钉版、maven-shade 配置、
+        log4j2 / JUnit5 / Guava / Jackson。
+        Smile's blanket Kotlin exclusion, the dependencyManagement version pins,
+        the maven-shade configuration, and log4j2 / JUnit5 / Guava / Jackson.
+    - 版本严格对齐集群 / versions strictly aligned with the cluster:
+        Flink 1.13.6 (Scala 2.12) + Kafka 2.6.3 + JDK 8。
+    - 本阶段 src/ 为空包架子，无业务代码；`mvn clean package` 应产出
+      iot-anomaly-detection-1.0-SNAPSHOT.jar（shade 链路自证，jar 内无业务类属正常）。
+      This stage ships an empty source skeleton; `mvn clean package` must still produce
+      iot-anomaly-detection-1.0-SNAPSHOT.jar (a jar with no business classes is expected).
+  ============================================================================
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.leejean</groupId>
+    <artifactId>iot-anomaly-detection</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+
+    <properties>
+        <flink.version>1.13.6</flink.version>
+        <scala.binary.version>2.12</scala.binary.version>
+        <java.version>1.8</java.version>
+        <kafka.version>2.6.3</kafka.version>
+        <kotlin.version>1.4.32</kotlin.version>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <!-- 强制指定 Kotlin 版本，解决版本冲突 / pin Kotlin to resolve version conflicts -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-stdlib</artifactId>
+                <version>${kotlin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-stdlib-common</artifactId>
+                <version>${kotlin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-stdlib-jdk7</artifactId>
+                <version>${kotlin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-stdlib-jdk8</artifactId>
+                <version>${kotlin.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-reflect</artifactId>
+                <version>${kotlin.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+
+        <!-- =========================== Flink 核心 / Flink core =========================== -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-java</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-clients_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+        <!-- 本地 Web UI / local web dashboard (harmless on cluster, useful for local runs) -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-runtime-web_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+
+        <!-- 裁剪说明 / TRIMMED (ENV 阶段 DEV-D9): 本项目不使用 Flink Table API 与 Avro，
+             故移除 flink-table-api-java、flink-table-api-java-bridge、flink-table-planner-blink、
+             flink-avro。M1 若确需可在此重新引入。
+             This project uses neither the Flink Table API nor Avro, so the four artifacts above
+             were removed. M1 may re-add them here if genuinely required. -->
+
+        <!-- =========================== 机器学习 / ML libraries =========================== -->
+        <!-- smile-core 2.6.0：排除全部 Kotlin 依赖（与 dependencyManagement 钉版配套） -->
+        <dependency>
+            <groupId>com.github.haifengl</groupId>
+            <artifactId>smile-core</artifactId>
+            <version>2.6.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jetbrains.kotlin</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.edwardraff</groupId>
+            <artifactId>JSAT</artifactId>
+            <version>0.0.9</version>
+        </dependency>
+
+        <!-- =========================== Kafka connector =========================== -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <version>${kafka.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jetbrains.kotlin</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-connector-kafka_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jetbrains.kotlin</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- =========================== JSON =========================== -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.13.5</version>
+        </dependency>
+
+        <!-- =========================== 日志 / Logging (log4j2, 与 log4j2.properties 配套) === -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <version>2.17.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>2.17.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.17.2</version>
+        </dependency>
+
+        <!-- =========================== 工具 / Utilities =========================== -->
+        <!-- Google Guava (RateLimiter 限流器等) -->
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>32.1.2-jre</version>
+        </dependency>
+
+        <!-- =========================== 测试 / Testing =========================== -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.9.3</version>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.22.2</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.4.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>reference.conf</resource>
+                                </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

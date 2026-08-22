@@ -1,6 +1,12 @@
 # ==========================================
 # 1. 用户自定义屏蔽 (Custom)
 # ==========================================
+# 部署环境变量：含真实节点 IP / SSH 用户 / 密钥路径，属机器本地配置，不入公开仓库。
+# Deployment env file: real node IPs / SSH user / key path — machine-local, never committed
+# to this public repo. 用 deploy/env.example 作模板，本地 `cp env.example .env` 后填真实值。
+# Use deploy/env.example as the template; locally `cp env.example .env` and fill in real values.
+.env
+deploy/.env
 
 # ==========================================
 # 2. Maven 编译与临时文件 (Maven)
