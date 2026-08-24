@@ -104,13 +104,39 @@ record PASS "ssh 连通 master（$SSH_USER@${MASTER_SSH}）/ ssh to master OK"
 # ---------------------------------------------------------------------------
 section "步骤 1 / Step 1: Broker 与版本自证 / brokers and versions"
 # ---------------------------------------------------------------------------
-ZK_IDS="$(zkcmd zookeeper-shell localhost:2181 ls /brokers/ids 2>/dev/null | grep -E '^\[' | tail -1)"
-echo "  /brokers/ids = ${ZK_IDS:-<empty>}"
-echo "$ZK_IDS" > "$TMP/zk_ids.txt"
-if echo "$ZK_IDS" | grep -qE '\b1\b' && echo "$ZK_IDS" | grep -qE '\b2\b' && echo "$ZK_IDS" | grep -qE '\b3\b'; then
-    record PASS "ZK /brokers/ids 含 [1,2,3] / three brokers alive"
+# Broker 存活判定 / broker-liveness check —— 采用双证据，任一成立即通过：
+#   (1) 权威口径 / authoritative: Kafka 自身视角 `kafka-broker-api-versions.sh` 列出的 broker id；
+#   (2) ZK 口径 / ZK view: `zookeeper-shell ls /brokers/ids`（保留以对齐交接文档 §6.1）。
+# 只有两条口径都拿不到 3 个 broker 时才判 FAIL——避免 ZK 容器命名/输出流差异造成假阴性
+# （上一版 `docker exec zookeeper` + `2>/dev/null` 在旧集群上返回空，却与 topic 的 RF=2/ISR
+#  跨 3 broker 事实矛盾，属工具假阴性，非集群问题）。
+# Two independent evidences; PASS if either shows three brokers. Guards against a ZK-shell
+# container-name / output-stream quirk producing a false negative.
+
+# --- 口径 1：Kafka 自身（在 kafka-1 容器内，已证可用）/ evidence 1: Kafka's own view ---
+BROKER_API="$(kcmd kafka-broker-api-versions.sh --bootstrap-server "$BROKERS" 2>/dev/null)"
+KAFKA_IDS="$(echo "$BROKER_API" | grep -oE 'id: *[0-9]+' | grep -oE '[0-9]+' | sort -un | tr '\n' ' ')"
+KAFKA_CNT="$(echo "$KAFKA_IDS" | wc -w | tr -d ' ')"
+
+# --- 口径 2：ZooKeeper（自动探测 ZK 容器名，合并 stdout+stderr 便于留证）/ evidence 2: ZK ---
+ZK_CONTAINER="$(on_master "docker ps --format '{{.Names}}'" 2>/dev/null | grep -iE 'zoo' | head -1)"
+ZK_RAW=""
+if [[ -n "$ZK_CONTAINER" ]]; then
+    ZK_RAW="$(on_master "docker exec $ZK_CONTAINER zookeeper-shell localhost:2181 ls /brokers/ids" 2>&1 || true)"
+fi
+ZK_IDS="$(echo "$ZK_RAW" | grep -oE '\[[0-9, ]+\]' | tail -1)"
+{ echo "== kafka-broker-api-versions (ids: $KAFKA_IDS) =="; echo "$BROKER_API";
+  echo "== zk container: ${ZK_CONTAINER:-<not found>} =="; echo "$ZK_RAW"; } > "$TMP/zk_ids.txt"
+echo "  Kafka broker ids = {${KAFKA_IDS}}（$KAFKA_CNT 个）; ZK /brokers/ids = ${ZK_IDS:-<empty>} (container=${ZK_CONTAINER:-none})"
+
+zk_ok=1
+for b in 1 2 3; do echo "$ZK_IDS" | grep -qE "\b$b\b" || zk_ok=0; done
+if [[ "$KAFKA_CNT" -ge 3 ]]; then
+    record PASS "3 broker 存活（Kafka 口径 ids={${KAFKA_IDS}}$( [[ "$zk_ok" == 1 ]] && echo '，ZK 口径一致' || echo '；ZK 口径未取到，见摘录' )）/ three brokers alive"
+elif [[ "$zk_ok" == 1 ]]; then
+    record PASS "3 broker 存活（ZK 口径 ${ZK_IDS}；Kafka 口径仅 ${KAFKA_CNT}，见摘录）/ three brokers alive (ZK)"
 else
-    record FAIL "ZK /brokers/ids 未见 [1,2,3]（实测 ${ZK_IDS:-空}）—— 与 §2 前置事实不符，须上报"
+    record FAIL "未能确认 3 broker 存活（Kafka ids={${KAFKA_IDS}}, ZK=${ZK_IDS:-空}）—— 与 §2 不符，须上报"
 fi
 
 FLINK_CFG="$(mcurl "$REST/config" 2>/dev/null)"
@@ -278,7 +304,8 @@ section "生成验收报告 / writing acceptance report -> docs/env_acceptance.m
     echo ""
     echo "## 原始输出摘录 / Raw output excerpts"
     echo ""
-    echo "### ZK /brokers/ids"; echo '```'; cat "$TMP/zk_ids.txt" 2>/dev/null; echo '```'
+    echo "### Broker 存活（Kafka 口径 + ZK 口径）/ broker liveness (Kafka + ZK views)"
+    echo '```'; cat "$TMP/zk_ids.txt" 2>/dev/null; echo '```'
     echo "### Flink /taskmanagers"; echo '```json'; head -c 1200 "$TMP/taskmanagers.json" 2>/dev/null; echo; echo '```'
     echo "### Flink /jobs"; echo '```json'; cat "$TMP/jobs.json" 2>/dev/null; echo; echo '```'
     echo "### $SRC_TOPIC --describe"; echo '```'; cat "$TMP/source_describe.txt" 2>/dev/null; echo '```'
