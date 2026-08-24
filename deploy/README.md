@@ -67,6 +67,42 @@ bash deploy/scripts/syn-clean-topics.sh
   与 `FA-iForest-*` 区分（旧 jobmanager 容器已固化挂载该目录，DEV-D8 禁止重建容器）。
 - **不 rebuild / 不重命名镜像容器，不改旧 compose 与旧脚本，不 cancel 旧 job**（验收只读）。
 
+## M1 阶段流程 / M1-stage flow
+
+M1 交付：数据供给端 `CsvKafkaReplayer` + 管线头 `M1Job`（source→解析→采样轮装配→RobustScaler
+归一化→原始缓存→监测/验收 sink）+ 库类 `RoundWindow`。运行顺序（先提交作业再重放）：
+
+```bash
+# 0) 清 ENV 冒烟残留 + 建 M1 topic（synergia-scores/-monitoring/-m1-out 已在 env.example）
+bash deploy/scripts/syn-clean-topics.sh --yes
+bash deploy/scripts/syn-create-topics.sh
+
+# 1) 打包 + 上传 jar 与数据集（数据集约 2.3GB，首次）
+mvn clean package
+bash deploy/scripts/syn-upload-m1.sh --data-dir /path/to/local/files_csv
+
+# 2) 先提交 Flink 作业（earliest 起始）
+bash deploy/scripts/syn-submit-m1.sh
+
+# 3) 再前台重放（单日对账 / 全量压力 / 干跑）
+bash deploy/scripts/syn-replay.sh --speedup 600 --start 2022-05-21 --end 2022-05-22
+bash deploy/scripts/syn-replay.sh --speedup 3600
+bash deploy/scripts/syn-replay.sh --dry-run
+
+# 验收：见 docs/m1_acceptance.md（V-M1-1..5，操作者在集群上填结果）
+```
+
+M1 相关脚本：`syn-upload-m1.sh`（传 jar+数据集）、`syn-submit-m1.sh`（提交作业）、
+`syn-replay.sh`（前台重放，docker run 临时容器，继承 5-load-data.sh 模式）、
+`m1_pivot_check.py`（V-M1-3 装配抽检）。
+
+**须交回设计会话确认的实现取舍 / implementation choices to confirm with the design session**：
+- **冷启动阈值**：RawCache 的「缺席超过缓存深度」量化为 事件时间间隔 > `cache-depth × nominal-period`
+  （默认 1000 × 10s）。若设计意图不同请指正（RawCacheFunction 注释已标注）。
+- **畸形归属**：有 device 但时间/数值不可解析的行归入该设备的畸形计数（折入下一轮）；完全无 device 的
+  行只进全局 Flink 指标（RawLineParser 注释已标注）。
+- 以上及任何与交接文档数据事实冲突的实测，按 §7 如实交回，不自行改写方案。
+
 ## 分区映射预告 / partition-mapping note (for M1)
 
 Kafka 默认按 `hash(key) % partitions` 分区，8 个 DeviceId（A–H）经哈希可能碰撞（两设备同分区、

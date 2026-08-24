@@ -118,16 +118,16 @@ BROKER_API="$(kcmd kafka-broker-api-versions.sh --bootstrap-server "$BROKERS" 2>
 KAFKA_IDS="$(echo "$BROKER_API" | grep -oE 'id: *[0-9]+' | grep -oE '[0-9]+' | sort -un | tr '\n' ' ')"
 KAFKA_CNT="$(echo "$KAFKA_IDS" | wc -w | tr -d ' ')"
 
-# --- 口径 2：ZooKeeper（自动探测 ZK 容器名，合并 stdout+stderr 便于留证）/ evidence 2: ZK ---
-ZK_CONTAINER="$(on_master "docker ps --format '{{.Names}}'" 2>/dev/null | grep -iE 'zoo' | head -1)"
-ZK_RAW=""
-if [[ -n "$ZK_CONTAINER" ]]; then
-    ZK_RAW="$(on_master "docker exec $ZK_CONTAINER zookeeper-shell localhost:2181 ls /brokers/ids" 2>&1 || true)"
-fi
+# --- 口径 2：ZooKeeper（M1 §2.3 指定的修正）/ evidence 2: ZK (fix per M1 handover §2.3) ---
+# zookeeper-shell 把结果写到 stderr，故必须 2>&1（原版 2>/dev/null 会吞掉输出返回空）。
+# 在 kafka-1 容器内调 zookeeper-shell.sh 连 master:2181（该镜像已带 kafka 脚本，比依赖
+# 单独的 zk 容器名更稳）。/ zookeeper-shell writes to stderr, so 2>&1 is required; run it from
+# kafka-1 (which ships the kafka CLI) against master:2181.
+ZK_RAW="$(kcmd zookeeper-shell.sh "$NODE_MASTER_IP:2181" ls /brokers/ids 2>&1 || true)"
 ZK_IDS="$(echo "$ZK_RAW" | grep -oE '\[[0-9, ]+\]' | tail -1)"
 { echo "== kafka-broker-api-versions (ids: $KAFKA_IDS) =="; echo "$BROKER_API";
-  echo "== zk container: ${ZK_CONTAINER:-<not found>} =="; echo "$ZK_RAW"; } > "$TMP/zk_ids.txt"
-echo "  Kafka broker ids = {${KAFKA_IDS}}（$KAFKA_CNT 个）; ZK /brokers/ids = ${ZK_IDS:-<empty>} (container=${ZK_CONTAINER:-none})"
+  echo "== zookeeper-shell.sh $NODE_MASTER_IP:2181 ls /brokers/ids (2>&1) =="; echo "$ZK_RAW"; } > "$TMP/zk_ids.txt"
+echo "  Kafka broker ids = {${KAFKA_IDS}}（$KAFKA_CNT 个）; ZK /brokers/ids = ${ZK_IDS:-<empty>}"
 
 zk_ok=1
 for b in 1 2 3; do echo "$ZK_IDS" | grep -qE "\b$b\b" || zk_ok=0; done
