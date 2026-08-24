@@ -55,7 +55,7 @@ echo "== 2b. 补丁 01：发现完整性 / patch-01 discovery ============="
 find_count=$(find "$DATA" -type f | wc -l | tr -d ' ')
 inv_count=$(( $(wc -l < "$OUT/file_inventory.csv") - 1 ))   # 去表头 / minus header
 [ "$find_count" -eq "$inv_count" ]
-check $? "发现数 = find -type f（$find_count = $inv_count）/ discovery == find count, zero silent skips"
+check $? "发现数 = find -type f（$find_count = ${inv_count}）/ discovery == find count, zero silent skips"
 grep -q "一致 / matches" "$WORK/full.log"
 check $? "归属恒等式 ok+failed+non_data = 发现数 / accounting identity balances"
 [ -s "$OUT/unmatched_files.csv" ]
@@ -152,8 +152,8 @@ check $? "真实样例无畸形行误判 / no false malformed rows on real data"
 
 echo "============================================================"
 if [ "$FAILED" -eq 0 ]; then
-  echo "全部检查通过 / all checks passed（产出目录 / outputs: $WORK）"
+  echo "全部检查通过 / all checks passed（产出目录 / outputs: ${WORK}）"
   exit 0
 fi
-echo "$FAILED 项检查失败 / checks failed（日志与产出保留在 / logs kept in: $WORK）"
+echo "$FAILED 项检查失败 / checks failed（日志与产出保留在 / logs kept in: ${WORK}）"
 exit 1

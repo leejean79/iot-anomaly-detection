@@ -51,6 +51,18 @@ RETENTION="${SYN_RETENTION_MS:-86400000}"
 # 在 master 的 kafka-1 容器内调用 Kafka CLI / run the Kafka CLI inside kafka-1 on master
 kcmd() { ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "docker exec kafka-1 $*"; }
 
+# 连通性预检 / connectivity preflight: ssh 不通时立即给出可操作的报错，而非逐条超时。
+# Fail fast with an actionable message instead of per-command timeouts.
+if [[ "$NODE_MASTER_IP" == "172.16.0.11" ]]; then
+    echo "警告 / WARNING: NODE_MASTER_IP=172.16.0.11 是 env.example 的占位值——.env 可能未填真实 IP。"
+fi
+if ! ssh $SSH_OPTS -o BatchMode=yes "$SSH_USER@$MASTER_SSH" true 2>/dev/null; then
+    echo "FATAL: 无法 ssh 到 master（$SSH_USER@${MASTER_SSH}）。/ cannot ssh to master." >&2
+    echo "  检查 deploy/.env 的 NODE_*IP / SSH_KEY 是否为真实值（env.example 的 172.16.0.11/12/13" >&2
+    echo "  为占位符），公网 IP 过期可跑 bash deploy/scripts/refresh-ips.sh 刷新。" >&2
+    exit 2
+fi
+
 # ---------------------------------------------------------------------------
 # 构造待建 topic 清单：source / smoke / SYN_EXTRA_TOPICS（"name:partitions" 逗号分隔）
 # Build the topic list: source / smoke / SYN_EXTRA_TOPICS ("name:partitions", comma-sep)

@@ -80,6 +80,28 @@ echo "# master=$MASTER_SSH  REST=$REST"
 echo "############################################################"
 
 # ---------------------------------------------------------------------------
+section "步骤 0 / Step 0: 连通性预检 / connectivity preflight"
+# ---------------------------------------------------------------------------
+# 先证明 ssh 能到 master，再往下跑——否则后面每一步都各自超时刷 FAIL，浪费时间且误导。
+# Prove ssh reaches master before anything else; otherwise every later step just times out.
+if [[ "$NODE_MASTER_IP" == "172.16.0.11" ]]; then
+    echo "  警告 / WARNING: NODE_MASTER_IP=172.16.0.11 与 env.example 的占位值相同——"
+    echo "  deploy/.env 很可能还没填真实集群 IP。/ .env still carries the template placeholder IP."
+fi
+if ! ssh $SSH_OPTS -o BatchMode=yes "$SSH_USER@$MASTER_SSH" true 2>/dev/null; then
+    echo ""
+    echo "FATAL: 无法 ssh 到 master（$SSH_USER@${MASTER_SSH}）。/ cannot ssh to master." >&2
+    echo "  排查 / troubleshoot:" >&2
+    echo "    1) deploy/.env 是否已从 env.example 复制并填入**真实**节点 IP" >&2
+    echo "       （env.example 里的 172.16.0.11/12/13 是占位值；同一集群可直接复用旧仓库" >&2
+    echo "         FA-iForest-master/deploy/.env 的 NODE_* / SSH_* 取值）；" >&2
+    echo "    2) 公网 IP 是否过期（实例重启会换）—— bash deploy/scripts/refresh-ips.sh；" >&2
+    echo "    3) SSH_KEY 路径是否正确、权限是否 600。" >&2
+    exit 2
+fi
+record PASS "ssh 连通 master（$SSH_USER@${MASTER_SSH}）/ ssh to master OK"
+
+# ---------------------------------------------------------------------------
 section "步骤 1 / Step 1: Broker 与版本自证 / brokers and versions"
 # ---------------------------------------------------------------------------
 ZK_IDS="$(zkcmd zookeeper-shell localhost:2181 ls /brokers/ids 2>/dev/null | grep -E '^\[' | tail -1)"
@@ -107,13 +129,13 @@ echo "  TM 数=$TM_CNT, slots 合计=$SLOT_SUM"
 if [[ "$TM_CNT" == "2" && "$SLOT_SUM" == "8" ]]; then
     record PASS "2 TaskManager / 共 8 slots"
 else
-    record FAIL "TM/slots 非 2/8（实测 TM=$TM_CNT, slots=$SLOT_SUM）"
+    record FAIL "TM/slots 非 2/8（实测 TM=$TM_CNT, slots=${SLOT_SUM}）"
 fi
 
 JOBS_JSON="$(mcurl "$REST/jobs" 2>/dev/null)"
 echo "$JOBS_JSON" > "$TMP/jobs.json"
 RUNNING="$(echo "$JOBS_JSON" | grep -oE '"status":"RUNNING"' | wc -l | tr -d ' ')"
-echo "  当前 job（RUNNING 计数=$RUNNING）: $JOBS_JSON"
+echo "  当前 job（RUNNING 计数=${RUNNING}）: $JOBS_JSON"
 if [[ "$RUNNING" == "0" ]]; then
     record PASS "无 RUNNING 残留 job / no lingering RUNNING job"
 else
@@ -135,7 +157,7 @@ echo "  partitions=$cur_p, RF=$cur_rf, leader brokers={$leaders}"
 if [[ "$cur_p" == "$SRC_PARTS" && "$cur_rf" == "$RF" ]]; then
     record PASS "$SRC_TOPIC = $SRC_PARTS 分区 / RF=$RF"
 else
-    record FAIL "$SRC_TOPIC 参数不符（实测 partitions=$cur_p, RF=$cur_rf）"
+    record FAIL "$SRC_TOPIC 参数不符（实测 partitions=$cur_p, RF=${cur_rf}）"
 fi
 if [[ "$n_leaders" -ge 3 ]]; then
     record PASS "leader 分布覆盖 3 个 broker / leaders spread over 3 brokers"
@@ -188,7 +210,7 @@ done
 [[ "$ORDER_OK" == 1 ]] && record PASS "分区内按 key 序号有序 / in-partition order preserved" \
     || record FAIL "分区内序号非单调 / out-of-order within a partition"
 USED_PARTS="$(wc -l < "$MAP_FILE" | tr -d ' ')"
-record PASS "实际占用分区数 = $USED_PARTS / $SRC_PARTS（哈希碰撞属正常，映射见报告）"
+record PASS "实际占用分区数 = $USED_PARTS / ${SRC_PARTS}（哈希碰撞属正常，映射见报告）"
 
 # ---------------------------------------------------------------------------
 section "步骤 4 / Step 4: Flink 调度冒烟 / scheduling smoke (WordCount example)"
@@ -213,9 +235,9 @@ if [[ -n "$PROM_TARGETS" ]]; then
     DOWN_CNT="$(echo "$PROM_TARGETS" | grep -oE '"health":"down"' | wc -l | tr -d ' ')"
     echo "  targets up=$UP_CNT, down=$DOWN_CNT (期望 up≥6: JM×1 + TM×2 + node×3)"
     if [[ "$UP_CNT" -ge 6 && "$DOWN_CNT" == 0 ]]; then
-        record PASS "Prometheus targets 全绿（up=$UP_CNT）/ all targets up"
+        record PASS "Prometheus targets 全绿（up=${UP_CNT}）/ all targets up"
     else
-        record FAIL "Prometheus 存在 down 或 up 不足（up=$UP_CNT, down=$DOWN_CNT）"
+        record FAIL "Prometheus 存在 down 或 up 不足（up=$UP_CNT, down=${DOWN_CNT}）"
     fi
 else
     record FAIL "Prometheus /targets 无响应（监控未起或端口不通）—— 可选项，按需排查"
