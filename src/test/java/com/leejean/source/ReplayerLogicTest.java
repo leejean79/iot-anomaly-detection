@@ -1,7 +1,12 @@
 package com.leejean.source;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -72,6 +77,37 @@ class ReplayerLogicTest {
         merger.offer(file2);
         merger.flush();
         assertEquals(java.util.Arrays.asList(100L, 150L, 180L), emitted);
+    }
+
+    @Test
+    void discoveryClassifiesCsvSniffedAndNonData(@TempDir Path dir) throws IOException {
+        // .csv 命名数据文件 / csv-named data file
+        Files.write(dir.resolve("2022_02_11_13-45-52_data.csv"),
+                "1644587152,A,Temperature,22.5\n".getBytes(StandardCharsets.UTF_8));
+        // 非 .csv 命名但内容为数据（EDA 补丁 01 现象）/ non-.csv name, content is data
+        Files.write(dir.resolve("2022_02_11_134552_data"),
+                "1644587153,B,Humidity,45.0\n".getBytes(StandardCharsets.UTF_8));
+        // 非数据文件 / non-data files
+        Files.write(dir.resolve("README.txt"),
+                "this is prose, not data\n".getBytes(StandardCharsets.UTF_8));
+        Files.write(dir.resolve("notes.json"),
+                "{\"k\":1}\n".getBytes(StandardCharsets.UTF_8));
+
+        // 默认（非 strict）：应纳入 .csv 命名 + 内容嗅探数据，跳过非数据。
+        CsvKafkaReplayer.Stats stats = new CsvKafkaReplayer.Stats();
+        List<CsvKafkaReplayer.FileEntry> files = CsvKafkaReplayer.discoverFiles(dir, stats, false);
+        assertEquals(2, files.size(), "csv-named + sniffed data included");
+        assertEquals(1, stats.namedDataFiles);
+        assertEquals(1, stats.sniffedDataFiles, "non-.csv data file must not be silently dropped");
+        assertEquals(2, stats.skippedNonData, "README.txt + notes.json are non-data");
+
+        // strict：只取 .csv 命名，其余全部计入 skippedNonData。
+        CsvKafkaReplayer.Stats strict = new CsvKafkaReplayer.Stats();
+        List<CsvKafkaReplayer.FileEntry> strictFiles = CsvKafkaReplayer.discoverFiles(dir, strict, true);
+        assertEquals(1, strictFiles.size());
+        assertEquals(1, strict.namedDataFiles);
+        assertEquals(0, strict.sniffedDataFiles);
+        assertEquals(3, strict.skippedNonData);
     }
 
     @Test

@@ -58,6 +58,15 @@ docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell \
 | difference & explanation (known gaps) | _paste_ |
 | **verdict** | _PASS / FAIL_ |
 
+> **File-discovery reconciliation (important).** The replayer now prints a discovery breakdown:
+> `[discover] csv-named data files: N ; sniffed non-.csv data files: M ; skipped non-data files: K`.
+> The EDA patch-01 established the dataset has **3747** files total (vs the 3471 `.csv`-named). Confirm
+> `N + M + K == 3747` and that the `M` sniffed non-`.csv` files (a `[discover][WARN]` lists samples) are
+> genuinely data — the replayer **includes** them by default so no data is silently dropped (use
+> `--strict-csv-names` to restrict to `.csv` names). If `M > 0`, record it as a data-fact confirmation
+> for the design session (handover §7). The earlier run showed `Files found: 3471` because that build
+> silently skipped the 276 non-`.csv` files; this is now surfaced.
+
 ---
 
 ## V-M1-2 — Time semantics

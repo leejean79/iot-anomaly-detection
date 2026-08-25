@@ -74,13 +74,16 @@ public class CsvKafkaReplayer {
         // Valueless flags (--dry-run / --resume) parse to false under getBoolean; use flag() for presence.
         boolean dryRun = flag(params, "dry-run");
         boolean resume = flag(params, "resume");
+        boolean strictNames = flag(params, "strict-csv-names");
         long startSec = parseInstant(params.get("start", ""), Long.MIN_VALUE);
         long endSec = parseInstant(params.get("end", ""), Long.MAX_VALUE);
 
         Path dir = Paths.get(dataDir);
-        Path offsetPath = dir.resolve(OFFSET_FILE);
+        // offset 文件可覆写到可写路径（容器内挂载目录可能只读/属主不符）/ offset path is overridable
+        Path offsetPath = Paths.get(params.get("offset-file", dir.resolve(OFFSET_FILE).toString()));
 
-        List<FileEntry> files = discoverFiles(dir);
+        Stats stats = new Stats();
+        List<FileEntry> files = discoverFiles(dir, stats, strictNames);
         long[] resumeState = resume ? loadOffset(offsetPath) : new long[]{-1L, -1L};
 
         System.out.println("========================================");
@@ -93,7 +96,10 @@ public class CsvKafkaReplayer {
         System.out.println("Partitions:    " + numPartitions + " (explicit A->0..H->7)");
         System.out.println("Segment:       [" + (startSec == Long.MIN_VALUE ? "-inf" : startSec)
                 + ", " + (endSec == Long.MAX_VALUE ? "+inf" : endSec) + "] (epoch seconds)");
-        System.out.println("Files found:   " + files.size());
+        System.out.println("Data files:    " + files.size()
+                + " (csv-named=" + stats.namedDataFiles + ", sniffed non-.csv=" + stats.sniffedDataFiles
+                + ", skipped non-data=" + stats.skippedNonData + ")");
+        System.out.println("Strict names:  " + strictNames);
         System.out.println("Mode:          " + (dryRun ? "DRY-RUN (no produce)" : "PRODUCE")
                 + (resume ? " / RESUME from fileIdx=" + resumeState[0] + " line=" + resumeState[1] : ""));
         System.out.println("========================================");
@@ -103,7 +109,6 @@ public class CsvKafkaReplayer {
                 : new KafkaSink(brokers, topic, numPartitions);
 
         Pacer pacer = new Pacer(speedup, maxIdleWallMs, dryRun);
-        Stats stats = new Stats();
 
         try {
             GlobalMerger merger = new GlobalMerger(CARRY_OVER_SEC, row -> {
@@ -144,7 +149,9 @@ public class CsvKafkaReplayer {
         System.out.println("========================================");
         System.out.println("Finished. Produced:        " + stats.produced);
         System.out.println("Skipped malformed lines:   " + stats.malformedLines);
-        System.out.println("Skipped non-data files:    " + stats.skippedFiles);
+        System.out.println("Data files (csv/sniffed):  " + stats.namedDataFiles + " / " + stats.sniffedDataFiles);
+        System.out.println("Skipped non-data files:    " + stats.skippedNonData);
+        System.out.println("File read errors:          " + stats.skippedFiles);
         System.out.println("Unknown-device records:    " + stats.unknownDevice);
         System.out.println("Idle-compression events:   " + pacer.compressionEvents);
         System.out.println("Total compressed wall:     " + pacer.totalCompressedMs + " ms");
@@ -155,29 +162,127 @@ public class CsvKafkaReplayer {
     // 文件发现与解析 / file discovery and parsing
     // ------------------------------------------------------------------
 
-    /** 一个待重放文件及其文件名时间（仅排序用）/ a file plus its filename time (ordering only). */
+    /** 一个待重放文件及其排序键 / a file plus its ordering key. */
     static final class FileEntry {
         final Path path;
-        final long nameTs;   // 文件名时间（epoch 秒），无法解析为 Long.MAX / filename time, or MAX if unparsable
-        FileEntry(Path path, long nameTs) {
+        final long orderKey;   // 文件名时间；内容嗅探数据文件用首行时间 / filename time, or first-row time for sniffed data
+        final boolean sniffed; // true=非 .csv 命名但内容为数据 / non-.csv-named but content is data
+        FileEntry(Path path, long orderKey, boolean sniffed) {
             this.path = path;
-            this.nameTs = nameTs;
+            this.orderKey = orderKey;
+            this.sniffed = sniffed;
         }
     }
 
     /**
-     * 发现 data-dir 下的 CSV 数据文件，按文件名时间排序；非 CSV 命名的文件跳过。
-     * Discover CSV data files under data-dir, ordered by filename time; non-CSV-named files skipped.
+     * 发现 data-dir 下的数据文件，按时间排序；**无声跳过是 EDA 阶段的教训禁区**。
+     * Discover data files under data-dir, ordered by time. Silent skipping is the EDA-stage lesson to avoid.
+     *
+     * <p>三类归属并逐类计数 / three classes, each counted:
+     * <ul>
+     *   <li>CSV 命名数据文件（两种模式 + 紧凑变体）/ CSV-named data files (two patterns + compact variant);</li>
+     *   <li>非 .csv 命名但**内容为四列 schema** 的数据文件——默认**照常纳入并告警**（EDA 补丁 01 已证
+     *       非 .csv 扩展名的数据文件存在，静默丢弃会造成数据损失）；`--strict-csv-names` 可只取 .csv 命名；
+     *       non-.csv-named files whose content matches the 4-col schema — included by default WITH A WARNING
+     *       (EDA patch 01 proved such files exist; dropping them silently loses data); `--strict-csv-names`
+     *       restricts discovery to .csv-named files;</li>
+     *   <li>非数据文件（说明/压缩包/二进制）——计数并报告样例 / non-data files, counted with sample names.</li>
+     * </ul>
      */
-    static List<FileEntry> discoverFiles(Path dir) throws IOException {
+    static List<FileEntry> discoverFiles(Path dir, Stats stats, boolean strictNames) throws IOException {
+        List<FileEntry> out = new ArrayList<>();
+        List<String> nonDataSamples = new ArrayList<>();
+        List<String> sniffedSamples = new ArrayList<>();
+        List<Path> all;
         try (Stream<Path> walk = Files.walk(dir)) {
-            return walk.filter(Files::isRegularFile)
-                    .map(p -> new FileEntry(p, parseFilenameTime(p.getFileName().toString())))
-                    .filter(fe -> fe.nameTs != Long.MAX_VALUE)   // 只收可解析为数据文件名者 / data-named only
-                    .sorted(Comparator.comparingLong((FileEntry fe) -> fe.nameTs)
-                            .thenComparing(fe -> fe.path.toString()))
-                    .collect(Collectors.toList());
+            all = walk.filter(Files::isRegularFile).collect(Collectors.toList());
         }
+        for (Path p : all) {
+            String name = p.getFileName().toString();
+            if (name.startsWith(".")) {
+                continue;   // 跳过隐藏/状态文件（如 .replayer.offset）/ skip hidden/state files
+            }
+            long nameTs = parseFilenameTime(name);
+            if (nameTs != Long.MAX_VALUE) {
+                out.add(new FileEntry(p, nameTs, false));
+                stats.namedDataFiles++;
+                continue;
+            }
+            if (strictNames) {
+                stats.skippedNonData++;
+                if (nonDataSamples.size() < 5) {
+                    nonDataSamples.add(name);
+                }
+                continue;
+            }
+            // 非 .csv 命名 → 内容嗅探首行时间 / non-.csv name → sniff first-row time
+            long firstTs = sniffFirstRowTs(p);
+            if (firstTs != Long.MAX_VALUE) {
+                out.add(new FileEntry(p, firstTs, true));
+                stats.sniffedDataFiles++;
+                if (sniffedSamples.size() < 10) {
+                    sniffedSamples.add(name);
+                }
+            } else {
+                stats.skippedNonData++;
+                if (nonDataSamples.size() < 5) {
+                    nonDataSamples.add(name);
+                }
+            }
+        }
+        out.sort(Comparator.comparingLong((FileEntry fe) -> fe.orderKey)
+                .thenComparing(fe -> fe.path.toString()));
+
+        // 逐类计数与告警（"零静默跳过"）/ per-class counts and warnings ("zero silent skips")
+        System.out.println("[discover] csv-named data files: " + stats.namedDataFiles
+                + " ; sniffed non-.csv data files: " + stats.sniffedDataFiles
+                + " ; skipped non-data files: " + stats.skippedNonData);
+        if (stats.sniffedDataFiles > 0) {
+            System.out.println("[discover][WARN] 发现 " + stats.sniffedDataFiles
+                    + " 个非 .csv 命名但内容为数据的文件，已纳入重放（EDA 补丁 01 现象）；样例="
+                    + sniffedSamples + " ；如需只取 .csv 命名请加 --strict-csv-names。");
+        }
+        if (!nonDataSamples.isEmpty()) {
+            System.out.println("[discover] non-data sample names: " + nonDataSamples);
+        }
+        return out;
+    }
+
+    /**
+     * 嗅探文件首个非空非表头行的时间字段；像四列数据则返回其 epoch 秒，否则 Long.MAX_VALUE。
+     * Sniff the first non-empty, non-header line: return its epoch-second time if it looks like the
+     * 4-column schema, else Long.MAX_VALUE.
+     */
+    static long sniffFirstRowTs(Path p) {
+        try (BufferedReader r = new BufferedReader(
+                new InputStreamReader(Files.newInputStream(p), StandardCharsets.UTF_8))) {
+            String line;
+            int probed = 0;
+            while ((line = r.readLine()) != null && probed < 5) {
+                if (line.isEmpty()) {
+                    continue;
+                }
+                probed++;
+                String[] f = line.split(",", -1);
+                if (f.length >= 2 && "Time".equalsIgnoreCase(f[0].trim())
+                        && "DeviceId".equalsIgnoreCase(f[1].trim())) {
+                    continue;   // 表头 / header
+                }
+                if (f.length == 4) {
+                    try {
+                        long ts = Long.parseLong(f[0].trim());
+                        Double.parseDouble(f[3].trim());
+                        return ts;   // 四列且时间/数值可解析 → 数据文件 / looks like data
+                    } catch (NumberFormatException ignore) {
+                        return Long.MAX_VALUE;
+                    }
+                }
+                return Long.MAX_VALUE;
+            }
+        } catch (IOException e) {
+            return Long.MAX_VALUE;
+        }
+        return Long.MAX_VALUE;
     }
 
     /** 解析文件名时间为 epoch 秒（UTC，仅排序用）；不匹配返回 Long.MAX_VALUE。 */
@@ -497,7 +602,10 @@ public class CsvKafkaReplayer {
     static final class Stats {
         long produced;
         long malformedLines;
-        long skippedFiles;
+        long skippedFiles;        // loadFile 读失败的文件 / files that failed to read
+        long namedDataFiles;      // .csv 命名数据文件 / csv-named data files
+        long sniffedDataFiles;    // 非 .csv 命名但内容为数据 / non-.csv-named, content is data
+        long skippedNonData;      // 发现阶段判为非数据的文件 / non-data files skipped at discovery
         long unknownDevice;
         int lastFileIdx = -1;
         int lastLineNo = -1;

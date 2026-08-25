@@ -46,14 +46,19 @@ echo "  extra args: $REPLAY_ARGS"
 echo "===================================="
 
 # -t 分配 TTY，保证前台语义（Ctrl-C 可停）；docker run 无 -d 即前台阻塞。
-# 挂载：jars 只读、数据集读写（offset 落盘）；--network host 直连 brokers。
+# 挂载：jars 只读、数据集读写；--network host 直连 brokers。
+# --user root：数据集目录属主为 root，flink 镜像默认用户(uid 9999)无法写入 offset 文件，
+#   故以 root 运行使 .replayer.offset 可落盘（否则 --resume 失效）。offset 另可用 --offset-file 覆写。
+# --user root: the dataset dir is root-owned; the flink image's default user (uid 9999) cannot write
+#   the offset file, so run as root so .replayer.offset persists (else --resume breaks).
 ssh -t $SSH_OPTS "$SSH_USER@$MASTER_SSH" "
-    docker run --rm --network host \
+    docker run --rm --network host --user root \
         -v ${REMOTE_HOME}/jars:/jars:ro \
         -v $DATASET_DIR:/data \
         fa-iforest/flink:${FLINK_VERSION} \
         java -cp /jars/$JAR_NAME $MAIN \
             --data-dir /data \
+            --offset-file /data/.replayer.offset \
             --brokers $BROKERS \
             --topic ${SYN_TOPIC_SOURCE:-synergia-source} \
             --num-partitions ${SYN_SOURCE_PARTITIONS:-8} \
