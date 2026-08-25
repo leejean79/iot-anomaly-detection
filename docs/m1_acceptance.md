@@ -31,9 +31,18 @@ bash deploy/scripts/syn-upload-m1.sh --data-dir /path/to/local/files_csv   # jar
 Runbook order is **submit the job first, then replay** (the job starts from `earliest` by default):
 
 ```bash
-bash deploy/scripts/syn-submit-m1.sh            # submit M1Job, waits for RUNNING
-bash deploy/scripts/syn-replay.sh --speedup 600 --start <day> --end <day>   # foreground replay
+bash deploy/scripts/syn-submit-m1.sh            # submit M1Job (flink run -d, cluster-resident, survives disconnect)
+bash deploy/scripts/syn-replay.sh --speedup 600 --start <day> --end <day>   # replay in a tmux session on master
+bash deploy/scripts/syn-replay.sh status        # progress / recent log
+bash deploy/scripts/syn-replay.sh attach        # watch live (Ctrl+B then D to detach without stopping)
+bash deploy/scripts/syn-replay.sh stop          # stop the replay
 ```
+
+**Disconnect resilience (tmux).** The M1 **job** is detached (`flink run -d`) and lives on the cluster,
+so it survives your Mac disconnecting. The **replayer** is a long-running client process, so
+`syn-replay.sh` runs it inside a tmux session on master (matching FA-iForest's experiment scripts) —
+a Mac disconnect does not interrupt it. The full run (V-M1-5) at k=3600 takes ~1 hour, so use the tmux
+default (not `fg`). Replay output is also teed to `${REMOTE_HOME}/syn-replay.log` for post-hoc review.
 
 ---
 
@@ -150,7 +159,8 @@ size. Give the **DF-12 recovery surge** (the full-cluster outage recovery) its o
 
 ```bash
 bash deploy/scripts/syn-submit-m1.sh
-bash deploy/scripts/syn-replay.sh --speedup 3600
+bash deploy/scripts/syn-replay.sh --speedup 3600     # tmux session on master; ~1 hour wall time
+bash deploy/scripts/syn-replay.sh status             # check periodically; safe to disconnect the Mac
 ```
 
 | item | value |

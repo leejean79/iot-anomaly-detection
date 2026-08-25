@@ -81,19 +81,31 @@ bash deploy/scripts/syn-create-topics.sh
 mvn clean package
 bash deploy/scripts/syn-upload-m1.sh --data-dir /path/to/local/files_csv
 
-# 2) 先提交 Flink 作业（earliest 起始）
+# 2) 先提交 Flink 作业（earliest 起始；flink run -d 分离提交，常驻集群、不惧 Mac 断连）
 bash deploy/scripts/syn-submit-m1.sh
 
-# 3) 再前台重放（单日对账 / 全量压力 / 干跑）
-bash deploy/scripts/syn-replay.sh --speedup 600 --start 2022-05-21 --end 2022-05-22
-bash deploy/scripts/syn-replay.sh --speedup 3600
-bash deploy/scripts/syn-replay.sh --dry-run
+# 3) 再重放数据（默认在 master 的 tmux 会话里跑，Mac 断连不中断）
+bash deploy/scripts/syn-replay.sh --speedup 600 --start 2022-05-21 --end 2022-05-22   # 启动
+bash deploy/scripts/syn-replay.sh status     # 查看进度/最近日志
+bash deploy/scripts/syn-replay.sh attach     # 附着观看（Ctrl+B D 脱离，不停重放）
+bash deploy/scripts/syn-replay.sh stop       # 停止
+bash deploy/scripts/syn-replay.sh fg --dry-run   # 快速干跑（前台阻塞，断连即止）
 
 # 验收：见 docs/m1_acceptance.md（V-M1-1..5，操作者在集群上填结果）
 ```
 
-M1 相关脚本：`syn-upload-m1.sh`（传 jar+数据集）、`syn-submit-m1.sh`（提交作业）、
-`syn-replay.sh`（前台重放，docker run 临时容器，继承 5-load-data.sh 模式）、
+**处理端 vs 数据端（设计逻辑）：** `syn-submit-m1.sh` 提交的是常驻集群的**流处理作业**（处理端，
+`flink run -d` 分离，本身不惧断连）；`syn-replay.sh` 运行的是**数据重放器**（数据端，把数据集按节奏
+灌进 `synergia-source`）。数据流：`syn-replay → synergia-source → M1Job → synergia-m1-out / -monitoring`。
+先提交作业（从 earliest 等待），再重放灌数据。
+
+**抗断连（tmux）：** 数据重放是长时进程（全量约一小时），必须在 master 的 tmux 会话中运行，Mac 断连
+不中断——这与老项目 FA-iForest 的实验脚本一致。`syn-replay.sh` 默认即用 tmux（`start` 隐式），配套
+`attach/status/logs/stop` 子命令；结果同时写入 master 的 `${REMOTE_HOME}/syn-replay.log`，容器被
+`--rm` 清理后仍可回看。处理端作业因是分离提交，无需 tmux。
+
+M1 相关脚本：`syn-upload-m1.sh`（传 jar+数据集）、`syn-submit-m1.sh`（提交作业，分离常驻）、
+`syn-replay.sh`（tmux 常驻重放 + attach/status/logs/stop/fg 子命令）、
 `m1_pivot_check.py`（V-M1-3 装配抽检）。
 
 **须交回设计会话确认的实现取舍 / implementation choices to confirm with the design session**：
