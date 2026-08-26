@@ -40,6 +40,27 @@ BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
 JAR_NAME="${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}"
 MAIN="${SYN_JOB_MAIN:-com.leejean.m1.M1Job}"
 PARALLELISM="${SYN_SOURCE_PARTITIONS:-8}"
+SRC_TOPIC="${SYN_TOPIC_SOURCE:-synergia-source}"
+
+# 分区数预检：确保 synergia-source 已是 8 分区再提交。若 topic 不存在，直接提交会让 Flink 消费者
+# 触发 broker 自动建 topic（默认 1 分区），导致后续重放器按显式分区器发往分区 1-7 全部失败。
+# Partition-count preflight: ensure synergia-source has the expected partitions before submitting, so
+# the Flink consumer cannot auto-create a 1-partition topic (which then breaks the explicit-partition replay).
+SRC_DESC=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" \
+    "docker exec kafka-1 kafka-topics.sh --bootstrap-server $BROKERS --describe --topic $SRC_TOPIC" 2>/dev/null || true)
+ACTUAL_PARTS=$(echo "$SRC_DESC" | grep -oE 'PartitionCount: *[0-9]+' | grep -oE '[0-9]+' | head -1)
+if [ -z "$ACTUAL_PARTS" ]; then
+    echo "ERROR: topic '$SRC_TOPIC' 不存在。先建 topic：bash deploy/scripts/syn-create-topics.sh" >&2
+    echo "ERROR: topic '$SRC_TOPIC' does not exist; run syn-create-topics.sh first." >&2
+    exit 2
+fi
+if [ "$ACTUAL_PARTS" != "$PARALLELISM" ]; then
+    echo "ERROR: topic '$SRC_TOPIC' 有 $ACTUAL_PARTS 个分区，期望 ${PARALLELISM}。" >&2
+    echo "       很可能被 broker 自动建成了 1 分区。先重建：bash deploy/scripts/syn-clean-topics.sh --yes" >&2
+    echo "ERROR: '$SRC_TOPIC' has $ACTUAL_PARTS partitions, expected $PARALLELISM; recreate it first." >&2
+    exit 2
+fi
+echo "[preflight] topic '$SRC_TOPIC' 分区数 = $ACTUAL_PARTS OK"
 
 echo "===================================="
 echo "[submit] M1Job  main=$MAIN  p=$PARALLELISM  start=$START_OFFSET"

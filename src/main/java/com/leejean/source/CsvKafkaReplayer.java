@@ -147,7 +147,12 @@ public class CsvKafkaReplayer {
         }
 
         System.out.println("========================================");
-        System.out.println("Finished. Produced:        " + stats.produced);
+        System.out.println("Finished. Produced (sent): " + stats.produced);
+        if (sink instanceof KafkaSink) {
+            long errs = ((KafkaSink) sink).sendErrors();
+            System.out.println("Send errors:               " + errs
+                    + (errs > 0 ? "  ⚠ 实际落地 = 已发送 - 失败 / actually landed = sent - errors" : ""));
+        }
         System.out.println("Skipped malformed lines:   " + stats.malformedLines);
         System.out.println("Data files (csv/sniffed):  " + stats.namedDataFiles + " / " + stats.sniffedDataFiles);
         System.out.println("Skipped non-data files:    " + stats.skippedNonData);
@@ -504,6 +509,10 @@ public class CsvKafkaReplayer {
     /** Kafka 生产汇（显式分区 + CreateTime 记录时间戳）/ Kafka sink (explicit partition + CreateTime). */
     static final class KafkaSink implements RecordSink {
         private final KafkaProducer<String, String> producer;
+        private final java.util.concurrent.atomic.AtomicLong sendErrors =
+                new java.util.concurrent.atomic.AtomicLong();
+        private final org.apache.kafka.clients.producer.Callback errorCallback;
+
         KafkaSink(String brokers, String topic, int numPartitions) {
             Properties props = new Properties();
             props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers);
@@ -512,14 +521,57 @@ public class CsvKafkaReplayer {
             props.put(ProducerConfig.ACKS_CONFIG, "1");
             props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, "1");   // 保序 / keep order
             this.producer = new KafkaProducer<>(props);
+
+            // 分区数预检（关键健壮性）：显式分区器要求 topic 至少有 numPartitions 个分区；否则发往
+            // 不存在分区的消息会异步失败并被静默吞掉（曾导致 topic 被 broker 自动建成 1 分区、重放看似
+            // 成功实则 0 条落地）。此处提前快速失败并给出可操作指引。
+            // Partition-count preflight (key robustness): the explicit partitioner requires the topic to
+            // have at least numPartitions partitions; otherwise sends to non-existent partitions fail
+            // asynchronously and are swallowed. Fail fast with an actionable message.
+            java.util.List<org.apache.kafka.common.PartitionInfo> parts = producer.partitionsFor(topic);
+            int actual = parts == null ? 0 : parts.size();
+            if (actual < numPartitions) {
+                producer.close();
+                throw new IllegalStateException(String.format(
+                        "topic '%s' 只有 %d 个分区，但重放器按显式分区器需要 %d 个（A->0..H->7）。"
+                        + " 该 topic 很可能被 broker 自动建成了 1 分区。请先重建为 %d 分区："
+                        + " bash deploy/scripts/syn-clean-topics.sh --yes  （或 syn-create-topics.sh 后按提示处理），"
+                        + " 确认 kafka-topics.sh --describe 显示 %d 分区后再重放。 / topic '%s' has %d partitions"
+                        + " but the replayer needs %d; recreate it with %d partitions before replaying.",
+                        topic, actual, numPartitions, numPartitions, numPartitions, topic, actual,
+                        numPartitions, numPartitions));
+            }
+            System.out.println("[preflight] topic '" + topic + "' 分区数 = " + actual + " (>= " + numPartitions + ") OK");
+
+            this.errorCallback = (metadata, exception) -> {
+                if (exception != null) {
+                    long n = sendErrors.incrementAndGet();
+                    if (n <= 5) {   // 只打印前几条，避免刷屏 / print only the first few
+                        System.err.println("[send-error] " + exception.getClass().getSimpleName()
+                                + ": " + exception.getMessage());
+                    }
+                }
+            };
         }
+
         @Override
         public void emit(String topic, int partition, long tsMs, String key, String value) {
-            producer.send(new ProducerRecord<>(topic, partition, tsMs, key, value));
+            // 带回调发送：异步失败会被计数（否则静默丢失）/ send with a callback so async failures are counted
+            producer.send(new ProducerRecord<>(topic, partition, tsMs, key, value), errorCallback);
         }
+
+        long sendErrors() {
+            return sendErrors.get();
+        }
+
         @Override
         public void close() {
             producer.flush();
+            long errs = sendErrors.get();
+            if (errs > 0) {
+                System.err.println("[send-error] 共 " + errs + " 条发送失败（详见上方前几条）/ "
+                        + errs + " records failed to send");
+            }
             producer.close();
         }
     }
