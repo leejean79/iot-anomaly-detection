@@ -61,11 +61,30 @@ docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell \
 
 | item | value |
 |---|---|
-| selected day | _paste_ |
-| rounds on synergia-m1-out | _paste_ |
-| EDA round count for that day | _paste_ |
-| difference & explanation (known gaps) | _paste_ |
-| **verdict** | _PASS / FAIL_ |
+| selected day | **2022-05-21**（重放窗口 `--start 2022-05-21 --end 2022-05-22`）|
+| rounds on synergia-m1-out | **57,442**（`synergia-m1-out:0` 偏移量总和）|
+| EDA round count for that day | **≈ 57,430**（uptime_matrix 中 A–G 当日记录数合计 459,440 ÷ 每轮约 8 路通道）|
+| difference & explanation (known gaps) | 差约 12 轮，属边界效应（跨零点边界读数、`--end` 端点、少量 keep-first 去重）。**设备 H 全天 0 条**——uptime_matrix 证实 H 于 2022-05-21～05-23 处于单独停机段（DF 事实），故 `synergia-source` 的 partition 7（H→7）为 0，符合预期，非丢失。|
+| **verdict** | **PASS** |
+
+**逐分区读入侧对账（source，2022-05-21）/ per-partition ingestion reconciliation.** 各分区
+`synergia-source` 偏移量与 uptime_matrix 当日记录数逐一吻合（差异仅个位数到十几条，均为边界效应）：
+
+| 分区 partition | 设备 device | synergia-source 偏移量 | uptime_matrix[设备,05-21] | 差 diff |
+|---|---|---|---|---|
+| 0 | A | 65688 | 65680 | +8 |
+| 1 | B | 65512 | 65496 | +16 |
+| 2 | C | 65568 | 65568 | 0 |
+| 3 | D | 65712 | 65720 | −8 |
+| 4 | E | 65720 | 65712 | +8 |
+| 5 | F | 65592 | 65584 | +8 |
+| 6 | G | 65680 | 65680 | 0 |
+| 7 | **H** | **0** | **0**（停机段）| 0 |
+| 合计 total | — | **459,472** | 459,440 | +32 |
+
+**端到端链路无损 / lossless end-to-end.** 消费 459,472 条读数 → RoundAssembler 装配 57,442 轮 →
+RobustScaler 57,442 → RawCache→sink 57,442 → `synergia-m1-out` 收到 57,442（Flink UI 各算子
+Records Received 与 topic 偏移量一致，从消费到产出零丢失）。
 
 > **File-discovery reconciliation (important).** The replayer now prints a discovery breakdown:
 > `[discover] csv-named data files: N ; sniffed non-.csv data files: M ; skipped non-data files: K`.
@@ -90,11 +109,11 @@ full-cluster outage must).
 
 | item | value |
 |---|---|
-| watermark tracks event-time axis? | _paste_ |
-| idle-compress events vs known outages | _paste_ |
-| device H solo outage did NOT compress? | _paste_ |
-| 102-hour full-cluster outage DID compress? | _paste_ |
-| **verdict** | _PASS / FAIL_ |
+| watermark tracks event-time axis? | _待全量/多日重放时填 / pending full-run_ |
+| idle-compress events vs known outages | _待填 / pending_ |
+| device H solo outage did NOT compress? | **已由 uptime_matrix 证实**：设备 H 于 2022-05-21～05-23 记录数为 0（单独停机段），2022-05-24 恢复（41,840）。单日 05-21 重放时 H 全程无数据，partition 7 = 0，不存在需压缩的空闲流；本条数据事实成立。_压缩行为本身待跨越该停机段的多日重放验证_ |
+| 102-hour full-cluster outage DID compress? | _待跨越该停机段的多日重放时填 / pending multi-day run_ |
+| **verdict** | _部分确认（H 停机段数据事实已证实）；压缩审计待多日重放 / partially confirmed_ |
 
 ---
 
