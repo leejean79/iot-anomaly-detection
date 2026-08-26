@@ -83,24 +83,35 @@ replayer_docker_cmd() {
 
 case "$CMD" in
     start)
-        # 前置检查：tmux 是否可用、是否已有在跑的会话/容器 / preflight: tmux present, no existing run
+        # 前置检查：tmux 是否可用 / preflight: tmux present
         if ! on_master "command -v tmux >/dev/null 2>&1"; then
             echo "FATAL: master 上未安装 tmux。请先安装（Ubuntu: sudo apt-get install -y tmux）。" >&2
             echo "FATAL: tmux is not installed on master; install it first." >&2
             exit 2
         fi
+        # 已有在跑的会话 → 拒绝 / an existing session → refuse
         if on_master "tmux has-session -t $SESSION 2>/dev/null"; then
             echo "已有名为 '$SESSION' 的重放会话在运行。先 'bash $0 stop' 或 'bash $0 attach'。" >&2
             echo "A replay session '$SESSION' already exists. Stop or attach to it first." >&2
             exit 1
         fi
+        # 残留同名容器（上次崩溃/异常退出遗留）→ 拒绝并提示 stop 清理 / a leftover container → refuse
+        if [ -n "$(on_master "docker ps -a --filter name=^/${CONTAINER}\$ -q" 2>/dev/null)" ]; then
+            echo "master 上残留名为 '$CONTAINER' 的容器（可能上次异常退出）。先运行 'bash $0 stop' 清理。" >&2
+            echo "A leftover container '$CONTAINER' exists on master; run 'bash $0 stop' to clean it up first." >&2
+            exit 1
+        fi
 
-        # 把启动命令写成 master 上的 launcher 脚本，避免 ssh+tmux 多层引号地狱。
-        # Write the launch command to a launcher script on master, avoiding nested-quote hell.
+        # 把启动命令写成 master 上的 launcher 脚本，launcher 自身把输出 tee 到日志文件。
+        # 这样 tmux 命令只是 `bash LAUNCH`，没有管道/多层引号，杜绝一类引号解析问题。
+        # Write a launcher on master that self-tees its output to the log; the tmux command is then a
+        # bare `bash LAUNCH` with no pipe/nested quotes, eliminating a class of quoting bugs.
         DOCKER_CMD="$(replayer_docker_cmd "--name $CONTAINER")"
         on_master "cat > $LAUNCH" <<EOF
 #!/usr/bin/env bash
 set -uo pipefail
+# 所有输出既进 tmux 面板又落日志文件（容器被 --rm 清理后仍可回看）。
+exec > >(tee -a "$LOG") 2>&1
 echo "[syn-replay] start \$(date '+%F %T %Z')  args: $REPLAY_ARGS"
 $DOCKER_CMD
 rc=\$?
@@ -108,18 +119,26 @@ echo "[syn-replay] exit \$(date '+%F %T %Z') rc=\$rc"
 EOF
         on_master "chmod +x $LAUNCH"
 
-        # 在分离的 tmux 会话中运行 launcher，并把合并输出追加到日志文件（容器 --rm 后仍可回看）。
-        # Run the launcher in a detached tmux session; append combined output to the log file.
-        on_master "tmux new-session -d -s $SESSION \"bash $LAUNCH 2>&1 | tee -a $LOG\""
+        # 在分离的 tmux 会话中运行 launcher / run the launcher in a detached tmux session
+        on_master "tmux new-session -d -s $SESSION 'bash $LAUNCH'"
+
         echo "===================================="
-        echo "[replay] 已在 master 的 tmux 会话 '$SESSION' 中启动（Mac 断连不影响）。"
+        echo "[replay] 已在 master 的 tmux 会话 '$SESSION' 中启动（Mac 断连不影响，控制台在此立即返回）。"
         echo "  数据集(host)=$DATASET_DIR  topic=${SYN_TOPIC_SOURCE:-synergia-source}"
         echo "  参数: ${REPLAY_ARGS:-<none>}"
         echo "  观看:   bash $0 attach     （Ctrl+B 然后 D 脱离，不停重放）"
         echo "  日志:   bash $0 logs       （或 ssh 到 master: tail -f ${LOG}）"
-        echo "  状态:   bash $0 status"
-        echo "  停止:   bash $0 stop"
+        echo "  状态:   bash $0 status ；  停止: bash $0 stop"
         echo "===================================="
+
+        # 启动后即时反馈：等 3 秒回读会话状态与首几行日志，帮助立刻判断是否真的跑起来了。
+        # Immediate feedback: after 3s, echo session state and the first log lines so a failed launch
+        # (e.g. image/mount error) is visible right away instead of looking like "no output".
+        sleep 3
+        echo "[启动自检 / launch self-check]"
+        on_master "tmux has-session -t $SESSION 2>/dev/null && echo '  tmux 会话存活 / session alive' || echo '  ⚠ tmux 会话已结束——很可能启动即失败，见下方日志 / session already ended — likely failed to start'"
+        on_master "tail -n 8 $LOG 2>/dev/null | sed 's/^/  | /' || true"
+        echo "  （若上面报错，多半是镜像名/挂载/端口问题；修正后重跑 start）"
         ;;
 
     attach)
@@ -142,8 +161,8 @@ EOF
         ;;
 
     stop)
-        echo "停止重放：停容器 + 杀 tmux 会话 / stopping container + killing tmux session"
-        on_master "docker stop $CONTAINER >/dev/null 2>&1 || true; tmux kill-session -t $SESSION 2>/dev/null || true"
+        echo "停止重放：停并删容器 + 杀 tmux 会话 / stop+remove container + kill tmux session"
+        on_master "docker rm -f $CONTAINER >/dev/null 2>&1 || true; tmux kill-session -t $SESSION 2>/dev/null || true"
         echo "已停止 / stopped. 结果日志仍在 master: $LOG"
         ;;
 
