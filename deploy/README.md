@@ -108,6 +108,11 @@ M1 相关脚本：`syn-upload-m1.sh`（传 jar+数据集）、`syn-submit-m1.sh`
 `syn-replay.sh`（tmux 常驻重放 + attach/status/logs/stop/fg 子命令）、
 `m1_pivot_check.py`（V-M1-3 装配抽检）。
 
+**实验的停止/重启/残留数据处置见 [`docs/cluster_runbook.md`](../docs/cluster_runbook.md)**：
+涵盖收工停机、次日重启集群、"开新实验（全清重来）vs 续跑中断实验"两条岔路，以及 Kafka/Flink
+残留数据的处理与常见陷阱。核心结论：M1Job 用随机消费者组从 earliest 重读整个 topic，故**开新实验
+前必须 `syn-clean-topics.sh --yes` 清 topic**，否则旧消息会被重读污染对账。
+
 **须交回设计会话确认的实现取舍 / implementation choices to confirm with the design session**：
 - **冷启动阈值**：RawCache 的「缺席超过缓存深度」量化为 事件时间间隔 > `cache-depth × nominal-period`
   （默认 1000 × 10s）。若设计意图不同请指正（RawCacheFunction 注释已标注）。
