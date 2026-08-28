@@ -9,7 +9,16 @@
 
 ## 0. Prerequisites (handover §2)
 
+> **重要（保留策略）/ IMPORTANT (retention).** 消息盖的是事件时间（2022）时间戳，旧的
+> `retention.ms=24h` 会按消息时间戳判其超期、几分钟内删光 m1-out/monitoring/source 的可消费数据
+> （末端偏移量还在但日志段空了，`--from-beginning` 读到 0）。`env.example` 已改
+> `SYN_RETENTION_MS=-1`（永久保留，靠 syn-clean-topics 手动清理）。**务必先把本地 `deploy/.env`
+> 的 `SYN_RETENTION_MS` 同步改成 `-1`，再执行下面的 `syn-clean-topics.sh --yes` 重建 topic**，
+> 否则新建的 topic 仍是 24h、数据照删。
+
 ```bash
+# (0) 确认 deploy/.env 里 SYN_RETENTION_MS=-1（见上）；否则先改再继续
+
 # (1) clear the 80 ENV smoke-test messages left in synergia-source
 bash deploy/scripts/syn-clean-topics.sh --yes
 

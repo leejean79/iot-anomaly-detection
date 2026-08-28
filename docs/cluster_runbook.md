@@ -223,6 +223,7 @@ ssh fa-master "ls -l /opt/fa-iforest/datasets/synergia/files_csv/.replayer.offse
 | **忘 cancel 昨天的 M1Job** | `flink list` 出现两个 M1Job；各消费一部分、m1-out 偏少 | 两作业抢同一 topic 的分区。→ cancel 掉多余的那个（按 JobID） |
 | **误 cancel 旧 FA-iForest job / 用了 --purge** | 旧项目挂了 / 旧数据没了 | 触碰红线（§1）。→ 事前避免；用脚本的白名单/不带 --purge |
 | **公网 IP 变了没刷新** | ssh 连不上 / broker 连接超时 | ECS 重启后公网 IP 变。→ `refresh-ips.sh` 更新 .env |
+| **topic 数据写进去几分钟就没了** | GetOffsetShell 末端偏移量正常（如 57442），但 `--from-beginning` 消费到 0 条、转储文件 0 字节；最早偏移量≈最末偏移量 | 消息盖的是**事件时间**（2022），旧 `retention.ms=24h` 按消息时间戳判其超期即删。→ 已改 `SYN_RETENTION_MS=-1`；**旧 topic 需 `syn-clean-topics.sh --yes` 重建**才生效，然后重跑重放 |
 
 ---
 

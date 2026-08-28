@@ -102,8 +102,9 @@ describe_summary() {
 }
 read_retention() {
     # 从 kafka-configs 读取 retention.ms（未显式设置时可能为空）/ read retention.ms via kafka-configs
+    # retention.ms 可为 -1（永久保留），故正则需允许负号 / allow a leading minus (-1 = infinite retention)
     kcmd kafka-configs.sh --bootstrap-server "$BROKERS" --entity-type topics --entity-name "$1" \
-        --describe 2>/dev/null | grep -oE "retention\.ms=[0-9]+" | head -1 | cut -d= -f2 || true
+        --describe 2>/dev/null | grep -oE "retention\.ms=-?[0-9]+" | head -1 | cut -d= -f2 || true
 }
 
 fail=0
