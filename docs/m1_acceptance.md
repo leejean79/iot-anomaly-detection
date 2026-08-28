@@ -155,9 +155,15 @@ python3 deploy/scripts/m1_pivot_check.py --rounds-jsonl m1out.jsonl \
 
 ## V-M1-4 — Guard reconciliation
 
-Within the chosen segment, the counters for **censored Light**, **RSSI sentinels**, **duplicate keys**,
-and **IR drops** must match the EDA's known counts for that segment. Read them from the monitoring
-snapshots (summed over the segment) or from the Flink/Prometheus metrics.
+The counters for **censored Light**, **RSSI sentinels**, **duplicate keys**, and **IR drops** must
+match the EDA's known counts. Read them from the monitoring snapshots (summed) or from the
+Flink/Prometheus metrics.
+
+> **粒度对齐（重要）/ granularity.** EDA 的守卫计数**没有单日粒度**，只有全量数据集口径。因此
+> V-M1-4 的对账**在全量重放（V-M1-5）时做**：把整段 165 天的 monitoring 快照累加，与 EDA 的
+> **全量总数**逐项对比——单日重放无法与 EDA 对账。这样一次全量重放即同时满足 V-M1-2（跨全部
+> 停机段的 watermark/压缩审计）、V-M1-4（全量守卫计数对账）与 V-M1-5（压力）。下面的转储命令
+> 对全量重放后的 monitoring 同样适用（`--max-messages` 需放大到覆盖全量快照数）。
 
 ```bash
 # monitoring snapshots for the segment
@@ -182,7 +188,10 @@ PY
 | RSSI sentinels (RSSI==0) | _paste_ | _paste_ | |
 | duplicate keys | _paste_ | _paste_ | |
 | IR drops (unknown_sensor) | _paste_ | _paste_ | |
-| **verdict** | | | _PASS / FAIL_ |
+| **verdict** | | | _PASS / FAIL（全量重放后填 / fill after the full run）_ |
+
+> **注 / note.** 因 EDA 无单日基线，本项与 V-M1-2、V-M1-5 合并在同一次全量重放中完成；
+> 单日重放阶段（V-M1-1/-3 已 PASS）不填此表。
 
 ---
 
