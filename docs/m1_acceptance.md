@@ -217,6 +217,102 @@ bash deploy/scripts/syn-replay.sh status             # check periodically; safe 
 
 ---
 
+## 全量重放取证操作 / Full-run evidence-gathering (V-M1-2 / -4 / -5 一次做完)
+
+一次全量重放同时满足这三项。先按下面启动全量重放，跑完（约 1 小时）后按 §A/§B/§C 取证。
+
+### 0) 启动全量重放（先重置再全量）
+
+```bash
+# 只 cancel 自己的旧 M1Job（按 JobID，绝不碰旧 FA-iForest job）
+ssh fa-master "docker exec jobmanager flink list"
+ssh fa-master "docker exec jobmanager flink cancel <旧M1_JOBID>"
+# 清 topic 重置偏移量（retention 仍 -1、分区数仍对）；确认 .env 的 SYN_EXTRA_TOPICS 完整
+bash deploy/scripts/syn-clean-topics.sh --yes
+# 先提交作业，再全量重放（不带 --start/--end 即全部 165 天，k=3600，tmux 常驻）
+bash deploy/scripts/syn-submit-m1.sh
+bash deploy/scripts/syn-replay.sh --speedup 3600
+bash deploy/scripts/syn-replay.sh status        # 期间可断开 Mac
+```
+
+`<brokers>` = `172.16.0.162:9092,172.16.0.163:9092,172.16.0.164:9092`（即 `.env` 三节点 9092）。
+`<master>` = master 公网 IP（Flink UI 在 `http://<master>:8081`）。
+
+### A) V-M1-2 — 时间语义 / 压缩审计
+
+1. **Watermark 跟随事件时间轴**：Flink UI → 该 Job → 点每个算子 → 面板底部 **"Low Watermark"**；
+   或算子的 **Watermarks** 子标签。把它换算成时间，核对是否落在当前重放段的事件时间附近
+   （随重放推进单调前进，不回退、不长时间停滞）。
+2. **空闲压缩审计**：master 上 `syn-replay.log` 里的压缩审计行——
+
+   ```bash
+   ssh fa-master "grep -F '[idle-compress]' /opt/fa-iforest/syn-replay.log"
+   ```
+
+   每行形如 `[idle-compress] eventSpanSec=… originalWallMs=… compressedWallMs=…`。逐条把
+   `eventSpanSec` 与已知停机段对照：
+   - **设备 H 单独停机段**：H 只是自身缺数据、其它设备仍在产出，全局事件时间**未**空闲 →
+     **不应**出现压缩行（若出现即为疑点，记入 §Notes）。
+   - **~102 小时全集群停机**：全体设备皆无数据、全局事件时间空闲 → **应**出现一条大
+     `eventSpanSec`（≈ 102h≈367200s 量级）的压缩行。
+
+把结论填进上文 **V-M1-2** 表。
+
+### B) V-M1-4 — 守卫计数对账（与 EDA 全量总数）
+
+**首选：读 Flink 累计计数器**（无需消费百万条消息）。Flink UI → 该 Job → 对应算子 →
+**Metrics** 子标签 → 在 "Add metric" 里按名字添加，读其累计值（并行度>1 时把各 subtask 相加）：
+
+| 对账项 | Flink 指标名 | 所在算子 |
+|---|---|---|
+| 删失 Light（Light==65536） | `m1_parser_censored_light` | RawLineParser（Source 链） |
+| RSSI 哨兵（RSSI==0） | `m1_parser_rssi_sentinel` | RawLineParser |
+| IR/未知传感器丢弃 | `m1_parser_unknown_sensor` | RawLineParser |
+| 重复键 | `m1_assembler_dup_keys` | RoundAssembler |
+| （辅助）畸形行 | `m1_parser_malformed` / `m1_parser_malformed_no_device` | RawLineParser |
+| （辅助）总轮数 / 未闭轮 | `m1_assembler_rounds_total` / `m1_assembler_incomplete_rounds` | RoundAssembler |
+
+**交叉核对（自包含，不依赖 Prometheus）：消费 monitoring 累加**。全量快照约百万级，用
+`--timeout-ms` 到尾后转储到 master 文件再累加（字段名即 JSON key）：
+
+```bash
+ssh fa-master
+docker exec kafka-1 kafka-console-consumer.sh --bootstrap-server <brokers> \
+    --topic synergia-monitoring --from-beginning --timeout-ms 20000 > mon_full.jsonl
+wc -l mon_full.jsonl
+python3 - mon_full.jsonl <<'PY'
+import sys, json, collections
+s = collections.Counter()
+for line in open(sys.argv[1]):
+    line = line.strip()
+    if not line:
+        continue
+    d = json.loads(line)
+    for k in ("censoredLight","rssiSentinel","dupKeys","unknownSensor","incompleteRounds","malformed","roundsTotal"):
+        s[k] += d.get(k, 0)
+print(dict(s))
+PY
+```
+
+把 Flink 计数器值填进上文 **V-M1-4** 表的 "M1 measured" 列，EDA 全量总数填 "EDA known" 列，
+逐项判 match（差异用已知缺口解释）。monitoring 累加值应与 Flink 计数器一致（作为自洽性交叉核对）。
+
+### C) V-M1-5 — 压力指标（全部在 Flink UI 读）
+
+- **吞吐 records/s**：Flink UI → Job → Source/各算子的 Records Sent/Received 速率（或总量 ÷ 墙钟）。
+- **最大反压**：Job → **Backpressure** 子标签，记录最高的 OK/LOW/HIGH 比例与出现算子。
+- **checkpoint 时长 p50/p99**：Job → **Checkpoints** → **History**，看各次 End to End Duration 分布。
+- **缓存状态大小**：Checkpoints → 最近一次的 State Size（可细看 RawCache 算子），作为 RawCache 环 +
+  其它 keyed state 的规模。
+- **DF-12 恢复浪涌**（单独一段）：定位那段 ~102h 全集群停机**恢复后**的时刻，描述：source 积压深度
+  （`GetOffsetShell` 末端 − 消费位移）、watermark 是否平滑追赶、反压是否短时升高后回落、
+  checkpoint 是否仍成功、管线有无失败/重启。把这段结论写进 **V-M1-5** 表的 DF-12 行。
+
+> **磁盘提醒**：全量 m1-out + monitoring 占用可观（m1-out ~5–10GB，RF2 翻倍）。本轮取证完成后，
+> 按 `docs/cluster_runbook.md` 用 `syn-clean-topics.sh --yes` 清理，避免多轮累积占满盘。
+
+---
+
 ## Notes / data facts to report back (handover §7)
 
 Any measured fact that contradicts the handover is reported to the design session, not patched around.
