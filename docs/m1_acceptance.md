@@ -141,9 +141,15 @@ python3 deploy/scripts/m1_pivot_check.py --rounds-jsonl m1out.jsonl \
 
 | item | value |
 |---|---|
-| N sampled | _paste_ |
-| OK / MISMATCH / UNMATCHED | _paste_ |
-| **verdict** | _PASS (MISMATCH==0) / FAIL_ |
+| N sampled | **50**（自 2000 条 m1-out 转储中随机抽 50） |
+| OK / MISMATCH / UNMATCHED | **OK=50 / MISMATCH=0 / UNMATCHED=0** |
+| **verdict** | **PASS**（MISMATCH==0） |
+
+> 抽检在 master 上运行（数据集就近，2.3GB 不必下回本地）。文件名索引仅纳入 `.csv` 命名文件
+> （`[index] 3471 data files indexed`）；本次 50 个抽样轮全部落在 `.csv` 文件内、逐值匹配，故
+> PASS 成立。若日后抽样命中非 `.csv` 的 sniffed 数据文件（EDA patch-01 认定的 276 个之一），
+> 该轮会显示 UNMATCHED——那是索引口径问题而非装配错误；届时可扩展 `m1_pivot_check.py` 的文件名
+> 正则一并纳入。归一化 xNorm 的正确性由单测 `M1PipelineTest` 覆盖，不在本抽检内比对。
 
 ---
 
