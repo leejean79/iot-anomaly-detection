@@ -113,10 +113,12 @@ must line up with the known outage segments (device H solo outages must NOT comp
 full-cluster outage must).
 
 - Watermark: Flink UI → M1Job → each operator's "Low Watermark", compared against the segment's ts.
-- Compression audit: the `[idle-compress] eventSpanSec=… originalWallMs=… compressedWallMs=…` lines
-  printed by `syn-replay.sh`. **真实 gap（秒）= originalWallMs × speedup ÷ 1000**（k=3600 时即
-  `gap 小时 = originalWallMs / 1000`）；`eventSpanSec` 是"距上次压缩的事件时间跨度"，**不是 gap**，
-  勿直接用它对停机时长（Pacer 逻辑见 `CsvKafkaReplayer.java:465-477`）。
+- Compression audit（审计行格式）:
+  - **当前构建**直接打印真实 gap：`[idle-compress] gapSec=… (~Nh) normalWallMs=… cappedWallMs=…
+    atEventTs=… sinceLastCompressSec=…`。`gapSec` 即被压缩的停机时长，直接可读。
+  - **旧构建**（本次全量重放用的即旧格式）打印 `eventSpanSec=… originalWallMs=… compressedWallMs=…`，
+    其中 `eventSpanSec` 是"距上次压缩的跨度"**非 gap**；真实 gap ≈ `originalWallMs × speedup ÷ 1000`
+    （k=3600 时 `gap 小时 = originalWallMs / 1000`）。下表即按此解码。
 
 全量重放（165 天，k=3600，用时 1h41m32s）实测 10 次全集群空闲压缩（另有 2 行为早前单日 05-21
 重放残留在 `tee -a` 追加日志里，已剔除）。按 `gap=originalWallMs/1000` 小时解码：
@@ -136,7 +138,7 @@ full-cluster outage must).
 
 | item | value |
 |---|---|
-| watermark tracks event-time axis? | _待 Flink UI Low Watermark 截图确认_；佐证：全量 990 万轮仅 4 例 incomplete，证明事件时间高度有序（乱序会大量丢轮） |
+| watermark tracks event-time axis? | _待 Flink UI Low Watermark 截图确认_；佐证：全量 990 万轮仅 9,487 例 incomplete（0.096%），证明事件时间高度有序（乱序会大量丢轮） |
 | idle-compress events vs known outages | 10 次全集群空闲压缩，gap 2.1–102.3 h（见上表），分布 2022-02～06 |
 | device H solo outage did NOT compress? | **是**。压缩基于**全局归并流**：H 单独停机时其它设备仍每 10s 产出、全局事件时间不空闲，故不触发（上表无与 H 单独停机段对应的压缩项）。单日 05-21 亦证实 H 全程 0、partition 7=0 |
 | 102-hour full-cluster outage DID compress? | **是**。`originalWallMs=102256 → gap 102.3 h`，结束于 2022-06-13 02:20（起于约 06-08 20:00），即交接文档预告的全集群停机 |
@@ -200,16 +202,24 @@ print(dict(s))
 PY
 ```
 
-| counter | M1 measured | EDA known | match? |
-|---|---|---|---|
-| censored Light (Light==65536) | _paste_ | _paste_ | |
-| RSSI sentinels (RSSI==0) | _paste_ | _paste_ | |
-| duplicate keys | _paste_ | _paste_ | |
-| IR drops (unknown_sensor) | _paste_ | _paste_ | |
-| **verdict** | | | _PASS / FAIL（全量重放后填 / fill after the full run）_ |
+全量 monitoring 消费到尾累加（`roundsTotal=9,904,658`，与拓扑 9,904,676 差 18，为末尾少数窗口
+未在 `--timeout-ms` 前落盘，可忽略）：
 
-> **注 / note.** 因 EDA 无单日基线，本项与 V-M1-2、V-M1-5 合并在同一次全量重放中完成；
-> 单日重放阶段（V-M1-1/-3 已 PASS）不填此表。
+| counter | M1 measured（全量） | EDA known（全量总数） | match? |
+|---|---|---|---|
+| censored Light (Light==65536) | **29** | _待 EDA 全量总数_ | |
+| RSSI sentinels (RSSI==0) | **2** | _待 EDA 全量总数_ | |
+| duplicate keys | **70,986** | _待 EDA 全量总数_ | |
+| IR drops (unknown_sensor) | **336,970** | _待 EDA 全量总数_ | |
+| （辅助）incomplete rounds | 9,487 | — | |
+| （辅助）malformed | 0 | — | |
+| **verdict** | | | _待 EDA 基线逐项对账 / pending EDA totals_ |
+
+> **注 / note.** 之前"全 0"是只采了前 5000 条 monitoring（最早约 10h 数据）所致；消费到尾后得上表。
+> 计数链路已核实：parser 检测→forward 标志→assembler 逐轮累加并写入 DeviceRound→MonitoringAggregator
+> 汇总（`RawLineParser.java:104,115,119`、`RoundAssembler.java:81,93,114,164-167`、`MonitoringAggregator.java:60-68`）。
+> **需 EDA 提供全量总数**（EDA 无单日粒度）逐项对账。**留意**：`censored Light=29`、`RSSI sentinel=2`
+> 量级偏低——若 EDA 期望显著更多，按 §7 交回设计会话核查（是数据本身如此，还是判定阈值/字段口径需校准）。
 
 ---
 
@@ -229,11 +239,44 @@ bash deploy/scripts/syn-replay.sh status             # check periodically; safe 
 | item | value |
 |---|---|
 | throughput (records/s) | 输入 ≈ **13,010 rec/s**（79,274,744÷6092）；输出 ≈ **1,626 rounds/s**（9,904,676÷6092） |
-| max backpressure (Flink UI) | _待 Flink UI Backpressure 标签 / pending_ |
-| checkpoint durations (p50/p99) | End-to-End **10–18 ms**（样本 11/11/12/17/12/12/10/12/10/18），p50≈12ms、p99≈18ms（极小，无明显反压） |
-| cache state size | _待 Flink UI Checkpoints → State Size / pending_ |
-| **DF-12 recovery surge** | _待定位 2022-06-13 全集群恢复段：积压深度、watermark 追赶、反压回落、checkpoint 是否仍成功 / pending_ |
-| **verdict** | _部分：吞吐/checkpoint 健康；反压/缓存/DF-12 待补 / partial_ |
+| max backpressure (Flink UI) | **0**（全程无反压） |
+| checkpoint durations (p50/p99) | End-to-End **6–18 ms**（各算子 6/6/10/10/11ms；History 样本 10–18ms），p50≈10ms、p99≈18ms；in-flight 0 B、ack 8/8 100% |
+| cache state size | **RawCache 算子 402 KB**（全管线 checkpoint 合计约 **514 KB**：Parser 8.36KB、RoundAssembler 41.3KB、RobustScaler 42.8KB、RawCache→m1-out 402KB、Monitoring 19.5KB） |
+| **DF-12 recovery surge** | _见下方"如何取证"；聚合证据已支持"无故障排空"，surge 形态待按恢复段窗口分析_ |
+| **verdict** | **PASS（性能层面）**：吞吐稳定、反压 0、状态仅 KB 级、checkpoint 毫秒级、1h41m 全程无失败/重启 |
+
+**DF-12 恢复浪涌——如何取证 / how to characterise.** 那段 ~102h 全集群停机的 gap 结束于
+**atEventTs=1655074819（2022-06-13 02:20 UTC）**，即所有设备同时恢复的时刻，"浪涌"指恢复后缓冲数据
+回灌造成的记录率骤升。
+
+1. **聚合结论（已可下）**：整轮 **最大反压=0、状态仅 KB 级（RawCache 402KB 未随恢复膨胀）、
+   checkpoint 始终毫秒级、作业 1h41m 跑完无失败/重启**——说明恢复浪涌被**无故障排空**，
+   这已满足 DF-12 的核心判据。
+2. **浪涌形态（可选细化）**：从 `mon_full.jsonl` 截取恢复段、看每设备每 60s 的 `roundsTotal` 是否
+   较常态骤升（缓冲回灌会在少数窗口出现远高于常态 ~6 的 rounds）：
+
+   ```bash
+   python3 - mon_full.jsonl <<'PY'
+   import sys, json
+   LO = 1655074819                 # 2022-06-13 02:20 UTC（恢复时刻）
+   HI = LO + 12*3600               # 恢复后 12 小时
+   peak = 0; tot = 0; nwin = 0; bydev = {}
+   for line in open(sys.argv[1]):
+       line = line.strip()
+       if not line: continue
+       d = json.loads(line)
+       if LO <= d.get("ts", 0) <= HI:
+           r = d.get("roundsTotal", 0)
+           tot += r; nwin += 1; peak = max(peak, r)
+           bydev[d.get("device")] = bydev.get(d.get("device"), 0) + r
+   print("恢复后12h: 窗口数=%d 总轮=%d 单窗峰值=%d(常态≈6)" % (nwin, tot, peak))
+   print("按设备:", bydev)   # 关注设备 H：uptime_matrix 显示其恢复期日计数异常偏高（缓冲回灌）
+   PY
+   ```
+
+   把 `单窗峰值` 与常态（≈6 轮/设备/60s）对比，若峰值明显更高即为可量化的恢复浪涌；重点看
+   **设备 H**（`uptime_matrix` 显示其 2022-06 后若干日计数高达 16–22 万，远超常态 ~6.9 万，
+   正是缓冲回灌的证据）。把这段结论写进上表 DF-12 行。
 
 ---
 

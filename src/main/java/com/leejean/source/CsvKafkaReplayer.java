@@ -446,6 +446,7 @@ public class CsvKafkaReplayer {
         private boolean started;
         private long wallBaselineMs;
         private long eventBaselineSec;
+        private long lastEventSec;      // 上一条记录的事件时间秒，用于算真实 gap / previous record's event ts
         long compressionEvents;
         long totalCompressedMs;
 
@@ -460,6 +461,7 @@ public class CsvKafkaReplayer {
                 started = true;
                 wallBaselineMs = now();
                 eventBaselineSec = eventTsSec;
+                lastEventSec = eventTsSec;
                 return;
             }
             long targetMs = wallBaselineMs + (long) ((eventTsSec - eventBaselineSec) * 1000.0 / speedup);
@@ -469,16 +471,20 @@ public class CsvKafkaReplayer {
                 compressionEvents++;
                 totalCompressedMs += maxIdleWallMs;
                 sleep(maxIdleWallMs);
-                long eventSpan = eventTsSec - eventBaselineSec;
-                System.out.println("[idle-compress] eventSpanSec=" + eventSpan
-                        + " originalWallMs=" + waitMs + " compressedWallMs=" + maxIdleWallMs
-                        + " atEventTs=" + eventTsSec);
+                // gapSec = 与上一条记录之间的真实事件时间空档（即被压缩的停机时长），直接可读、不需再换算。
+                // gapSec is the true idle gap to the previous record (the outage span being compressed).
+                long gapSec = eventTsSec - lastEventSec;
+                long sinceLastCompressSec = eventTsSec - eventBaselineSec;
+                System.out.println("[idle-compress] gapSec=" + gapSec + " (~" + (gapSec / 3600) + "h)"
+                        + " normalWallMs=" + waitMs + " cappedWallMs=" + maxIdleWallMs
+                        + " atEventTs=" + eventTsSec + " sinceLastCompressSec=" + sinceLastCompressSec);
                 wallBaselineMs = now();
                 eventBaselineSec = eventTsSec;
             } else if (waitMs > 0) {
                 sleep(waitMs);
             }
             // waitMs <= 0：落后于计划，不睡 / behind schedule: do not sleep
+            lastEventSec = eventTsSec;   // 每条都更新，供下次算 gap / update every record for the next gap
         }
 
         private long now() {
