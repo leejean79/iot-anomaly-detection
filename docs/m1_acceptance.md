@@ -114,15 +114,33 @@ full-cluster outage must).
 
 - Watermark: Flink UI → M1Job → each operator's "Low Watermark", compared against the segment's ts.
 - Compression audit: the `[idle-compress] eventSpanSec=… originalWallMs=… compressedWallMs=…` lines
-  printed by `syn-replay.sh` — cross-check `eventSpanSec` against the known outage spans.
+  printed by `syn-replay.sh`. **真实 gap（秒）= originalWallMs × speedup ÷ 1000**（k=3600 时即
+  `gap 小时 = originalWallMs / 1000`）；`eventSpanSec` 是"距上次压缩的事件时间跨度"，**不是 gap**，
+  勿直接用它对停机时长（Pacer 逻辑见 `CsvKafkaReplayer.java:465-477`）。
+
+全量重放（165 天，k=3600，用时 1h41m32s）实测 10 次全集群空闲压缩（另有 2 行为早前单日 05-21
+重放残留在 `tee -a` 追加日志里，已剔除）。按 `gap=originalWallMs/1000` 小时解码：
+
+| atEventTs (UTC, gap 结束) | originalWallMs | 真实 gap |
+|---|---|---|
+| 2022-02-17 14:07 | 13565 | 13.6 h |
+| 2022-03-18 11:06 | 16175 | 16.2 h |
+| 2022-04-20 09:42 | 17293 | 17.3 h |
+| 2022-05-09 09:35 | 65840 | 65.8 h |
+| 2022-05-18 12:16 | 17434 | 17.4 h |
+| 2022-05-18 15:40 | 2081 | 2.1 h |
+| 2022-05-24 15:30 | 8241 | 8.2 h |
+| 2022-05-26 15:08 | 7966 | 8.0 h |
+| **2022-06-13 02:20** | **102256** | **102.3 h** |
+| 2022-06-21 20:28 | 17876 | 17.9 h |
 
 | item | value |
 |---|---|
-| watermark tracks event-time axis? | _待全量/多日重放时填 / pending full-run_ |
-| idle-compress events vs known outages | _待填 / pending_ |
-| device H solo outage did NOT compress? | **已由 uptime_matrix 证实**：设备 H 于 2022-05-21～05-23 记录数为 0（单独停机段），2022-05-24 恢复（41,840）。单日 05-21 重放时 H 全程无数据，partition 7 = 0，不存在需压缩的空闲流；本条数据事实成立。_压缩行为本身待跨越该停机段的多日重放验证_ |
-| 102-hour full-cluster outage DID compress? | _待跨越该停机段的多日重放时填 / pending multi-day run_ |
-| **verdict** | _部分确认（H 停机段数据事实已证实）；压缩审计待多日重放 / partially confirmed_ |
+| watermark tracks event-time axis? | _待 Flink UI Low Watermark 截图确认_；佐证：全量 990 万轮仅 4 例 incomplete，证明事件时间高度有序（乱序会大量丢轮） |
+| idle-compress events vs known outages | 10 次全集群空闲压缩，gap 2.1–102.3 h（见上表），分布 2022-02～06 |
+| device H solo outage did NOT compress? | **是**。压缩基于**全局归并流**：H 单独停机时其它设备仍每 10s 产出、全局事件时间不空闲，故不触发（上表无与 H 单独停机段对应的压缩项）。单日 05-21 亦证实 H 全程 0、partition 7=0 |
+| 102-hour full-cluster outage DID compress? | **是**。`originalWallMs=102256 → gap 102.3 h`，结束于 2022-06-13 02:20（起于约 06-08 20:00），即交接文档预告的全集群停机 |
+| **verdict** | **PASS**（102h 全集群停机压缩、H 单独停机不压缩，均符合；watermark 截图待补作留档） |
 
 ---
 
@@ -206,14 +224,16 @@ bash deploy/scripts/syn-replay.sh --speedup 3600     # tmux session on master; ~
 bash deploy/scripts/syn-replay.sh status             # check periodically; safe to disconnect the Mac
 ```
 
+全量 165 天 k=3600，用时 **1h41m32s（6092s）**；规模 **79,274,744 读数 → 9,904,676 轮**（比值 8.00）。
+
 | item | value |
 |---|---|
-| throughput (records/s) | _paste_ |
-| max backpressure (Flink UI) | _paste_ |
-| checkpoint durations (p50/p99) | _paste_ |
-| cache state size | _paste_ |
-| **DF-12 recovery surge** | _paste a paragraph: backlog depth, watermark behavior, whether the pipeline drained it without failure_ |
-| **verdict** | _PASS / FAIL_ |
+| throughput (records/s) | 输入 ≈ **13,010 rec/s**（79,274,744÷6092）；输出 ≈ **1,626 rounds/s**（9,904,676÷6092） |
+| max backpressure (Flink UI) | _待 Flink UI Backpressure 标签 / pending_ |
+| checkpoint durations (p50/p99) | End-to-End **10–18 ms**（样本 11/11/12/17/12/12/10/12/10/18），p50≈12ms、p99≈18ms（极小，无明显反压） |
+| cache state size | _待 Flink UI Checkpoints → State Size / pending_ |
+| **DF-12 recovery surge** | _待定位 2022-06-13 全集群恢复段：积压深度、watermark 追赶、反压回落、checkpoint 是否仍成功 / pending_ |
+| **verdict** | _部分：吞吐/checkpoint 健康；反压/缓存/DF-12 待补 / partial_ |
 
 ---
 
