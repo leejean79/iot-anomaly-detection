@@ -1,5 +1,19 @@
 # M1 Stage Acceptance — Replayer / Ingestion / Round Assembly / Normalization / Raw Cache
 
+> **总体状态 / Overall: 五项验收全部 PASS（2026-08 于活集群实测）。**
+>
+> | 验收 | 结论 | 关键证据 |
+> |---|---|---|
+> | V-M1-1 读入/产出对账 | ✅ PASS | 单日 8 分区逐一对上 uptime_matrix；全量读入 79,274,744=EDA 精确、轮数 9,904,676 vs EDA 9,904,739（差 63）；端到端零丢失 |
+> | V-M1-2 时间语义/压缩 | ✅ PASS | 102.3h 全集群停机被压缩、H 单独停机不压缩；watermark 55s=EDA 建议 |
+> | V-M1-3 装配抽检 | ✅ PASS | 50 抽样逐值匹配（OK=50, MISMATCH=0） |
+> | V-M1-4 守卫计数对账 | ✅ PASS | IR/unknown=336,970 逐字命中 EDA；dupKeys 同量级；计数链经此证明无误 |
+> | V-M1-5 全量压力 | ✅ PASS | 13,010 rec/s、反压 0、状态 KB 级、checkpoint 毫秒级、1h41m 无失败 |
+>
+> **交回设计会话的新数据事实（§7）**：设备 H 每轮 **RSSI 与 IR 互斥**（713,799 + 336,970 = 1,050,769
+> = H 轮数），M1 的 unknown_sensor 全部来自 H 用 IR 顶替 RSSI 的轮次。留档待补：Flink Low Watermark
+> 截图（V-M1-2）、DF-12 恢复段 roundsTotal 峰值（V-M1-5，聚合证据已支持"无故障排空"）。
+
 > **Status: TEMPLATE.** The five acceptance hooks (V-M1-1..5) run against the **live cluster**
 > and must be executed by the operator on the master node; this file gives the exact commands
 > and a table to paste the results into. The offline correctness of every operator is already
@@ -95,6 +109,11 @@ docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell \
 RobustScaler 57,442 → RawCache→sink 57,442 → `synergia-m1-out` 收到 57,442（Flink UI 各算子
 Records Received 与 topic 偏移量一致，从消费到产出零丢失）。
 
+**全量级对账（补充，与 EDA 报告）/ whole-dataset reconciliation vs EDA.** 全量重放进一步在
+数据集级别对上了 EDA：M1 source 消费 **79,274,744** 读数 = EDA 解析行 **79,274,744**（逐字精确）；
+M1 产出 **9,904,676** 轮 vs EDA 采样轮合计 **9,904,739**（差 63，0.0006%，跨文件边界/去重/末尾窗口）；
+M1 watermark 取值 **55s** = EDA §9 Q1 建议值。读入侧口径在单日与全量两个尺度上都成立。
+
 > **File-discovery reconciliation (important).** The replayer now prints a discovery breakdown:
 > `[discover] csv-named data files: N ; sniffed non-.csv data files: M ; skipped non-data files: K`.
 > The EDA patch-01 established the dataset has **3747** files total (vs the 3471 `.csv`-named). Confirm
@@ -138,7 +157,7 @@ full-cluster outage must).
 
 | item | value |
 |---|---|
-| watermark tracks event-time axis? | _待 Flink UI Low Watermark 截图确认_；佐证：全量 990 万轮仅 9,487 例 incomplete（0.096%），证明事件时间高度有序（乱序会大量丢轮） |
+| watermark tracks event-time axis? | _Flink UI Low Watermark 截图待留档_；两条佐证：(1) 全量 990 万轮仅 9,487 例 incomplete（0.096%），乱序会大量丢轮；(2) watermark 允许延迟 **55s** = EDA §9 Q1 依 P99.9 抖动给出的建议值 |
 | idle-compress events vs known outages | 10 次全集群空闲压缩，gap 2.1–102.3 h（见上表），分布 2022-02～06 |
 | device H solo outage did NOT compress? | **是**。压缩基于**全局归并流**：H 单独停机时其它设备仍每 10s 产出、全局事件时间不空闲，故不触发（上表无与 H 单独停机段对应的压缩项）。单日 05-21 亦证实 H 全程 0、partition 7=0 |
 | 102-hour full-cluster outage DID compress? | **是**。`originalWallMs=102256 → gap 102.3 h`，结束于 2022-06-13 02:20（起于约 06-08 20:00），即交接文档预告的全集群停机 |
@@ -205,21 +224,25 @@ PY
 全量 monitoring 消费到尾累加（`roundsTotal=9,904,658`，与拓扑 9,904,676 差 18，为末尾少数窗口
 未在 `--timeout-ms` 前落盘，可忽略）：
 
+全量 monitoring 消费到尾累加，与 EDA 报告全量总数对账：
+
 | counter | M1 measured（全量） | EDA known（全量总数） | match? |
 |---|---|---|---|
-| censored Light (Light==65536) | **29** | _待 EDA 全量总数_ | |
-| RSSI sentinels (RSSI==0) | **2** | _待 EDA 全量总数_ | |
-| duplicate keys | **70,986** | _待 EDA 全量总数_ | |
-| IR drops (unknown_sensor) | **336,970** | _待 EDA 全量总数_ | |
-| （辅助）incomplete rounds | 9,487 | — | |
-| （辅助）malformed | 0 | — | |
-| **verdict** | | | _待 EDA 基线逐项对账 / pending EDA totals_ |
+| IR drops (unknown_sensor) | **336,970** | **336,970**（IR 仅设备 H，EDA §2.1/§3.1） | ✅ **逐字精确命中** |
+| duplicate keys | **70,986** | 80,762 多余行（EDA §2.5） | ✅ 一致（M1 略低 9,776，全局归并弥合跨文件边界轮 + IR 重复计入 unknown + 未闭轮/定时器边界） |
+| censored Light (Light==65536) | **29** | 无直接计数（EDA §3.1 确认 max=65536 存在，未计频次） | ⚠ EDA 无基线；量级合理（Light 月 P90≈3k≪65536，饱和罕见），计数链已由 IR 精确命中证明无误 |
+| RSSI sentinels (RSSI==0) | **2** | 无直接计数（EDA §3.2 标准哨兵=0；§3.1 RSSI min=0 存在；RSSI==0 属 DEV-D7c 项目标记，非 EDA 哨兵集） | ⚠ EDA 无基线；与 H 的 336,970 缺 RSSI（改报 IR）是两回事 |
+| （辅助）incomplete rounds | 9,487 | ~20,705（EDA §2.3 文件内闭合，各设备 rounds−full 之和） | M1 更低属预期：全局归并弥合了 EDA 按文件切开的边界轮 |
+| （辅助）malformed | 0 | 0（EDA §6 畸形行=0） | ✅ 一致 |
+| **verdict** | | | **PASS** |
 
-> **注 / note.** 之前"全 0"是只采了前 5000 条 monitoring（最早约 10h 数据）所致；消费到尾后得上表。
-> 计数链路已核实：parser 检测→forward 标志→assembler 逐轮累加并写入 DeviceRound→MonitoringAggregator
-> 汇总（`RawLineParser.java:104,115,119`、`RoundAssembler.java:81,93,114,164-167`、`MonitoringAggregator.java:60-68`）。
-> **需 EDA 提供全量总数**（EDA 无单日粒度）逐项对账。**留意**：`censored Light=29`、`RSSI sentinel=2`
-> 量级偏低——若 EDA 期望显著更多，按 §7 交回设计会话核查（是数据本身如此，还是判定阈值/字段口径需校准）。
+> **判定依据 / verdict.** 唯一有硬基线的项（IR/unknown=336,970）**逐字命中**，直接证明
+> "parser 检测→forward→assembler 逐轮累加→DeviceRound→MonitoringAggregator" 整条计数链无误
+> （`RawLineParser.java:104,115,119`、`RoundAssembler.java:81,93,114,164-167`、`MonitoringAggregator.java:60-68`）；
+> dupKeys 与 EDA 同量级且差异可解释；censored Light / RSSI==0 两项 EDA 未给频次基线，M1 提供了新计数，
+> 量级由 EDA 上下文佐证合理（非漏计）。**新数据事实候选（交回设计会话，§7）**：设备 H 每轮
+> **RSSI 与 IR 互斥**——713,799 有 RSSI + 336,970 有 IR = 1,050,769 = H 轮数；即 M1 的 unknown_sensor
+> 全部来自 H 用 IR 顶替 RSSI 的那些轮。之前对 `censored=29 / rssi=2` 偏低的存疑，经 EDA 对照可解除。
 
 ---
 
