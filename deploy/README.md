@@ -108,6 +108,30 @@ M1 相关脚本：`syn-upload-m1.sh`（传 jar+数据集）、`syn-submit-m1.sh`
 `syn-replay.sh`（tmux 常驻重放 + attach/status/logs/stop/fg 子命令）、
 `m1_pivot_check.py`（V-M1-3 装配抽检）。
 
+## M2 阶段流程 / M2-stage flow
+
+M2 交付：pMCOD 点异常检测器（Scala→Java 忠实迁移）作为 Flink 算子接到 M1 标准化输出之后，
+按设备事件时间滑动窗口做距离式离群判定 → `synergia-scores`（离群名单）+ `synergia-monitoring`
+（M2 三路信号，字段追加）。**M2Job 是"M1+M2 联合作业"，与 M1Job 不可同时运行**（都消费 synergia-source）。
+
+```bash
+# 0) topic 就位（scores=4 分区已在 SYN_EXTRA_TOPICS；确认 .env 的 SYN_RETENTION_MS=-1）
+bash deploy/scripts/syn-clean-topics.sh --yes
+mvn clean package && bash deploy/scripts/syn-upload-m1.sh --jar-only     # jar 含 M2Job/M2Probe
+
+# 1) 提交 M2 联合作业（先作业后重放；若 M1Job 在跑先 cancel 自己的）
+bash deploy/scripts/syn-submit-m2.sh
+bash deploy/scripts/syn-replay.sh --speedup 600 --start 2022-05-21 --end 2022-05-22
+
+# 2) (R,k) 校准探针（离线网格；先用 M1Job 把目标月份重放进 synergia-m1-out）
+bash deploy/scripts/syn-m2-probe.sh --max-messages 2000000
+
+# 验收：见 docs/m2_acceptance.md（V-M2-1..4；V-M2-1 离线已 PASS）
+```
+
+M2 相关脚本：`syn-submit-m2.sh`（提交联合作业，分区预检）、`syn-m2-probe.sh`（离线 (R,k) 网格探针，
+复用 McodCore）。算法核 `com.leejean.m2.McodCore` 与朴素对照器 `NaiveOutlierOracle` 逐窗等价（V-M2-1）。
+
 **实验的停止/重启/残留数据处置见 [`docs/cluster_runbook.md`](../docs/cluster_runbook.md)**：
 涵盖收工停机、次日重启集群、"开新实验（全清重来）vs 续跑中断实验"两条岔路，以及 Kafka/Flink
 残留数据的处理与常见陷阱。核心结论：M1Job 用随机消费者组从 earliest 重读整个 topic，故**开新实验
