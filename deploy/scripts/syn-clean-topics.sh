@@ -102,7 +102,8 @@ for i in "${!NAMES[@]}"; do
             --create --topic "$t" \
             --partitions "$p" \
             --replication-factor "$RF" \
-            --config "retention.ms=$RETENTION" 2>/dev/null; then
+            --config "retention.ms=$RETENTION" \
+            --config "message.timestamp.type=CreateTime" 2>/dev/null; then
             break
         fi
         if [[ "$attempt" -lt 3 ]]; then

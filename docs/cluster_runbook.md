@@ -224,6 +224,7 @@ ssh fa-master "ls -l /opt/fa-iforest/datasets/synergia/files_csv/.replayer.offse
 | **误 cancel 旧 FA-iForest job / 用了 --purge** | 旧项目挂了 / 旧数据没了 | 触碰红线（§1）。→ 事前避免；用脚本的白名单/不带 --purge |
 | **公网 IP 变了没刷新** | ssh 连不上 / broker 连接超时 | ECS 重启后公网 IP 变。→ `refresh-ips.sh` 更新 .env |
 | **topic 数据写进去几分钟就没了** | GetOffsetShell 末端偏移量正常（如 57442），但 `--from-beginning` 消费到 0 条、转储文件 0 字节；最早偏移量≈最末偏移量 | 消息盖的是**事件时间**（2022），旧 `retention.ms=24h` 按消息时间戳判其超期即删。→ 已改 `SYN_RETENTION_MS=-1`；**旧 topic 需 `syn-clean-topics.sh --yes` 重建**才生效，然后重跑重放 |
+| **RoundAssembler 收到全部数据却一条不发**（RobustScaler/RawCache/M2/scores 全 0） | Flink UI 该算子 Low Watermark 是"当下墙上时钟"（如 17880 亿+ ms，比 2022 数据超前数年） | topic 是 `LogAppendTime`，Kafka 用落盘墙上时钟覆盖了重放器的 2022 CreateTime → watermark 跑到当下、关轮定时器（事件时间 2022+30s）永不触发。→ 已在建表脚本显式钉 `message.timestamp.type=CreateTime`；**旧 topic 需 alter 或重建**，再重放。检查：`kafka-configs --describe --all --topic synergia-source | grep message.timestamp.type` 应为 CreateTime |
 
 ---
 

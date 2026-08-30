@@ -47,6 +47,13 @@ MASTER_SSH="${NODE_MASTER_PUBLIC_IP:-$NODE_MASTER_IP}"
 BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
 RF="${SYN_TOPIC_REPLICATION:-2}"
 RETENTION="${SYN_RETENTION_MS:-86400000}"
+# message.timestamp.type=CreateTime 是**必须显式设定**的：整套管线以事件时间（重放器盖的 2022 轮时间戳，
+# CreateTime）驱动 watermark 与 RoundAssembler 的关轮定时器。若走 broker 默认（可能是 LogAppendTime），
+# Kafka 会用落盘的墙上时钟覆盖时间戳，导致 watermark 跑到"当下"、关轮定时器永不触发、RoundAssembler 一条
+# 不发（血泪教训）。故所有 synergia-* 建表时显式钉 CreateTime。
+# CreateTime MUST be pinned explicitly: the pipeline is event-time driven off the replayer's 2022
+# CreateTime stamps; a LogAppendTime broker default would overwrite them with wall-clock append time and
+# stall RoundAssembler's close timers (nothing gets emitted).
 
 # 在 master 的 kafka-1 容器内调用 Kafka CLI / run the Kafka CLI inside kafka-1 on master
 kcmd() { ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "docker exec kafka-1 $*"; }
@@ -124,7 +131,8 @@ for i in "${!NAMES[@]}"; do
             --topic "$t" \
             --partitions "$p" \
             --replication-factor "$RF" \
-            --config "retention.ms=$RETENTION"
+            --config "retention.ms=$RETENTION" \
+            --config "message.timestamp.type=CreateTime"
         continue
     fi
 
