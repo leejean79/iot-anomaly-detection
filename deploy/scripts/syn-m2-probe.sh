@@ -57,7 +57,8 @@ echo "===================================="
 echo "[probe] 转储 synergia-m1-out（最多 ${MAX_MESSAGES} 条）→ $JSONL"
 echo "===================================="
 # 用 --timeout-ms 兜底：console-consumer 若等不满 --max-messages 会一直挂住，加超时让它消费完即退。
-on_master "mkdir -p $WORK && docker exec kafka-1 kafka-console-consumer.sh \
+# chmod 777：flink 镜像 entrypoint 会把命令降权成 uid 9999，写不进 root 拥有的挂载目录，故把工作目录设为全可写。
+on_master "mkdir -p $WORK && chmod 777 $WORK && docker exec kafka-1 kafka-console-consumer.sh \
     --bootstrap-server $BROKERS --topic ${SYN_TOPIC_M1_OUT:-synergia-m1-out} \
     --from-beginning --max-messages $MAX_MESSAGES --timeout-ms 30000 > $JSONL 2>/dev/null || true"
 
