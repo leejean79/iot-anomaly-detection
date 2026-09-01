@@ -8,7 +8,7 @@
 | 验收 | 内容 | 状态 |
 |---|---|---|
 | **V-M2-1** | 第六节全部等价性与生命周期测试通过（`mvn test` 全绿） | ✅ **PASS**（26 测试全绿，见下） |
-| **V-M2-2** | 集群单日联合作业运行 + 计数器对账 + scores/monitoring 产出 | ⏳ 待活集群执行（命令已备） |
+| **V-M2-2** | 集群联合作业运行 + 计数器对账 + scores/monitoring 产出 | ✅ **PASS**（对账逐字闭合、scores>0、监测含 M2 信号；详见下） |
 | **V-M2-3** | (R,k) 校准探针表交付（含通俗解读段） | ⏳ 待活集群执行（工具已备，离线已自测） |
 | **V-M2-4** | 一个月段 k=3600 压测（吞吐/反压/checkpoint/MCOD 状态规模）+ DF-12 段观察 | ⏳ 待活集群执行 |
 
@@ -95,13 +95,18 @@ bash deploy/scripts/syn-m2-metrics.sh          # 自动找 RUNNING 的 M2Job，�
 
 | item | value |
 |---|---|
-| 选定日 | _paste_（建议 2022-05-21）|
-| M1 产出轮数（`m1_assembler_rounds_total`）| _paste_ |
-| warmup 旁路 / 缺失旁路 | _paste_ / _paste_ |
-| **对账**：admitted == rounds − warmup − missing ? | _paste（应闭合）_ |
-| `synergia-scores` 收到名单消息数 | _paste_（`GetOffsetShell --topic synergia-scores` 求和）|
-| monitoring 快照含 M2 三路信号与计数? | _paste_（消费 synergia-monitoring，看含 `m2OutlierRate` 等字段的行）|
-| **verdict** | _PASS / FAIL_ |
+| 选定段 | 2022-05-21 起（默认预热 8640/设备）|
+| M1 产出轮数（`m1_assembler_rounds_total`）| 114,581（取样时刻）|
+| warmup 旁路 / 缺失旁路 | 60,480 / 123 |
+| **对账**：admitted == rounds − warmup − missing ? | **admitted 53,978 == 114,581 − 60,480 − 123 = 53,978 → 闭合 OK**；交叉核对 `m1_scaler_warmup_rounds(60,480) == m2_gate_warmup_bypass(60,480)` 一致 |
+| `synergia-scores` 收到名单消息数 | > 0（如取样时 1,539；随重放继续增长）|
+| monitoring 快照含 M2 三路信号与计数? | 是——预热冻结后产出（`grep -v '"windowEnd":0'` 滤掉 M1 快照即见 `m2OutlierRate/m2McOccupancy/m2NeighborCountP10P50/m2WindowPoints`）|
+| **verdict** | **PASS**（计数器逐字闭合、scores 产出、监测含 M2 信号）|
+
+> **口径提醒**：计数器为**实时累计值**，具体数字随取样时刻变化；关键是**闭合关系**成立。用
+> `bash deploy/scripts/syn-m2-metrics.sh` 一键拉取并自动对账。功能验证曾用 `--warmup-rounds 600`
+> 得 scores≈110 万（小预热标准化粗糙、离群暴增，属假象）；默认 8640 预热校准良好，scores 回落到合理量级。
+> 最终离群率是否合理由 V-M2-3 探针校准 (R,k)。
 
 ```bash
 # scores 落盘计数
