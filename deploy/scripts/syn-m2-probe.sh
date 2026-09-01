@@ -83,9 +83,11 @@ on_master "docker run --rm --user root \
 echo "===================================="
 echo "[probe] CSV（master）：$CSV"
 LOCAL_CSV="$PROJECT_ROOT/docs/m2_probe.csv"
-if scp $SSH_OPTS "$SSH_USER@$MASTER_SSH:$CSV" "$LOCAL_CSV" 2>/dev/null; then
+# 用 ssh cat 拉回（比 scp 稳，复用一直可用的 ssh 通道）/ pull back via ssh cat (more robust than scp)
+if on_master "cat $CSV" > "$LOCAL_CSV" 2>/dev/null && [ -s "$LOCAL_CSV" ]; then
     echo "[probe] 已拉回本地：${LOCAL_CSV}（可附入 docs/m2_acceptance.md 的 V-M2-3）"
 else
-    echo "[probe] 拉回失败，可手动 scp：$SSH_USER@$MASTER_SSH:$CSV" >&2
+    rm -f "$LOCAL_CSV" 2>/dev/null || true
+    echo "[probe] 拉回失败，可手动：ssh $SSH_USER@$MASTER_SSH \"cat $CSV\" > docs/m2_probe.csv" >&2
 fi
 echo "提醒 / note：本阶段**不定 (R,k) 终值**——表格交回设计会话裁决。"
