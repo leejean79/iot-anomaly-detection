@@ -100,7 +100,7 @@ bash deploy/scripts/syn-m2-metrics.sh          # 自动找 RUNNING 的 M2Job，�
 | warmup 旁路 / 缺失旁路 | 60,480 / 123 |
 | **对账**：admitted == rounds − warmup − missing ? | **admitted 53,978 == 114,581 − 60,480 − 123 = 53,978 → 闭合 OK**；交叉核对 `m1_scaler_warmup_rounds(60,480) == m2_gate_warmup_bypass(60,480)` 一致 |
 | `synergia-scores` 收到名单消息数 | > 0（如取样时 1,539；随重放继续增长）|
-| monitoring 快照含 M2 三路信号与计数? | 是——预热冻结后产出（`grep -v '"windowEnd":0'` 滤掉 M1 快照即见 `m2OutlierRate/m2McOccupancy/m2NeighborCountP10P50/m2WindowPoints`）|
+| monitoring 快照含 M2 三路信号与计数? | 是——预热冻结后产出。实测样例（2022-05-23 某窗，多设备）：`m2WindowPoints=176~180, m2McOccupancy=1.0, m2OutlierRate=0.0, m2NeighborCountP10/P50=0.0`，四字段自洽（占用率 1.0→PD 空→邻居百分位 0、无离群）。用 `--timeout-ms 20000` + `grep -v '"windowEnd":0'` 过滤（M1 快照 windowEnd 恒 0）|
 | **verdict** | **PASS**（计数器逐字闭合、scores 产出、监测含 M2 信号）|
 
 > **口径提醒**：计数器为**实时累计值**，具体数字随取样时刻变化；关键是**闭合关系**成立。用
@@ -112,9 +112,10 @@ bash deploy/scripts/syn-m2-metrics.sh          # 自动找 RUNNING 的 M2Job，�
 # scores 落盘计数
 ssh fa-master "docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell \
   --broker-list <brokers> --topic synergia-scores" | awk -F: '{s+=$3} END{print \"scores:\", s}'
-# 抽看含 M2 字段的 monitoring 快照
+# 抽看 M2 快照（用 --timeout-ms 而非 --max-messages：后者若超过实际消息数会一直挂起、tail 永不输出）
 ssh fa-master "docker exec kafka-1 kafka-console-consumer.sh --bootstrap-server <brokers> \
-  --topic synergia-monitoring --from-beginning --max-messages 200" | grep m2OutlierRate | head
+  --topic synergia-monitoring --from-beginning --timeout-ms 20000" \
+  | grep -v '"windowEnd":0' | grep m2OutlierRate | tail -5   # windowEnd≠0 即 M2 快照（M1 快照恒 0）
 ```
 
 > `<brokers>` = `172.16.0.162:9092,172.16.0.163:9092,172.16.0.164:9092`。
