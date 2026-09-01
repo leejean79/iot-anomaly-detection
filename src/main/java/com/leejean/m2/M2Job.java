@@ -58,6 +58,9 @@ public class M2Job {
         String sourceTopic = params.get("source-topic", "synergia-source");
         String scoresTopic = params.get("scores-topic", "synergia-scores");
         String monitoringTopic = params.get("monitoring-topic", "synergia-monitoring");
+        // m1-out（标准化 DeviceRound）：默认关闭以精简联合作业；开启后一次月度重放即可喂 V-M2-3 探针。
+        // 传 --out-topic synergia-m1-out 打开（空字符串 = 关闭）。
+        String outTopic = params.get("out-topic", "");
         String startupMode = params.get("start-offset", "earliest");
         int parallelism = params.getInt("parallelism", 8);
         long idleWallSec = params.getLong("idle-wall", 10L);
@@ -130,6 +133,14 @@ public class M2Job {
                         new MonitoringSerializationSchema(monitoringTopic),
                         producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
                 .name("Kafka Sink [" + monitoringTopic + " / M1]");
+
+        // (可选) 归一化 DeviceRound → synergia-m1-out（供 V-M2-3 探针离线读；--out-topic 打开）
+        if (!outTopic.isEmpty()) {
+            cached.addSink(new FlinkKafkaProducer<>(outTopic,
+                    new DeviceRoundSerializationSchema(outTopic),
+                    producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
+                    .name("Kafka Sink [" + outTopic + "]");
+        }
 
         // ---- M2 段 ----
         OutputTag<DevicePoint> lateTag = new OutputTag<DevicePoint>("m2-late-drops") { };
@@ -204,6 +215,29 @@ public class M2Job {
                 return new ProducerRecord<>(topic, null, e.getWindowEnd() * 1000L, key, value);
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to serialize ScoreEvent to JSON", ex);
+            }
+        }
+    }
+
+    private static class DeviceRoundSerializationSchema implements KafkaSerializationSchema<DeviceRound> {
+        private static final long serialVersionUID = 1L;
+        private final String topic;
+        private transient ObjectMapper mapper;
+        DeviceRoundSerializationSchema(String topic) {
+            this.topic = topic;
+        }
+        @Override
+        public ProducerRecord<byte[], byte[]> serialize(DeviceRound round, @Nullable Long timestamp) {
+            if (mapper == null) {
+                mapper = new ObjectMapper();
+            }
+            try {
+                byte[] key = round.getDevice() == null ? null
+                        : round.getDevice().getBytes(StandardCharsets.UTF_8);
+                byte[] value = mapper.writeValueAsBytes(round);
+                return new ProducerRecord<>(topic, null, round.getTs() * 1000L, key, value);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to serialize DeviceRound to JSON", e);
             }
         }
     }

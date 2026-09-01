@@ -72,6 +72,7 @@ submit_output=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "
         --source-topic ${SYN_TOPIC_SOURCE:-synergia-source} \
         --scores-topic ${SYN_TOPIC_SCORES:-synergia-scores} \
         --monitoring-topic ${SYN_TOPIC_MONITORING:-synergia-monitoring} \
+        --out-topic ${SYN_TOPIC_M1_OUT:-synergia-m1-out} \
         --window-sec $WINDOW_SEC \
         --slide-sec $SLIDE_SEC \
         --mcod-r $MCOD_R \
