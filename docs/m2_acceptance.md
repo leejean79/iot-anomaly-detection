@@ -67,8 +67,21 @@ bash deploy/scripts/syn-submit-m2.sh
 bash deploy/scripts/syn-replay.sh --speedup 600 --start 2022-05-21 --end 2022-05-22
 ```
 
+> **预热与单日的重要关系（务必先读）**：RobustScaler 预热 = **8640 轮/设备 ≈ 正好 1 天**。**只重放单日
+> 时整天都在预热期**，`M2Gate` 会把所有 warmup 轮丢弃 → M2 admit≈0、`synergia-scores` 为空、监测里
+> `m2WindowPoints=0`——**这是预期，不是故障**。要看到 M2 真正产出离群名单，二选一：
+> (A) 重放 **≥1.x 天**（如 `--start 2022-05-21 --end 2022-05-23`），预热跑满冻结后 M2 才 admit；
+> (B) **功能验证**用临时小预热：`bash deploy/scripts/syn-submit-m2.sh --extra '--warmup-rounds 600'`
+> （600 轮≈100 分钟即冻结，单日就能大量 admit、产出 scores）。计数器对账在两种情形下都成立。
+
 **对账式核验（计数器闭合，§8 第一批）**：M2 处理的轮数应满足
-`admitted = M1 产出轮数 − warmup 旁路 − 缺失掩码旁路`。从 Flink UI 各算子 Metrics 读累计计数器：
+`admitted = M1 产出轮数 − warmup 旁路 − 缺失掩码旁路`。**一键拉取计数器并对账**（本地跑，直连 Flink REST）：
+
+```bash
+bash deploy/scripts/syn-m2-metrics.sh          # 自动找 RUNNING 的 M2Job，打印计数器 + 对账行
+```
+
+或从 Flink UI 各算子 Metrics 手动读累计计数器：
 
 | 计数器（Flink 指标） | 含义 |
 |---|---|
