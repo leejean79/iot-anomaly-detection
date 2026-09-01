@@ -46,6 +46,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--flink-url", required=True, help="Flink REST base, e.g. http://1.2.3.4:8081")
     ap.add_argument("--job", default=None, help="Job id（默认自动找 RUNNING 的 M2Job）")
+    ap.add_argument("--debug", action="store_true", help="打印各 vertex 可用的 m1_/m2_ 指标 ID 原始格式")
     args = ap.parse_args()
     base = args.flink_url.rstrip("/")
 
@@ -72,11 +73,17 @@ def main():
         except Exception:
             continue
         ids = [m["id"] for m in avail]
-        # 找出该 vertex 中匹配的指标 id（后缀匹配）
+        if args.debug:
+            hits = [mid for mid in ids if "m1_" in mid or "m2_" in mid]
+            print("[debug] vertex '%s' (%s): 指标 %d 个，含 m1_/m2_ 的 %d 个"
+                  % (v.get("name", "")[:40], vid, len(ids), len(hits)))
+            for mid in hits:
+                print("        " + mid)
+        # 找出该 vertex 中匹配的计数器 id（放宽为后缀匹配，兼容任意 scope 前缀/分隔符）
         hit = {}
         for mid in ids:
             for name in WANTED:
-                if mid == name or mid.endswith("." + name):
+                if mid == name or mid.endswith(name):
                     hit.setdefault(name, mid)
         if not hit:
             continue
