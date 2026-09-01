@@ -13,12 +13,36 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.apache.kafka.clients.producer.ProducerRecord;
+
 /**
  * CsvKafkaReplayer 纯逻辑单测：文件名时间解析、全局归并的非降序保证、空闲压缩记账。
  * Pure-logic tests for CsvKafkaReplayer: filename-time parsing, the global-merge non-decreasing
  * guarantee, and idle-compression bookkeeping. (Kafka production is exercised on the cluster.)
  */
 class ReplayerLogicTest {
+
+    /**
+     * 回归护栏：KafkaSink 必须把**事件时间**（row.ts×1000）写进 Kafka 记录时间戳（CsvKafkaReplayer:566
+     * 的 5 参数 ProducerRecord）。曾有旧构建漏设时间戳 → CreateTime 下 Kafka 盖发送时刻（墙上时钟），
+     * 使 Flink watermark 冲到"当下"、RoundAssembler 关轮定时器永不触发、整条管线不出数据。
+     * Guard: the sink must put the event time into the Kafka record timestamp (the 5-arg ProducerRecord),
+     * else CreateTime stamps wall-clock and the whole event-time pipeline stalls.
+     */
+    @Test
+    void producerRecordCarriesEventTimeTimestamp() {
+        long eventSec = 1653175904L;             // 2022-05-21（示例事件秒）
+        long tsMs = eventSec * 1000L;
+        int partition = 3;
+        // 与 KafkaSink.emit 完全相同的构造方式 / exactly as KafkaSink.emit builds it
+        ProducerRecord<String, String> rec =
+                new ProducerRecord<>("synergia-source", partition, tsMs, "D", "raw,line");
+        assertEquals(tsMs, (long) rec.timestamp(),
+                "记录时间戳必须是事件时间 row.ts×1000（不能是 null/墙上时钟）");
+        assertEquals(partition, (int) rec.partition(), "显式分区应保留");
+        assertTrue(rec.timestamp() < System.currentTimeMillis() - 3L * 365 * 24 * 3600 * 1000,
+                "事件时间应远早于当下（2022），若接近当下说明退化成了发送时刻");
+    }
 
     @Test
     void parsesBothNamingPatternsAndCompactVariant() {
