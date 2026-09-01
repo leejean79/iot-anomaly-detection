@@ -68,7 +68,7 @@ if [ "${LINES:-0}" -eq 0 ]; then
     echo "       syn-submit-m1.sh 然后 syn-replay.sh --start 2022-03-01 --end 2022-04-01" >&2
     exit 2
 fi
-echo "[probe] 转储 $LINES 行；运行离线网格 R=$R_GRID × k=$K_GRID（W=${WINDOW_SEC}s S=${SLIDE_SEC}s）"
+echo "[probe] 转储 ${LINES} 行；运行离线网格 R=${R_GRID} × k=${K_GRID}（W=${WINDOW_SEC}s S=${SLIDE_SEC}s）"
 
 # 在临时 flink 容器里跑纯 Java 探针（host 无 JDK 时靠镜像自带）
 on_master "docker run --rm --user root \
@@ -84,7 +84,7 @@ echo "===================================="
 echo "[probe] CSV（master）：$CSV"
 LOCAL_CSV="$PROJECT_ROOT/docs/m2_probe.csv"
 if scp $SSH_OPTS "$SSH_USER@$MASTER_SSH:$CSV" "$LOCAL_CSV" 2>/dev/null; then
-    echo "[probe] 已拉回本地：$LOCAL_CSV（可附入 docs/m2_acceptance.md 的 V-M2-3）"
+    echo "[probe] 已拉回本地：${LOCAL_CSV}（可附入 docs/m2_acceptance.md 的 V-M2-3）"
 else
     echo "[probe] 拉回失败，可手动 scp：$SSH_USER@$MASTER_SSH:$CSV" >&2
 fi
