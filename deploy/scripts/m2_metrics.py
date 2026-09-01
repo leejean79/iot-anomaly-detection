@@ -79,27 +79,34 @@ def main():
                   % (v.get("name", "")[:40], vid, len(ids), len(hits)))
             for mid in hits:
                 print("        " + mid)
-        # 找出该 vertex 中匹配的计数器 id（放宽为后缀匹配，兼容任意 scope 前缀/分隔符）
-        hit = {}
+        # 真实 ID 格式为 <subtask号>.<算子名>.<指标名>（如 0.M2Gate.m2_gate_admitted）。
+        # 每个 id 是**单个 subtask** 的值，取末段（最后一个点后）与计数器名精确相等即匹配；
+        # 逐 id 取值、按计数器名跨 subtask 求和。
+        wanted_set = set(WANTED)
+        id_to_name = {}
         for mid in ids:
-            for name in WANTED:
-                if mid == name or mid.endswith(name):
-                    hit.setdefault(name, mid)
-        if not hit:
+            seg = mid.rsplit(".", 1)[-1]     # 末段 = 指标名（计数器名不含点）
+            if seg in wanted_set:
+                id_to_name[mid] = seg
+        if not id_to_name:
             continue
-        get_param = ",".join(hit.values())
-        try:
-            vals = get("%s/jobs/%s/vertices/%s/subtasks/metrics?get=%s&agg=sum"
-                       % (base, jid, vid, get_param))
-        except Exception:
-            continue
-        by_id = {m["id"]: m.get("sum", m.get("value")) for m in vals}
-        for name, mid in hit.items():
-            raw = by_id.get(mid)
-            if raw is None:
+        # 分批查询各 id 的值（vertex 级 metrics 端点，逐 id 返回 value）/ fetch per-id values
+        matched_ids = list(id_to_name.keys())
+        for i in range(0, len(matched_ids), 40):
+            batch = matched_ids[i:i + 40]
+            try:
+                vals = get("%s/jobs/%s/vertices/%s/metrics?get=%s"
+                           % (base, jid, vid, ",".join(batch)))
+            except Exception:
                 continue
-            val = int(float(raw))
-            totals[name] = (totals[name] or 0) + val
+            for m in vals:
+                name = id_to_name.get(m.get("id"))
+                if name is None:
+                    continue
+                raw = m.get("value")
+                if raw is None:
+                    continue
+                totals[name] = (totals[name] or 0) + int(float(raw))
 
     # 3) 打印
     def show(title, names):
