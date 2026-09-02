@@ -87,6 +87,10 @@ deploy/batch-progress-*.log
 deploy/*.out
 deploy/*.pid
 deploy/.build/
+# 例外：docs/ 下的 CSV/JSON 属验收交付物（如 (R,k) 探针表），需纳入版本管理。
+# Exception: CSV/JSON under docs/ are acceptance deliverables (e.g. the (R,k) probe table); keep them tracked.
+!docs/*.csv
+!docs/*.json
 # Python / Mac
 __pycache__/
 *.pyc
