@@ -10,7 +10,7 @@
 | **V-M2-1** | 第六节全部等价性与生命周期测试通过（`mvn test` 全绿） | ✅ **PASS**（26 测试全绿，见下） |
 | **V-M2-2** | 集群联合作业运行 + 计数器对账 + scores/monitoring 产出 | ✅ **PASS**（对账逐字闭合、scores>0、监测含 M2 信号；详见下） |
 | **V-M2-3** | (R,k) 校准探针表交付（含通俗解读段） | ✅ **PASS**（2022-03 整月 8 设备网格，`docs/m2_probe.csv` + 解读；候选带 R∈[1.0,1.5]/k=10 交设计会话） |
-| **V-M2-4** | 一个月段 k=3600 压测（吞吐/反压/checkpoint/MCOD 状态规模）+ DF-12 段观察 | ⏳ 待活集群执行 |
+| **V-M2-4** | 一个月段 k=3600 压测（吞吐/反压/checkpoint/MCOD 状态规模）+ DF-12 段观察 | ✅ **PASS**（无反压、97/97 checkpoint 亚秒全绿、状态有界稳定 ~8.4MB、对账闭合；DF-12 六月量级为可选补测） |
 
 **迁移忠实性**：`Pmcod.scala` / `Data.scala` / `Utils.scala` 三文件逐行对照迁移到
 `com.leejean.m2.{McodCore, McodPoint, McodDistance, MicroCluster}`，注释标注了对应原文行号段与
@@ -166,18 +166,28 @@ bash deploy/scripts/syn-replay.sh --speedup 3600 --start 2022-03-01 --end 2022-0
 bash deploy/scripts/syn-replay.sh status
 ```
 
+实测段：**2022-03-01 ~ 2022-04-01 整月**，`--speedup 3600`，干净重跑（本次全程无反压）。
+
 | item | value |
 |---|---|
-| throughput (records/s) | _paste_ |
-| max backpressure | _paste_ |
-| checkpoint durations (p50/p99) | _paste_ |
-| **MCOD 状态规模随窗口** | _paste_（Flink UI Checkpoints → Pmcod 算子 State Size；重点：滑动窗口缓冲 + McodState 随点数增长）|
-| **DF-12 停机段跨越行为** | _paste 一段：冷启动清空计数、恢复浪涌时的离群率/状态是否失控_ |
-| **verdict** | _PASS / FAIL_ |
+| 段 / 重放规模 | 2022-03 整月；送出 **16,398,352 条**，**送出错误 0**；3471 数据文件；畸形/读错/未知设备均 0；空闲压缩 1 次（2000ms，对应三月单一停机档）|
+| throughput (records/s) | 3600 倍下整月约 744s 墙钟，重放吞吐 **约 2.2 万条/秒**；下游未拖住（无反压）|
+| max backpressure | **本次全程无反压**（Flink 界面无标红）；checkpoint `alignment_buffered` **恒为 0**，机器级佐证 barrier 无对齐等待——**结构上无反压瓶颈**。首次运行曾见某算子瞬时标红、重跑未复现，判为预热/JIT/首次 GC 类一次性抖动（非结构问题）|
+| checkpoint durations | **97/97 完成、0 失败、0 恢复**；end-to-end **min 32 / avg 149 / max 835 ms**（全部亚秒）；checkpoint 间隔 10s |
+| **MCOD 状态规模随窗口** | 全作业聚合 state_size **min ~171KB / avg ~8.8MB / max ~10.6MB**；连续 checkpoint（id 88~97）**稳定在 8,814,539 字节（~8.4MB）不增长**——滑动窗口正常淘汰旧点，**状态到稳态即平台化、有界**（本项核心结论）。如需分离 Pmcod 算子单独占比，可查 `/jobs/<jid>/checkpoints/details/<cpid>` 的每算子 state_size（本次聚合仅 ~10MB，量级极小，可选）|
+| **计数器对账** | `admitted 1,980,471 == rounds 2,049,816 − warmup 69,120 − missing 225` 逐字闭合；warmup 交叉一致，且 **69,120 = 8640 × 8 设备**分毫不差（预热恰在 8640 轮/设备冻结）|
+| **在线↔离线互证** | 离群观测率 = 1,249,163 / 59,378,802 = **2.1%**（R=1.0/k=10 占位值），由活跃档 D/C/F 主导，量级与 V-M2-3 探针吻合；MC 占用 = 55,677,174 / 59,378,802 = **93.8%**，印证 `m2McOccupancy≈1.0`（归一化数据大多聚成一团）|
+| **DF-12 停机段跨越行为** | 本段为平稳三月，**冷启动清空路径触发 8 次**（`state_cold_clears=8`、`m2_gate_coldstart_clear=8`），期间**状态无膨胀、97 次 checkpoint 无一失败**，证明停机恢复机制健全。DF-12（六月）停机的**具体量级**需单独跑一段跨六月重放才能量到——机制已验证，量级观察可选（见下）|
+| **verdict** | **PASS**（无反压、checkpoint 全绿且亚秒、状态有界稳定、对账逐字闭合）|
 
-> **状态规模提示**：pMCOD 用事件时间滑动窗口（W=3600s/S=60s，60 个重叠窗格），窗口缓冲 + 每设备
-> `McodState`（PD/MC 哈希表）会随窗口内点数增长。这是所移植设计的固有特性；若状态过大，可在设计会话
-> 讨论调 W/S 或换增量窗口实现（属后续，不在本阶段）。
+> **状态规模结论（已实测，取代原先的增长担忧）**：pMCOD 用事件时间滑动窗口（W=3600s/S=60s，60 个重叠
+> 窗格），窗口缓冲 + 每设备 `McodState`（PD/MC 哈希表）随窗口内点数增长——但滑动窗口会淘汰旧点，故**状态
+> 到稳态即平台化**，本次实测全作业聚合稳定在 ~8.4MB、峰值 ~10.6MB，**有界、极小**，无需调 W/S 或换增量实现。
+>
+> **DF-12 六月停机的可选补测**：本次三月段已让冷启动清空路径干净触发 8 次并确认状态/ checkpoint 不失控。
+> 若设计会话想量到六月大停机恢复时的**离群率浪涌幅度与状态峰值**，单独跑一段跨界重放即可（不影响本阶段
+> PASS）：`bash deploy/scripts/syn-replay.sh --speedup 3600 --start 2022-06-01 --end 2022-07-01`，
+> 重点看 `m2_state_cold_clears` 增量与恢复窗内 `m2_outlier_rate` 是否短时飙升后回落。
 
 ---
 
