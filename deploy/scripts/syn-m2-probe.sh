@@ -12,6 +12,8 @@
 #      # 前提：先用 M1Job 把想探的月份（建议 2022-03，EDA 相对平稳）重放进 synergia-m1-out。
 #      bash deploy/scripts/syn-m2-probe.sh --max-messages 300000
 #      bash deploy/scripts/syn-m2-probe.sh --r-grid 0.5,1.0,1.5,2.0 --k-grid 5,10,20 --window-sec 3600 --slide-sec 60
+#      # 补跑不同网格、换个文件名免覆盖已存表（如逐设备 R 标定）：
+#      bash deploy/scripts/syn-m2-probe.sh --r-grid 0.75,1.0,1.25,1.5,1.75 --k-grid 10 --out-name m2_probe_calib.csv
 # 3. 前置条件 / Preconditions: synergia-m1-out 已含目标月份的标准化 DeviceRound（M1Job 已跑过该段）。
 # 4. 期望产出 / Expected output: master 上 ${REMOTE_HOME}/m2_probe.csv（device,R,k,slides,meanWindowPoints,
 #      meanOutlierRate,fracZeroSlides）+ stdout 通俗解读；末尾把 CSV 拉回本地 deploy/../docs/ 便于附验收。
@@ -31,6 +33,9 @@ R_GRID="${SYN_M2_PROBE_R_GRID:-0.5,1.0,1.5,2.0,2.5,3.0}"
 K_GRID="${SYN_M2_PROBE_K_GRID:-5,10,20}"
 WINDOW_SEC="${SYN_M2_WINDOW_SEC:-3600}"
 SLIDE_SEC="${SYN_M2_SLIDE_SEC:-60}"
+# 本地 CSV 文件名（默认 m2_probe.csv）；补跑不同网格时可换名，免覆盖已存表。
+# Local CSV basename (default m2_probe.csv); override it on a re-run so a different grid does not clobber it.
+OUT_NAME="m2_probe.csv"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
@@ -38,6 +43,7 @@ while [[ $# -gt 0 ]]; do
         --k-grid) K_GRID="$2"; shift 2 ;;
         --window-sec) WINDOW_SEC="$2"; shift 2 ;;
         --slide-sec) SLIDE_SEC="$2"; shift 2 ;;
+        --out-name) OUT_NAME="$2"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 1 ;;
     esac
 done
@@ -83,7 +89,7 @@ on_master "docker run --rm --user root \
 
 echo "===================================="
 echo "[probe] CSV（master）：$CSV"
-LOCAL_CSV="$PROJECT_ROOT/docs/m2_probe.csv"
+LOCAL_CSV="$PROJECT_ROOT/docs/$OUT_NAME"
 # 用 ssh cat 拉回（比 scp 稳，复用一直可用的 ssh 通道）/ pull back via ssh cat (more robust than scp)
 if on_master "cat $CSV" > "$LOCAL_CSV" 2>/dev/null && [ -s "$LOCAL_CSV" ]; then
     echo "[probe] 已拉回本地：${LOCAL_CSV}（可附入 docs/m2_acceptance.md 的 V-M2-3）"
