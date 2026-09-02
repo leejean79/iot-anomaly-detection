@@ -225,6 +225,30 @@ ssh fa-master "ls -l /opt/fa-iforest/datasets/synergia/files_csv/.replayer.offse
 | **公网 IP 变了没刷新** | ssh 连不上 / broker 连接超时 | ECS 重启后公网 IP 变。→ `refresh-ips.sh` 更新 .env |
 | **topic 数据写进去几分钟就没了** | GetOffsetShell 末端偏移量正常（如 57442），但 `--from-beginning` 消费到 0 条、转储文件 0 字节；最早偏移量≈最末偏移量 | 消息盖的是**事件时间**（2022），旧 `retention.ms=24h` 按消息时间戳判其超期即删。→ 已改 `SYN_RETENTION_MS=-1`；**旧 topic 需 `syn-clean-topics.sh --yes` 重建**才生效，然后重跑重放 |
 | **RoundAssembler 收到全部数据却一条不发**（RobustScaler/RawCache/M2/scores 全 0） | Flink UI 该算子 Low Watermark 是"当下墙上时钟"（如 17880 亿+ ms，比 2022 数据超前数年） | topic 是 `LogAppendTime`，Kafka 用落盘墙上时钟覆盖了重放器的 2022 CreateTime → watermark 跑到当下、关轮定时器（事件时间 2022+30s）永不触发。→ 已在建表脚本显式钉 `message.timestamp.type=CreateTime`；**旧 topic 需 alter 或重建**，再重放。检查：`kafka-configs --describe --all --topic synergia-source | grep message.timestamp.type` 应为 CreateTime |
+| **改了代码却像没生效**（同上 watermark 冻结、或行为仍是旧逻辑） | 明明本地改好了，集群上跑出来还是老样子；watermark 仍是墙上时钟 | **集群跑的是已上传的 jar，不是你的源码**。改任何 `.java` 后必须**重打包 + 重传**才生效：`mvn clean package && bash deploy/scripts/syn-upload-m1.sh --jar-only`。M2 阶段曾因部署的旧 jar 未给记录设事件时间戳，CreateTime 退化成墙上时钟、watermark 冻结（症状同上一行，但根因是"忘了重传 jar"）|
+| **只重放单日，M2 一条离群都不出**（`m2_gate_admitted≈0`、scores 空、`m2WindowPoints=0`） | 单日重放跑完，M1 对账正常，但 M2 完全没产出 | **RobustScaler 预热 = 8640 轮/设备 ≈ 正好 1 天**，单日整天都在预热期，`M2Gate` 把 warmup 轮全丢 → M2 不 admit。**这是预期不是故障**。→ 要看 M2 产出：重放 **≥1.x 天**，或功能验证时 `syn-submit-m2.sh --extra '--warmup-rounds 600'`（约 100 分钟即冻结）|
+| **`kafka-console-consumer` 挂住不返回** | 转储/抽看 topic 时终端卡死，`tail` 永不输出，脚本超时 | `--max-messages N` 若 N 超过 topic 实际消息数，消费者会一直等新消息不退出。→ 抽看/转储一律用 **`--timeout-ms 20000`**（消费完即退）而非 `--max-messages`；两者别混用 |
+| **临时容器写文件报 Permission denied**（探针 CSV、重放器 offset 落盘失败） | `docker run --user root ... java ...` 仍报 `(Permission denied)`；重放器打印 `[resume] failed to save offset` | **`fa-iforest/flink` 镜像 entrypoint 会把命令降权成 uid 9999，`--user root` 被忽略**，写不进 root 拥有的挂载目录。→ 把要写的目录设为全可写：宿主 `mkdir -p <dir> && chmod 777 <dir>` 再挂载；重放器 offset 已改挂到独立可写目录 `/state`（见 `SYN_REPLAY_STATE_DIR`），探针工作目录已 `chmod 777` |
+
+---
+
+## 7.1 M2 阶段的操作差异 / M2-stage workflow deltas
+
+M2 与 M1 共用同一套集群流程（§3–§6 全部适用），只有以下几处不同，务必记牢：
+
+- **提交的是 `M2Job`，不是 `M1Job`，且二者不可并存**（都消费 `synergia-source`）。做 M2 验收时用
+  `syn-submit-m2.sh`；若集群上还挂着自己的 M1Job，先按 JobID cancel 掉它（绝不动旧项目 job）。
+  `M2Job` 内部已复用 M1 全部算子并照常产出 M1 监测快照，所以**只提交 M2Job 一个作业**即可。
+- **`M2Job` 会额外把标准化轮写进 `synergia-m1-out`**（`--out-topic`，供 V-M2-3 探针离线取数）。
+  因此 M2 验收前清 topic 时，`synergia-m1-out` 也要一并清（`syn-clean-topics.sh` 已覆盖）。
+- **计数器对账用 `syn-m2-metrics.sh`**（本地直连 Flink REST，自动找 RUNNING 的 M2Job 并对账
+  `admitted = rounds − warmup − missing`）。**它只对"正在跑"的作业有效**——作业结束后自定义计数器
+  与反压都查不到；唯有 checkpoint 存档（`/jobs/<jid>/checkpoints`，状态规模 + 时长）在作业还留在
+  JobManager 已完成列表期间可查。
+- **(R,k) 校准探针 `syn-m2-probe.sh` 是离线的**：它把 `m1-out` 转 JSONL 后在临时容器里单进程跑，
+  **不经过 Flink 集群**，所以没有反压/ checkpoint/算子——探针本身不可能产生 Flink 界面上的标红。
+- **预热与单日的关系（M2 尤其要记）**：见 §7 footgun——单日重放整天都在预热期，M2 不 admit、scores
+  空，属预期；要看 M2 产出得重放 ≥1.x 天或临时 `--warmup-rounds` 小预热。
 
 ---
 
@@ -233,8 +257,10 @@ ssh fa-master "ls -l /opt/fa-iforest/datasets/synergia/files_csv/.replayer.offse
 - **重放日志**：master 上 `${REMOTE_HOME}/syn-replay.log`（`REMOTE_HOME=/opt/fa-iforest`）。
   容器被 `--rm` 清理后仍可回看结果摘要；跨天会**累积追加**，需要时归档或清空：
   `ssh fa-master "mv /opt/fa-iforest/syn-replay.log /opt/fa-iforest/syn-replay.$(date +%F).log"`。
-- **验收结果**：填入 `docs/m1_acceptance.md`（V-M1-1..5）。与集群实测冲突的数据事实按交接文档 §7
-  如实交回设计会话，不自行改写方案。
+- **重放器 offset**：写在独立可写目录 `${SYN_REPLAY_STATE_DIR:-/opt/fa-iforest/replay-state}/.replayer.offset`
+  （不再写数据集目录，见 §7 权限坑）。开新实验若想从头灌，删它或不传 `--resume` 即可。
+- **验收结果**：M1 填 `docs/m1_acceptance.md`（V-M1-1..5）；M2 填 `docs/m2_acceptance.md`（V-M2-1..4），
+  (R,k) 探针表在 `docs/m2_probe.csv`。与集群实测冲突的数据事实按交接文档 §7 如实交回设计会话，不自行改写方案。
 - **Flink UI**：`http://<master 公网IP>:8081`，看作业拓扑、各算子 Records、反压、checkpoint。
 
 ---
