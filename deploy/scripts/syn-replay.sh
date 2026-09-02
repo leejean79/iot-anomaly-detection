@@ -13,7 +13,9 @@
 #   处理端作业由 syn-submit-m1.sh 以 `flink run -d` 分离提交，常驻集群、本就不惧断连，无需 tmux。
 #
 # 运行载体沿用 5-load-data.sh 的既有模式：master 上 `docker run --rm --network host` 起一个临时
-# flink 镜像容器（镜像自带 JDK），挂载 jars（只读）与数据集（读写，供 offset 落盘）。
+# flink 镜像容器（镜像自带 JDK），挂载 jars（只读）、数据集（只读）与 offset 状态目录（可写，供断点续跑落盘）。
+# 注意：offset 不能落进数据集目录——该目录 root 拥有，而镜像 entrypoint 会把命令降权成 uid 9999、
+#      --user root 被忽略，写不进 root 拥有的挂载；故单独用一个 chmod 777 的状态目录挂为 /state。
 #
 # ---------------------------- 脚本交付五要素 -------------------------------
 # 1. 执行环境 / Environment: 本地 Mac（bash），ssh 免密到 fa-master；master 上已安装 tmux；
@@ -48,6 +50,14 @@ BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
 JAR_NAME="${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}"
 MAIN="${SYN_REPLAYER_MAIN:-com.leejean.source.CsvKafkaReplayer}"
 DATASET_DIR="${SYN_DATASET_DIR:-/opt/fa-iforest/datasets/synergia/files_csv}"
+# offset 断点文件的宿主目录：**不能**写进 root 拥有的数据集挂载目录——fa-iforest/flink 镜像的 entrypoint
+# 会把命令降权成 uid 9999，--user root 被忽略，容器写不进 root 拥有的挂载（曾导致 --resume 一直
+# “failed to save offset”）。因此单独用一个可写目录（下方 start 时 chmod 777），挂载为 /state。
+# Host dir for the resume offset file: it must NOT live under the root-owned dataset mount — the
+# fa-iforest/flink image entrypoint drops to uid 9999 (ignoring --user root) and cannot write a
+# root-owned mount (this was the chronic "[resume] failed to save offset"). Use a dedicated writable
+# directory instead (chmod 777 at start below), mounted as /state.
+REPLAY_STATE_DIR="${SYN_REPLAY_STATE_DIR:-${REMOTE_HOME}/replay-state}"
 
 SESSION="syn-replay"                       # tmux 会话名 / tmux session name
 CONTAINER="syn-replay"                     # 容器名 / container name
@@ -70,11 +80,12 @@ replayer_docker_cmd() {
     local name_flag="$1"   # 容器名标志或空 / --name flag or empty
     echo "docker run --rm $name_flag --network host --user root \
         -v ${REMOTE_HOME}/jars:/jars:ro \
-        -v $DATASET_DIR:/data \
+        -v $DATASET_DIR:/data:ro \
+        -v $REPLAY_STATE_DIR:/state \
         fa-iforest/flink:${FLINK_VERSION} \
         java -cp /jars/$JAR_NAME $MAIN \
             --data-dir /data \
-            --offset-file /data/.replayer.offset \
+            --offset-file /state/.replayer.offset \
             --brokers $BROKERS \
             --topic ${SYN_TOPIC_SOURCE:-synergia-source} \
             --num-partitions ${SYN_SOURCE_PARTITIONS:-8} \
@@ -101,6 +112,10 @@ case "$CMD" in
             echo "A leftover container '$CONTAINER' exists on master; run 'bash $0 stop' to clean it up first." >&2
             exit 1
         fi
+
+        # 准备 offset 状态目录并置为全可写（容器 uid 9999 需能写 /state）。
+        # Prepare the offset state dir and make it world-writable (the uid-9999 container must write /state).
+        on_master "mkdir -p $REPLAY_STATE_DIR && chmod 777 $REPLAY_STATE_DIR"
 
         # 把启动命令写成 master 上的 launcher 脚本，launcher 自身把输出 tee 到日志文件。
         # 这样 tmux 命令只是 `bash LAUNCH`，没有管道/多层引号，杜绝一类引号解析问题。
@@ -170,6 +185,7 @@ EOF
         # 前台阻塞运行（供快速 dry-run/交互）；断连即止，不用于长跑。
         # Foreground blocking run (for quick dry-run/interactive); dies on disconnect, not for long runs.
         echo "[replay:fg] 前台运行（断连即止；长跑请用默认 start）/ foreground (dies on disconnect)"
+        on_master "mkdir -p $REPLAY_STATE_DIR && chmod 777 $REPLAY_STATE_DIR"
         on_master_tty "$(replayer_docker_cmd "")"
         ;;
 esac
