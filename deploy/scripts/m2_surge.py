@@ -136,11 +136,13 @@ def main():
     stats = {}
     for dev in sorted(series):
         rec, pre, post = detect_recovery(series[dev])
-        base = mean([r for (t, r, n, o, c) in pre if n > 0]) if pre else None
         if rec is None or not post:
-            stats[dev] = dict(recovery=rec, baseline=base, peak_r=None, peak_t=None,
-                              transient=None, refill=None, first_cold=None, n_cold=0, note="无停机空档/无恢复数据")
+            # 没侦测到停机空档 → 无法区分停机前/后，基线不可信，一律 n/a（不拿恢复段数据充当基线）
+            stats[dev] = dict(recovery=rec, baseline=None, peak_r=None, peak_t=None,
+                              transient=None, refill=None, first_cold=None, n_cold=0,
+                              note="无停机空档/无停机前基线（该设备恢复较晚，转储未含其停机前段）")
             continue
+        base = mean([r for (t, r, n, o, c) in pre if n > 0]) if pre else None
         win = [(t, r, n, o, c) for (t, r, n, o, c) in post if t <= rec + peak_win]
         peak_t, peak_r = max(((t, r) for (t, r, n, o, c) in win), key=lambda x: x[1])
         # 浪涌衰减：率首次回落到 ≤ max(基线×factor, 绝对下限)
