@@ -13,9 +13,10 @@
 # 2. 调用命令 / Invocation:
 #      bash deploy/scripts/check-jar.sh                                   # 默认查 target/ 下刚打的 jar
 #      bash deploy/scripts/check-jar.sh /opt/fa-iforest/jars/iot-anomaly-detection-1.0-SNAPSHOT.jar
-#      # 在集群上查 jobmanager 真正加载的那个：
-#      ssh fa-master "docker exec jobmanager bash -lc 'unzip -p /opt/flink/usrlib/<jar> \
-#          com/leejean/m1/MonitoringSnapshot.class | grep -a -c m2ColdCleared'"
+#      # 查 jobmanager 真正加载的那个（**权威**）——注意 master 宿主机常无 unzip，必须走容器（flink 镜像自带）：
+#      ssh fa-master "docker exec jobmanager sh -c 'unzip -p /opt/flink/usrlib/<jar> \
+#          com/leejean/m1/MonitoringSnapshot.class | grep -a -c m2ColdCleared'"   # 打印 >0 即新、0 即旧
+#      # （宿主机 /opt/fa-iforest/jars 下若要查而无 unzip：docker cp 进容器查，或 python -c 'import zipfile...'）
 # 3. 前置条件 / Preconditions: jar 存在且可读。
 # 4. 期望产出 / Expected output: 逐标记 PASS/FAIL + 总判定（全 PASS = 该 jar 含最新内容）。
 # 5. 失败兜底 / Failure fallback: jar 不存在 → 报错退出；某标记 FAIL → 该 jar 是旧的，需 mvn clean package 重打。

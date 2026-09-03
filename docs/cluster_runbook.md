@@ -229,6 +229,7 @@ ssh fa-master "ls -l /opt/fa-iforest/datasets/synergia/files_csv/.replayer.offse
 | **只重放单日，M2 一条离群都不出**（`m2_gate_admitted≈0`、scores 空、`m2WindowPoints=0`） | 单日重放跑完，M1 对账正常，但 M2 完全没产出 | **RobustScaler 预热 = 8640 轮/设备 ≈ 正好 1 天**，单日整天都在预热期，`M2Gate` 把 warmup 轮全丢 → M2 不 admit。**这是预期不是故障**。→ 要看 M2 产出：重放 **≥1.x 天**，或功能验证时 `syn-submit-m2.sh --extra '--warmup-rounds 600'`（约 100 分钟即冻结）|
 | **`kafka-console-consumer` 挂住不返回** | 转储/抽看 topic 时终端卡死，`tail` 永不输出，脚本超时 | `--max-messages N` 若 N 超过 topic 实际消息数，消费者会一直等新消息不退出。→ 抽看/转储一律用 **`--timeout-ms 20000`**（消费完即退）而非 `--max-messages`；两者别混用 |
 | **临时容器写文件报 Permission denied**（探针 CSV、重放器 offset 落盘失败） | `docker run --user root ... java ...` 仍报 `(Permission denied)`；重放器打印 `[resume] failed to save offset` | **`fa-iforest/flink` 镜像 entrypoint 会把命令降权成 uid 9999，`--user root` 被忽略**，写不进 root 拥有的挂载目录。→ 把要写的目录设为全可写：宿主 `mkdir -p <dir> && chmod 777 <dir>` 再挂载；重放器 offset 已改挂到独立可写目录 `/state`（见 `SYN_REPLAY_STATE_DIR`），探针工作目录已 `chmod 777` |
+| **传了新 jar 但作业仍跑旧代码**（如新加的监测字段/参数不生效） | 明明 `syn-upload-m1.sh` 传了新 jar，产出里却缺新字段 | 两种时序坑：① 作业是在**传 jar 之前**提交的——已 RUNNING 的 job 锁定了当时的 jar，换文件不影响它，**须重新 `syn-submit-m2.sh`** 才加载新 jar；② 传的本地 jar 本身没重打包。→ 重放前先**用容器权威地验**（宿主机常无 unzip，必须走容器）：`ssh fa-master "docker exec jobmanager sh -c 'unzip -p /opt/flink/usrlib/<jar> com/leejean/m1/MonitoringSnapshot.class \| grep -a -c m2ColdCleared'"` 打印 >0 才是新；本地 jar 用 `bash deploy/scripts/check-jar.sh <jar>` 全 PASS 才对 |
 
 ---
 
