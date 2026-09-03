@@ -25,14 +25,14 @@ DEPLOY_DIR="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$DEPLOY_DIR")"
 set -a; source "$DEPLOY_DIR/.env"; set +a
 
+# --outage-end 仅作兜底（分析器优先按数据自动侦测恢复时刻）；--outage-hours 已弃用（仍接受但忽略，向后兼容）。
 OUTAGE_END="2022-06-13T02:20:00Z"
-OUTAGE_HOURS="102.26"
 WINDOW_SEC="${SYN_M2_WINDOW_SEC:-3600}"
 MAX_MESSAGES=3000000
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --outage-end) OUTAGE_END="$2"; shift 2 ;;
-        --outage-hours) OUTAGE_HOURS="$2"; shift 2 ;;
+        --outage-hours) shift 2 ;;   # 弃用：分析器自动侦测停机空档，此参数忽略 / deprecated, ignored
         --window-sec) WINDOW_SEC="$2"; shift 2 ;;
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 1 ;;
@@ -72,11 +72,18 @@ if ! on_master "cat $REMOTE_JSONL" > "$LOCAL_JSONL" 2>/dev/null || [ ! -s "$LOCA
     exit 3
 fi
 
+# 分析器**自动按数据侦测恢复时刻**（取最大事件时间空档），故不再传 --outage-hours；
+# --outage-end 仅作"侦测不到空档时的兜底恢复时刻"传入。
 python3 "$SCRIPT_DIR/m2_surge.py" \
     --monitoring-jsonl "$LOCAL_JSONL" \
-    --outage-end "$OUTAGE_END" --outage-hours "$OUTAGE_HOURS" --window-sec "$WINDOW_SEC" \
+    --outage-end "$OUTAGE_END" --window-sec "$WINDOW_SEC" \
     --stats-csv "$PROJECT_ROOT/docs/m2_surge_stats.csv" \
     --timeline-csv "$PROJECT_ROOT/docs/m2_surge_timeline.csv"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+    echo "ERROR: m2_surge.py 分析失败（退出码 $rc）——上方为原因，产出未生成。" >&2
+    exit "$rc"
+fi
 
 echo "===================================="
 echo "[surge] 完成。产出："
