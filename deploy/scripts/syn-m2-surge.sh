@@ -50,7 +50,7 @@ LOCAL_JSONL="$PROJECT_ROOT/docs/m2_monitoring_june.jsonl"
 on_master() { ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "$@"; }
 
 echo "===================================="
-echo "[surge] 转储 $MON_TOPIC（最多 ${MAX_MESSAGES} 条）→ $REMOTE_JSONL"
+echo "[surge] 转储 ${MON_TOPIC}（最多 ${MAX_MESSAGES} 条）→ ${REMOTE_JSONL}"
 echo "===================================="
 # --timeout-ms 兜底：console-consumer 若等不满 --max-messages 会挂住；chmod 777 供容器 uid 9999 可写。
 on_master "mkdir -p $WORK && chmod 777 $WORK && docker exec kafka-1 kafka-console-consumer.sh \
