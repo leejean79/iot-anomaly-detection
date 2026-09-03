@@ -129,6 +129,7 @@ public class PmcodFunction
         snap.setM2NeighborCountP50(p50);
         snap.setM2Outliers(result.outlierIds.size());
         snap.setM2WindowPoints(result.windowPoints);
+        snap.setM2ColdCleared(coldSignal);   // 本滑动步是否发生冷启动清空（供浪涌分析定位清空时刻）
         ctx.output(m2MonitoringTag, snap);
 
         outliersTotal.inc(result.outlierIds.size());

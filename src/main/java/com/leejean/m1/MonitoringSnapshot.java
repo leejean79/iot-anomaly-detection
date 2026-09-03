@@ -37,6 +37,7 @@ public class MonitoringSnapshot implements Serializable {
     private long m2Outliers;             // 本窗口离群点数
     private long m2WindowPoints;         // 本窗口总点数
     private long windowEnd;              // 滑动窗口末（事件时间秒；供区分 M2 快照）
+    private boolean m2ColdCleared;       // 本滑动步是否发生冷启动清空（供 DF-12 浪涌分析精确定位清空时刻）
 
     /** Jackson 反序列化需要无参构造 / No-arg constructor required by Jackson. */
     public MonitoringSnapshot() { }
@@ -116,6 +117,10 @@ public class MonitoringSnapshot implements Serializable {
     @JsonProperty
     public long getWindowEnd() { return windowEnd; }
     public void setWindowEnd(long windowEnd) { this.windowEnd = windowEnd; }
+
+    @JsonProperty
+    public boolean isM2ColdCleared() { return m2ColdCleared; }
+    public void setM2ColdCleared(boolean m2ColdCleared) { this.m2ColdCleared = m2ColdCleared; }
 
     @Override
     public String toString() {
