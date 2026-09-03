@@ -36,6 +36,8 @@ SLIDE_SEC="${SYN_M2_SLIDE_SEC:-60}"
 # 本地 CSV 文件名（默认 m2_probe.csv）；补跑不同网格时可换名，免覆盖已存表。
 # Local CSV basename (default m2_probe.csv); override it on a re-run so a different grid does not clobber it.
 OUT_NAME="m2_probe.csv"
+# 可选：逐设备逐通道离散度诊断 CSV 的本地文件名（空 = 不产出）。/ optional per-channel dispersion CSV (empty = off)
+DISPERSION_NAME=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
@@ -44,6 +46,7 @@ while [[ $# -gt 0 ]]; do
         --window-sec) WINDOW_SEC="$2"; shift 2 ;;
         --slide-sec) SLIDE_SEC="$2"; shift 2 ;;
         --out-name) OUT_NAME="$2"; shift 2 ;;
+        --dispersion-name) DISPERSION_NAME="$2"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 1 ;;
     esac
 done
@@ -77,6 +80,12 @@ if [ "${LINES:-0}" -eq 0 ]; then
 fi
 echo "[probe] 转储 ${LINES} 行；运行离线网格 R=${R_GRID} × k=${K_GRID}（W=${WINDOW_SEC}s S=${SLIDE_SEC}s）"
 
+# 离散度诊断：可选，若传 --dispersion-name 则让 M2Probe 额外产出逐通道 P1/P99/峰度 CSV（复用同一份转储）。
+DISP_ARG=""
+if [ -n "$DISPERSION_NAME" ]; then
+    DISP_ARG="--dispersion-out /work/m2_dispersion.csv"
+fi
+
 # 在临时 flink 容器里跑纯 Java 探针（host 无 JDK 时靠镜像自带）
 on_master "docker run --rm --user root \
     -v ${REMOTE_HOME}/jars:/jars:ro -v $WORK:/work \
@@ -85,7 +94,7 @@ on_master "docker run --rm --user root \
         --rounds-jsonl /work/m1out.jsonl \
         --out /work/m2_probe.csv \
         --window-sec $WINDOW_SEC --slide-sec $SLIDE_SEC \
-        --r-grid $R_GRID --k-grid $K_GRID"
+        --r-grid $R_GRID --k-grid $K_GRID $DISP_ARG"
 
 echo "===================================="
 echo "[probe] CSV（master）：$CSV"
@@ -96,5 +105,16 @@ if on_master "cat $CSV" > "$LOCAL_CSV" 2>/dev/null && [ -s "$LOCAL_CSV" ]; then
 else
     rm -f "$LOCAL_CSV" 2>/dev/null || true
     echo "[probe] 拉回失败，可手动：ssh $SSH_USER@$MASTER_SSH \"cat $CSV\" > docs/m2_probe.csv" >&2
+fi
+
+# 离散度 CSV 拉回（若启用）/ pull back the dispersion CSV if enabled
+if [ -n "$DISPERSION_NAME" ]; then
+    LOCAL_DISP="$PROJECT_ROOT/docs/$DISPERSION_NAME"
+    if on_master "cat $WORK/m2_dispersion.csv" > "$LOCAL_DISP" 2>/dev/null && [ -s "$LOCAL_DISP" ]; then
+        echo "[probe] 离散度诊断已拉回：${LOCAL_DISP}（逐设备逐通道 P1/P99/spread/峰度）"
+    else
+        rm -f "$LOCAL_DISP" 2>/dev/null || true
+        echo "[probe] 离散度 CSV 拉回失败，可手动：ssh $SSH_USER@$MASTER_SSH \"cat $WORK/m2_dispersion.csv\" > docs/$DISPERSION_NAME" >&2
+    fi
 fi
 echo "提醒 / note：本阶段**不定 (R,k) 终值**——表格交回设计会话裁决。"

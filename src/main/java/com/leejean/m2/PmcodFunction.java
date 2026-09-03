@@ -11,7 +11,9 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * pMCOD 的 Flink 窗口算子（交接文档 §4）：把 {@link McodCore}（纯算法核）接到事件时间滑动窗口上，
@@ -29,9 +31,10 @@ public class PmcodFunction
         extends ProcessWindowFunction<DevicePoint, ScoreEvent, String, TimeWindow> {
     private static final long serialVersionUID = 1L;
 
-    private final double r;
+    private final double r;                      // 全局半径 R（未在映射中的设备回退到它）
     private final int k;
     private final long slideMs;                 // 滑动步（毫秒）= S 秒 × 1000
+    private final Map<String, Double> rPerDevice;   // 逐设备半径 R（收尾任务；空 = 全用全局 r）
     private final OutputTag<MonitoringSnapshot> m2MonitoringTag;
 
     private transient ValueState<McodState> state;
@@ -41,10 +44,19 @@ public class PmcodFunction
     private transient Counter windowsTotal;
     private transient Counter coldClears;
 
+    /** 全局单 R 构造（向后兼容：所有设备用同一 R）。/ single global-R constructor (all devices same R). */
     public PmcodFunction(double r, int k, int slideSeconds, OutputTag<MonitoringSnapshot> m2MonitoringTag) {
+        this(r, k, slideSeconds, new HashMap<>(), m2MonitoringTag);
+    }
+
+    /** 逐设备 R 构造：rPerDevice 给出 设备→R；未列设备回退到全局 r。/ per-device R; unlisted falls back to r. */
+    public PmcodFunction(double r, int k, int slideSeconds,
+                         Map<String, Double> rPerDevice, OutputTag<MonitoringSnapshot> m2MonitoringTag) {
         this.r = r;
         this.k = k;
         this.slideMs = slideSeconds * 1000L;
+        // 拷进可序列化的 HashMap（算子会被序列化分发到 TaskManager）/ copy into a serializable HashMap
+        this.rPerDevice = rPerDevice == null ? new HashMap<>() : new HashMap<>(rPerDevice);
         this.m2MonitoringTag = m2MonitoringTag;
     }
 
@@ -87,7 +99,9 @@ public class PmcodFunction
             coldClears.inc();
         }
 
-        McodCore core = new McodCore(r, k, slideMs, st);
+        // 逐设备半径：映射里有就用，没有回退到全局 r（收尾任务；不改算法、只改该设备用哪个 R）
+        double rEff = rPerDevice.getOrDefault(device, r);
+        McodCore core = new McodCore(rEff, k, slideMs, st);
         McodCore.McodResult result = core.processSlide(points, windowStart, windowEnd);
         state.update(st);   // 持久化状态（含 mcCounter；对任意后端都显式写回）
 

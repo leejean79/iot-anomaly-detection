@@ -42,6 +42,9 @@ public final class M2Probe {
         Map<String, String> a = parseArgs(args);
         String jsonl = a.getOrDefault("rounds-jsonl", "m1out.jsonl");
         String outCsv = a.getOrDefault("out", "m2_probe.csv");
+        // 可选：逐设备逐通道离散度诊断 CSV（收尾裁决 2b：P1/P99/峰度，判断发散集中于某通道还是普遍）。
+        // Optional per-device per-channel dispersion CSV (closeout ruling 2b): P1/P99/kurtosis.
+        String dispersionOut = a.getOrDefault("dispersion-out", "");
         long windowSec = Long.parseLong(a.getOrDefault("window-sec", "3600"));
         long slideSec = Long.parseLong(a.getOrDefault("slide-sec", "60"));
         double[] rGrid = parseDoubles(a.getOrDefault("r-grid", "0.5,1.0,1.5,2.0,2.5,3.0"));
@@ -88,6 +91,12 @@ public final class M2Probe {
         // 每设备按 arrival 升序
         for (List<McodPoint> pts : byDevice.values()) {
             pts.sort((x, y) -> Long.compare(x.arrival, y.arrival));
+        }
+
+        // 可选：逐设备逐通道离散度诊断（复用同一份标定段数据）/ optional per-channel dispersion diagnostic
+        if (!dispersionOut.isEmpty()) {
+            writeDispersion(byDevice, dispersionOut);
+            System.out.println("[dispersion] 逐通道 P1/P99/峰度 → " + dispersionOut);
         }
 
         long windowMs = windowSec * 1000L;
@@ -138,6 +147,85 @@ public final class M2Probe {
             System.out.println("    - " + s);
         }
         System.out.println("· 结论：以上为选段实测离群率，**不在本阶段定终值**；请设计会话据此裁决 (R,k)。");
+    }
+
+    /**
+     * 逐设备逐通道离散度诊断（收尾裁决 2b）：对每台设备每个标准化通道，输出第 1/第 99 百分位与超额峰度、
+     * 以及分位间距 iqr99_1 = P99 − P1。目的是判断 C、D 的发散是集中在某一两个通道（标准化对该通道重尾的
+     * 放大假象），还是五通道普遍（真实动态设备）——与带内设备 E 的同样统计量对照即可读出。
+     * Per-device per-channel dispersion diagnostic: P1, P99, spread (P99−P1) and excess kurtosis of the
+     * standardized values, so C/D's dispersion can be told apart as one-or-two-channel vs. all-channel.
+     */
+    private static void writeDispersion(Map<String, List<McodPoint>> byDevice, String outCsv)
+            throws java.io.FileNotFoundException {
+        try (PrintWriter pw = new PrintWriter(outCsv)) {
+            pw.println("device,channel,n,p1,p99,spread_p99_p1,excess_kurtosis");
+            for (Map.Entry<String, List<McodPoint>> e : byDevice.entrySet()) {
+                String device = e.getKey();
+                List<McodPoint> pts = e.getValue();
+                if (pts.isEmpty()) {
+                    continue;
+                }
+                int dims = pts.get(0).value.length;
+                for (int c = 0; c < dims; c++) {
+                    double[] col = new double[pts.size()];
+                    for (int i = 0; i < pts.size(); i++) {
+                        double[] v = pts.get(i).value;
+                        col[i] = c < v.length ? v[c] : Double.NaN;
+                    }
+                    double p1 = nearestRankPercentile(col, 1.0);
+                    double p99 = nearestRankPercentile(col, 99.0);
+                    double kurt = excessKurtosis(col);
+                    pw.printf("%s,%d,%d,%.6f,%.6f,%.6f,%.6f%n",
+                            device, c, col.length, p1, p99, p99 - p1, kurt);
+                }
+            }
+        }
+    }
+
+    /** 最近秩百分位（对升序数据取第 ceil(q/100×n) 个，1 基）。 */
+    private static double nearestRankPercentile(double[] data, double q) {
+        int n = data.length;
+        if (n == 0) {
+            return Double.NaN;
+        }
+        double[] s = data.clone();
+        java.util.Arrays.sort(s);
+        int rank = (int) Math.ceil(q / 100.0 * n);
+        if (rank < 1) {
+            rank = 1;
+        }
+        if (rank > n) {
+            rank = n;
+        }
+        return s[rank - 1];
+    }
+
+    /** 超额峰度 excess kurtosis = m4/m2² − 3（m2、m4 为中心矩）；m2≈0 时返回 0。 */
+    private static double excessKurtosis(double[] data) {
+        int n = data.length;
+        if (n < 2) {
+            return 0.0;
+        }
+        double mean = 0;
+        for (double x : data) {
+            mean += x;
+        }
+        mean /= n;
+        double m2 = 0;
+        double m4 = 0;
+        for (double x : data) {
+            double d = x - mean;
+            double d2 = d * d;
+            m2 += d2;
+            m4 += d2 * d2;
+        }
+        m2 /= n;
+        m4 /= n;
+        if (m2 <= 1e-12) {
+            return 0.0;
+        }
+        return m4 / (m2 * m2) - 3.0;
     }
 
     /** 对一个设备的点序列跑一遍滑动窗口，返回离群率统计（复用 McodCore，忠实一致）。 */

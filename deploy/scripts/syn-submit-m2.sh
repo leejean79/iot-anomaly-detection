@@ -44,6 +44,8 @@ WINDOW_SEC="${SYN_M2_WINDOW_SEC:-3600}"
 SLIDE_SEC="${SYN_M2_SLIDE_SEC:-60}"
 MCOD_R="${SYN_M2_R:-1.0}"
 MCOD_K="${SYN_M2_K:-10}"
+# 逐设备半径 R（收尾任务；空则全用全局 MCOD_R）/ per-device R (empty = global for all)
+MCOD_R_PER_DEVICE="${SYN_M2_R_PER_DEVICE:-}"
 
 # 分区数预检：synergia-source 必须已是 8 分区（否则 Flink 消费者触发 broker 自动建 1 分区，重放静默丢失）。
 SRC_DESC=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" \
@@ -77,6 +79,7 @@ submit_output=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "
         --slide-sec $SLIDE_SEC \
         --mcod-r $MCOD_R \
         --mcod-k $MCOD_K \
+        --mcod-r-per-device \"$MCOD_R_PER_DEVICE\" \
         --start-offset $START_OFFSET \
         --parallelism $PARALLELISM \
         $EXTRA_ARGS

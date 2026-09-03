@@ -72,8 +72,12 @@ public class M2Job {
         // M2 窗口与算法参数（占位默认；(R,k) 终值由探针交回设计会话裁决）
         int windowSec = params.getInt("window-sec", 3600);       // W
         int slideSec = params.getInt("slide-sec", 60);           // S
-        double r = params.getDouble("mcod-r", 1.0);              // 半径 R（占位）
-        int k = params.getInt("mcod-k", 10);                     // 邻居阈值 k（占位）
+        double r = params.getDouble("mcod-r", 1.0);              // 半径 R（全局默认/回退值）
+        int k = params.getInt("mcod-k", 10);                     // 邻居阈值 k
+        // 逐设备半径 R（收尾任务：按标定表逐设备取 R）。格式 "A=1.0,B=1.0,C=1.75,..."；
+        // 未在映射中的设备回退到全局 --mcod-r。空串 = 全部用全局 R（向后兼容）。
+        // Per-device radius R: "A=1.0,B=1.0,..."; a device not listed falls back to the global --mcod-r.
+        java.util.Map<String, Double> rPerDevice = parseRPerDevice(params.get("mcod-r-per-device", ""));
 
         System.out.println("========================================");
         System.out.println("M2Job (M1+pMCOD joint)");
@@ -84,7 +88,9 @@ public class M2Job {
         System.out.println("Start offset:    " + startupMode);
         System.out.println("Parallelism:     " + parallelism);
         System.out.println("Window W/S:      " + windowSec + "s / " + slideSec + "s");
-        System.out.println("MCOD R/k:        " + r + " / " + k);
+        System.out.println("MCOD R/k:        " + r + " / " + k
+                + (rPerDevice.isEmpty() ? " (global R for all devices)"
+                        : "  per-device R=" + new java.util.TreeMap<>(rPerDevice)));
         System.out.println("========================================");
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -153,7 +159,7 @@ public class M2Job {
                 .window(SlidingEventTimeWindows.of(Time.seconds(windowSec), Time.seconds(slideSec)))
                 .allowedLateness(Time.seconds(0))                 // 允许迟到 = 0（§4）
                 .sideOutputLateData(lateTag)
-                .process(new PmcodFunction(r, k, slideSec, m2MonTag))
+                .process(new PmcodFunction(r, k, slideSec, rPerDevice, m2MonTag))
                 .name("Pmcod");
 
         // 离群点名单 → synergia-scores
@@ -173,6 +179,44 @@ public class M2Job {
         scored.getSideOutput(lateTag).process(new LateDropCounter()).name("M2LateDrops");
 
         env.execute("M2Job - M1 ingestion/normalization + pMCOD point-anomaly detection");
+    }
+
+    /**
+     * 解析逐设备半径 R 规格串 "A=1.0,B=1.0,C=1.75"（收尾任务）。空串/空项跳过；格式错误的项直接抛出（
+     * 校准值不容静默吞错——宁可快速失败也不要拿错半径跑一整月）。返回可序列化的 HashMap。
+     * Parse the per-device radius spec "A=1.0,B=1.0,..."; empty entries skipped, a malformed entry throws
+     * (a wrong radius must never be swallowed silently). Returns a serializable HashMap.
+     */
+    static java.util.Map<String, Double> parseRPerDevice(String spec) {
+        java.util.Map<String, Double> map = new java.util.HashMap<>();
+        if (spec == null || spec.trim().isEmpty()) {
+            return map;
+        }
+        for (String item : spec.split(",")) {
+            String s = item.trim();
+            if (s.isEmpty()) {
+                continue;
+            }
+            int eq = s.indexOf('=');
+            if (eq <= 0 || eq == s.length() - 1) {
+                throw new IllegalArgumentException(
+                        "非法逐设备 R 项 '" + s + "'，应为 设备=半径（如 A=1.0） / malformed device=R item");
+            }
+            String device = s.substring(0, eq).trim();
+            double radius;
+            try {
+                radius = Double.parseDouble(s.substring(eq + 1).trim());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException(
+                        "逐设备 R 项 '" + s + "' 的半径无法解析为数字 / R value not a number", e);
+            }
+            if (radius <= 0) {
+                throw new IllegalArgumentException(
+                        "逐设备 R 项 '" + s + "' 的半径必须为正 / R must be positive");
+            }
+            map.put(device, radius);
+        }
+        return map;
     }
 
     /** 迟到数据计数器：只增 Flink 指标 m2_gate_late_drop，不向下游发射 / count-only, no emit. */
