@@ -100,11 +100,38 @@ def shape_note(rates):
     return " ".join("R%.2f=%.4f%%" % (r, rates[r] * 100.0) for r in R_GRID)
 
 
+# 变换前对比用的规范网格（含延伸点），算"变化几格"/ canonical grid (with extensions) for step-delta
+CANON_GRID = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 3.0]
+
+
+def parse_rmap(spec):
+    """解析 "A=1.0,B=1.0,..." 为 {设备:R}。"""
+    m = {}
+    for item in (spec or "").split(","):
+        s = item.strip()
+        if not s or "=" not in s:
+            continue
+        d, v = s.split("=", 1)
+        m[d.strip()] = round(float(v), 2)
+    return m
+
+
+def step_delta(new_r, prev_r):
+    """两个 R 在规范网格上的位置差（格数）；不在网格上取最近位。"""
+    def idx(r):
+        return min(range(len(CANON_GRID)), key=lambda i: abs(CANON_GRID[i] - r))
+    return idx(new_r) - idx(prev_r)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", required=True, help="探针 CSV（含 k==10 的 R∈{0.75..1.75} 行）")
     ap.add_argument("--out", default=None, help="输出 Markdown 路径（省略则只打印）")
+    ap.add_argument("--prev", default="A=1.0,B=1.0,C=1.75,D=1.75,E=0.75,F=2.25,G=0.75,H=1.0",
+                    help="变换前选值（用于'与变换前对比'列）；默认为收尾任务一定稿/临时值")
     args = ap.parse_args()
+
+    prev = parse_rmap(args.prev)
 
     by_dev = load(args.csv)
     if not by_dev:
@@ -113,18 +140,22 @@ def main():
     rows = []
     for dev in sorted(by_dev.keys()):
         chosen_r, chosen_rate, flag, shape = pick_for_device(by_dev[dev])
-        rows.append((dev, chosen_r, chosen_rate, flag, shape))
+        pr = prev.get(dev)
+        delta = None if (chosen_r is None or pr is None) else step_delta(chosen_r, pr)
+        rows.append((dev, chosen_r, chosen_rate, flag, shape, pr, delta))
 
     # ---- stdout ----
     print("=" * 68)
     print("M2 逐设备 R 标定（k=%d，目标带 [%.1f%%, %.1f%%]，中心 %.1f%%）"
           % (K_FIXED, BAND_LOW * 100, BAND_HIGH * 100, BAND_CENTER * 100))
     print("=" * 68)
-    print("%-3s %-6s %-12s %s" % ("dev", "R", "rate", "flag"))
-    for dev, r, rate, flag, _ in rows:
+    print("%-3s %-6s %-6s %-6s %-11s %s" % ("dev", "R", "prev", "Δ格", "rate", "flag"))
+    for dev, r, rate, flag, _, pr, delta in rows:
         rtxt = "n/a" if r is None else "%.2f" % r
+        prtxt = "n/a" if pr is None else "%.2f" % pr
+        dtxt = "n/a" if delta is None else "%+d" % delta
         ratetxt = "n/a" if rate is None else "%.4f%%" % (rate * 100.0)
-        print("%-3s %-6s %-12s %s" % (dev, rtxt, ratetxt, flag or "OK"))
+        print("%-3s %-6s %-6s %-6s %-11s %s" % (dev, rtxt, prtxt, dtxt, ratetxt, flag or "OK"))
     flagged = [r for r in rows if r[3]]
     print("-" * 68)
     print("标记复核设备数 / flagged: %d" % len(flagged))
@@ -136,32 +167,45 @@ def main():
 
 def write_md(path, rows):
     lines = []
-    lines.append("# M2 逐设备 R 标定表（任务一交付）")
+    lines.append("# M2 逐设备 R 标定表（对数变换后重标定，收尾补充指令二第三步）")
     lines.append("")
-    lines.append("> 依据 M2 收尾任务书「任务一」规则由 `deploy/scripts/m2_pick_r.py` 自动选取；"
+    lines.append("> 依据 M2 收尾任务书「任务一」的**原规则一字不改**由 `deploy/scripts/m2_pick_r.py` 自动选取；"
                  "k 全局固定 10，标定段 2022-03（预热日已剔除），离群率口径 = 探针 `meanOutlierRate`。")
-    lines.append("> **本表回传设计会话做终值确认**；被标记设备只观察成因、不自行裁决。")
+    lines.append("> 本轮数据来自**含 Light 通道 log1p 预变换**的重标定链条。**本表回传设计会话做终值确认**；"
+                 "被标记设备只观察成因、不自行裁决。")
     lines.append("")
-    lines.append("目标带 [0.1%, 0.5%]，中心 0.3%；R 网格 {0.75, 1.0, 1.25, 1.5, 1.75}。")
+    lines.append("目标带 [0.1%, 0.5%]，中心 0.3%；R 网格 {0.75, 1.0, 1.25, 1.5, 1.75}（不足则补 2.0/2.5）。"
+                 "「变换前 R」为对数变换前的定稿/临时值；「Δ格」为在规范网格上的移动格数。")
     lines.append("")
-    lines.append("| 设备 | 选定 R | 该 R 下标定段离群率 | 是否标记复核 |")
-    lines.append("|---|---|---|---|")
-    for dev, r, rate, flag, _ in rows:
+    lines.append("| 设备 | 选定 R | 变换前 R | Δ格 | 该 R 下标定段离群率 | 是否标记复核 |")
+    lines.append("|---|---|---|---|---|---|")
+    for dev, r, rate, flag, _, pr, delta in rows:
         rtxt = "n/a" if r is None else "%.2f" % r
+        prtxt = "n/a" if pr is None else "%.2f" % pr
+        dtxt = "n/a" if delta is None else "%+d" % delta
         ratetxt = "n/a" if rate is None else "%.4f%%" % (rate * 100.0)
-        lines.append("| %s | %s | %s | %s |" % (dev, rtxt, ratetxt, flag or "否"))
+        lines.append("| %s | %s | %s | %s | %s | %s |"
+                     % (dev, rtxt, prtxt, dtxt, ratetxt, flag or "否"))
     lines.append("")
-    flagged = [r for r in rows if r[3]]
+    # 变化超过一格的设备各写一段观察（补充指令二第三步要求）
+    moved = [row for row in rows if row[6] is not None and abs(row[6]) > 1]
+    if moved:
+        lines.append("## 与变换前相比移动超过一格的设备（观察）")
+        lines.append("")
+        for dev, r, rate, flag, shape, pr, delta in moved:
+            lines.append("- **设备 %s**：R 由 %.2f 变为 %.2f（%+d 格）。形态 %s。"
+                         % (dev, pr, r, delta, shape))
+        lines.append("")
+    flagged = [row for row in rows if row[3]]
     if flagged:
         lines.append("## 被标记设备的形态观察（只观察成因，不裁决）")
         lines.append("")
-        for dev, r, rate, flag, shape in flagged:
-            lines.append("- **设备 %s（%s）**：离群率随 R 的形态 %s。"
-                         % (dev, flag, shape))
+        for dev, r, rate, flag, shape, pr, delta in flagged:
+            lines.append("- **设备 %s（%s）**：离群率随 R 的形态 %s。" % (dev, flag, shape))
         lines.append("")
     lines.append("## 逐设备离群率随 R 的完整形态（k=10）")
     lines.append("")
-    for dev, r, rate, flag, shape in rows:
+    for dev, r, rate, flag, shape, pr, delta in rows:
         lines.append("- %s：%s" % (dev, shape))
     lines.append("")
     with open(path, "w", encoding="utf-8") as f:
