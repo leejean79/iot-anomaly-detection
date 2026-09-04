@@ -31,7 +31,10 @@ public class DeviceRound implements Serializable {
     private long ts;                    // 行内 epoch 秒 / in-row epoch second (round identity)
 
     private double[] x;                 // 原始 F_det / raw F_det, length 5
-    private double[] xNorm;             // 归一化 F_det / normalized F_det, length 5
+    // 归一化 F_det（长度 5）。补充指令二起：Light（ch4）在**对数域**标准化（先 log1p 再减中位数除 IQR），
+    // 其余通道仍在原始域；x[] 保持原始不变。/ normalized F_det; since instruction-2 the Light dim is
+    // standardized in the log1p domain (others raw-domain); x[] stays raw.
+    private double[] xNorm;
     private double mic;                 // DEV-D7b：MIC 作 Gas 质量元数据 / MIC as Gas-quality metadata
     private double rssi;                // DEV-D7c 后的 RSSI（可能为哨兵）/ RSSI (may be sentinel)
     private double accel;               // Accelerometer（侧信道，仅监测）/ side-channel

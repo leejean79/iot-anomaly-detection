@@ -30,6 +30,12 @@ import java.util.List;
  * Right-censored Light values are excluded from calibration; a channel with IQR ≤ ε bypasses scaling
  * (pass-through, flagged, counted).
  *
+ * <p><b>通道级预变换（补充指令二）</b>：进入标定统计与缩放之前，先按 {@link ChannelTransform} 表对指定
+ * 通道施加单调预变换（当前 Light→log1p，余恒等），对全部设备统一。中位数/IQR 因此在变换域估计、xNorm
+ * 也在变换域输出。**原始 x 与删失/缺失掩码不受影响**（删失仍按原始 65536 判定、仍不进校准）；预热期仍为
+ * 原始透传、预热-冻结流程不变。目的：压掉 Light 通道的标准化重尾（M2 收尾诊断），使删失顶格值 65536
+ * 变换为约 11.09，不再把距离/损失拽飞。
+ *
  * <p>recalibrate() 为将来的重估入口（无触发逻辑——那是 M6 的职责；其协议为理论 B §12.4 的状态重建）。
  * recalibrate() is the future recalibration entry point (no trigger logic — that is M6's job later;
  * its protocol is the state rebuild of theory B §12.4).
@@ -39,6 +45,9 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
 
     private final int warmupRounds;   // approved decision 3: 8640
     private final double epsilon;     // IQR ≤ ε 判据 / bypass threshold
+    // 通道级预变换表（补充指令二）：进入标定统计与缩放之前先对指定通道施加（当前 Light→log1p，余恒等）。
+    // 中位数/IQR 因此在变换域估计，xNorm 也在变换域输出；原始 x 与删失掩码不受影响（删失仍按原始 65536 判定）。
+    private final ChannelTransform[] transforms;
 
     private transient ValueState<Long> count;
     private transient ValueState<Boolean> frozen;
@@ -51,15 +60,26 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
     private transient Counter frozenDevices;
     private transient Counter bypassedChannelsMetric;
 
+    /** 默认通道预变换表（Light→log1p，余恒等）/ default transform table. */
     public RobustScalerFunction(int warmupRounds, double epsilon) {
+        this(warmupRounds, epsilon, ChannelTransform.defaultTable());
+    }
+
+    /** 显式指定通道预变换表（供测试与将来扩展）/ explicit transform table. */
+    public RobustScalerFunction(int warmupRounds, double epsilon, ChannelTransform[] transforms) {
         if (warmupRounds <= 0) {
             throw new IllegalArgumentException("warmupRounds must be > 0, got " + warmupRounds);
         }
         if (epsilon < 0) {
             throw new IllegalArgumentException("epsilon must be >= 0, got " + epsilon);
         }
+        if (transforms == null || transforms.length != Channels.N_DET) {
+            throw new IllegalArgumentException(
+                    "transforms 长度须为 " + Channels.N_DET + " / must have one entry per detection channel");
+        }
         this.warmupRounds = warmupRounds;
         this.epsilon = epsilon;
+        this.transforms = transforms.clone();
     }
 
     @Override
@@ -95,7 +115,8 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
                 if (c == Channels.LIGHT_INDEX && round.getCensoredMask()[c]) {
                     continue;   // 右删失 Light 不计入校准 / censored Light excluded from calibration
                 }
-                reservoirs.get(c).add(round.getX()[c]);
+                // 预变换域累积：中位数/IQR 在变换域估计（Light 在对数域）/ accumulate in the transformed domain
+                reservoirs.get(c).add(transforms[c].apply(round.getX()[c]));
             }
             long newCount = (count.value() == null ? 0L : count.value()) + 1;
             count.update(newCount);
@@ -123,11 +144,13 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
                 xn[c] = 0.0;              // 缺失通道置 0，依赖 missingMask / missing → 0, rely on mask
                 continue;
             }
+            // 预变换后再缩放：med/scale 已在变换域，故分子也取变换域值（Light 取 log1p 域）。
+            double tv = transforms[c].apply(round.getX()[c]);
             if (bp[c]) {
-                xn[c] = round.getX()[c]; // 旁路：原值透传 / bypass: pass through
+                xn[c] = tv;              // 旁路：变换域值透传 / bypass: pass the transformed value through
                 outBypass[c] = true;
             } else {
-                xn[c] = (round.getX()[c] - med[c]) / scale[c];
+                xn[c] = (tv - med[c]) / scale[c];
             }
         }
         round.setWarmup(false);

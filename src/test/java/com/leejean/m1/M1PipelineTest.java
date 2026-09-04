@@ -234,4 +234,37 @@ class M1PipelineTest {
         }
         return null;
     }
+
+    @Test
+    void lightNormalizedInLogDomainAndCensoredTamed() throws Exception {
+        // 补充指令二：Light 通道 log1p 预变换。预热 Light 取 e^1-1, e^2-1, e^3-1 → 对数域 {1,2,3}
+        // → median_log=2, IQR_log=1；其余通道给足方差避免旁路。
+        double[] lightWarm = {Math.exp(1) - 1, Math.exp(2) - 1, Math.exp(3) - 1};
+        List<String> lines = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            double f = i + 1;
+            lines.addAll(fullRound(i + 1, "A", 10 + f, 40 + f, 101000 + f, 600 + f, lightWarm[i], 3, 70, 0));
+        }
+        // 冻结后 round4：Light = e^4-1 → log1p=4 → (4−2)/1 = 2.0（对数域标准化生效）
+        lines.addAll(fullRound(4, "A", 14, 44, 101004, 604, Math.exp(4) - 1, 3, 70, 0));
+        // round5：删失顶格 65536 → log1p≈11.09 → (11.09−2)/1≈9.09（温和；原始域会是 (65536−6.39)/8.68≈7548）
+        lines.addAll(fullRound(5, "A", 15, 45, 101005, 605, Channels.LIGHT_CENSOR_VALUE, 3, 70, 0));
+
+        List<DeviceRound> rounds = run(lines, 3, 1e-9, 1000);
+        DeviceRound r4 = pick(rounds, "A", 4);
+        DeviceRound r5 = pick(rounds, "A", 5);
+        assertNotNull(r4);
+        assertNotNull(r5);
+        assertEquals(2.0, r4.getXNorm()[Channels.LIGHT_INDEX], 1e-9,
+                "Light 在对数域标准化：(log1p(e^4-1)-2)/1 = 2.0");
+        double expectedCensored = Math.log1p(Channels.LIGHT_CENSOR_VALUE) - 2.0;
+        assertEquals(expectedCensored, r5.getXNorm()[Channels.LIGHT_INDEX], 1e-6);
+        assertTrue(r5.getXNorm()[Channels.LIGHT_INDEX] < 20.0,
+                "删失顶格变换后温和（<20），不再把距离/损失拽飞");
+        assertTrue(r5.getCensoredMask()[Channels.LIGHT_INDEX],
+                "删失标记不变——仍按原始 65536 判定");
+        // 非 Light 通道（Temperature）仍按原始域标准化，不受预变换影响
+        // Temp 预热 11,12,13 → median 12, IQR (Q3-Q1)=12.5-11.5=1；round4 Temp=14 → (14-12)/1 = 2.0
+        assertEquals(2.0, r4.getXNorm()[0], 1e-9, "非 Light 通道仍在原始域标准化");
+    }
 }
