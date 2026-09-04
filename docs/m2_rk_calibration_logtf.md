@@ -61,7 +61,16 @@
    对 5/8 设备不可达。请裁决：接受"多数设备点通道近乎静默"（与最初 A/B/H 同处境），还是相应**下调目标带**
    或**减小 k**，让更多设备落回可判别区间？
 2. **G（新过度活跃、且为非 Light 来源）**：是接受 R=1.75 的较高基线，还是像当初查 C/D 那样，对 G 做一次
-   逐通道离散度诊断，看它的活跃集中在哪个（非 Light）通道？（工具已就绪：`syn-m2-probe.sh --dispersion-name`。）
+   逐通道离散度诊断，看它的活跃集中在哪个（非 Light）通道？**诊断已就绪、可一条命令跑出并自动判读**
+   （在当前变换后 m1-out 上，无需重放）：
+   ```bash
+   # 产出变换后逐通道离散度（探针网格取单点，快）
+   bash deploy/scripts/syn-m2-probe.sh --r-grid 1.0 --k-grid 10 \
+       --out-name m2_probe_tmp.csv --dispersion-name m2_dispersion_logtf.csv --max-messages 2000000
+   # 自动判读 G 落在哪个（非 Light）通道
+   python3 deploy/scripts/m2_dispersion_report.py --csv docs/m2_dispersion_logtf.csv --target G
+   ```
+   （判读器已用变换前数据验证：能正确指认 C/D 的 Light 通道。）
 3. **确认即写入**：八台机选值（A/B/E/F/H=0.75、C=1.0、D=0.75、G=1.75）经设计会话确认后一次性写入
    `SYN_M2_R_PER_DEVICE`，M2 收口。
 
