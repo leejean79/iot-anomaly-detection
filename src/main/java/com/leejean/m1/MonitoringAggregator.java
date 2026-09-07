@@ -33,7 +33,9 @@ public class MonitoringAggregator extends KeyedProcessFunction<String, DeviceRou
     private static final int WARMUP = 7;
     private static final int BYPASSED = 8;
     private static final int COLD = 9;
-    private static final int WIDTH = 10;
+    private static final int SUBSTITUTED = 10;    // 替代分母通道计数（补充指令三）
+    private static final int DEGRADED_MASK = 11;  // 旁路|替代 通道位图（按位或）
+    private static final int WIDTH = 12;
 
     private transient MapState<Long, long[]> windows;   // windowEndMs → 累积 / accumulators
     private transient Counter snapshotsEmitted;
@@ -65,6 +67,8 @@ public class MonitoringAggregator extends KeyedProcessFunction<String, DeviceRou
         acc[RSSI_SENT] += round.getRssiSentinel();
         acc[WARMUP] += round.isWarmup() ? 1 : 0;
         acc[BYPASSED] += round.bypassCount();
+        acc[SUBSTITUTED] += round.substitutedCount();
+        acc[DEGRADED_MASK] |= round.degradedMaskBits();   // 位图按或累积 / OR-accumulate the mask
         acc[COLD] += round.isColdStart() ? 1 : 0;
         windows.put(windowEnd, acc);
     }
@@ -89,6 +93,8 @@ public class MonitoringAggregator extends KeyedProcessFunction<String, DeviceRou
         s.setRssiSentinel(acc[RSSI_SENT]);
         s.setWarmup(acc[WARMUP]);
         s.setBypassedChannels(acc[BYPASSED]);
+        s.setSubstitutedChannels(acc[SUBSTITUTED]);
+        s.setDegradedChannelsMask(acc[DEGRADED_MASK]);
         s.setColdStart(acc[COLD]);
         snapshotsEmitted.inc();
         out.collect(s);

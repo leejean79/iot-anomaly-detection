@@ -25,6 +25,8 @@ public class MonitoringSnapshot implements Serializable {
     private long rssiSentinel;
     private long warmup;
     private long bypassedChannels;
+    private long substitutedChannels;   // 用替代分母（相对退化防护）的通道计数（补充指令三）
+    private long degradedChannelsMask;  // 被旁路或替代分母的通道位图（列表，第 c 位=通道 c）
     private long coldStart;
 
     // ---- M2 追加字段（交接文档 §5.2；并入同一 topic 的设备快照，不另建 topic）----
@@ -85,6 +87,14 @@ public class MonitoringSnapshot implements Serializable {
     @JsonProperty
     public long getBypassedChannels() { return bypassedChannels; }
     public void setBypassedChannels(long bypassedChannels) { this.bypassedChannels = bypassedChannels; }
+
+    @JsonProperty
+    public long getSubstitutedChannels() { return substitutedChannels; }
+    public void setSubstitutedChannels(long substitutedChannels) { this.substitutedChannels = substitutedChannels; }
+
+    @JsonProperty
+    public long getDegradedChannelsMask() { return degradedChannelsMask; }
+    public void setDegradedChannelsMask(long degradedChannelsMask) { this.degradedChannelsMask = degradedChannelsMask; }
 
     @JsonProperty
     public long getColdStart() { return coldStart; }

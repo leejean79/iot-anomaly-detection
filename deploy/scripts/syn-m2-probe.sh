@@ -38,6 +38,11 @@ SLIDE_SEC="${SYN_M2_SLIDE_SEC:-60}"
 OUT_NAME="m2_probe.csv"
 # 可选：逐设备逐通道离散度诊断 CSV 的本地文件名（空 = 不产出）。/ optional per-channel dispersion CSV (empty = off)
 DISPERSION_NAME=""
+# 可选：某设备离群点 UTC 小时分布（补充指令三 step4）；需同时给 --hod-device 与 --hod-name。
+HOD_DEVICE=""
+HOD_NAME=""
+HOD_R="1.75"
+HOD_K="10"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
@@ -47,6 +52,10 @@ while [[ $# -gt 0 ]]; do
         --slide-sec) SLIDE_SEC="$2"; shift 2 ;;
         --out-name) OUT_NAME="$2"; shift 2 ;;
         --dispersion-name) DISPERSION_NAME="$2"; shift 2 ;;
+        --hod-device) HOD_DEVICE="$2"; shift 2 ;;
+        --hod-name) HOD_NAME="$2"; shift 2 ;;
+        --hod-r) HOD_R="$2"; shift 2 ;;
+        --hod-k) HOD_K="$2"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 1 ;;
     esac
 done
@@ -85,6 +94,11 @@ DISP_ARG=""
 if [ -n "$DISPERSION_NAME" ]; then
     DISP_ARG="--dispersion-out /work/m2_dispersion.csv"
 fi
+# 离群点小时分布：可选 / optional outlier hour-of-day histogram for one device
+HOD_ARG=""
+if [ -n "$HOD_DEVICE" ] && [ -n "$HOD_NAME" ]; then
+    HOD_ARG="--outlier-hod-device $HOD_DEVICE --outlier-hod-out /work/m2_hod.csv --outlier-hod-r $HOD_R --outlier-hod-k $HOD_K"
+fi
 
 # 在临时 flink 容器里跑纯 Java 探针（host 无 JDK 时靠镜像自带）
 on_master "docker run --rm --user root \
@@ -94,7 +108,7 @@ on_master "docker run --rm --user root \
         --rounds-jsonl /work/m1out.jsonl \
         --out /work/m2_probe.csv \
         --window-sec $WINDOW_SEC --slide-sec $SLIDE_SEC \
-        --r-grid $R_GRID --k-grid $K_GRID $DISP_ARG"
+        --r-grid $R_GRID --k-grid $K_GRID $DISP_ARG $HOD_ARG"
 
 echo "===================================="
 echo "[probe] CSV（master）：$CSV"
@@ -115,6 +129,17 @@ if [ -n "$DISPERSION_NAME" ]; then
     else
         rm -f "$LOCAL_DISP" 2>/dev/null || true
         echo "[probe] 离散度 CSV 拉回失败，可手动：ssh $SSH_USER@$MASTER_SSH \"cat $WORK/m2_dispersion.csv\" > docs/$DISPERSION_NAME" >&2
+    fi
+fi
+
+# 离群点小时分布 CSV 拉回（若启用）/ pull back the hour-of-day CSV if enabled
+if [ -n "$HOD_DEVICE" ] && [ -n "$HOD_NAME" ]; then
+    LOCAL_HOD="$PROJECT_ROOT/docs/$HOD_NAME"
+    if on_master "cat $WORK/m2_hod.csv" > "$LOCAL_HOD" 2>/dev/null && [ -s "$LOCAL_HOD" ]; then
+        echo "[probe] 离群小时分布已拉回：${LOCAL_HOD}（设备 ${HOD_DEVICE}，R=${HOD_R} k=${HOD_K}）"
+    else
+        rm -f "$LOCAL_HOD" 2>/dev/null || true
+        echo "[probe] 小时分布 CSV 拉回失败，可手动：ssh $SSH_USER@$MASTER_SSH \"cat $WORK/m2_hod.csv\" > docs/$HOD_NAME" >&2
     fi
 fi
 echo "提醒 / note：本阶段**不定 (R,k) 终值**——表格交回设计会话裁决。"

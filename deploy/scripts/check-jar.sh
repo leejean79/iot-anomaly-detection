@@ -54,6 +54,7 @@ checks=(
     "com/leejean/m2/M2Job.class|parseRPerDevice|逐设备 R 解析方法"
     "com/leejean/m2/M2Probe.class|dispersion-out|通道离散度诊断（提交 6db8d95）"
     "com/leejean/m1/ChannelTransform.class|LOG1P|Light 通道 log1p 预变换（补充指令二 step1）"
+    "com/leejean/m1/RobustScalerFunction.class|m1_scaler_substituted_channels|相对退化防护（补充指令三 step2）"
 )
 
 fail=0

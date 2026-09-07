@@ -45,6 +45,11 @@ public final class M2Probe {
         // 可选：逐设备逐通道离散度诊断 CSV（收尾裁决 2b：P1/P99/峰度，判断发散集中于某通道还是普遍）。
         // Optional per-device per-channel dispersion CSV (closeout ruling 2b): P1/P99/kurtosis.
         String dispersionOut = a.getOrDefault("dispersion-out", "");
+        // 可选：某设备离群点的 UTC 小时分布直方图（补充指令三 step4：验证"白天成批找不到邻居"的预言）。
+        String hodDevice = a.getOrDefault("outlier-hod-device", "");
+        String hodOut = a.getOrDefault("outlier-hod-out", "");
+        double hodR = Double.parseDouble(a.getOrDefault("outlier-hod-r", "1.75"));
+        int hodK = Integer.parseInt(a.getOrDefault("outlier-hod-k", "10"));
         long windowSec = Long.parseLong(a.getOrDefault("window-sec", "3600"));
         long slideSec = Long.parseLong(a.getOrDefault("slide-sec", "60"));
         double[] rGrid = parseDoubles(a.getOrDefault("r-grid", "0.5,1.0,1.5,2.0,2.5,3.0"));
@@ -96,7 +101,19 @@ public final class M2Probe {
         // 可选：逐设备逐通道离散度诊断（复用同一份标定段数据）/ optional per-channel dispersion diagnostic
         if (!dispersionOut.isEmpty()) {
             writeDispersion(byDevice, dispersionOut);
-            System.out.println("[dispersion] 逐通道 P1/P99/峰度 → " + dispersionOut);
+            System.out.println("[dispersion] 逐通道 P1/P99/IQR/主体宽度/峰度 → " + dispersionOut);
+        }
+
+        // 可选：某设备离群点的 UTC 小时分布（验证白天成批离群的预言）
+        if (!hodDevice.isEmpty() && !hodOut.isEmpty()) {
+            List<McodPoint> pts = byDevice.get(hodDevice);
+            if (pts == null || pts.isEmpty()) {
+                System.out.println("[hod] 设备 " + hodDevice + " 无有效轮，跳过小时分布");
+            } else {
+                writeOutlierHod(pts, hodR, hodK, windowSec * 1000L, slideSec * 1000L, hodDevice, hodOut);
+                System.out.println("[hod] " + hodDevice + " 离群点 UTC 小时分布 (R=" + hodR
+                        + " k=" + hodK + ") → " + hodOut);
+            }
         }
 
         long windowMs = windowSec * 1000L;
@@ -159,7 +176,8 @@ public final class M2Probe {
     private static void writeDispersion(Map<String, List<McodPoint>> byDevice, String outCsv)
             throws java.io.FileNotFoundException {
         try (PrintWriter pw = new PrintWriter(outCsv)) {
-            pw.println("device,channel,n,p1,p99,spread_p99_p1,excess_kurtosis");
+            // 增列（补充指令三 step5b）：iqr=P75−P25、body_width=P95−P5、iqr_over_body（第二类病理直读）。
+            pw.println("device,channel,n,p1,p99,spread_p99_p1,iqr,body_width,iqr_over_body,excess_kurtosis");
             for (Map.Entry<String, List<McodPoint>> e : byDevice.entrySet()) {
                 String device = e.getKey();
                 List<McodPoint> pts = e.getValue();
@@ -175,9 +193,12 @@ public final class M2Probe {
                     }
                     double p1 = nearestRankPercentile(col, 1.0);
                     double p99 = nearestRankPercentile(col, 99.0);
+                    double iqr = nearestRankPercentile(col, 75.0) - nearestRankPercentile(col, 25.0);
+                    double body = nearestRankPercentile(col, 95.0) - nearestRankPercentile(col, 5.0);
+                    double ratio = body > 1e-12 ? iqr / body : Double.NaN;
                     double kurt = excessKurtosis(col);
-                    pw.printf("%s,%d,%d,%.6f,%.6f,%.6f,%.6f%n",
-                            device, c, col.length, p1, p99, p99 - p1, kurt);
+                    pw.printf("%s,%d,%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f%n",
+                            device, c, col.length, p1, p99, p99 - p1, iqr, body, ratio, kurt);
                 }
             }
         }
@@ -226,6 +247,59 @@ public final class M2Probe {
             return 0.0;
         }
         return m4 / (m2 * m2) - 3.0;
+    }
+
+    /**
+     * 某设备离群点的 UTC 小时分布（补充指令三 step4）：按滑动窗口跑一遍，把每滑动步的离群点与窗口点
+     * 按其轮时间（id=epoch 秒）的 UTC 小时归桶，输出 24 桶的离群数/点观测数/离群率。用于验证"退化 IQR 下
+     * 白天时段成批互相找不到邻居、离群集中在白天"的预言：防护前应见白天聚集，防护后应趋于均匀。
+     */
+    private static void writeOutlierHod(List<McodPoint> pts, double r, int k, long windowMs, long slideMs,
+                                        String device, String outCsv) throws java.io.FileNotFoundException {
+        long[] outByHour = new long[24];
+        long[] ptsByHour = new long[24];
+        List<McodPoint> copy = new ArrayList<>(pts.size());
+        for (McodPoint p : pts) {
+            copy.add(new McodPoint(p.value.clone(), p.arrival, 0, p.id));
+        }
+        McodCore core = new McodCore(r, k, slideMs, new McodState());
+        long maxArrival = copy.get(copy.size() - 1).arrival;
+        int cursor = 0;
+        List<McodPoint> active = new ArrayList<>();
+        for (long windowEnd = slideMs; windowEnd - windowMs <= maxArrival; windowEnd += slideMs) {
+            long windowStart = windowEnd - windowMs;
+            while (cursor < copy.size() && copy.get(cursor).arrival < windowEnd) {
+                active.add(copy.get(cursor));
+                cursor++;
+            }
+            List<McodPoint> window = new ArrayList<>();
+            for (McodPoint p : active) {
+                if (p.arrival >= windowStart && p.arrival < windowEnd) {
+                    window.add(p);
+                }
+            }
+            McodCore.McodResult res = core.processSlide(window, windowStart, windowEnd);
+            for (McodPoint p : window) {
+                ptsByHour[hourOfDay(p.id)]++;
+            }
+            for (long id : res.outlierIds) {
+                outByHour[hourOfDay(id)]++;
+            }
+            active.removeIf(p -> p.arrival < windowStart + slideMs);
+        }
+        try (PrintWriter pw = new PrintWriter(outCsv)) {
+            pw.println("device,hour_utc,outliers,point_obs,outlier_rate");
+            for (int h = 0; h < 24; h++) {
+                double rate = ptsByHour[h] > 0 ? (double) outByHour[h] / ptsByHour[h] : 0.0;
+                pw.printf("%s,%d,%d,%d,%.6f%n", device, h, outByHour[h], ptsByHour[h], rate);
+            }
+        }
+    }
+
+    /** epoch 秒 → UTC 小时（0~23）/ epoch seconds → UTC hour of day. */
+    private static int hourOfDay(long epochSec) {
+        long s = ((epochSec % 86400L) + 86400L) % 86400L;
+        return (int) (s / 3600L);
     }
 
     /** 对一个设备的点序列跑一遍滑动窗口，返回离群率统计（复用 McodCore，忠实一致）。 */

@@ -45,6 +45,13 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
 
     private final int warmupRounds;   // approved decision 3: 8640
     private final double epsilon;     // IQR ≤ ε 判据 / bypass threshold
+
+    // 相对退化防护（补充指令三 step2）：IQR 相对"主体宽度"（P5~P95）过小时判其失代表性，
+    // 改用 主体宽度 / 2.44 作标准化分母（2.44 = 正态下 (P95−P5)/(P75−P25)，使替代分母与健康通道同刻度）。
+    private static final double BODY_LOW = 0.05;          // 主体下沿 P5
+    private static final double BODY_HIGH = 0.95;         // 主体上沿 P95
+    private static final double DEGEN_RATIO = 0.10;       // IQR < 主体宽度/10 → 判退化
+    private static final double NORMAL_BODY_TO_IQR = 2.44; // 正态 (P95−P5)/(P75−P25)
     // 通道级预变换表（补充指令二）：进入标定统计与缩放之前先对指定通道施加（当前 Light→log1p，余恒等）。
     // 中位数/IQR 因此在变换域估计，xNorm 也在变换域输出；原始 x 与删失掩码不受影响（删失仍按原始 65536 判定）。
     private final ChannelTransform[] transforms;
@@ -54,11 +61,13 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
     private transient ValueState<double[]> median;
     private transient ValueState<double[]> iqr;
     private transient ValueState<boolean[]> bypass;
+    private transient ValueState<boolean[]> substituted;   // 相对退化：改用主体宽度分母的通道
     private transient List<ListState<Double>> reservoirs;   // 每通道一个蓄水池 / one reservoir per channel
 
     private transient Counter warmupRoundsMetric;
     private transient Counter frozenDevices;
     private transient Counter bypassedChannelsMetric;
+    private transient Counter substitutedChannelsMetric;
 
     /** 默认通道预变换表（Light→log1p，余恒等）/ default transform table. */
     public RobustScalerFunction(int warmupRounds, double epsilon) {
@@ -92,6 +101,8 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
                 "rs-iqr", PrimitiveArrayTypeInfo.DOUBLE_PRIMITIVE_ARRAY_TYPE_INFO));
         bypass = getRuntimeContext().getState(new ValueStateDescriptor<>(
                 "rs-bypass", PrimitiveArrayTypeInfo.BOOLEAN_PRIMITIVE_ARRAY_TYPE_INFO));
+        substituted = getRuntimeContext().getState(new ValueStateDescriptor<>(
+                "rs-substituted", PrimitiveArrayTypeInfo.BOOLEAN_PRIMITIVE_ARRAY_TYPE_INFO));
         reservoirs = new ArrayList<>(Channels.N_DET);
         for (int c = 0; c < Channels.N_DET; c++) {
             reservoirs.add(getRuntimeContext().getListState(
@@ -100,6 +111,8 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
         warmupRoundsMetric = getRuntimeContext().getMetricGroup().counter("m1_scaler_warmup_rounds");
         frozenDevices = getRuntimeContext().getMetricGroup().counter("m1_scaler_frozen_devices");
         bypassedChannelsMetric = getRuntimeContext().getMetricGroup().counter("m1_scaler_bypassed_channels");
+        substitutedChannelsMetric =
+                getRuntimeContext().getMetricGroup().counter("m1_scaler_substituted_channels");
     }
 
     @Override
@@ -137,8 +150,10 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
         double[] med = median.value();
         double[] scale = iqr.value();
         boolean[] bp = bypass.value();
+        boolean[] sub = substituted.value();
         double[] xn = new double[Channels.N_DET];
         boolean[] outBypass = new boolean[Channels.N_DET];
+        boolean[] outSub = new boolean[Channels.N_DET];
         for (int c = 0; c < Channels.N_DET; c++) {
             if (round.getMissingMask()[c]) {
                 xn[c] = 0.0;              // 缺失通道置 0，依赖 missingMask / missing → 0, rely on mask
@@ -150,12 +165,17 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
                 xn[c] = tv;              // 旁路：变换域值透传 / bypass: pass the transformed value through
                 outBypass[c] = true;
             } else {
+                // scale[c] 可能是 IQR 或（相对退化时）主体宽度/2.44；sub[c] 仅供监测打标，不改算式。
                 xn[c] = (tv - med[c]) / scale[c];
+                if (sub != null && sub[c]) {
+                    outSub[c] = true;
+                }
             }
         }
         round.setWarmup(false);
         round.setXNorm(xn);
         round.setBypassMask(outBypass);
+        round.setSubstitutedMask(outSub);
         out.collect(round);
     }
 
@@ -164,7 +184,9 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
         double[] med = new double[Channels.N_DET];
         double[] scale = new double[Channels.N_DET];
         boolean[] bp = new boolean[Channels.N_DET];
+        boolean[] sub = new boolean[Channels.N_DET];
         int nBypass = 0;
+        int nSub = 0;
         for (int c = 0; c < Channels.N_DET; c++) {
             List<Double> vals = new ArrayList<>();
             for (Double v : reservoirs.get(c).get()) {
@@ -178,17 +200,15 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
                 nBypass++;
             } else {
                 Collections.sort(vals);
-                med[c] = percentile(vals, 0.50);
-                double q1 = percentile(vals, 0.25);
-                double q3 = percentile(vals, 0.75);
-                double range = q3 - q1;
-                if (range <= epsilon) {
-                    scale[c] = 1.0;
-                    bp[c] = true;    // IQR ≤ ε → 旁路（防退化除零）/ bypass to avoid divide-by-zero
+                ScaleDecision d = decideScale(vals, epsilon);
+                med[c] = d.median;
+                scale[c] = d.scale;
+                bp[c] = d.bypass;
+                sub[c] = d.substituted;
+                if (d.bypass) {
                     nBypass++;
-                } else {
-                    scale[c] = range;
-                    bp[c] = false;
+                } else if (d.substituted) {
+                    nSub++;
                 }
             }
             reservoirs.get(c).clear();   // 释放蓄水池 / release the reservoir
@@ -196,11 +216,52 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
         median.update(med);
         iqr.update(scale);
         bypass.update(bp);
+        substituted.update(sub);
         frozen.update(true);
         frozenDevices.inc();
         if (nBypass > 0) {
             bypassedChannelsMetric.inc(nBypass);
         }
+        if (nSub > 0) {
+            substitutedChannelsMetric.inc(nSub);
+        }
+    }
+
+    /** 冻结时对单通道的标定决策 / the per-channel calibration decision at freeze time. */
+    static final class ScaleDecision {
+        final double median;
+        final double scale;
+        final boolean bypass;
+        final boolean substituted;
+        ScaleDecision(double median, double scale, boolean bypass, boolean substituted) {
+            this.median = median;
+            this.scale = scale;
+            this.bypass = bypass;
+            this.substituted = substituted;
+        }
+    }
+
+    /**
+     * 由一个通道的（已排序、非空）校准样本决定标准化的中位数与分母（补充指令三 step2）。三档，按优先级：
+     * ① IQR ≤ ε → 旁路（绝对退化兜底，防除零）；② IQR &lt; 主体宽度(P5~P95)/10 → 相对退化，用
+     * 主体宽度/2.44 作分母（若该替代分母也 ≤ ε 则回落旁路）；③ 否则健康通道，用 IQR。
+     * Decide median & scaling denominator for one channel from its sorted, non-empty calibration samples.
+     */
+    static ScaleDecision decideScale(List<Double> sortedVals, double epsilon) {
+        double median = percentile(sortedVals, 0.50);
+        double range = percentile(sortedVals, 0.75) - percentile(sortedVals, 0.25);      // IQR
+        double bodyWidth = percentile(sortedVals, BODY_HIGH) - percentile(sortedVals, BODY_LOW);
+        if (range <= epsilon) {
+            return new ScaleDecision(median, 1.0, true, false);          // ① 绝对退化兜底
+        }
+        if (bodyWidth > epsilon && range < bodyWidth * DEGEN_RATIO) {    // ② 相对退化
+            double substScale = bodyWidth / NORMAL_BODY_TO_IQR;
+            if (substScale <= epsilon) {
+                return new ScaleDecision(median, 1.0, true, false);      //    替代分母也退化 → 兜底旁路
+            }
+            return new ScaleDecision(median, substScale, false, true);
+        }
+        return new ScaleDecision(median, range, false, false);          // ③ 健康通道
     }
 
     /**
@@ -228,6 +289,7 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
         median.clear();
         iqr.clear();
         bypass.clear();
+        substituted.clear();
         count.update(0L);
         for (ListState<Double> res : reservoirs) {
             res.clear();

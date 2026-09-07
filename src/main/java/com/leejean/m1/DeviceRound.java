@@ -42,6 +42,7 @@ public class DeviceRound implements Serializable {
     private boolean[] missingMask;      // 该检测通道本轮缺失 / detection channel missing this round
     private boolean[] censoredMask;     // 该检测通道右删失（当前仅 Light）/ right-censored (Light only)
     private boolean[] bypassMask;       // RobustScaler 因 IQR≤ε 旁路该通道 / scaling bypassed (IQR<=eps)
+    private boolean[] substitutedMask;  // 相对退化：该通道改用"主体宽度/2.44"作标准化分母 / substituted denominator
 
     private boolean warmup;             // RobustScaler 预热期（统计未冻结）/ scaler still calibrating
     private boolean coldStart;          // 缺席超过缓存深度后返场 / returned after absence > cache depth
@@ -61,6 +62,7 @@ public class DeviceRound implements Serializable {
         this.missingMask = new boolean[Channels.N_DET];
         this.censoredMask = new boolean[Channels.N_DET];
         this.bypassMask = new boolean[Channels.N_DET];
+        this.substitutedMask = new boolean[Channels.N_DET];
     }
 
     @JsonProperty
@@ -102,6 +104,9 @@ public class DeviceRound implements Serializable {
     @JsonProperty
     public boolean[] getBypassMask() { return bypassMask; }
     public void setBypassMask(boolean[] bypassMask) { this.bypassMask = bypassMask; }
+
+    public boolean[] getSubstitutedMask() { return substitutedMask; }
+    public void setSubstitutedMask(boolean[] substitutedMask) { this.substitutedMask = substitutedMask; }
 
     @JsonProperty
     public boolean isWarmup() { return warmup; }
@@ -155,6 +160,32 @@ public class DeviceRound implements Serializable {
             }
         }
         return n;
+    }
+
+    /** 用替代分母（相对退化防护）的通道个数 / number of substituted-denominator channels. */
+    public int substitutedCount() {
+        int n = 0;
+        if (substitutedMask != null) {
+            for (boolean b : substitutedMask) {
+                if (b) {
+                    n++;
+                }
+            }
+        }
+        return n;
+    }
+
+    /** 退化通道位图：第 c 位表示通道 c 被旁路或用了替代分母 / bitmask of bypassed-or-substituted channels. */
+    public int degradedMaskBits() {
+        int m = 0;
+        for (int c = 0; c < Channels.N_DET; c++) {
+            boolean deg = (bypassMask != null && c < bypassMask.length && bypassMask[c])
+                    || (substitutedMask != null && c < substitutedMask.length && substitutedMask[c]);
+            if (deg) {
+                m |= (1 << c);
+            }
+        }
+        return m;
     }
 
     @Override
