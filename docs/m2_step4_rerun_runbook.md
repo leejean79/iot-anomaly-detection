@@ -46,8 +46,12 @@ ssh <MASTER> "docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell 
     --broker-list \$(hostname -i):9092 --topic synergia-m1-out --time -1" 2>/dev/null || true
 
 # 4) 先提交七天标定的 M1 作业（默认 --calib-days 7、防护关闭；先提交再重放）
+#    syn-submit-m1 现在带**隔离预检**（补充指令五加固）：若 (a) 已有 M1/M2 作业在跑，或 (b) synergia-m1-out
+#    非空，会**直接拒绝提交**（退出码 3）并提示先取消作业/清 topic——这正是"重复轮累积"的两条根因。
+#    确需绕过（如并行实验）才加 --force。看到拒绝就说明第 1~3 步没清干净，别 --force 硬来。
 bash deploy/scripts/syn-submit-m1.sh
 #    核对启动横幅三行：Calib days: 7 (rounds/day=8640) / Warmup rounds: 60480 (from --calib-days) / Relative guard: OFF
+#    以及预检行：[preflight] 无并发 M1/M2 作业；synergia-m1-out 为空 OK
 
 # 5) 严格重放三月一整段（恰好 2022-03-01 00:00 → 2022-04-01 00:00，一次）
 bash deploy/scripts/syn-replay.sh --speedup 3600 --start 2022-03-01 --end 2022-04-01

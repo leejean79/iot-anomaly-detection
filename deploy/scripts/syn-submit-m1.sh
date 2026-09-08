@@ -28,10 +28,12 @@ set -a; source "$DEPLOY_DIR/.env"; set +a
 
 EXTRA_ARGS=""
 START_OFFSET="earliest"
+FORCE=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --extra) EXTRA_ARGS="$2"; shift 2 ;;
         --start-offset) START_OFFSET="$2"; shift 2 ;;
+        --force) FORCE=1; shift ;;   # 跳过隔离预检（m1-out 非空 / 已有作业）/ skip isolation preflight
         *) echo "Unknown arg: $1" >&2; exit 1 ;;
     esac
 done
@@ -76,6 +78,35 @@ if [ "$ACTUAL_PARTS" != "$PARALLELISM" ]; then
     exit 2
 fi
 echo "[preflight] topic '$SRC_TOPIC' 分区数 = $ACTUAL_PARTS OK"
+
+# 隔离预检（补充指令五 后续加固）：防"m1-out 累积重复"这一类根因。两条硬性拦截，--force 可跳过。
+# Isolation preflight: prevent the duplicate-rounds accumulation seen under instruction 5. Two hard gates.
+if [ "$FORCE" -ne 1 ]; then
+    MON_TOPIC="${SYN_TOPIC_MONITORING:-synergia-monitoring}"
+    OUT_TOPIC="${SYN_TOPIC_M1_OUT:-synergia-m1-out}"
+    # (1) 已有 M1/M2 作业在跑？两个生产者同写 m1-out 会造成重复。/ another producer already writing m1-out?
+    RUNNING=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "docker exec jobmanager flink list 2>/dev/null" \
+        | grep -E '\(RUNNING\)' | grep -Ei 'M1Job|M2Job' || true)
+    if [ -n "$RUNNING" ]; then
+        echo "ERROR: 已有 M1/M2 作业在运行，会与本次一同写 ${OUT_TOPIC} 造成重复轮：" >&2
+        echo "$RUNNING" | sed 's/^/       /' >&2
+        echo "       先取消我们自己的那个作业（flink cancel <JobID>），再提交；确需并行用 --force。" >&2
+        echo "ERROR: an M1/M2 job is already running and would double-write ${OUT_TOPIC}; cancel it first." >&2
+        exit 3
+    fi
+    # (2) m1-out 非空？上一轮遗留 + 本轮新写 = 重复累积（正是核验断言二报的重复）。/ m1-out not empty → accumulation
+    OFF=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" \
+        "docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list $BROKERS --topic $OUT_TOPIC --time -1" 2>/dev/null || true)
+    OUT_SUM=$(echo "$OFF" | awk -F: '{s+=$3} END{print s+0}')
+    if [ "${OUT_SUM:-0}" -gt 0 ]; then
+        echo "ERROR: ${OUT_TOPIC} 非空（约 ${OUT_SUM} 条），本次写入会叠加成重复轮（核验断言二会 FAIL）。" >&2
+        echo "       先彻底重置：bash deploy/scripts/syn-clean-topics.sh --yes（现已连 m1-out/monitoring 一起清）；" >&2
+        echo "       确认 ${OUT_TOPIC} 归零后再提交；确需追加用 --force。" >&2
+        echo "ERROR: ${OUT_TOPIC} is not empty (~${OUT_SUM} msgs); writing now would accumulate duplicates." >&2
+        exit 3
+    fi
+    echo "[preflight] 无并发 M1/M2 作业；${OUT_TOPIC} 为空 OK"
+fi
 
 echo "===================================="
 echo "[submit] M1Job  main=$MAIN  p=$PARALLELISM  start=$START_OFFSET"
