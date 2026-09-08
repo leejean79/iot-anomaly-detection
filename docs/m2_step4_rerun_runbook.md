@@ -57,19 +57,21 @@ bash deploy/scripts/syn-replay.sh status                # 等它完整放完（�
 这是从本轮起**每次标定/探针前的固定前置门槛**，已做成脚本，不再人工看日志。
 
 ```bash
-bash deploy/scripts/syn-replay-verify.sh --expected-total <EDA三月逐日轮数合计>
+bash deploy/scripts/syn-replay-verify.sh --expected-total 2047283
 echo "门槛退出码=$?"     # 0=全过放行；1=有断言失败拦住；3=断言一缺 EDA 参照
 ```
 四条断言：① 轮数对账（消费总轮数 vs EDA 三月逐日合计，容差默认 2%）；② 零重复（同设备同时间戳零重复，
 重发在此暴露）；③ 边界对齐（最早=03-01 00:00、最晚=03-31 23:59:50）；④ 冻结落第八天（八台标准化冻结
 时刻落在第 8 天区间——压缩/重发会提前到第 4 天，本条专抓上轮的病）。
 
-- **关于 `--expected-total`**：这是 EDA 阶段记录的三月逐日轮数**合计**（权威值）。仓库里没有这份 EDA 记录，
-  请填入真实合计；也可写进 `.env` 的 `SYN_EDA_MARCH_ROUNDS_TOTAL`。缺省不传会以退出码 3 提示补参
-  （名义上限 8×31×8640=2,006,400 仅占位，真实数据有缺口，勿直接用作参照）。
+- **关于 `--expected-total 2047283`**：这是 EDA 记录的 2022-03 轮数合计——由 `channel_stats_monthly.csv`
+  中 2022-03 各设备单通道 count 相加得到（A260089+B243408+C260094+D260351+E260375+F260102+G259991
+  +H242873=2047283），与 EDA 报告 §3.5 MIC 表 2022-03 total 交叉核对一致。已写入 `env.example` 的
+  `SYN_EDA_MARCH_ROUNDS_TOTAL`，脚本缺省即取该值，可省略 `--expected-total`。注意 EDA 按 Europe/London
+  当地时间分月、重放按 UTC 窗口，边界差约 1 小时（三月下旬 BST），偏差 <0.2%，远在断言一 2% 容差内。
 - 期望产出：stdout 四条 PASS + 逐台冻结日；`docs/m2_replay_verify.csv` 逐设备汇总（总轮数/重复/最早最晚/冻结时刻）。
 - 失败兜底：**任一断言失败即停**——回阶段一彻底重放；核验不过不得进入阶段三。用 `&&` 串联可自动拦截：
-  `bash deploy/scripts/syn-replay-verify.sh --expected-total <N> && <阶段三命令>`。
+  `bash deploy/scripts/syn-replay-verify.sh --expected-total 2047283 && <阶段三命令>`。
 
 ---
 
@@ -78,7 +80,7 @@ echo "门槛退出码=$?"     # 0=全过放行；1=有断言失败拦住；3=断
 核验通过后才执行。探针一次同时产出扫描表与两份代表性表（一天、七天）。
 
 ```bash
-bash deploy/scripts/syn-replay-verify.sh --expected-total <N> && \
+bash deploy/scripts/syn-replay-verify.sh --expected-total 2047283 && \
 bash deploy/scripts/syn-m2-probe.sh --max-messages 3000000 \
      --r-grid 0.75,1.0,1.25,1.5,1.75 --k-grid 10 \
      --out-name m2_probe_7d_clean.csv \
@@ -131,7 +133,7 @@ bash deploy/scripts/syn-clean-topics.sh --yes
 bash deploy/scripts/syn-submit-m1.sh
 bash deploy/scripts/syn-replay.sh --speedup 3600 --start 2022-03-01 --end 2022-04-01
 # 2 门槛（不过则停）
-bash deploy/scripts/syn-replay-verify.sh --expected-total <N>
+bash deploy/scripts/syn-replay-verify.sh --expected-total 2047283
 # 3 代表性 + 探针 + 机选（门槛通过后）
 bash deploy/scripts/syn-m2-probe.sh --max-messages 3000000 --r-grid 0.75,1.0,1.25,1.5,1.75 --k-grid 10 \
      --out-name m2_probe_7d_clean.csv --calib-repr-name m2_calib_repr_7d_clean.csv --calib-repr-days 1,7
