@@ -76,7 +76,7 @@ if [ "${LINES:-0}" -eq 0 ]; then
     echo "ERROR: $JSONL 为空——synergia-m1-out 无数据。先干净重放并跑 M1（--calib-days 7）。" >&2
     exit 2
 fi
-echo "[verify] 转储 ${LINES} 行；运行 ReplayVerify（start=$START_UTC end=$END_UTC calib-days=$CALIB_DAYS）"
+echo "[verify] 转储 ${LINES} 行；运行 ReplayVerify（start=${START_UTC} end=${END_UTC} calib-days=${CALIB_DAYS}）"
 
 EXP_ARG=""
 if [ -n "$EXPECTED_TOTAL" ]; then
@@ -109,6 +109,6 @@ echo "===================================="
 case "$VERIFY_RC" in
     0) echo "✅ 四条断言全部通过——**允许**进入标定/探针（step2）。" ;;
     3) echo "⛔ 退出码 3：断言一缺 EDA 参照。请用 --expected-total <三月逐日合计> 或 .env 的 SYN_EDA_MARCH_ROUNDS_TOTAL 重跑。" ;;
-    *) echo "⛔ 退出码 $VERIFY_RC：有断言未通过——**拦住**后续标定/探针，请先解决重放完整性问题（见上方逐条与 docs/$REPORT_NAME）。" ;;
+    *) echo "⛔ 退出码 ${VERIFY_RC}：有断言未通过——**拦住**后续标定/探针，请先解决重放完整性问题（见上方逐条与 docs/${REPORT_NAME}）。" ;;
 esac
 exit "$VERIFY_RC"
