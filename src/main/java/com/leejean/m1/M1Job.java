@@ -52,11 +52,22 @@ public class M1Job {
         String startupMode = params.get("start-offset", "earliest");   // earliest | latest
         int parallelism = params.getInt("parallelism", 8);
         long idleWallSec = params.getLong("idle-wall", 10L);           // withIdleness 默认 10s
-        int warmupRounds = params.getInt("warmup-rounds", 8640);       // approved decision 3
         double epsilon = params.getDouble("iqr-epsilon", 1e-9);
         int cacheDepth = params.getInt("cache-depth", 1000);           // approved decision 5
         int nominalPeriodSec = params.getInt("nominal-period-sec", 10);
         long checkpointMs = params.getLong("checkpoint-ms", 10000L);
+
+        // 标定窗口（补充指令四 step2）：由"前 N 天"事件时间换算轮数——每日轮数 = 86400/标称周期秒（10s→8640/日），
+        // 默认 7 天（覆盖办公环境一个周作息周期）。仍支持 --warmup-rounds 显式覆盖（供测试/回归对齐旧一天窗口）。
+        // Calibration window: derive rounds from --calib-days × rounds-per-day (86400/period, 8640/day @10s),
+        // default 7 days; --warmup-rounds still overrides explicitly (for tests / one-day back-compat).
+        int calibDays = params.getInt("calib-days", 7);
+        int roundsPerDay = Math.max(1, 86400 / nominalPeriodSec);
+        int warmupRounds = params.has("warmup-rounds")
+                ? params.getInt("warmup-rounds")
+                : calibDays * roundsPerDay;
+        // 相对退化防护开关（补充指令四 step1：默认关闭；保留开关便于将来若观测到窗口内双峰再启用）。
+        boolean relativeGuard = params.getBoolean("relative-guard", false);
 
         System.out.println("========================================");
         System.out.println("M1Job");
@@ -67,7 +78,10 @@ public class M1Job {
         System.out.println("Start offset:    " + startupMode);
         System.out.println("Parallelism:     " + parallelism);
         System.out.println("Idle-wall:       " + idleWallSec + " s");
-        System.out.println("Warmup rounds:   " + warmupRounds);
+        System.out.println("Calib days:      " + calibDays + " (rounds/day=" + roundsPerDay + ")");
+        System.out.println("Warmup rounds:   " + warmupRounds
+                + (params.has("warmup-rounds") ? " (explicit --warmup-rounds)" : " (from --calib-days)"));
+        System.out.println("Relative guard:  " + (relativeGuard ? "ON" : "OFF (default, 撤销/revoked)"));
         System.out.println("IQR epsilon:     " + epsilon);
         System.out.println("Cache depth:     " + cacheDepth);
         System.out.println("========================================");
@@ -115,7 +129,8 @@ public class M1Job {
 
         SingleOutputStreamOperator<DeviceRound> scaled = rounds
                 .keyBy((KeySelector<DeviceRound, String>) DeviceRound::getDevice)
-                .process(new RobustScalerFunction(warmupRounds, epsilon))
+                .process(new RobustScalerFunction(
+                        warmupRounds, epsilon, ChannelTransform.defaultTable(), relativeGuard))
                 .name("RobustScaler");
 
         SingleOutputStreamOperator<DeviceRound> cached = scaled

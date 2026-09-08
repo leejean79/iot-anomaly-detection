@@ -54,7 +54,10 @@ checks=(
     "com/leejean/m2/M2Job.class|parseRPerDevice|逐设备 R 解析方法"
     "com/leejean/m2/M2Probe.class|dispersion-out|通道离散度诊断（提交 6db8d95）"
     "com/leejean/m1/ChannelTransform.class|LOG1P|Light 通道 log1p 预变换（补充指令二 step1）"
-    "com/leejean/m1/RobustScalerFunction.class|m1_scaler_substituted_channels|相对退化防护（补充指令三 step2）"
+    "com/leejean/m1/RobustScalerFunction.class|m1_scaler_substituted_channels|相对退化防护（补充指令三 step2，指令四已默认关闭但代码保留）"
+    "com/leejean/m1/M1Job.class|calib-days|标定窗口天数参数（补充指令四 step2，默认 7 天）"
+    "com/leejean/m1/M1Job.class|relative-guard|相对退化防护开关（补充指令四 step1，默认关闭）"
+    "com/leejean/m2/M2Probe.class|calib-repr-out|标定代表性诊断（补充指令四 step3，标定窗口 IQR÷整月 IQR）"
 )
 
 fail=0
@@ -72,7 +75,7 @@ done
 
 echo "===================================="
 if [ "$fail" -eq 0 ]; then
-    echo "✅ 全部 PASS：该 jar 含最新内容（m2ColdCleared + 逐设备 R + 离散度）。"
+    echo "✅ 全部 PASS：该 jar 含最新内容（m2ColdCleared + 逐设备 R + 离散度 + calib-days/关闭防护/标定代表性）。"
     echo "   若集群跑出来仍缺这些，则问题在**部署环节**（上传未覆盖 / jobmanager 加载了别处的旧 jar），"
     echo "   请核对 syn-upload-m1.sh 的目标路径与 syn-submit-m2.sh 里 /opt/flink/usrlib/<jar> 是否同一个。"
 else

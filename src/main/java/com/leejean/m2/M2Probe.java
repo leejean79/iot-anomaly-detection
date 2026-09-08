@@ -1,6 +1,8 @@
 package com.leejean.m2;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.leejean.m1.ChannelTransform;
+import com.leejean.m1.Channels;
 import com.leejean.m1.DeviceRound;
 
 import java.io.BufferedReader;
@@ -50,6 +52,10 @@ public final class M2Probe {
         String hodOut = a.getOrDefault("outlier-hod-out", "");
         double hodR = Double.parseDouble(a.getOrDefault("outlier-hod-r", "1.75"));
         int hodK = Integer.parseInt(a.getOrDefault("outlier-hod-k", "10"));
+        // 可选：标定代表性诊断（补充指令四 step3）——标定窗口内 IQR ÷ 整月 IQR（均在变换域，Light 取 log1p）。
+        // Optional calibration-representativeness diagnostic: calib-window IQR / full-month IQR (transformed).
+        String calibReprOut = a.getOrDefault("calib-repr-out", "");
+        int[] calibReprDays = parseInts(a.getOrDefault("calib-repr-days", "1,7"));
         long windowSec = Long.parseLong(a.getOrDefault("window-sec", "3600"));
         long slideSec = Long.parseLong(a.getOrDefault("slide-sec", "60"));
         double[] rGrid = parseDoubles(a.getOrDefault("r-grid", "0.5,1.0,1.5,2.0,2.5,3.0"));
@@ -60,6 +66,11 @@ public final class M2Probe {
         // 读入并按设备分组（跳过 warmup / 缺失掩码非空，口径同 M2Gate）
         ObjectMapper mapper = new ObjectMapper();
         Map<String, List<McodPoint>> byDevice = new TreeMap<>();
+        // 标定代表性用的原始变换域样本（含预热轮——标定窗口正是预热窗口），仅在需要时收集。
+        // Transformed-domain samples for representativeness (INCLUDING warm-up rounds, since the
+        // calibration window is exactly the warm-up window); collected only when requested.
+        Map<String, List<ReprRow>> reprByDevice = calibReprOut.isEmpty() ? null : new TreeMap<>();
+        ChannelTransform[] transforms = ChannelTransform.defaultTable();
         long total = 0;
         long skippedWarmup = 0;
         long skippedMissing = 0;
@@ -78,6 +89,23 @@ public final class M2Probe {
                 } catch (Exception e) {
                     parseErrors++;
                     continue;
+                }
+                // 标定代表性样本：在跳过预热之前收集（标定窗口=预热窗口），按标定口径逐通道准入：
+                // 排除缺失通道、排除右删失 Light；变换域取值（Light 取 log1p）。
+                if (reprByDevice != null) {
+                    double[] tv = new double[Channels.N_DET];
+                    boolean[] admit = new boolean[Channels.N_DET];
+                    double[] rawX = r.getX();
+                    boolean[] miss = r.getMissingMask();
+                    boolean[] cens = r.getCensoredMask();
+                    for (int c = 0; c < Channels.N_DET; c++) {
+                        boolean ok = !(miss != null && c < miss.length && miss[c])
+                                && !(c == Channels.LIGHT_INDEX && cens != null && c < cens.length && cens[c]);
+                        admit[c] = ok;
+                        tv[c] = (rawX != null && c < rawX.length) ? transforms[c].apply(rawX[c]) : Double.NaN;
+                    }
+                    reprByDevice.computeIfAbsent(r.getDevice(), d -> new ArrayList<>())
+                            .add(new ReprRow(r.getTs(), tv, admit));
                 }
                 if (r.isWarmup()) {
                     skippedWarmup++;
@@ -102,6 +130,13 @@ public final class M2Probe {
         if (!dispersionOut.isEmpty()) {
             writeDispersion(byDevice, dispersionOut);
             System.out.println("[dispersion] 逐通道 P1/P99/IQR/主体宽度/峰度 → " + dispersionOut);
+        }
+
+        // 可选：标定代表性诊断（补充指令四 step3）——一份 CSV 内含各窗口天数（默认 1 与 7）的比值行。
+        if (reprByDevice != null) {
+            writeCalibRepr(reprByDevice, calibReprDays, calibReprOut);
+            System.out.println("[calib-repr] 标定窗口 IQR ÷ 整月 IQR（变换域），窗口天数="
+                    + java.util.Arrays.toString(calibReprDays) + " → " + calibReprOut);
         }
 
         // 可选：某设备离群点的 UTC 小时分布（验证白天成批离群的预言）
@@ -201,6 +236,82 @@ public final class M2Probe {
                             device, c, col.length, p1, p99, p99 - p1, iqr, body, ratio, kurt);
                 }
             }
+        }
+    }
+
+    /**
+     * 标定代表性诊断（补充指令四 step3）：对每台设备每个通道，计算"标定窗口内 IQR ÷ 整月 IQR"，两者都在
+     * 变换域（Light 取 log1p）上计算。这是判断"首日/首七日标定窗口是否代表整月"的直接体检指标，健康值≈1。
+     * 一次调用输出多份窗口天数（默认 1 与 7）的比值行到同一 CSV，便于对照第三类病理（首日窗口不代表整月）。
+     * 标定窗口按**事件时间**取"每设备最早时间戳起 days 天"，与 M1 冻结口径一致；逐通道排除缺失与右删失 Light。
+     * Representativeness diagnostic: per device/channel, calib-window IQR / full-month IQR (transformed
+     * domain); one CSV with a row per (device, channel, calib_days). Healthy ratio ≈ 1.
+     */
+    private static void writeCalibRepr(Map<String, List<ReprRow>> reprByDevice, int[] calibDays, String outCsv)
+            throws java.io.FileNotFoundException {
+        try (PrintWriter pw = new PrintWriter(outCsv)) {
+            pw.println("device,channel,calib_days,calib_samples,full_samples,"
+                    + "calib_window_iqr,full_period_iqr,repr_ratio");
+            for (Map.Entry<String, List<ReprRow>> e : reprByDevice.entrySet()) {
+                String device = e.getKey();
+                List<ReprRow> rows = e.getValue();
+                if (rows.isEmpty()) {
+                    continue;
+                }
+                long firstTs = Long.MAX_VALUE;
+                for (ReprRow r : rows) {
+                    if (r.ts < firstTs) {
+                        firstTs = r.ts;
+                    }
+                }
+                for (int c = 0; c < Channels.N_DET; c++) {
+                    // 整月（全量）该通道准入样本 / full-period admitted samples for this channel
+                    List<Double> full = new ArrayList<>();
+                    for (ReprRow r : rows) {
+                        if (r.admit[c]) {
+                            full.add(r.tv[c]);
+                        }
+                    }
+                    double fullIqr = iqrOf(full);
+                    for (int days : calibDays) {
+                        long cutoff = firstTs + (long) days * 86400L;   // 事件时间窗口右界 / window end
+                        List<Double> calib = new ArrayList<>();
+                        for (ReprRow r : rows) {
+                            if (r.admit[c] && r.ts < cutoff) {
+                                calib.add(r.tv[c]);
+                            }
+                        }
+                        double calibIqr = iqrOf(calib);
+                        double ratio = fullIqr > 1e-12 ? calibIqr / fullIqr : Double.NaN;
+                        pw.printf("%s,%d,%d,%d,%d,%.6f,%.6f,%.6f%n",
+                                device, c, days, calib.size(), full.size(), calibIqr, fullIqr, ratio);
+                    }
+                }
+            }
+        }
+    }
+
+    /** 一组数值的四分位距（P75−P25，最近秩）；样本不足返回 NaN。 IQR (P75−P25) by nearest rank. */
+    private static double iqrOf(List<Double> vals) {
+        if (vals.size() < 2) {
+            return Double.NaN;
+        }
+        double[] arr = new double[vals.size()];
+        for (int i = 0; i < arr.length; i++) {
+            arr[i] = vals.get(i);
+        }
+        return nearestRankPercentile(arr, 75.0) - nearestRankPercentile(arr, 25.0);
+    }
+
+    /** 标定代表性用的一行原始变换域样本（含准入掩码）/ one row of transformed samples with admission mask. */
+    private static final class ReprRow {
+        final long ts;
+        final double[] tv;         // 变换域取值（Light 取 log1p）/ transformed-domain values
+        final boolean[] admit;     // 逐通道准入（非缺失、非右删失 Light）/ per-channel admission
+        ReprRow(long ts, double[] tv, boolean[] admit) {
+            this.ts = ts;
+            this.tv = tv;
+            this.admit = admit;
         }
     }
 

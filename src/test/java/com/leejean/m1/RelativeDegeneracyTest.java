@@ -11,14 +11,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 相对退化防护单元测试（补充指令三 step2）：健康通道不触发、G 型退化通道触发并得到合理分母、
- * 两条防护（绝对 IQR≈0 兜底 vs 相对 IQR&lt;主体/10）的先后关系。
- * Tests for the relative-degeneracy protection: healthy channel untouched; a G-type near-degenerate
- * channel triggers the substituted denominator; the ordering of the absolute vs relative protections.
+ * 相对退化防护单元测试（补充指令三 step2 引入；补充指令四 step1 撤销为默认关闭）。
+ * 本类以**显式启用**（decideScale 的 3 参重载传 true）验证防护逻辑仍然正确保留：健康通道不触发、
+ * G 型退化通道触发并得到合理分母、绝对 IQR≈0 兜底优先于相对替代；另加一条：**默认关闭**（2 参重载）
+ * 时即便是 G 型样本也不替代（回到健康 IQR 路径），核对撤销后的默认行为。
+ * The guard is retained but OFF by default (instruction 4). These tests pass true to verify the guard
+ * logic is still correct when enabled, plus one test that the default (off) path skips substitution.
  */
 class RelativeDegeneracyTest {
 
     private static final double EPS = 1e-9;
+    private static final boolean GUARD_ON = true;
 
     private static List<Double> sorted(double... xs) {
         List<Double> l = new ArrayList<>();
@@ -33,7 +36,7 @@ class RelativeDegeneracyTest {
     void healthyChannelUsesIqrNoSubstitution() {
         // 均匀分布：IQR 与主体宽度成正常比例（远大于主体/10）→ 用 IQR，不替代、不旁路
         List<Double> vals = sorted(10, 20, 30, 40, 50, 60, 70, 80, 90, 100);
-        RobustScalerFunction.ScaleDecision d = RobustScalerFunction.decideScale(vals, EPS);
+        RobustScalerFunction.ScaleDecision d = RobustScalerFunction.decideScale(vals, EPS, GUARD_ON);
         assertFalse(d.bypass);
         assertFalse(d.substituted, "健康通道不应触发相对退化替代");
         double iqr = percentileRef(vals, 0.75) - percentileRef(vals, 0.25);
@@ -52,7 +55,7 @@ class RelativeDegeneracyTest {
             vals.add(1000.0);                  // 远端 10% → 抬高 P95、放大主体宽度
         }
         Collections.sort(vals);
-        RobustScalerFunction.ScaleDecision d = RobustScalerFunction.decideScale(vals, EPS);
+        RobustScalerFunction.ScaleDecision d = RobustScalerFunction.decideScale(vals, EPS, GUARD_ON);
         assertFalse(d.bypass, "IQR 非零，不应绝对旁路");
         assertTrue(d.substituted, "IQR 远小于主体宽度/10 → 应触发相对退化替代");
         // 替代分母 = 主体宽度/2.44，应远大于原始 IQR（约 1e-3），使标准化不再被除爆
@@ -73,10 +76,31 @@ class RelativeDegeneracyTest {
             vals.add(1000.0);
         }
         Collections.sort(vals);
-        RobustScalerFunction.ScaleDecision d = RobustScalerFunction.decideScale(vals, EPS);
+        RobustScalerFunction.ScaleDecision d = RobustScalerFunction.decideScale(vals, EPS, GUARD_ON);
         assertTrue(d.bypass, "IQR==0 → 绝对退化兜底旁路（优先于相对替代）");
         assertFalse(d.substituted);
         assertEquals(1.0, d.scale, 0.0);
+    }
+
+    @Test
+    void guardOffByDefaultSkipsSubstitutionForGTypeSamples() {
+        // 补充指令四 step1：防护默认关闭。同一 G 型样本，走默认（2 参）路径应**不替代**，回到健康 IQR。
+        List<Double> vals = new ArrayList<>();
+        for (int i = 0; i < 90; i++) {
+            vals.add(10.0 + (i % 3) * 1e-3);
+        }
+        for (int i = 0; i < 10; i++) {
+            vals.add(1000.0);
+        }
+        Collections.sort(vals);
+        RobustScalerFunction.ScaleDecision off = RobustScalerFunction.decideScale(vals, EPS);        // 默认关闭
+        assertFalse(off.substituted, "默认关闭时不应触发相对退化替代（补充指令四已撤销）");
+        assertFalse(off.bypass, "IQR 非零，默认路径不旁路");
+        double iqr = percentileRef(vals, 0.75) - percentileRef(vals, 0.25);
+        assertEquals(iqr, off.scale, 1e-9, "默认关闭时分母 = 原始 IQR");
+        // 同样本显式启用则替代，证明是开关而非删除
+        RobustScalerFunction.ScaleDecision on = RobustScalerFunction.decideScale(vals, EPS, GUARD_ON);
+        assertTrue(on.substituted, "显式启用时仍应替代（代码保留）");
     }
 
     /** 与算子内一致的分位数参考实现（线性插值）/ same linear-interpolation percentile as the operator. */

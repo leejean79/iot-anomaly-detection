@@ -8,7 +8,9 @@
 # 1. 执行环境 / Environment: 本地 Mac（bash），ssh 免密到 fa-master；jar 已上传（syn-upload-m1.sh）。
 # 2. 调用命令 / Invocation:
 #      bash deploy/scripts/syn-submit-m1.sh                       # earliest 起始（runbook：先提交再重放）
-#      bash deploy/scripts/syn-submit-m1.sh --extra '--warmup-rounds 8640 --cache-depth 1000'
+#      bash deploy/scripts/syn-submit-m1.sh --extra '--calib-days 7 --cache-depth 1000'
+#      （标定窗口默认 7 天=补充指令四；相对退化防护默认关闭；两者也可经 .env 的
+#        SYN_M1_CALIB_DAYS / SYN_M1_RELATIVE_GUARD 设置。功能验证可用 --extra '--warmup-rounds 600'。）
 # 3. 前置条件 / Preconditions: synergia-source/-m1-out/-monitoring 已建；jar 在
 #      <REMOTE_HOME>/jars/${SYN_JOB_JAR_NAME}（= jobmanager 容器 /opt/flink/usrlib）。
 # 4. 期望产出 / Expected output: 打印 JobID 并轮询至 RUNNING；作业读 synergia-source、写
@@ -41,6 +43,19 @@ JAR_NAME="${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}"
 MAIN="${SYN_JOB_MAIN:-com.leejean.m1.M1Job}"
 PARALLELISM="${SYN_SOURCE_PARTITIONS:-8}"
 SRC_TOPIC="${SYN_TOPIC_SOURCE:-synergia-source}"
+
+# M1 标定参数（补充指令四）：标定窗口天数与相对退化防护开关。由 .env 提供默认（作业本身也默认 7 天/关闭）。
+# 置于 --extra **之前**：Flink ParameterTool 对重复键以**后出现者为准**，故若 --extra 显式给了同名参数，
+# 它出现在后、会覆盖这里的默认，命令行显式覆盖 .env 默认，符合预期。
+# M1 calibration args (instruction 4): placed BEFORE --extra so an explicit --extra override wins
+# (ParameterTool keeps the LAST occurrence of a duplicate key).
+CALIB_ARGS=""
+if [[ -n "${SYN_M1_CALIB_DAYS:-}" ]]; then
+    CALIB_ARGS="$CALIB_ARGS --calib-days ${SYN_M1_CALIB_DAYS}"
+fi
+if [[ -n "${SYN_M1_RELATIVE_GUARD:-}" ]]; then
+    CALIB_ARGS="$CALIB_ARGS --relative-guard ${SYN_M1_RELATIVE_GUARD}"
+fi
 
 # 分区数预检：确保 synergia-source 已是 8 分区再提交。若 topic 不存在，直接提交会让 Flink 消费者
 # 触发 broker 自动建 topic（默认 1 分区），导致后续重放器按显式分区器发往分区 1-7 全部失败。
@@ -76,6 +91,7 @@ submit_output=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "
         --monitoring-topic synergia-monitoring \
         --start-offset $START_OFFSET \
         --parallelism $PARALLELISM \
+        $CALIB_ARGS \
         $EXTRA_ARGS
 " 2>&1)
 echo "$submit_output"

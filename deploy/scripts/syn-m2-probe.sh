@@ -43,6 +43,10 @@ HOD_DEVICE=""
 HOD_NAME=""
 HOD_R="1.75"
 HOD_K="10"
+# 可选：标定代表性诊断 CSV 的本地文件名（补充指令四 step3；空 = 不产出）与窗口天数列表（默认 1 与 7）。
+# Optional calibration-representativeness CSV name (instruction 4 step3; empty = off) and day list.
+CALIB_REPR_NAME=""
+CALIB_REPR_DAYS="1,7"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
@@ -56,6 +60,8 @@ while [[ $# -gt 0 ]]; do
         --hod-name) HOD_NAME="$2"; shift 2 ;;
         --hod-r) HOD_R="$2"; shift 2 ;;
         --hod-k) HOD_K="$2"; shift 2 ;;
+        --calib-repr-name) CALIB_REPR_NAME="$2"; shift 2 ;;
+        --calib-repr-days) CALIB_REPR_DAYS="$2"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 1 ;;
     esac
 done
@@ -99,6 +105,11 @@ HOD_ARG=""
 if [ -n "$HOD_DEVICE" ] && [ -n "$HOD_NAME" ]; then
     HOD_ARG="--outlier-hod-device $HOD_DEVICE --outlier-hod-out /work/m2_hod.csv --outlier-hod-r $HOD_R --outlier-hod-k $HOD_K"
 fi
+# 标定代表性诊断：可选，若传 --calib-repr-name 则让 M2Probe 额外产出"标定窗口 IQR÷整月 IQR"（含各窗口天数）。
+REPR_ARG=""
+if [ -n "$CALIB_REPR_NAME" ]; then
+    REPR_ARG="--calib-repr-out /work/m2_calib_repr.csv --calib-repr-days $CALIB_REPR_DAYS"
+fi
 
 # 在临时 flink 容器里跑纯 Java 探针（host 无 JDK 时靠镜像自带）
 on_master "docker run --rm --user root \
@@ -108,7 +119,7 @@ on_master "docker run --rm --user root \
         --rounds-jsonl /work/m1out.jsonl \
         --out /work/m2_probe.csv \
         --window-sec $WINDOW_SEC --slide-sec $SLIDE_SEC \
-        --r-grid $R_GRID --k-grid $K_GRID $DISP_ARG $HOD_ARG"
+        --r-grid $R_GRID --k-grid $K_GRID $DISP_ARG $HOD_ARG $REPR_ARG"
 
 echo "===================================="
 echo "[probe] CSV（master）：$CSV"
@@ -140,6 +151,16 @@ if [ -n "$HOD_DEVICE" ] && [ -n "$HOD_NAME" ]; then
     else
         rm -f "$LOCAL_HOD" 2>/dev/null || true
         echo "[probe] 小时分布 CSV 拉回失败，可手动：ssh $SSH_USER@$MASTER_SSH \"cat $WORK/m2_hod.csv\" > docs/$HOD_NAME" >&2
+    fi
+fi
+# 标定代表性 CSV 拉回（若启用）/ pull back the calibration-representativeness CSV if enabled
+if [ -n "$CALIB_REPR_NAME" ]; then
+    LOCAL_REPR="$PROJECT_ROOT/docs/$CALIB_REPR_NAME"
+    if on_master "cat $WORK/m2_calib_repr.csv" > "$LOCAL_REPR" 2>/dev/null && [ -s "$LOCAL_REPR" ]; then
+        echo "[probe] 标定代表性已拉回：${LOCAL_REPR}（标定窗口 IQR÷整月 IQR，天数=${CALIB_REPR_DAYS}）"
+    else
+        rm -f "$LOCAL_REPR" 2>/dev/null || true
+        echo "[probe] 代表性 CSV 拉回失败，可手动：ssh $SSH_USER@$MASTER_SSH \"cat $WORK/m2_calib_repr.csv\" > docs/$CALIB_REPR_NAME" >&2
     fi
 fi
 echo "提醒 / note：本阶段**不定 (R,k) 终值**——表格交回设计会话裁决。"

@@ -143,3 +143,54 @@ step2 的防护只看"标定窗口内"的 IQR 与主体宽度之比，看不到"
   这是唯一对"标定尺度不代表"这一类病理有效的方向；或接受 G 的较高基线（R=1.75）。**within-window 相对防护
   不是 G 的解**，且会误伤健康设备——设计会话可考虑是否保留该防护、或改按"窗口 vs 整月"判据。
 - 若要定位防护误伤的具体通道：读 `synergia-monitoring` 的 `degradedChannelsMask`（本轮起可用）。
+
+---
+
+## 八、补充指令四（2026-09-07）代码交付：撤销相对防护、标定窗口改七天、新增标定代表性诊断
+
+> 设计会话已裁决：撤销补充指令三 step2 的相对退化防护；标定窗口由一天改为七天；沿此前规则做**第三次
+> 也是最后一次**全设备重标定。本节记录**代码与工具的交付状态**——步骤一、二、三已在代码中落地并通过
+> 单元/冒烟验证；步骤四、五需要在集群上按新参数重跑，产出数据回传后由设计会话确认终值。
+
+### 已交付的代码改动（步骤一、二、三）
+
+1. **step1 撤销相对退化防护（默认关闭，保留代码与开关）。** `RobustScalerFunction` 新增布尔开关
+   `relativeGuardEnabled`，默认 `false`；`decideScale` 拆为"防护关闭"（只保留 ①绝对 IQR≤ε 兜底 + ③健康
+   IQR）与"防护启用"两条路径。绝对兜底照旧始终生效。`M1Job` 增加 `--relative-guard`（默认 false）。
+   单元测试新增一条 `guardOffByDefaultSkipsSubstitutionForGTypeSamples`：同一 G 型样本，默认关闭时不替代
+   （回到健康 IQR），显式启用时才替代——证明是开关而非删除。撤销后 A、B、F 三台的离群率应回到补充指令二
+   那轮的数值（见第一节终表），**需在 step4 重跑后附一行核验**。
+
+2. **step2 标定窗口改为七天。** `M1Job` 增加 `--calib-days`（默认 **7**）；轮数由事件时间换算：
+   每日轮数 = 86400 / 标称周期秒（每十秒一轮 → 8640 轮/日），七天 ≈ **60,480 轮**。仍保留 `--warmup-rounds`
+   显式覆盖（供测试与回归对齐旧一天窗口；显式给出时以它为准）。校准期行为规则不变（输出带预热标记、下游
+   静默、删失值不进统计）。`.env` 增 `SYN_M1_CALIB_DAYS=7` 与 `SYN_M1_RELATIVE_GUARD=false`，
+   `syn-submit-m1.sh` 将二者置于 `--extra` **之前**（ParameterTool 后出现者为准，故命令行显式可覆盖 .env）。
+
+3. **step3 探针新增"标定代表性"列。** `M2Probe` 增加 `--calib-repr-out` 与 `--calib-repr-days`（默认 `1,7`），
+   对每台设备每个通道计算 **标定窗口内 IQR ÷ 整月 IQR**，两者均在**变换域**（Light 取 log1p）。由于 IQR
+   对平移/缩放等变，直接在原始 x 上施变换即可，与是否已缩放无关。标定窗口按**事件时间**取"每设备最早时间戳
+   起 N 天"，逐通道排除缺失与右删失 Light。一份 CSV 内以 `calib_days` 列区分 1 天与 7 天两份表。冒烟验证：
+   构造"首日 Light 窄、整月 Light 宽"的合成设备，其 Light `calib_days=1` 的比值实测 **0.0072（≈1%）**、
+   `calib_days=7` 比值 1.00，健康设备各通道均近 1——与指令预期（G 的光照约百分之一量级）完全一致，
+   即第三类病理"首日窗口不代表整月"的**可复现存在性证据**。
+
+### 待集群执行（步骤四、五）——运行清单
+
+- **step3 代表性两份表**（可先做，用现有全月 m1-out 转储，无需重跑 M1）：
+  `bash deploy/scripts/syn-m2-probe.sh --max-messages <整月条数> --calib-repr-name m2_calib_repr.csv --calib-repr-days 1,7`
+  预期：`calib_days=1` 下 G 的 Light 比值约百分之一（第三类病理存档）；`calib_days=7` 下全部通道回到 1 附近。
+  若七天后仍有通道明显偏离 1（<0.5 或 >2），**如实标出、不自行处置**。
+- **step4 七天窗口全设备重标定 + 重跑探针**（需重跑 M1，产出新 xNorm）：
+  `bash deploy/scripts/syn-submit-m1.sh`（默认 `--calib-days 7`、防护关闭）→ `syn-replay.sh` 重放 2022-03 整月
+  → `bash deploy/scripts/syn-m2-probe.sh --r-grid 0.75,1.0,1.25,1.5,1.75 --k-grid 10 --out-name m2_probe_7d.csv`
+  → `python3 deploy/scripts/m2_pick_r.py --csv docs/m2_probe_7d.csv --out docs/m2_rk_calibration_7d.md --prev "A=0.75,B=0.75,C=1.0,D=0.75,E=0.75,F=0.75,G=1.75,H=0.75"`
+  （`--prev` 传上一轮=一天标定的机选值，脚本据此出"与上一轮对比/Δ格"列并对移动超过一格的设备各写一段观察；
+  按既定规则重选八台）。
+- **step5 确认后写入**：八台终值经设计会话确认后一次性写入 `SYN_M2_R_PER_DEVICE`；`--calib-days=7`
+  已作为作业默认（`.env` 亦留档）。六月浪涌留档不重跑，加"基于一天标定"的语义注记即可。
+
+### 边界
+
+代码只落地设计会话明文授权的三步；不自行选择或写入任何 R 终值（step4/5 数据回传后由设计会话确认）；
+相对退化防护代码保留但默认关闭，不删除。

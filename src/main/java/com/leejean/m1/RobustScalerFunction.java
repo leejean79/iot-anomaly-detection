@@ -43,11 +43,15 @@ import java.util.List;
 public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRound, DeviceRound> {
     private static final long serialVersionUID = 1L;
 
-    private final int warmupRounds;   // approved decision 3: 8640
+    private final int warmupRounds;   // 标定窗口轮数（补充指令四：由 --calib-days×每日轮数换算，默认 7 天）
     private final double epsilon;     // IQR ≤ ε 判据 / bypass threshold
 
     // 相对退化防护（补充指令三 step2）：IQR 相对"主体宽度"（P5~P95）过小时判其失代表性，
     // 改用 主体宽度 / 2.44 作标准化分母（2.44 = 正态下 (P95−P5)/(P75−P25)，使替代分母与健康通道同刻度）。
+    // 补充指令四 step1：该防护已**撤销为默认关闭**——实测（补充指令三 step3/4）表明它对 G 无效（G 的病理
+    // 是"首日标定窗口不代表整月"，属窗口 vs 整月的差异，within-window 判据看不到），反而误伤 A/B/F。代码与
+    // 开关保留，便于将来若真观测到"标定窗口内双峰"再启用。默认关闭下只保留 ①绝对 IQR≤ε 兜底 + ③健康 IQR。
+    private final boolean relativeGuardEnabled;
     private static final double BODY_LOW = 0.05;          // 主体下沿 P5
     private static final double BODY_HIGH = 0.95;         // 主体上沿 P95
     private static final double DEGEN_RATIO = 0.10;       // IQR < 主体宽度/10 → 判退化
@@ -69,13 +73,22 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
     private transient Counter bypassedChannelsMetric;
     private transient Counter substitutedChannelsMetric;
 
-    /** 默认通道预变换表（Light→log1p，余恒等）/ default transform table. */
+    /**
+     * 默认通道预变换表（Light→log1p，余恒等）+ 相对退化防护默认关闭（补充指令四 step1）。
+     * default transform table + relative-degeneracy guard OFF by default.
+     */
     public RobustScalerFunction(int warmupRounds, double epsilon) {
-        this(warmupRounds, epsilon, ChannelTransform.defaultTable());
+        this(warmupRounds, epsilon, ChannelTransform.defaultTable(), false);
     }
 
-    /** 显式指定通道预变换表（供测试与将来扩展）/ explicit transform table. */
+    /** 显式指定通道预变换表；相对退化防护默认关闭 / explicit transform table, guard OFF by default. */
     public RobustScalerFunction(int warmupRounds, double epsilon, ChannelTransform[] transforms) {
+        this(warmupRounds, epsilon, transforms, false);
+    }
+
+    /** 全参构造：显式指定通道预变换表与相对退化防护开关 / explicit transform table and guard switch. */
+    public RobustScalerFunction(int warmupRounds, double epsilon, ChannelTransform[] transforms,
+                                boolean relativeGuardEnabled) {
         if (warmupRounds <= 0) {
             throw new IllegalArgumentException("warmupRounds must be > 0, got " + warmupRounds);
         }
@@ -89,6 +102,7 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
         this.warmupRounds = warmupRounds;
         this.epsilon = epsilon;
         this.transforms = transforms.clone();
+        this.relativeGuardEnabled = relativeGuardEnabled;
     }
 
     @Override
@@ -200,7 +214,7 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
                 nBypass++;
             } else {
                 Collections.sort(vals);
-                ScaleDecision d = decideScale(vals, epsilon);
+                ScaleDecision d = decideScale(vals, epsilon, relativeGuardEnabled);
                 med[c] = d.median;
                 scale[c] = d.scale;
                 bp[c] = d.bypass;
@@ -242,24 +256,37 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
     }
 
     /**
-     * 由一个通道的（已排序、非空）校准样本决定标准化的中位数与分母（补充指令三 step2）。三档，按优先级：
-     * ① IQR ≤ ε → 旁路（绝对退化兜底，防除零）；② IQR &lt; 主体宽度(P5~P95)/10 → 相对退化，用
-     * 主体宽度/2.44 作分母（若该替代分母也 ≤ ε 则回落旁路）；③ 否则健康通道，用 IQR。
-     * Decide median & scaling denominator for one channel from its sorted, non-empty calibration samples.
+     * 由一个通道的（已排序、非空）校准样本决定标准化的中位数与分母。相对退化防护默认关闭
+     * （补充指令四 step1），此便捷重载即"防护关闭"路径：只有 ①绝对 IQR≤ε 兜底 + ③健康 IQR。
+     * Convenience overload with the relative-degeneracy guard OFF (the instruction-4 default).
      */
     static ScaleDecision decideScale(List<Double> sortedVals, double epsilon) {
+        return decideScale(sortedVals, epsilon, false);
+    }
+
+    /**
+     * 由一个通道的（已排序、非空）校准样本决定标准化的中位数与分母。档位按优先级：
+     * ① IQR ≤ ε → 旁路（绝对退化兜底，防除零，**始终启用**）；② 仅当 {@code relativeGuardEnabled} 为真时：
+     * IQR &lt; 主体宽度(P5~P95)/10 → 相对退化，用 主体宽度/2.44 作分母（若该替代分母也 ≤ ε 则回落旁路）；
+     * ③ 否则健康通道，用 IQR。补充指令四 step1 起 ② 默认关闭（保留代码与开关）。
+     * Decide median & scaling denominator for one channel; the relative-degeneracy branch ② runs only
+     * when relativeGuardEnabled is true (OFF by default since instruction 4).
+     */
+    static ScaleDecision decideScale(List<Double> sortedVals, double epsilon, boolean relativeGuardEnabled) {
         double median = percentile(sortedVals, 0.50);
         double range = percentile(sortedVals, 0.75) - percentile(sortedVals, 0.25);      // IQR
-        double bodyWidth = percentile(sortedVals, BODY_HIGH) - percentile(sortedVals, BODY_LOW);
         if (range <= epsilon) {
-            return new ScaleDecision(median, 1.0, true, false);          // ① 绝对退化兜底
+            return new ScaleDecision(median, 1.0, true, false);          // ① 绝对退化兜底（始终启用）
         }
-        if (bodyWidth > epsilon && range < bodyWidth * DEGEN_RATIO) {    // ② 相对退化
-            double substScale = bodyWidth / NORMAL_BODY_TO_IQR;
-            if (substScale <= epsilon) {
-                return new ScaleDecision(median, 1.0, true, false);      //    替代分母也退化 → 兜底旁路
+        if (relativeGuardEnabled) {                                       // ② 相对退化（默认关闭）
+            double bodyWidth = percentile(sortedVals, BODY_HIGH) - percentile(sortedVals, BODY_LOW);
+            if (bodyWidth > epsilon && range < bodyWidth * DEGEN_RATIO) {
+                double substScale = bodyWidth / NORMAL_BODY_TO_IQR;
+                if (substScale <= epsilon) {
+                    return new ScaleDecision(median, 1.0, true, false);  //    替代分母也退化 → 兜底旁路
+                }
+                return new ScaleDecision(median, substScale, false, true);
             }
-            return new ScaleDecision(median, substScale, false, true);
         }
         return new ScaleDecision(median, range, false, false);          // ③ 健康通道
     }
