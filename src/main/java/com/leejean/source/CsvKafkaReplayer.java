@@ -524,7 +524,17 @@ public class CsvKafkaReplayer {
             props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers);
             props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
             props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-            props.put(ProducerConfig.ACKS_CONFIG, "1");
+            // 幂等生产（补充指令五 根因修复）：旧配置 acks=1 且未开幂等、retries 取默认（>0），高倍速重放下
+            // 瞬时错误触发的重试会把同一行**重复写入** synergia-source；这些迟到的重复行随后命中 RoundAssembler
+            // 的"轮已关闭又因迟到读数重开"路径，在 m1-out 里变成重复轮（核验断言二每轮浮动的 14~20% 重复即此）。
+            // enable.idempotence=true 让 broker 按 producerId+序列号去重重试，重复不再落盘；它要求 acks=all，
+            // 故一并改为 all；max.in.flight=1（≤5）满足幂等约束、且继续保序。
+            // Idempotent produce (instruction-5 root-cause fix): with the old acks=1 + idempotence-off +
+            // default retries, transient errors under high-speedup replay re-sent identical rows to
+            // synergia-source; those late duplicates became duplicate rounds in m1-out. Idempotence makes the
+            // broker dedup retries (requires acks=all); max.in.flight=1 stays (<=5) for ordering + idempotence.
+            props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+            props.put(ProducerConfig.ACKS_CONFIG, "all");
             props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, "1");   // 保序 / keep order
             this.producer = new KafkaProducer<>(props);
 
