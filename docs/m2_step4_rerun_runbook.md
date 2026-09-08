@@ -37,7 +37,13 @@ ssh <MASTER> "docker exec jobmanager flink cancel <我们的JobID>"
 ssh <MASTER> "rm -f ${SYN_REPLAY_STATE_DIR:-/opt/fa-iforest/replay-state}/*"
 
 # 3) 清空本项目 synergia-* topic（硬编码前缀白名单，删不到旧项目 topic）
+#    注意：clean-topics 现在**始终**重置 source/smoke/m1-out/monitoring 四个 topic（不再依赖 .env
+#    的 SYN_EXTRA_TOPICS）。这是补充指令五那轮"重放干净但仍有 ~14% 重复轮"的根因修复——旧版只清
+#    source+smoke，m1-out 未重置，上一轮遗留轮与本轮新写轮在 m1-out 里叠加成重复。
 bash deploy/scripts/syn-clean-topics.sh --yes
+#    可选前置校验：确认 m1-out 清空后无残留（应为 0 或接近 0）/ optional: confirm m1-out is empty
+ssh <MASTER> "docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell \
+    --broker-list \$(hostname -i):9092 --topic synergia-m1-out --time -1" 2>/dev/null || true
 
 # 4) 先提交七天标定的 M1 作业（默认 --calib-days 7、防护关闭；先提交再重放）
 bash deploy/scripts/syn-submit-m1.sh

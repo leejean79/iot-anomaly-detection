@@ -50,14 +50,24 @@ RETENTION="${SYN_RETENTION_MS:-86400000}"
 
 kcmd() { ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "docker exec kafka-1 $*"; }
 
-# 待清理清单（与 create 同源）/ target list (same source as create)
-declare -a NAMES=("${SYN_TOPIC_SOURCE:-synergia-source}" "${SYN_TOPIC_SMOKE:-synergia-smoke}")
-declare -a PARTS=("${SYN_SOURCE_PARTITIONS:-8}" "1")
+# 待清理清单 / target list。基础清单**始终包含管线的四个 synergia topic**——source、smoke、
+# m1-out、monitoring——不依赖 .env 是否设了 SYN_EXTRA_TOPICS。这是补充指令五那轮"重放干净但仍有
+# ~14% 重复"的根因修复：旧版基础清单只有 source+smoke，m1-out 未被重置，上一轮遗留的轮与本轮新写的
+# 轮在 m1-out 里叠加，探针/核验按 (device,ts) 读出即为重复。真正的 topic 隔离必须连输出流一起重置。
+# The base list ALWAYS includes the pipeline's four synergia topics (source, smoke, m1-out, monitoring),
+# not only when SYN_EXTRA_TOPICS lists them — otherwise a prior run's rounds linger in m1-out and the new
+# run appends onto them (the instruction-5 ~14% duplicate-rounds root cause).
+declare -a NAMES=("${SYN_TOPIC_SOURCE:-synergia-source}" "${SYN_TOPIC_SMOKE:-synergia-smoke}" \
+                  "${SYN_TOPIC_M1_OUT:-synergia-m1-out}" "${SYN_TOPIC_MONITORING:-synergia-monitoring}")
+declare -a PARTS=("${SYN_SOURCE_PARTITIONS:-8}" "1" "1" "1")
+# 合并 SYN_EXTRA_TOPICS，但跳过基础清单里已有的名字（避免重复删除/重建）/ merge extras, skip duplicates.
 if [[ -n "${SYN_EXTRA_TOPICS:-}" ]]; then
     IFS=',' read -ra _extra <<< "$SYN_EXTRA_TOPICS"
     for item in "${_extra[@]}"; do
         item="$(echo "$item" | xargs)"; [[ -z "$item" ]] && continue
         name="${item%%:*}"; part="${item##*:}"; [[ "$name" == "$part" ]] && part=1
+        _dup=0; for existing in "${NAMES[@]}"; do [[ "$existing" == "$name" ]] && _dup=1 && break; done
+        [[ "$_dup" == 1 ]] && continue
         NAMES+=("$name"); PARTS+=("$part")
     done
 fi
