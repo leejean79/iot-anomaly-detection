@@ -58,6 +58,7 @@ checks=(
     "com/leejean/m1/M1Job.class|calib-days|标定窗口天数参数（补充指令四 step2，默认 7 天）"
     "com/leejean/m1/M1Job.class|relative-guard|相对退化防护开关（补充指令四 step1，默认关闭）"
     "com/leejean/m2/M2Probe.class|calib-repr-out|标定代表性诊断（补充指令四 step3，标定窗口 IQR÷整月 IQR）"
+    "com/leejean/m2/ReplayVerify.class|冻结落第八天|重放完整性核验四断言（补充指令五 step1）"
 )
 
 fail=0
