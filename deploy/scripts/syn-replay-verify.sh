@@ -41,6 +41,8 @@ PERIOD_SEC=10
 EXPECTED_TOTAL="${SYN_EDA_MARCH_ROUNDS_TOTAL:-}"
 TOL_PCT=2.0
 REPORT_NAME="m2_replay_verify.csv"
+# 边界容差秒（默认 120：三月最后一轮 23:58:30 比名义右界早 80s，属数据自然缺口；见 ReplayVerify 注释）
+BOUNDARY_SLACK_SEC=120
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
@@ -51,6 +53,7 @@ while [[ $# -gt 0 ]]; do
         --expected-total) EXPECTED_TOTAL="$2"; shift 2 ;;
         --tol-pct) TOL_PCT="$2"; shift 2 ;;
         --report-name) REPORT_NAME="$2"; shift 2 ;;
+        --boundary-slack-sec) BOUNDARY_SLACK_SEC="$2"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 2 ;;
     esac
 done
@@ -94,6 +97,7 @@ on_master "docker run --rm --user root \
         --rounds-jsonl /work/m1out.jsonl \
         --start-utc $START_UTC --end-utc $END_UTC \
         --calib-days $CALIB_DAYS --period-sec $PERIOD_SEC --tol-pct $TOL_PCT \
+        --boundary-slack-sec $BOUNDARY_SLACK_SEC \
         $EXP_ARG --report-out /work/m2_replay_verify.csv"
 VERIFY_RC=$?
 

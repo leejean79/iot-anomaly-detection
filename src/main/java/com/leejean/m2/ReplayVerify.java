@@ -192,7 +192,13 @@ public final class ReplayVerify {
         int calibDays = Integer.parseInt(a.getOrDefault("calib-days", "7"));
         long expectedTotal = Long.parseLong(a.getOrDefault("expected-total", "-1"));
         double tolPct = Double.parseDouble(a.getOrDefault("tol-pct", "2.0"));
-        long slack = Long.parseLong(a.getOrDefault("boundary-slack-sec", String.valueOf(periodSec)));
+        // 边界容差默认 120s（补充指令五 实测校准）：三月数据集的最后一轮在 2022-03-31T23:58:30Z，比名义
+        // 右界（end−周期=23:59:50）早 80s，且在全部干净/非干净运行里逐秒不变——是数据自身的月末自然缺口，
+        // 不是重放截断。断言三的本意是抓"提前停止"（按小时/天计的缺口），120s 仍能抓住，又不误伤真实边界。
+        // Default boundary slack 120s: the dataset's last March round is at 23:58:30Z (80s before the nominal
+        // end), stable across every run — a natural month-end gap, not truncation. 120s still catches an early
+        // stop (hours/days short) without failing on the real data boundary.
+        long slack = Long.parseLong(a.getOrDefault("boundary-slack-sec", "120"));
         Config cfg = new Config(start, end, periodSec, calibDays, expectedTotal, tolPct, slack);
 
         ObjectMapper mapper = new ObjectMapper();
