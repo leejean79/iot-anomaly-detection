@@ -123,10 +123,10 @@ python3 deploy/scripts/m2_pick_r.py \
 据此把八台终值与 `--calib-days=7` 一并写入配置：
 
 ```bash
-# 示例（占位，实际值由阶段三干净机选套用上面规则后确定）：
-#   SYN_M2_R_PER_DEVICE="A=1.0,B=1.0,C=1.0,D=1.0,E=1.0,F=1.0,G=<机选或1.75>,H=1.0"
+# 已按 2026-09-09 干净数据套用规则写入（env.example）：
+#   SYN_M2_R_PER_DEVICE="A=1.0,B=1.0,C=1.0,D=0.75,E=1.0,F=1.0,G=1.5,H=1.0"
 #   SYN_M1_CALIB_DAYS=7
-# 写入 deploy/.env 后回传设计会话做最终确认，M2 收口。
+# 请同步到 deploy/.env；已回传设计会话做最终确认，M2 收口。
 ```
 - 边界：代码 agent 据规则套用并写入 `deploy/.env` 的 `SYN_M2_R_PER_DEVICE` 与 `SYN_M1_CALIB_DAYS=7`，
   连同终表与两份代表性表回传设计会话最终确认；不改动算法逻辑，不做浪涌重跑（六月浪涌加"基于一天标定"注记即可）。
