@@ -105,10 +105,11 @@ python3 deploy/scripts/m2_pick_r.py \
      --out docs/m2_rk_calibration_7d_clean.md \
      --prev "A=0.75,B=0.75,C=1.0,D=0.75,E=0.75,F=0.75,G=1.75,H=0.75"
 ```
-- 期望产出：`docs/m2_probe_7d_clean.csv`（扫描表，slides 应恢复到整月量级约 41k、而非上轮的约 21k）、
+- 期望产出：`docs/m2_probe_7d_clean.csv`（扫描表，slides 应约 **33.7k**/设备——七天标定扣掉 7 天预热后 24 天再减
+  自然缺口；**约 41k 是一天标定的数字**，勿混用；上轮病态运行只有约 21k）、
   `docs/m2_calib_repr_7d_clean.csv`（两份代表性）、`docs/m2_rk_calibration_7d_clean.md`（机选表）。
-- 自检：扫描表的 slides 与代表性表"前七日轮数"应回到名义量级（约 41k slides；前七日约 60k 轮/设备），
-  否则说明重放仍不干净，回阶段一。
+- 自检：扫描表的 slides 与代表性表"前七日轮数"应回到名义量级（七天标定约 33.7k slides；前七日约 60k 轮/设备，
+  实测 2026-09-09 干净运行为 33,678 与 60,308），否则说明重放仍不干净，回阶段一。
 
 ---
 
