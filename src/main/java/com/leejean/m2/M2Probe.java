@@ -125,6 +125,14 @@ public final class M2Probe {
         for (List<McodPoint> pts : byDevice.values()) {
             pts.sort((x, y) -> Long.compare(x.arrival, y.arrival));
         }
+        long readDoneMs = System.currentTimeMillis();
+        long validPts = 0;
+        for (List<McodPoint> pts : byDevice.values()) {
+            validPts += pts.size();
+        }
+        // 读入阶段完成即打印（否则直到全部扫描结束前一片沉默，像挂住）/ print as soon as reading finishes
+        System.out.printf("[probe] 读入完成：%d 行；有效点（跳过 warmup/缺失后）%d；设备 %d%n",
+                total, validPts, byDevice.size());
 
         // 可选：逐设备逐通道离散度诊断（复用同一份标定段数据）/ optional per-channel dispersion diagnostic
         if (!dispersionOut.isEmpty()) {
@@ -134,6 +142,7 @@ public final class M2Probe {
 
         // 可选：标定代表性诊断（补充指令四 step3）——一份 CSV 内含各窗口天数（默认 1 与 7）的比值行。
         if (reprByDevice != null) {
+            System.out.println("[calib-repr] 开始计算标定代表性（逐设备逐通道排序）…");
             writeCalibRepr(reprByDevice, calibReprDays, calibReprOut);
             System.out.println("[calib-repr] 标定窗口 IQR ÷ 整月 IQR（变换域），窗口天数="
                     + java.util.Arrays.toString(calibReprDays) + " → " + calibReprOut);
@@ -154,7 +163,13 @@ public final class M2Probe {
         long windowMs = windowSec * 1000L;
         long slideMs = slideSec * 1000L;
 
-        // 扫描网格并写 CSV
+        // 扫描网格并写 CSV。这是最耗时的阶段（每组合 = 一次全月滑窗 MCOD 模拟），逐组打印进度以示存活。
+        // The sweep is the expensive phase (one full-month sliding-window MCOD run per combo); print progress.
+        int totalCombos = byDevice.size() * rGrid.length * kGrid.length;
+        System.out.printf("[sweep] 开始：%d 设备 × %d R × %d k = %d 次全月滑窗扫描（W=%ds S=%ds），逐组打印进度…%n",
+                byDevice.size(), rGrid.length, kGrid.length, totalCombos, windowSec, slideSec);
+        long sweepStartMs = System.currentTimeMillis();
+        int done = 0;
         List<String> highCombos = new ArrayList<>();
         List<String> zeroCombos = new ArrayList<>();
         try (PrintWriter pw = new PrintWriter(outCsv)) {
@@ -164,7 +179,13 @@ public final class M2Probe {
                 List<McodPoint> pts = e.getValue();
                 for (double rr : rGrid) {
                     for (int kk : kGrid) {
+                        long t0 = System.currentTimeMillis();
                         RateResult res = sweep(pts, rr, kk, windowMs, slideMs);
+                        done++;
+                        long now = System.currentTimeMillis();
+                        System.out.printf("[sweep] (%d/%d) %s R=%.2f k=%d → slides=%d rate=%.6f  用时 %.1fs，累计 %.1fs%n",
+                                done, totalCombos, device, rr, kk, res.slides, res.meanOutlierRate,
+                                (now - t0) / 1000.0, (now - sweepStartMs) / 1000.0);
                         pw.printf("%s,%.2f,%d,%d,%.2f,%.6f,%.4f%n",
                                 device, rr, kk, res.slides, res.meanWindowPoints,
                                 res.meanOutlierRate, res.fracZeroSlides);
@@ -180,6 +201,8 @@ public final class M2Probe {
             }
         }
 
+        System.out.printf("[sweep] 全部完成：%d 次扫描，总用时 %.1fs%n",
+                done, (System.currentTimeMillis() - sweepStartMs) / 1000.0);
         // 通俗解读（交回设计会话，不定终值）
         System.out.println("========== M2 (R,k) 校准探针 / calibration probe ==========");
         System.out.printf("输入行数 %d；跳过 warmup %d、缺失掩码 %d；解析失败 %d；有效设备 %d%n",
