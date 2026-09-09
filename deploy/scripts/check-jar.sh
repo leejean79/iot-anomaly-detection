@@ -59,6 +59,8 @@ checks=(
     "com/leejean/m1/M1Job.class|relative-guard|相对退化防护开关（补充指令四 step1，默认关闭）"
     "com/leejean/m2/M2Probe.class|calib-repr-out|标定代表性诊断（补充指令四 step3，标定窗口 IQR÷整月 IQR）"
     "com/leejean/m2/ReplayVerify.class|expected-total|重放完整性核验四断言（补充指令五 step1）"
+    "com/leejean/m1/M1Job.class|checkpoint-max-state-mb|内存型 checkpoint 状态上限（补充指令五 根因修复：7 天蓄水池越过默认 5 MB）"
+    "com/leejean/m2/M2Job.class|calib-days|M2 联合作业同源七天标定（防静默退回一天）"
 )
 
 fail=0

@@ -50,7 +50,9 @@ ssh <MASTER> "docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell 
 #    非空，会**直接拒绝提交**（退出码 3）并提示先取消作业/清 topic——这正是"重复轮累积"的两条根因。
 #    确需绕过（如并行实验）才加 --force。看到拒绝就说明第 1~3 步没清干净，别 --force 硬来。
 bash deploy/scripts/syn-submit-m1.sh
-#    核对启动横幅三行：Calib days: 7 (rounds/day=8640) / Warmup rounds: 60480 (from --calib-days) / Relative guard: OFF
+#    核对启动横幅：Calib days: 7 (rounds/day=8640) / Warmup rounds: 60480 (from --calib-days) / Relative guard: OFF
+#    以及 **Ckpt max state: 128 MB/subtask**（补充指令五 根因修复：七天蓄水池越过 Flink 默认 5 MB 内存型
+#    checkpoint 上限 → checkpoint 失败 → 作业重启 → AT_LEAST_ONCE 重发 → 重复轮。没有这一行=旧 jar，别往下跑）
 #    以及预检行：[preflight] 无并发 M1/M2 作业；synergia-m1-out 为空 OK
 
 # 5) 严格重放三月一整段（恰好 2022-03-01 00:00 → 2022-04-01 00:00，一次）

@@ -7,12 +7,14 @@ import com.leejean.m1.MonitoringSnapshot;
 import com.leejean.m1.RawCacheFunction;
 import com.leejean.m1.RawLineParser;
 import com.leejean.m1.Reading;
+import com.leejean.m1.ChannelTransform;
 import com.leejean.m1.RobustScalerFunction;
 import com.leejean.m1.RoundAssembler;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.runtime.state.storage.JobManagerCheckpointStorage;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -64,11 +66,21 @@ public class M2Job {
         String startupMode = params.get("start-offset", "earliest");
         int parallelism = params.getInt("parallelism", 8);
         long idleWallSec = params.getLong("idle-wall", 10L);
-        int warmupRounds = params.getInt("warmup-rounds", 8640);
+        // 标定窗口（补充指令四 step2，与 M1Job 同源）：--calib-days×每日轮数（86400/标称周期，10s→8640/日），默认 7 天
+        // ≈60480 轮；--warmup-rounds 显式给出时优先。联合作业复用同一 RobustScaler，必须与 M1Job 保持一致，
+        // 否则会静默退回一天标定。/ Calibration window derived from --calib-days exactly as in M1Job.
+        int nominalPeriodSec = params.getInt("nominal-period-sec", 10);
+        int calibDays = params.getInt("calib-days", 7);
+        int roundsPerDay = Math.max(1, 86400 / nominalPeriodSec);
+        int warmupRounds = params.has("warmup-rounds")
+                ? params.getInt("warmup-rounds")
+                : calibDays * roundsPerDay;
+        boolean relativeGuard = params.getBoolean("relative-guard", false);   // 补充指令四 step1：默认关闭
         double epsilon = params.getDouble("iqr-epsilon", 1e-9);
         int cacheDepth = params.getInt("cache-depth", 1000);
-        int nominalPeriodSec = params.getInt("nominal-period-sec", 10);
         long checkpointMs = params.getLong("checkpoint-ms", 10000L);
+        // 内存型 checkpoint 单子任务状态上限（MB），默认 128；七天预热蓄水池会越过 Flink 默认 5 MB（补充指令五 根因）。
+        int ckptMaxStateMb = params.getInt("checkpoint-max-state-mb", 128);
         // M2 窗口与算法参数（占位默认；(R,k) 终值由探针交回设计会话裁决）
         int windowSec = params.getInt("window-sec", 3600);       // W
         int slideSec = params.getInt("slide-sec", 60);           // S
@@ -87,6 +99,11 @@ public class M2Job {
         System.out.println("Monitoring topic:" + monitoringTopic);
         System.out.println("Start offset:    " + startupMode);
         System.out.println("Parallelism:     " + parallelism);
+        System.out.println("Calib days:      " + calibDays + " (rounds/day=" + roundsPerDay + ")");
+        System.out.println("Warmup rounds:   " + warmupRounds
+                + (params.has("warmup-rounds") ? " (explicit --warmup-rounds)" : " (from --calib-days)"));
+        System.out.println("Relative guard:  " + (relativeGuard ? "ON" : "OFF (default)"));
+        System.out.println("Ckpt max state:  " + ckptMaxStateMb + " MB/subtask (memory-backed)");
         System.out.println("Window W/S:      " + windowSec + "s / " + slideSec + "s");
         System.out.println("MCOD R/k:        " + r + " / " + k
                 + (rPerDevice.isEmpty() ? " (global R for all devices)"
@@ -97,6 +114,9 @@ public class M2Job {
         env.setParallelism(parallelism);
         env.getConfig().setGlobalJobParameters(params);
         env.enableCheckpointing(checkpointMs);
+        // 抬高内存型 checkpoint 状态上限（集群无共享 FS，不用 FileSystemCheckpointStorage）。
+        env.getCheckpointConfig().setCheckpointStorage(
+                new JobManagerCheckpointStorage(ckptMaxStateMb * 1024 * 1024));
 
         Properties consumerProps = new Properties();
         consumerProps.setProperty("bootstrap.servers", brokers);
@@ -125,7 +145,9 @@ public class M2Job {
                 .keyBy((KeySelector<Reading, String>) Reading::getDevice)
                 .process(new RoundAssembler()).name("RoundAssembler")
                 .keyBy((KeySelector<DeviceRound, String>) DeviceRound::getDevice)
-                .process(new RobustScalerFunction(warmupRounds, epsilon)).name("RobustScaler")
+                .process(new RobustScalerFunction(
+                        warmupRounds, epsilon, ChannelTransform.defaultTable(), relativeGuard))
+                .name("RobustScaler")
                 .keyBy((KeySelector<DeviceRound, String>) DeviceRound::getDevice)
                 .process(new RawCacheFunction(cacheDepth, nominalPeriodSec)).name("RawCache");
 

@@ -58,6 +58,9 @@ fi
 if [[ -n "${SYN_M1_RELATIVE_GUARD:-}" ]]; then
     CALIB_ARGS="$CALIB_ARGS --relative-guard ${SYN_M1_RELATIVE_GUARD}"
 fi
+if [[ -n "${SYN_M1_CKPT_MAX_STATE_MB:-}" ]]; then
+    CALIB_ARGS="$CALIB_ARGS --checkpoint-max-state-mb ${SYN_M1_CKPT_MAX_STATE_MB}"
+fi
 
 # 分区数预检：确保 synergia-source 已是 8 分区再提交。若 topic 不存在，直接提交会让 Flink 消费者
 # 触发 broker 自动建 topic（默认 1 分区），导致后续重放器按显式分区器发往分区 1-7 全部失败。

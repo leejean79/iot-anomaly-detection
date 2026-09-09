@@ -5,6 +5,7 @@ import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.runtime.state.storage.JobManagerCheckpointStorage;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -56,6 +57,12 @@ public class M1Job {
         int cacheDepth = params.getInt("cache-depth", 1000);           // approved decision 5
         int nominalPeriodSec = params.getInt("nominal-period-sec", 10);
         long checkpointMs = params.getLong("checkpoint-ms", 10000L);
+        // 内存型 checkpoint 存储的单子任务状态上限（MB）。Flink 默认 5 MB；七天标定使 RobustScaler 预热蓄水池
+        // （60480 轮×5 通道，装箱 ListState<Double>）每子任务约 5~7 MB 越线 → checkpoint 失败 → 作业重启 →
+        // AT_LEAST_ONCE 重发 → m1-out 重复轮（补充指令五 根因）。总状态约 8×7 MB≈56 MB，JM 堆可容。
+        // Memory-backed checkpoint per-subtask state cap (MB). Flink default 5 MB; the 7-day warm-up reservoir
+        // exceeds it → failed checkpoints → restarts → at-least-once re-emission (instruction-5 root cause).
+        int ckptMaxStateMb = params.getInt("checkpoint-max-state-mb", 128);
 
         // 标定窗口（补充指令四 step2）：由"前 N 天"事件时间换算轮数——每日轮数 = 86400/标称周期秒（10s→8640/日），
         // 默认 7 天（覆盖办公环境一个周作息周期）。仍支持 --warmup-rounds 显式覆盖（供测试/回归对齐旧一天窗口）。
@@ -83,6 +90,7 @@ public class M1Job {
                 + (params.has("warmup-rounds") ? " (explicit --warmup-rounds)" : " (from --calib-days)"));
         System.out.println("Relative guard:  " + (relativeGuard ? "ON" : "OFF (default, 撤销/revoked)"));
         System.out.println("IQR epsilon:     " + epsilon);
+        System.out.println("Ckpt max state:  " + ckptMaxStateMb + " MB/subtask (memory-backed)");
         System.out.println("Cache depth:     " + cacheDepth);
         System.out.println("========================================");
 
@@ -90,6 +98,10 @@ public class M1Job {
         env.setParallelism(parallelism);
         env.getConfig().setGlobalJobParameters(params);
         env.enableCheckpointing(checkpointMs);   // 启用 checkpoint（交接文档 §4.1）/ checkpointing enabled
+        // 抬高内存型 checkpoint 的状态上限（见 ckptMaxStateMb 注释）。该集群无共享文件系统，故不用
+        // FileSystemCheckpointStorage；保留 JM 内存存储、只放大上限。/ raise the memory-backed cap (no shared FS here).
+        env.getCheckpointConfig().setCheckpointStorage(
+                new JobManagerCheckpointStorage(ckptMaxStateMb * 1024 * 1024));
 
         Properties consumerProps = new Properties();
         consumerProps.setProperty("bootstrap.servers", brokers);
