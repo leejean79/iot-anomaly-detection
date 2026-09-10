@@ -18,6 +18,7 @@ class InjectorTest {
 
     @Test
     void parseSingleSpec() {
+        // 解析单条规格，校验六个字段全部正确 / parse a single spec, verify all six fields
         List<Injector.Spec> specs = Injector.parse("E:Temperature:1711929600:300:spike:10");
         assertEquals(1, specs.size());
         Injector.Spec s = specs.get(0);
@@ -31,6 +32,7 @@ class InjectorTest {
 
     @Test
     void parseMultipleSpecs() {
+        // 分号分隔的多条规格 / multiple specs separated by semicolons
         List<Injector.Spec> specs = Injector.parse(
                 "E:Temperature:1711929600:300:spike:10;F:Humidity:1711930000:600:step:5.5");
         assertEquals(2, specs.size());
@@ -42,6 +44,7 @@ class InjectorTest {
 
     @Test
     void parseEmptyReturnsEmpty() {
+        // 空 / null / 空白输入返回空列表 / empty, null, or blank input returns an empty list
         assertTrue(Injector.parse(null).isEmpty());
         assertTrue(Injector.parse("").isEmpty());
         assertTrue(Injector.parse("  ").isEmpty());
@@ -49,18 +52,21 @@ class InjectorTest {
 
     @Test
     void parseInvalidFieldCountThrows() {
+        // 字段数不为 6 → 快速失败 / field count != 6 → fail fast
         assertThrows(IllegalArgumentException.class,
                 () -> Injector.parse("E:Temperature:1711929600:300:spike"));
     }
 
     @Test
     void parseUnknownTypeThrows() {
+        // 未知注入类型 → 快速失败 / unknown injection type → fail fast
         assertThrows(IllegalArgumentException.class,
                 () -> Injector.parse("E:Temperature:1711929600:300:unknown:10"));
     }
 
     @Test
     void parseNumericErrorThrows() {
+        // 数值字段不可解析 → 快速失败 / non-numeric field → fail fast
         assertThrows(IllegalArgumentException.class,
                 () -> Injector.parse("E:Temperature:abc:300:spike:10"));
     }
@@ -94,6 +100,7 @@ class InjectorTest {
 
     @Test
     void applyStep(@TempDir Path tmpDir) throws Exception {
+        // step：窗口内持续叠加固定偏移 / step: add a constant offset within the window
         List<Injector.Spec> specs = Injector.parse("A:Humidity:200:50:step:3.0");
         Injector inj = new Injector(specs, tmpDir.resolve("truth.csv"));
         try {
@@ -108,19 +115,20 @@ class InjectorTest {
 
     @Test
     void applyRamp(@TempDir Path tmpDir) throws Exception {
-        // ramp: magnitude * progress, progress = (ts - start) / (end - start)
+        // ramp：偏移随进度线性增长 / ramp: offset grows linearly with progress
+        // progress = (ts - start) / (end - start)，injected = original + magnitude * progress
         List<Injector.Spec> specs = Injector.parse("B:Temperature:1000:100:ramp:20.0");
         Injector inj = new Injector(specs, tmpDir.resolve("truth.csv"));
         try {
-            // ts=1000: progress=0 → injected = original + 0 = 50.0
+            // 起点：progress=0 → 注入值 = 原值 + 0 = 50.0 / at start: progress=0 → 50.0
             String atStart = inj.apply("1000,B,Temperature,50.0", 1000, "B");
             assertEquals("1000,B,Temperature,50.0", atStart);
 
-            // ts=1050: progress=0.5 → injected = 50 + 20*0.5 = 60.0
+            // 中点：progress=0.5 → 50 + 20*0.5 = 60.0 / midpoint: progress=0.5 → 60.0
             String atMid = inj.apply("1050,B,Temperature,50.0", 1050, "B");
             assertEquals("1050,B,Temperature,60.0", atMid);
 
-            // ts=1099: progress=0.99 → injected = 50 + 20*0.99 = 69.8
+            // 近尾：progress=0.99 → 50 + 20*0.99 = 69.8 / near end: progress=0.99 → 69.8
             String nearEnd = inj.apply("1099,B,Temperature,50.0", 1099, "B");
             String[] fields = nearEnd.split(",");
             double val = Double.parseDouble(fields[3]);
@@ -134,7 +142,7 @@ class InjectorTest {
 
     @Test
     void applyStuck(@TempDir Path tmpDir) throws Exception {
-        // stuck: freeze at the first seen value
+        // stuck：冻结在窗口内第一次见到的值 / stuck: freeze at the first value seen within the window
         List<Injector.Spec> specs = Injector.parse("C:RSSI:500:100:stuck:0");
         Injector inj = new Injector(specs, tmpDir.resolve("truth.csv"));
         try {
@@ -157,6 +165,7 @@ class InjectorTest {
 
     @Test
     void applyShortLinePassthrough(@TempDir Path tmpDir) throws Exception {
+        // 少于 4 列的畸形行原样返回，不注入 / a malformed line with <4 columns passes through unchanged
         List<Injector.Spec> specs = Injector.parse("E:Temperature:100:10:spike:5.0");
         Injector inj = new Injector(specs, tmpDir.resolve("truth.csv"));
         try {
@@ -171,6 +180,7 @@ class InjectorTest {
 
     @Test
     void applyDifferentChannelNoMatch(@TempDir Path tmpDir) throws Exception {
+        // 通道不匹配则不注入，applied 计数保持为 0 / channel mismatch → no injection, applied stays 0
         List<Injector.Spec> specs = Injector.parse("E:Temperature:100:10:spike:5.0");
         Injector inj = new Injector(specs, tmpDir.resolve("truth.csv"));
         try {
@@ -186,6 +196,7 @@ class InjectorTest {
 
     @Test
     void truthLogCreated(@TempDir Path tmpDir) throws Exception {
+        // 地面真值日志写入表头 + 每条规格一行 / truth log writes a header plus one line per spec
         Path logPath = tmpDir.resolve("truth.csv");
         List<Injector.Spec> specs = Injector.parse("E:Temperature:100:10:spike:5.0");
         Injector inj = new Injector(specs, logPath);
@@ -202,6 +213,7 @@ class InjectorTest {
 
     @Test
     void nullTruthLogDoesNotCrash() throws Exception {
+        // truthLog 为 null 时仍能注入且不崩溃 / injection still works when the truth log is null
         List<Injector.Spec> specs = Injector.parse("E:Temperature:100:10:spike:5.0");
         Injector inj = new Injector(specs, null);
         String result = inj.apply("105,E,Temperature,20.0", 105, "E");
