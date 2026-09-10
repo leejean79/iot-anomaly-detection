@@ -78,6 +78,11 @@ public class CsvKafkaReplayer {
         long startSec = parseInstant(params.get("start", ""), Long.MIN_VALUE);
         long endSec = parseInstant(params.get("end", ""), Long.MAX_VALUE);
 
+        // 注入模式（交接文档 §4 决策 8）：对重放原始值施加注入，使注入流经 M1 归一化后自然出现于 M3 视角。
+        // Injection mode (handover §4 decision 8): inject into raw values before sending.
+        String injectSpec = params.get("inject", null);
+        String injectLogPath = params.get("inject-log", "inject-truth.csv");
+
         Path dir = Paths.get(dataDir);
         // offset 文件可覆写到可写路径（容器内挂载目录可能只读/属主不符）/ offset path is overridable
         Path offsetPath = Paths.get(params.get("offset-file", dir.resolve(OFFSET_FILE).toString()));
@@ -85,6 +90,12 @@ public class CsvKafkaReplayer {
         Stats stats = new Stats();
         List<FileEntry> files = discoverFiles(dir, stats, strictNames);
         long[] resumeState = resume ? loadOffset(offsetPath) : new long[]{-1L, -1L};
+
+        // 解析并创建注入器（如有注入规格）/ parse and create injector if spec is provided
+        List<Injector.Spec> injSpecs = (injectSpec != null && !injectSpec.trim().isEmpty())
+                ? Injector.parse(injectSpec) : null;
+        Injector injector = (injSpecs != null && !injSpecs.isEmpty())
+                ? new Injector(injSpecs, Paths.get(injectLogPath)) : null;
 
         System.out.println("========================================");
         System.out.println("CsvKafkaReplayer");
@@ -102,6 +113,15 @@ public class CsvKafkaReplayer {
         System.out.println("Strict names:  " + strictNames);
         System.out.println("Mode:          " + (dryRun ? "DRY-RUN (no produce)" : "PRODUCE")
                 + (resume ? " / RESUME from fileIdx=" + resumeState[0] + " line=" + resumeState[1] : ""));
+        if (injector != null) {
+            System.out.println("Injection:     " + injSpecs.size() + " spec(s), log=" + injectLogPath);
+            for (Injector.Spec is : injSpecs) {
+                System.out.println("  -> " + is.device + ":" + is.channel + " [" + is.startTs + ".." + is.endTs
+                        + ") type=" + is.type + " mag=" + is.magnitude);
+            }
+        } else {
+            System.out.println("Injection:     OFF");
+        }
         System.out.println("========================================");
 
         RecordSink sink = dryRun
@@ -123,7 +143,13 @@ public class CsvKafkaReplayer {
                 if (!DevicePartition.isKnown(row.device)) {
                     stats.unknownDevice++;
                 }
-                sink.emit(topic, partition, row.ts * 1000L, row.device, row.rawLine);
+                // 注入：在发送前改写原始行的 value 字段（如有匹配规格）
+                // Injection: modify the raw line's value field before sending (if any spec matches)
+                String line = row.rawLine;
+                if (injector != null) {
+                    line = injector.apply(line, row.ts, row.device);
+                }
+                sink.emit(topic, partition, row.ts * 1000L, row.device, line);
                 stats.produced++;
                 stats.lastFileIdx = row.fileIdx;
                 stats.lastLineNo = row.lineNo;
@@ -143,6 +169,9 @@ public class CsvKafkaReplayer {
             merger.flush();
         } finally {
             sink.close();
+            if (injector != null) {
+                injector.close();
+            }
             saveOffset(offsetPath, stats.lastFileIdx, stats.lastLineNo);
         }
 
@@ -160,6 +189,14 @@ public class CsvKafkaReplayer {
         System.out.println("Unknown-device records:    " + stats.unknownDevice);
         System.out.println("Idle-compression events:   " + pacer.compressionEvents);
         System.out.println("Total compressed wall:     " + pacer.totalCompressedMs + " ms");
+        if (injector != null) {
+            System.out.println("Injection applied:         " + injector.getApplied()
+                    + " modifications (" + injSpecs.size() + " spec(s))");
+            if (injector.getApplied() == 0) {
+                System.out.println("  [WARN] 注入规格未匹配到任何行；请确认 device/channel/时间段是否在数据集中存在。");
+                System.out.println("  [WARN] No rows matched injection specs; verify device/channel/time range exist in the dataset.");
+            }
+        }
         System.out.println("========================================");
     }
 

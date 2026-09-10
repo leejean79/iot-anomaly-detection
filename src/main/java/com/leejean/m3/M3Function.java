@@ -48,6 +48,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
 
     private static final int N_FEATURES = Channels.N_DET;    // 5
     private static final int ROUNDS_PER_DAY = 8640;          // 10s 轮 × 86,400s/天 = 8,640 / 10s rounds per day
+    private static final String DEVICE_G = "G";              // 设备 G Light 通道需特殊处理 / device G Light needs special handling
 
     private final int trainDays;
     private final int earlyStopDays;
@@ -175,7 +176,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                                   String device) throws Exception {
         collectingCount.inc();
 
-        windowBuffer.add(round.getXNorm().clone());
+        double[] xNorm = round.getXNorm().clone();
+        zeroDeviceGLight(xNorm, device);
+        windowBuffer.add(xNorm);
         boolean[] mask = WeightedMseLoss.buildMask(round.getCensoredMask());
         windowMaskBuffer.add(boolToBytes(mask));
         windowOutlierBuffer.add(round.isOutlier());
@@ -345,7 +348,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
 
     private void handleOnline(AnnotatedRound round, Context ctx,
                               Collector<M3ScoreRecord> out, String device) throws Exception {
-        windowBuffer.add(round.getXNorm().clone());
+        double[] xNorm = round.getXNorm().clone();
+        zeroDeviceGLight(xNorm, device);
+        windowBuffer.add(xNorm);
         boolean[] mask = WeightedMseLoss.buildMask(round.getCensoredMask());
         windowMaskBuffer.add(boolToBytes(mask));
 
@@ -472,5 +477,22 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
             mask[i] = bytes[i] != 0;
         }
         return mask;
+    }
+
+    /**
+     * 设备 G 的 Light 通道输入归零（交接文档 §3 决策 5）：Light 通道在 device G 上的量化分辨率
+     * 不足，即使权重为零（损失不计入），非零的输入仍会污染编码器的隐藏表示。归零输入使编码器
+     * 在该通道上不编码任何信息。
+     * Zero device G's Light channel input (handover §3 decision 5): even with zero loss weight,
+     * a non-zero input would pollute the encoder's hidden representation. Zeroing the input ensures
+     * the encoder encodes no information on that channel for device G.
+     *
+     * @param xNorm 归一化特征向量（原地修改）/ normalized feature vector (modified in place)
+     * @param device 设备 ID / device ID
+     */
+    private static void zeroDeviceGLight(double[] xNorm, String device) {
+        if (DEVICE_G.equals(device) && xNorm.length > Channels.LIGHT_INDEX) {
+            xNorm[Channels.LIGHT_INDEX] = 0.0;
+        }
     }
 }
