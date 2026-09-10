@@ -75,7 +75,9 @@ public class M2Gate extends ProcessFunction<DeviceRound, DevicePoint> {
         long ts = round.getTs();
         // arrival = 轮时间戳毫秒；id = 轮时间戳秒（同设备内唯一）；flag 恒 0（§3）
         McodPoint p = new McodPoint(value, ts * 1000L, 0, ts, cold);
-        out.collect(new DevicePoint(round.getDevice(), p));
+        boolean[] censored = round.getCensoredMask() != null
+                ? round.getCensoredMask().clone() : null;
+        out.collect(new DevicePoint(round.getDevice(), p, censored));
     }
 
     private static int censoredCount(DeviceRound round) {

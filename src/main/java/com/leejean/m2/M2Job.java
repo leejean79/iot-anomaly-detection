@@ -1,6 +1,7 @@
 package com.leejean.m2;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.leejean.m1.Channels;
 import com.leejean.m1.DeviceRound;
 import com.leejean.m1.MonitoringAggregator;
 import com.leejean.m1.MonitoringSnapshot;
@@ -10,6 +11,9 @@ import com.leejean.m1.Reading;
 import com.leejean.m1.ChannelTransform;
 import com.leejean.m1.RobustScalerFunction;
 import com.leejean.m1.RoundAssembler;
+import com.leejean.m3.AnnotatedRound;
+import com.leejean.m3.M3Function;
+import com.leejean.m3.M3ScoreRecord;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -91,6 +95,20 @@ public class M2Job {
         // Per-device radius R: "A=1.0,B=1.0,..."; a device not listed falls back to the global --mcod-r.
         java.util.Map<String, Double> rPerDevice = parseRPerDevice(params.get("mcod-r-per-device", ""));
 
+        // ---- M3 参数（交接文档 §3 决策 3/4/5/6）/ M3 parameters ----
+        boolean m3Enabled = params.getBoolean("m3-enabled", true);
+        int m3TrainDays = params.getInt("m3-train-days", 7);
+        int m3EarlyStopDays = params.getInt("m3-earlystop-days", 2);
+        int m3ThreshDays = params.getInt("m3-thresh-days", 2);
+        int m3WindowLength = params.getInt("m3-window-length", 60);
+        double m3ZThreshold = params.getDouble("m3-z-threshold", 2.22);
+        int m3MaxEpochs = params.getInt("m3-max-epochs", 100);
+        int m3EarlyStopPatience = params.getInt("m3-earlystop-patience", 10);
+        // 通道权重表（决策 5）：设备 G 的 Light 权重为零（临时；M6 级-0 重估修复尺度后恢复）
+        // Channel weights: device G's Light weight is zero (temporary; restore once M6 level-0 re-estimation)
+        // 此处为全局默认全 1；逐设备权重在 M3Function 内按配置覆盖
+        double[] m3ChannelWeights = parseChannelWeights(params.get("m3-channel-weights", ""));
+
         System.out.println("========================================");
         System.out.println("M2Job (M1+pMCOD joint)");
         System.out.println("Brokers:         " + brokers);
@@ -108,6 +126,13 @@ public class M2Job {
         System.out.println("MCOD R/k:        " + r + " / " + k
                 + (rPerDevice.isEmpty() ? " (global R for all devices)"
                         : "  per-device R=" + new java.util.TreeMap<>(rPerDevice)));
+        System.out.println("M3 enabled:      " + m3Enabled);
+        if (m3Enabled) {
+            System.out.println("M3 train/es/th:  " + m3TrainDays + "d/" + m3EarlyStopDays + "d/" + m3ThreshDays + "d");
+            System.out.println("M3 window:       " + m3WindowLength + " rounds");
+            System.out.println("M3 z-threshold:  " + m3ZThreshold);
+            System.out.println("M3 max epochs:   " + m3MaxEpochs + " (patience=" + m3EarlyStopPatience + ")");
+        }
         System.out.println("========================================");
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -173,6 +198,9 @@ public class M2Job {
         // ---- M2 段 ----
         OutputTag<DevicePoint> lateTag = new OutputTag<DevicePoint>("m2-late-drops") { };
         OutputTag<MonitoringSnapshot> m2MonTag = new OutputTag<MonitoringSnapshot>("m2-monitoring") { };
+        // M3 标注轮侧输出（null = M3 未启用）/ M3 annotated-round side output (null = M3 disabled)
+        OutputTag<AnnotatedRound> m3AnnotatedTag = m3Enabled
+                ? new OutputTag<AnnotatedRound>("m3-annotated") { } : null;
 
         DataStream<DevicePoint> gated = cached.process(new M2Gate()).name("M2Gate");
 
@@ -181,7 +209,7 @@ public class M2Job {
                 .window(SlidingEventTimeWindows.of(Time.seconds(windowSec), Time.seconds(slideSec)))
                 .allowedLateness(Time.seconds(0))                 // 允许迟到 = 0（§4）
                 .sideOutputLateData(lateTag)
-                .process(new PmcodFunction(r, k, slideSec, rPerDevice, m2MonTag))
+                .process(new PmcodFunction(r, k, slideSec, rPerDevice, m2MonTag, m3AnnotatedTag))
                 .name("Pmcod");
 
         // 离群点名单 → synergia-scores
@@ -200,7 +228,35 @@ public class M2Job {
         // 迟到丢弃计数（侧输出）：仅计 Flink 指标，不落库（§4）
         scored.getSideOutput(lateTag).process(new LateDropCounter()).name("M2LateDrops");
 
-        env.execute("M2Job - M1 ingestion/normalization + pMCOD point-anomaly detection");
+        // ---- M3 段（上下文通道 LSTM 自编码器，交接文档 §3）/ M3 contextual LSTM autoencoder ----
+        if (m3Enabled && m3AnnotatedTag != null) {
+            OutputTag<MonitoringSnapshot> m3MonTag =
+                    new OutputTag<MonitoringSnapshot>("m3-monitoring") { };
+
+            SingleOutputStreamOperator<M3ScoreRecord> m3Scored = scored
+                    .getSideOutput(m3AnnotatedTag)
+                    .keyBy((KeySelector<AnnotatedRound, String>) AnnotatedRound::getDevice)
+                    .process(new M3Function(
+                            m3TrainDays, m3EarlyStopDays, m3ThreshDays,
+                            m3WindowLength, m3ZThreshold, m3ChannelWeights,
+                            m3MaxEpochs, m3EarlyStopPatience, m3MonTag))
+                    .name("M3-LSTM-AE");
+
+            // M3 上下文评分 → synergia-scores
+            m3Scored.addSink(new FlinkKafkaProducer<>(scoresTopic,
+                            new M3ScoreSerializationSchema(scoresTopic),
+                            producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
+                    .name("Kafka Sink [" + scoresTopic + " / M3]");
+
+            // M3 监测快照（侧输出）→ 并入 synergia-monitoring
+            m3Scored.getSideOutput(m3MonTag)
+                    .addSink(new FlinkKafkaProducer<>(monitoringTopic,
+                            new MonitoringSerializationSchema(monitoringTopic),
+                            producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
+                    .name("Kafka Sink [" + monitoringTopic + " / M3]");
+        }
+
+        env.execute("M2Job - M1 ingestion/normalization + pMCOD + LSTM-AE contextual anomaly detection");
     }
 
     /**
@@ -239,6 +295,26 @@ public class M2Job {
             map.put(device, radius);
         }
         return map;
+    }
+
+    /**
+     * 解析通道权重表 "1.0,1.0,1.0,1.0,0.0"（五个逗号分隔的浮点数，空串 = null = 全 1）。
+     * Parse channel weights "1.0,1.0,1.0,1.0,0.0" (5 comma-separated doubles; empty = null = all ones).
+     */
+    static double[] parseChannelWeights(String spec) {
+        if (spec == null || spec.trim().isEmpty()) {
+            return null;
+        }
+        String[] parts = spec.split(",");
+        if (parts.length != Channels.N_DET) {
+            throw new IllegalArgumentException(
+                    "m3-channel-weights must have " + Channels.N_DET + " values, got " + parts.length);
+        }
+        double[] weights = new double[Channels.N_DET];
+        for (int i = 0; i < Channels.N_DET; i++) {
+            weights[i] = Double.parseDouble(parts[i].trim());
+        }
+        return weights;
     }
 
     /** 迟到数据计数器：只增 Flink 指标 m2_gate_late_drop，不向下游发射 / count-only, no emit. */
@@ -304,6 +380,28 @@ public class M2Job {
                 return new ProducerRecord<>(topic, null, round.getTs() * 1000L, key, value);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to serialize DeviceRound to JSON", e);
+            }
+        }
+    }
+
+    private static class M3ScoreSerializationSchema implements KafkaSerializationSchema<M3ScoreRecord> {
+        private static final long serialVersionUID = 1L;
+        private final String topic;
+        private transient ObjectMapper mapper;
+        M3ScoreSerializationSchema(String topic) {
+            this.topic = topic;
+        }
+        @Override
+        public ProducerRecord<byte[], byte[]> serialize(M3ScoreRecord e, @Nullable Long timestamp) {
+            if (mapper == null) {
+                mapper = new ObjectMapper();
+            }
+            try {
+                byte[] key = e.getDevice() == null ? null : e.getDevice().getBytes(StandardCharsets.UTF_8);
+                byte[] value = mapper.writeValueAsBytes(e);
+                return new ProducerRecord<>(topic, null, e.getWindowEnd() * 1000L, key, value);
+            } catch (Exception ex) {
+                throw new RuntimeException("Failed to serialize M3ScoreRecord to JSON", ex);
             }
         }
     }

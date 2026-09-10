@@ -13,6 +13,7 @@ public class DevicePoint implements Serializable {
 
     private String device;
     private McodPoint point;
+    private boolean[] censoredMask;
 
     public DevicePoint() {
     }
@@ -20,6 +21,12 @@ public class DevicePoint implements Serializable {
     public DevicePoint(String device, McodPoint point) {
         this.device = device;
         this.point = point;
+    }
+
+    public DevicePoint(String device, McodPoint point, boolean[] censoredMask) {
+        this.device = device;
+        this.point = point;
+        this.censoredMask = censoredMask;
     }
 
     public String getDevice() {
@@ -36,5 +43,13 @@ public class DevicePoint implements Serializable {
 
     public void setPoint(McodPoint point) {
         this.point = point;
+    }
+
+    public boolean[] getCensoredMask() {
+        return censoredMask;
+    }
+
+    public void setCensoredMask(boolean[] censoredMask) {
+        this.censoredMask = censoredMask;
     }
 }

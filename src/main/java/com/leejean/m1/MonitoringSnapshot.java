@@ -41,6 +41,11 @@ public class MonitoringSnapshot implements Serializable {
     private long windowEnd;              // 滑动窗口末（事件时间秒；供区分 M2 快照）
     private boolean m2ColdCleared;       // 本滑动步是否发生冷启动清空（供 DF-12 浪涌分析精确定位清空时刻）
 
+    // ---- M3 追加字段（交接文档 §3 决策 7）：上下文通道的重建误差 ----
+    // M3-appended fields (handover §3 decision 7): contextual-channel reconstruction errors.
+    private double m3ReconError;         // 窗口加权 MSE / window weighted MSE
+    private double[] m3PerChannelErrors; // 每通道 MSE [5] / per-channel MSE
+
     /** Jackson 反序列化需要无参构造 / No-arg constructor required by Jackson. */
     public MonitoringSnapshot() { }
 
@@ -131,6 +136,14 @@ public class MonitoringSnapshot implements Serializable {
     @JsonProperty
     public boolean isM2ColdCleared() { return m2ColdCleared; }
     public void setM2ColdCleared(boolean m2ColdCleared) { this.m2ColdCleared = m2ColdCleared; }
+
+    @JsonProperty
+    public double getM3ReconError() { return m3ReconError; }
+    public void setM3ReconError(double m3ReconError) { this.m3ReconError = m3ReconError; }
+
+    @JsonProperty
+    public double[] getM3PerChannelErrors() { return m3PerChannelErrors; }
+    public void setM3PerChannelErrors(double[] m3PerChannelErrors) { this.m3PerChannelErrors = m3PerChannelErrors; }
 
     @Override
     public String toString() {
