@@ -41,6 +41,7 @@
         <java.version>1.8</java.version>
         <kafka.version>2.6.3</kafka.version>
         <kotlin.version>1.4.32</kotlin.version>
+        <dl4j.version>1.0.0-M2.1</dl4j.version>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -73,6 +74,28 @@
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-reflect</artifactId>
                 <version>${kotlin.version}</version>
+            </dependency>
+            <!-- DL4J / ND4J 传递依赖钉版，防止与 Flink 的内部 Jackson / Protobuf 冲突
+                 Pin DL4J/ND4J transitive deps to prevent clashes with Flink internals -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>2.13.5</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-annotations</artifactId>
+                <version>2.13.5</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>2.13.5</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>3.21.12</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -125,6 +148,46 @@
             <groupId>com.edwardraff</groupId>
             <artifactId>JSAT</artifactId>
             <version>0.0.9</version>
+        </dependency>
+
+        <!-- ===================== 深度学习 / Deep Learning (M3, DEV-D1) ============ -->
+        <!-- DL4J 核心（LSTM 自编码器训练与推断）
+             DL4J core — LSTM autoencoder training and inference -->
+        <dependency>
+            <groupId>org.deeplearning4j</groupId>
+            <artifactId>deeplearning4j-nn</artifactId>
+            <version>${dl4j.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jetbrains.kotlin</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- ND4J 原生后端（CPU，linux-x86_64；集群与本开发环境均为 Linux）
+             ND4J native backend (CPU, linux-x86_64; both cluster and dev env are Linux) -->
+        <dependency>
+            <groupId>org.nd4j</groupId>
+            <artifactId>nd4j-native</artifactId>
+            <version>${dl4j.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jetbrains.kotlin</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.nd4j</groupId>
+            <artifactId>nd4j-native</artifactId>
+            <version>${dl4j.version}</version>
+            <classifier>linux-x86_64</classifier>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jetbrains.kotlin</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- =========================== Kafka connector =========================== -->

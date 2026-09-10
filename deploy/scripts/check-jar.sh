@@ -61,6 +61,7 @@ checks=(
     "com/leejean/m2/ReplayVerify.class|expected-total|重放完整性核验四断言（补充指令五 step1）"
     "com/leejean/m1/M1Job.class|checkpoint-max-state-mb|内存型 checkpoint 状态上限（补充指令五 根因修复：7 天蓄水池越过默认 5 MB）"
     "com/leejean/m2/M2Job.class|calib-days|M2 联合作业同源七天标定（防静默退回一天）"
+    "org/deeplearning4j/nn/multilayer/MultiLayerNetwork.class|MultiLayerNetwork|DL4J 1.0.0-M2.1 LSTM 自编码器引擎（M3 阶段 DEV-D1）"
 )
 
 fail=0
@@ -78,7 +79,7 @@ done
 
 echo "===================================="
 if [ "$fail" -eq 0 ]; then
-    echo "✅ 全部 PASS：该 jar 含最新内容（m2ColdCleared + 逐设备 R + 离散度 + calib-days/关闭防护/标定代表性）。"
+    echo "✅ 全部 PASS：该 jar 含最新内容（M1/M2 全标记 + DL4J M3 引擎）。"
     echo "   若集群跑出来仍缺这些，则问题在**部署环节**（上传未覆盖 / jobmanager 加载了别处的旧 jar），"
     echo "   请核对 syn-upload-m1.sh 的目标路径与 syn-submit-m2.sh 里 /opt/flink/usrlib/<jar> 是否同一个。"
 else
