@@ -38,6 +38,23 @@ services:
   # -------- Flink TaskManager --------
   # host 网络模式: 跨节点访问时所有端口可达 (RPC 6122, BlobServer, 动态 metrics 端口)
   # taskmanager.host: 容器内 Flink 用此 IP 向 JM 注册自己, host 网络下就是节点内网 IP
+  #
+  # ---- M3 阶段堆外内存重配（交接文档 §2 决策 1 第三部分）/ M3 off-heap reconfiguration ----
+  # ND4J 经 JavaCPP 在 Java 堆外分配张量，而 Flink 默认 taskmanager.memory.task.off-heap.size=0，
+  # 未计量的原生分配会在训练期把容器顶出 4096MB 上限而被 kill。三处显式设置（进程仍 = TM_HEAP_MB=4096）：
+  #   1) task.off-heap 提到 768MB，给张量库留出堆外预算；
+  #   2) managed 从 1024MB 降到 256MB（本项目不用 RocksDB 状态后端，那块基本闲置），使总量仍在 4096 内；
+  #   3) JavaCPP 自身上限默认取 JVM 最大堆（非所愿）——显式设 maxbytes/maxphysicalbytes，使超限变成
+  #      "抛异常"而非"容器被 kill"；并把原生库解包目录 cachedir 指向可写的 /tmp（容器用户 9999 的家目录
+  #      解包会撞老项目记录的挂载权限坑）。
+  # ND4J allocates tensors off-heap via JavaCPP while Flink's default task off-heap is 0, so unaccounted
+  # native allocations can push the container past 4096MB and get it killed during training. Three explicit
+  # settings (process size stays = TM_HEAP_MB=4096): raise task.off-heap to 768MB; cut managed from 1024MB
+  # to 256MB (no RocksDB backend here, so it sat idle) to keep the total within 4096; and set JavaCPP's own
+  # maxbytes/maxphysicalbytes so an overrun becomes an exception, not a container kill, with cachedir pointed
+  # at a writable /tmp path (user 9999's home-dir extraction is the mount-permission trap the old project hit).
+  # 这些值可用 .env 里的 SYN_TM_* / SYN_JAVACPP_* 覆盖；改后须重启 TaskManager 生效。
+  # Override via SYN_TM_* / SYN_JAVACPP_* in .env; restart the TaskManager for changes to take effect.
   taskmanager:
     image: fa-iforest/flink:${FLINK_VERSION}
     container_name: taskmanager-${BROKER_ID}
@@ -51,7 +68,9 @@ services:
         jobmanager.rpc.port: 6123
         taskmanager.numberOfTaskSlots: ${TM_SLOTS}
         taskmanager.memory.process.size: ${TM_HEAP_MB}m
-        taskmanager.memory.managed.size: ${TM_MANAGED_MEM_MB}m
+        taskmanager.memory.managed.size: ${SYN_TM_MANAGED_MEM_MB:-256}m
+        taskmanager.memory.task.off-heap.size: ${SYN_TM_TASK_OFFHEAP_MB:-768}m
+        env.java.opts.taskmanager: -Dorg.bytedeco.javacpp.maxbytes=${SYN_JAVACPP_MAXBYTES:-512m} -Dorg.bytedeco.javacpp.maxphysicalbytes=${SYN_JAVACPP_MAXPHYSICALBYTES:-768m} -Dorg.bytedeco.javacpp.cachedir=${SYN_JAVACPP_CACHEDIR:-/tmp/javacpp-cache}
         taskmanager.host: ${NODE_SELF_IP}
         parallelism.default: ${JOB_LOCAL_PARALLELISM}
         metrics.reporters: prom

@@ -140,6 +140,28 @@ class M3CoreTest {
         assertEquals(5, recon[0].length, "Reconstruction should have same feature count");
     }
 
+    // ---- M3ClusterSmoke 报告构建器测试 / cluster smoke report-builder test ----
+
+    @Test
+    void clusterSmokeReportContainsAllFourPoints() {
+        // buildReport 会强制 ND4J 原生加载（开发容器为 linux-x86_64，可行）并采集四点证据。
+        // buildReport forces ND4J native load (dev container is linux-x86_64) and collects the four points.
+        String report = M3ClusterSmoke.buildReport(0, 1);
+
+        // 点3：JDK / Point 3: JDK
+        assertTrue(report.contains("java.version="), "report should carry java.version (Point 3)");
+        assertTrue(report.contains("os.arch="), "report should carry os.arch");
+        // 原生加载成功 / native load succeeded
+        assertTrue(report.contains("nd4j_native_ok=true"),
+                "ND4J native backend should load on the dev container: " + report);
+        // 点1：JavaCPP 堆外上限/用量 / Point 1: JavaCPP off-heap ceilings/usage
+        assertTrue(report.contains("javacpp.maxBytes="), "report should carry javacpp.maxBytes (Point 1)");
+        assertTrue(report.contains("javacpp.maxPhysicalBytes="), "report should carry javacpp.maxPhysicalBytes");
+        // 点2：解包目录 / Point 2: extraction dir
+        assertTrue(report.contains("javacpp.cacheDir="), "report should carry javacpp.cacheDir (Point 2)");
+        assertTrue(report.contains("javacpp.cacheDir.writable="), "report should carry cacheDir writability");
+    }
+
     @Test
     void autoEncoderSerializeDeserialize() throws Exception {
         LstmAutoEncoder ae = new LstmAutoEncoder(5, 20);

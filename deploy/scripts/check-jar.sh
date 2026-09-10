@@ -68,6 +68,7 @@ checks=(
     "com/leejean/m3/WeightedMseLoss.class|perChannelMse|M3 加权 MSE 损失（M3 阶段 §3）"
     "com/leejean/m3/M3Scorer.class|mahaScore|M3 评分器（z-score + Mahalanobis）（M3 阶段 §3）"
     "com/leejean/source/Injector.class|inject-truth|M3 注入模式（M3 阶段 §4 Deliverable B）"
+    "com/leejean/m3/M3ClusterSmoke.class|M3-CLUSTER-SMOKE|M3 集群冒烟作业（M3 阶段 §2 决策 1 第三部分）"
 )
 
 fail=0
