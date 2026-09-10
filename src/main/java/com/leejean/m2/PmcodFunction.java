@@ -161,13 +161,14 @@ public class PmcodFunction
         // M3 侧输出：本滑动步的每个轮附带离群标记（M3 训练净化 + 推理输入）
         // M3 side output: each round in this slide annotated with its outlier flag
         if (m3AnnotatedTag != null && slideDevicePoints != null) {
-            Set<Long> outlierSet = new HashSet<>(result.outlierIds);
+            Set<Long> outlierSet = new HashSet<>(result.outlierIds);   // 离群 id 集合，供 O(1) 查询 / outlier id set for O(1) lookup
             for (DevicePoint dp : slideDevicePoints) {
                 McodPoint mp = dp.getPoint();
-                boolean isOutlier = outlierSet.contains(mp.id);
-                double[] xNorm = mp.value != null ? mp.value.clone() : new double[0];
+                boolean isOutlier = outlierSet.contains(mp.id);        // 该轮是否被判离群 / is this round an outlier
+                double[] xNorm = mp.value != null ? mp.value.clone() : new double[0];   // 防对象复用 / defensive copy
                 boolean[] censored = dp.getCensoredMask() != null
                         ? dp.getCensoredMask().clone() : null;
+                // 每轮发一条 AnnotatedRound 到 M3 侧输出 / emit one AnnotatedRound per round to the M3 side output
                 ctx.output(m3AnnotatedTag, new AnnotatedRound(
                         device, mp.id, xNorm, isOutlier, censored, mp.coldStart, windowEndSec));
             }

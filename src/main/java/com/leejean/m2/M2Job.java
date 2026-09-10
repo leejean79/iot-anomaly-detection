@@ -234,7 +234,8 @@ public class M2Job {
                     new OutputTag<MonitoringSnapshot>("m3-monitoring") { };
 
             SingleOutputStreamOperator<M3ScoreRecord> m3Scored = scored
-                    .getSideOutput(m3AnnotatedTag)
+                    .getSideOutput(m3AnnotatedTag)      // 取 PmcodFunction 的标注轮侧输出 / take the annotated-round side output
+                    // 按设备分键：每设备一套独立状态机与模型 / key by device: one independent state machine & model per device
                     .keyBy((KeySelector<AnnotatedRound, String>) AnnotatedRound::getDevice)
                     .process(new M3Function(
                             m3TrainDays, m3EarlyStopDays, m3ThreshDays,
@@ -303,16 +304,16 @@ public class M2Job {
      */
     static double[] parseChannelWeights(String spec) {
         if (spec == null || spec.trim().isEmpty()) {
-            return null;
+            return null;                               // 空串 → null → M3 内部按全 1 处理 / empty → null → all-ones in M3
         }
         String[] parts = spec.split(",");
-        if (parts.length != Channels.N_DET) {
+        if (parts.length != Channels.N_DET) {          // 必须恰好五个值，否则快速失败 / must be exactly N_DET values, else fail fast
             throw new IllegalArgumentException(
                     "m3-channel-weights must have " + Channels.N_DET + " values, got " + parts.length);
         }
         double[] weights = new double[Channels.N_DET];
         for (int i = 0; i < Channels.N_DET; i++) {
-            weights[i] = Double.parseDouble(parts[i].trim());
+            weights[i] = Double.parseDouble(parts[i].trim());   // 逐个解析为浮点权重 / parse each into a double weight
         }
         return weights;
     }
@@ -384,21 +385,24 @@ public class M2Job {
         }
     }
 
+    /** M3 评分记录 → JSON 写入 synergia-scores（沿用 M1/M2 序列化模板）/ M3 record → JSON to synergia-scores. */
     private static class M3ScoreSerializationSchema implements KafkaSerializationSchema<M3ScoreRecord> {
         private static final long serialVersionUID = 1L;
         private final String topic;
-        private transient ObjectMapper mapper;
+        private transient ObjectMapper mapper;         // Jackson 不可序列化，声明 transient 惰性构造 / transient, lazily built
         M3ScoreSerializationSchema(String topic) {
             this.topic = topic;
         }
         @Override
         public ProducerRecord<byte[], byte[]> serialize(M3ScoreRecord e, @Nullable Long timestamp) {
             if (mapper == null) {
-                mapper = new ObjectMapper();
+                mapper = new ObjectMapper();           // 首次调用时在 TM 上构造 / build on the TM at first call
             }
             try {
+                // key = 设备 ID，保证同设备记录进同一分区、保序 / key = device id, keeps a device's records ordered in one partition
                 byte[] key = e.getDevice() == null ? null : e.getDevice().getBytes(StandardCharsets.UTF_8);
                 byte[] value = mapper.writeValueAsBytes(e);
+                // 记录时间戳盖窗口末事件时间（毫秒），与 M1/M2 事件时间口径一致 / stamp window-end event time (ms), same as M1/M2
                 return new ProducerRecord<>(topic, null, e.getWindowEnd() * 1000L, key, value);
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to serialize M3ScoreRecord to JSON", ex);

@@ -16,13 +16,13 @@ import java.io.Serializable;
 public class AnnotatedRound implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private String device;
-    private long ts;
-    private double[] xNorm;
-    private boolean outlier;
-    private boolean[] censoredMask;
-    private boolean coldStart;
-    private long windowEnd;
+    private String device;          // 设备 ID（A–H）/ device id (A–H)
+    private long ts;                // 轮的事件时间（epoch 秒）/ round event time (epoch seconds)
+    private double[] xNorm;         // M1 标准化后的五通道特征向量 / M1-normalized 5-channel feature vector
+    private boolean outlier;        // M2 MCOD 是否判该轮为离群 / whether M2's MCOD flagged this round as an outlier
+    private boolean[] censoredMask; // 删失掩码（true = 该通道删失，如 Light 右删失）/ censored mask (true = channel censored)
+    private boolean coldStart;      // 该轮是否处于冷启动 / whether this round is in cold-start
+    private long windowEnd;         // 产出该轮的滑动窗口末事件时间（秒）/ end event time of the emitting slide window
 
     public AnnotatedRound() {
     }

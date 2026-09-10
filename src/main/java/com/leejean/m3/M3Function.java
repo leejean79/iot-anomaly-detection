@@ -150,15 +150,18 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     @Override
     public void processElement(AnnotatedRound round, Context ctx,
                                Collector<M3ScoreRecord> out) throws Exception {
+        // 读取本设备的状态机相位与已见轮数（首次为空则从 0 起）/ read this device's phase & round count (0 if first)
         Integer phase = statePhase.value();
         if (phase == null) phase = 0;
         Long count = roundCount.value();
         if (count == null) count = 0L;
 
         String device = round.getDevice();
-        count++;
+        count++;                                       // 本轮计入总数 / this round counts toward the total
         roundCount.update(count);
 
+        // 只有 COLLECTING 与 ONLINE 两相位处理输入；TRAINING/CALIBRATING 是同步瞬态，不会在此看到
+        // Only COLLECTING and ONLINE handle input; TRAINING/CALIBRATING are synchronous transients
         switch (phase) {
             case 0:
                 handleCollecting(round, ctx, out, count, device);
@@ -176,17 +179,21 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                                   String device) throws Exception {
         collectingCount.inc();
 
+        // 拷贝归一化特征，设备 G 的 Light 通道输入归零（决策 5），再入当前窗口缓冲
+        // Copy normalized features, zero device G's Light input (decision 5), then buffer into the window
         double[] xNorm = round.getXNorm().clone();
         zeroDeviceGLight(xNorm, device);
         windowBuffer.add(xNorm);
-        boolean[] mask = WeightedMseLoss.buildMask(round.getCensoredMask());
-        windowMaskBuffer.add(boolToBytes(mask));
-        windowOutlierBuffer.add(round.isOutlier());
+        boolean[] mask = WeightedMseLoss.buildMask(round.getCensoredMask());   // 删失 → 无效掩码 / censored → invalid mask
+        windowMaskBuffer.add(boolToBytes(mask));       // boolean[] 存为 byte[] 以适配 Flink 状态 / store as byte[] for Flink state
+        windowOutlierBuffer.add(round.isOutlier());    // 记录本轮是否被 M2 判为离群 / record M2's outlier flag
 
+        // 尚未攒满一个窗口则等待下一轮 / wait for more rounds until a full window has accumulated
         int bufSize = 0;
         for (double[] ignored : windowBuffer.get()) bufSize++;
         if (bufSize < windowLength) return;
 
+        // 窗口已满：把缓冲导出为列表 / window is full: drain the buffers into lists
         List<double[]> xNorms = new ArrayList<>();
         for (double[] x : windowBuffer.get()) xNorms.add(x);
         List<byte[]> masks = new ArrayList<>();
@@ -194,38 +201,42 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         List<Boolean> outliers = new ArrayList<>();
         for (Boolean o : windowOutlierBuffer.get()) outliers.add(o);
 
+        // 训练净化（决策 3）：窗口内只要含一个离群轮，整窗从训练集剔除 / sanitization: any outlier round excludes the whole window
         boolean hasOutlier = false;
         for (Boolean o : outliers) {
             if (o) { hasOutlier = true; break; }
         }
 
-        double[] flat = flattenWindow(xNorms);
+        double[] flat = flattenWindow(xNorms);         // 窗口摊平为一维供状态存储 / flatten the window for state storage
         byte[] flatMask = flattenMasks(masks);
 
+        // 按已见轮数把窗口分配到三段：训练 / 早停 / 阈值标定 / route windows into train / early-stop / threshold segments
         long trainRounds = (long) trainDays * ROUNDS_PER_DAY;
         long esRounds = (long) earlyStopDays * ROUNDS_PER_DAY;
         long thRounds = (long) threshDays * ROUNDS_PER_DAY;
 
         if (count <= trainRounds) {
             if (!hasOutlier) {
-                trainWindows.add(flat);
+                trainWindows.add(flat);                // 干净窗口入训练集 / clean window → training set
                 trainMasks.add(flatMask);
             } else {
-                Long ex = trainExcluded.value();
+                Long ex = trainExcluded.value();       // 含离群的窗口计入被剔除数 / count the excluded window
                 trainExcluded.update(ex == null ? 1L : ex + 1L);
             }
         } else if (count <= trainRounds + esRounds) {
-            earlyStopWindows.add(flat);
+            earlyStopWindows.add(flat);                // 早停集（不做净化）/ early-stop set (no sanitization)
             earlyStopMasks.add(flatMask);
         } else if (count <= trainRounds + esRounds + thRounds) {
-            threshWindows.add(flat);
+            threshWindows.add(flat);                   // 阈值标定集 / threshold-calibration set
             threshMasks.add(flatMask);
         }
 
+        // 清空当前窗口缓冲，开始攒下一窗（本阶段为不重叠窗口）/ clear the window buffer for the next (non-overlapping) window
         windowBuffer.clear();
         windowMaskBuffer.clear();
         windowOutlierBuffer.clear();
 
+        // 三段数据齐备 → 触发一次性同步训练与标定 / all three segments collected → trigger one-shot train + calibrate
         if (count >= trainRounds + esRounds + thRounds) {
             trainAndCalibrate(device, ctx, out);
         }
@@ -233,9 +244,10 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
 
     private void trainAndCalibrate(String device, Context ctx,
                                    Collector<M3ScoreRecord> out) throws Exception {
-        statePhase.update(1);
+        statePhase.update(1);                          // 进入 TRAINING 相位 / enter TRAINING phase
         trainingCount.inc();
 
+        // 把状态里的扁平窗口读回并还原为 [窗口][时间步][通道] / read flat windows from state, restore to 3-D
         List<double[]> trainFlats = new ArrayList<>();
         for (double[] f : trainWindows.get()) trainFlats.add(f);
         List<byte[]> trainMaskFlats = new ArrayList<>();
@@ -248,13 +260,14 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
 
         double[][][] trainData = unflattenWindows(trainFlats);
         boolean[][][] trainMaskData = unflattenMasks(trainMaskFlats);
-        double[][][] esData = unflattenWindows(esFlats);
+        double[][][] esData = unflattenWindows(esFlats);   // 早停集只需输入，掩码不参与选型 / early-stop needs inputs only
 
         Long excluded = trainExcluded.value();
         LOG.info("[M3] Device {} entering TRAINING: {} train windows ({} excluded by outlier sanitization), "
                  + "{} early-stop windows",
                  device, trainFlats.size(), excluded != null ? excluded : 0, esFlats.size());
 
+        // 在隐藏层宽度网格上各训练一个模型，按早停集损失选最优 / grid-search hidden size, pick the best by early-stop loss
         int bestHidden = hiddenSizeGrid[0];
         double bestEsLoss = Double.MAX_VALUE;
         LstmAutoEncoder bestModel = null;
@@ -262,15 +275,16 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         for (int hs : hiddenSizeGrid) {
             LstmAutoEncoder ae = new LstmAutoEncoder(N_FEATURES, hs);
             double prevLoss = Double.MAX_VALUE;
-            int patience = 0;
+            int patience = 0;                          // 连续无改善的 epoch 计数 / consecutive no-improvement epochs
 
             for (int epoch = 0; epoch < maxEpochs; epoch++) {
-                ae.trainEpoch(trainData, trainMaskData);
+                ae.trainEpoch(trainData, trainMaskData);   // 训练一轮 / one training epoch
 
+                // 早停：早停集损失若不再下降超过 patience 轮则停 / early stop when early-stop loss stalls for `patience` epochs
                 double esLoss = evaluateLoss(ae, esData);
                 if (esLoss < prevLoss - 1e-6) {
                     prevLoss = esLoss;
-                    patience = 0;
+                    patience = 0;                      // 有改善则重置耐心 / improvement resets patience
                 } else {
                     patience++;
                     if (patience >= earlyStopPatience) break;
@@ -280,7 +294,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
             double finalEsLoss = evaluateLoss(ae, esData);
             LOG.info("[M3] Device {} hidden={}: early-stop loss={}", device, hs, finalEsLoss);
 
-            if (finalEsLoss < bestEsLoss) {
+            if (finalEsLoss < bestEsLoss) {            // 记录早停损失最低的模型 / keep the lowest-early-stop-loss model
                 bestEsLoss = finalEsLoss;
                 bestHidden = hs;
                 bestModel = ae;
@@ -288,19 +302,20 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         }
 
         LOG.info("[M3] Device {} selected hidden={} (loss={})", device, bestHidden, bestEsLoss);
-        selectedHidden.update(bestHidden);
+        selectedHidden.update(bestHidden);             // 记住选中的隐藏层宽度供在线复原 / remember hidden size for online restore
 
-        modelBytes.update(bestModel.serializeModel());
+        modelBytes.update(bestModel.serializeModel()); // 模型参数写入 Flink 状态 / persist model params to Flink state
 
-        statePhase.update(2);
+        statePhase.update(2);                          // 进入 CALIBRATING 相位 / enter CALIBRATING phase
         calibrate(device, bestModel, ctx);
 
+        // 训练/早停集已用完，清空释放状态 / training & early-stop sets consumed, clear to free state
         trainWindows.clear();
         trainMasks.clear();
         earlyStopWindows.clear();
         earlyStopMasks.clear();
 
-        statePhase.update(3);
+        statePhase.update(3);                          // 进入 ONLINE 相位 / enter ONLINE phase
         LOG.info("[M3] Device {} entering ONLINE", device);
     }
 
@@ -314,14 +329,16 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         boolean[][][] thMaskData = unflattenMasks(thMaskFlats);
 
         WeightedMseLoss lossCalc = new WeightedMseLoss(N_FEATURES, channelWeights);
-        List<Double> wmseValues = new ArrayList<>();
-        List<double[]> perChannelErrors = new ArrayList<>();
+        List<Double> wmseValues = new ArrayList<>();       // 标定集每窗口的 WMSE / per-window WMSE over the calibration set
+        List<double[]> perChannelErrors = new ArrayList<>();   // 每窗口每通道 MSE / per-window per-channel MSE
 
+        // 活跃通道 = 权重为正的通道（权重 0 的不参与 Mahalanobis）/ active = positive-weight channels (0-weight excluded)
         boolean[] activeChannels = new boolean[N_FEATURES];
         for (int c = 0; c < N_FEATURES; c++) {
             activeChannels[c] = channelWeights == null || channelWeights[c] > 0;
         }
 
+        // 用选中的模型在标定集上逐窗推理，收集误差分布 / run the chosen model over the calibration set, collect the error distribution
         for (int w = 0; w < thData.length; w++) {
             double[][] recon = ae.reconstruct(thData[w]);
             boolean[][] masks = thMaskData != null && thMaskData[w] != null ? thMaskData[w] : null;
@@ -331,8 +348,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         }
 
         M3Scorer scorer = new M3Scorer(zThreshold);
-        scorer.calibrate(wmseValues, perChannelErrors, activeChannels);
+        scorer.calibrate(wmseValues, perChannelErrors, activeChannels);   // 拟合 median/IQR 与协方差逆 / fit median/IQR & covariance inverse
 
+        // 评分器整体 Java 序列化后写入 Flink 状态 / serialize the scorer and persist to Flink state
         java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
         try (java.io.ObjectOutputStream oos = new java.io.ObjectOutputStream(baos)) {
             oos.writeObject(scorer);
@@ -342,12 +360,13 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         LOG.info("[M3] Device {} calibrated: median={}, IQR={}, threshold={}",
                  device, scorer.getMedian(), scorer.getIqr(), scorer.getThreshold());
 
-        threshWindows.clear();
+        threshWindows.clear();                             // 标定集已用完，清空 / calibration set consumed, clear it
         threshMasks.clear();
     }
 
     private void handleOnline(AnnotatedRound round, Context ctx,
                               Collector<M3ScoreRecord> out, String device) throws Exception {
+        // 与 COLLECTING 相同的入窗逻辑（含设备 G Light 归零）/ same window-fill as COLLECTING (incl. device G Light zeroing)
         double[] xNorm = round.getXNorm().clone();
         zeroDeviceGLight(xNorm, device);
         windowBuffer.add(xNorm);
@@ -356,32 +375,34 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
 
         int bufSize = 0;
         for (double[] ignored : windowBuffer.get()) bufSize++;
-        if (bufSize < windowLength) return;
+        if (bufSize < windowLength) return;            // 未满窗则等待 / wait until the window is full
 
         List<double[]> xNorms = new ArrayList<>();
         for (double[] x : windowBuffer.get()) xNorms.add(x);
         List<byte[]> maskBytes = new ArrayList<>();
         for (byte[] m : windowMaskBuffer.get()) maskBytes.add(m);
 
-        windowBuffer.clear();
+        windowBuffer.clear();                          // 立即清空以攒下一窗 / clear immediately for the next window
         windowMaskBuffer.clear();
 
+        // 从状态取回模型与评分器；缺任一则跳过（理论上进入 ONLINE 后必有）/ fetch model & scorer; skip if either is missing
         byte[] mBytes = modelBytes.value();
         byte[] sBytes = scorerBytes.value();
         if (mBytes == null || sBytes == null) return;
 
         Integer hs = selectedHidden.value();
-        if (hs == null) hs = 60;
+        if (hs == null) hs = 60;                        // 缺失时回退到网格中值 / fall back to the grid's middle size
 
         LstmAutoEncoder ae = new LstmAutoEncoder(N_FEATURES, hs);
-        ae.deserializeModel(mBytes);
+        ae.deserializeModel(mBytes);                   // 按选中宽度复原模型 / restore the model at the selected width
 
         M3Scorer scorer;
         try (java.io.ObjectInputStream ois = new java.io.ObjectInputStream(
                 new java.io.ByteArrayInputStream(sBytes))) {
-            scorer = (M3Scorer) ois.readObject();
+            scorer = (M3Scorer) ois.readObject();      // 复原评分器 / restore the scorer
         }
 
+        // 组装二维窗口与掩码供推理 / assemble the 2-D window and mask for inference
         double[][] window = new double[windowLength][N_FEATURES];
         boolean[][] masks = new boolean[windowLength][N_FEATURES];
         for (int t = 0; t < windowLength; t++) {
@@ -389,16 +410,18 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
             masks[t] = bytesToBool(maskBytes.get(t));
         }
 
-        double[][] recon = ae.reconstruct(window);
+        double[][] recon = ae.reconstruct(window);     // 推理得重建 / reconstruct
         WeightedMseLoss lossCalc = new WeightedMseLoss(N_FEATURES, channelWeights);
-        WeightedMseLoss.LossResult lr = lossCalc.compute(window, recon, masks, windowLength);
-        M3Scorer.ScoreResult sr = scorer.score(lr.wmse, lr.perChannelMse);
+        WeightedMseLoss.LossResult lr = lossCalc.compute(window, recon, masks, windowLength);   // 计算误差 / compute errors
+        M3Scorer.ScoreResult sr = scorer.score(lr.wmse, lr.perChannelMse);   // 评分 / score
 
+        // 发出评分记录到 synergia-scores / emit the score record to synergia-scores
         out.collect(new M3ScoreRecord(device, round.getWindowEnd(), sr.mainScore,
                 sr.mahaScore, lr.wmse, lr.perChannelMse, sr.aboveThreshold, hs, windowLength));
 
         onlineCount.inc();
 
+        // 如启用监测侧输出，附带重建误差写入 synergia-monitoring / if enabled, also emit recon errors to synergia-monitoring
         if (m3MonitoringTag != null) {
             MonitoringSnapshot snap = new MonitoringSnapshot();
             snap.setDevice(device);
@@ -410,8 +433,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         }
     }
 
+    /** 在数据集上求平均 WMSE（早停选型用，掩码不参与）/ mean WMSE over a dataset (for model selection; no mask). */
     private double evaluateLoss(LstmAutoEncoder ae, double[][][] data) {
-        if (data.length == 0) return Double.MAX_VALUE;
+        if (data.length == 0) return Double.MAX_VALUE;   // 空集视为最差损失 / empty set → worst possible loss
         WeightedMseLoss lossCalc = new WeightedMseLoss(N_FEATURES, channelWeights);
         double total = 0.0;
         for (double[][] window : data) {
@@ -422,6 +446,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         return total / data.length;
     }
 
+    /** 窗口 [时间步][通道] 摊平成一维（行优先）供 Flink 状态存储 / flatten [step][channel] to 1-D (row-major) for state. */
     private double[] flattenWindow(List<double[]> xNorms) {
         double[] flat = new double[windowLength * N_FEATURES];
         for (int t = 0; t < windowLength; t++) {
@@ -430,6 +455,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         return flat;
     }
 
+    /** 掩码字节数组按相同布局摊平 / flatten the mask byte arrays with the same layout. */
     private byte[] flattenMasks(List<byte[]> masks) {
         byte[] flat = new byte[windowLength * N_FEATURES];
         for (int t = 0; t < windowLength; t++) {
@@ -438,6 +464,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         return flat;
     }
 
+    /** 一维扁平窗口还原为 [窗口][时间步][通道] / restore flat 1-D windows to [window][step][channel]. */
     private double[][][] unflattenWindows(List<double[]> flats) {
         double[][][] result = new double[flats.size()][windowLength][N_FEATURES];
         for (int w = 0; w < flats.size(); w++) {
@@ -449,6 +476,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         return result;
     }
 
+    /** 掩码字节还原为三维布尔（非 0 即 true）；空列表返回 null / restore mask bytes to 3-D booleans (nonzero → true). */
     private boolean[][][] unflattenMasks(List<byte[]> flats) {
         if (flats.isEmpty()) return null;
         boolean[][][] result = new boolean[flats.size()][windowLength][N_FEATURES];
@@ -463,6 +491,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         return result;
     }
 
+    /** boolean[] 编码为 byte[]（Flink 状态不直接支持 boolean[]）/ encode boolean[] as byte[] (Flink state lacks boolean[]). */
     private static byte[] boolToBytes(boolean[] mask) {
         byte[] bytes = new byte[mask.length];
         for (int i = 0; i < mask.length; i++) {
@@ -471,6 +500,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         return bytes;
     }
 
+    /** byte[] 解码回 boolean[]（非 0 即 true）/ decode byte[] back to boolean[] (nonzero → true). */
     private static boolean[] bytesToBool(byte[] bytes) {
         boolean[] mask = new boolean[bytes.length];
         for (int i = 0; i < bytes.length; i++) {

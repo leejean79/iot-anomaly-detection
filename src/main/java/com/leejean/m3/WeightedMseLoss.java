@@ -19,11 +19,11 @@ import java.util.Arrays;
 public class WeightedMseLoss implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private final double[] channelWeights;
-    private final int nChannels;
+    private final double[] channelWeights;   // 每通道权重（0 = 该通道不计入 WMSE）/ per-channel weights (0 excludes it)
+    private final int nChannels;             // 通道数（检测特征数）/ number of channels (detection features)
 
     public WeightedMseLoss(int nChannels) {
-        this(nChannels, null);
+        this(nChannels, null);               // 不给权重时全部取 1 / all-ones weights when none given
     }
 
     /**
@@ -32,14 +32,14 @@ public class WeightedMseLoss implements Serializable {
     public WeightedMseLoss(int nChannels, double[] channelWeights) {
         this.nChannels = nChannels;
         if (channelWeights != null) {
-            if (channelWeights.length != nChannels) {
+            if (channelWeights.length != nChannels) {   // 长度必须匹配，否则快速失败 / length must match, else fail fast
                 throw new IllegalArgumentException(
                         "channelWeights.length=" + channelWeights.length + " != nChannels=" + nChannels);
             }
-            this.channelWeights = channelWeights.clone();
+            this.channelWeights = channelWeights.clone();   // 防外部改动 / defensive copy
         } else {
             this.channelWeights = new double[nChannels];
-            Arrays.fill(this.channelWeights, 1.0);
+            Arrays.fill(this.channelWeights, 1.0);      // 默认全 1 权重 / default all-ones
         }
     }
 
@@ -69,29 +69,33 @@ public class WeightedMseLoss implements Serializable {
      */
     public LossResult compute(double[][] input, double[][] output,
                               boolean[][] masks, int windowLen) {
-        double[] channelSumSq = new double[nChannels];
-        double[] channelCount = new double[nChannels];
-        double weightedSumSq = 0.0;
-        double weightedCount = 0.0;
+        double[] channelSumSq = new double[nChannels];   // 每通道平方误差累加（未加权）/ per-channel Σ squared error
+        double[] channelCount = new double[nChannels];    // 每通道有效元素计数 / per-channel valid-element count
+        double weightedSumSq = 0.0;                        // 加权平方误差累加（分子）/ weighted Σ squared error (numerator)
+        double weightedCount = 0.0;                        // 加权计数（分母）/ weighted count (denominator)
 
         for (int t = 0; t < windowLen; t++) {
             for (int c = 0; c < nChannels; c++) {
+                // 有效性：无掩码或掩码为 true 才计入；删失/缺失元素被跳过
+                // Validity: counted only if there is no mask or the mask is true; censored/missing skipped
                 boolean valid = masks == null || masks[t] == null || masks[t][c];
                 if (!valid) {
                     continue;
                 }
-                double diff = input[t][c] - output[t][c];
+                double diff = input[t][c] - output[t][c];   // 重建残差 / reconstruction residual
                 double sq = diff * diff;
-                channelSumSq[c] += sq;
+                channelSumSq[c] += sq;                       // 每通道 MSE 用未加权残差 / per-channel MSE is unweighted
                 channelCount[c] += 1.0;
-                weightedSumSq += channelWeights[c] * sq;
-                weightedCount += channelWeights[c];
+                weightedSumSq += channelWeights[c] * sq;     // WMSE 分子按通道权重加权 / WMSE numerator weighted
+                weightedCount += channelWeights[c];          // 权重为 0 的通道对分母无贡献 / zero-weight adds nothing
             }
         }
 
+        // WMSE：分母为 0（全被掩码或全零权重）时取 0，避免除零 / guard against divide-by-zero
         double wmse = weightedCount > 0 ? weightedSumSq / weightedCount : 0.0;
         double[] perChannelMse = new double[nChannels];
         for (int c = 0; c < nChannels; c++) {
+            // 每通道 MSE 不受通道权重影响（供监测与 Mahalanobis）/ per-channel MSE ignores weights (for monitoring & Mahalanobis)
             perChannelMse[c] = channelCount[c] > 0 ? channelSumSq[c] / channelCount[c] : 0.0;
         }
         return new LossResult(wmse, perChannelMse);
@@ -106,8 +110,9 @@ public class WeightedMseLoss implements Serializable {
      */
     public static boolean[] buildMask(boolean[] censoredMask) {
         boolean[] mask = new boolean[5];
-        Arrays.fill(mask, true);
+        Arrays.fill(mask, true);                    // 默认五通道全有效 / default: all five channels valid
         if (censoredMask != null) {
+            // 取两数组长度较小者防越界；被删失的通道标为无效 / min length guards bounds; censored → invalid
             for (int c = 0; c < Math.min(censoredMask.length, mask.length); c++) {
                 if (censoredMask[c]) {
                     mask[c] = false;

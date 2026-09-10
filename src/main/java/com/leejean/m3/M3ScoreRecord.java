@@ -15,19 +15,19 @@ import java.io.Serializable;
 public class M3ScoreRecord implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private String device;
-    private long windowEnd;
-    private String channel;
-    private double mainScore;
-    private double mahaScore;
-    private double wmse;
-    private double[] perChannelErrors;
-    private boolean aboveThreshold;
-    private int hiddenSize;
-    private int windowLength;
+    private String device;             // 设备 ID / device id
+    private long windowEnd;            // 评分窗口末事件时间（秒）/ end event time of the scored window (seconds)
+    private String channel;            // 通道标识，固定 "m3_context" 供下游区分信号来源 / fixed "m3_context" tag
+    private double mainScore;          // 主分 z =（wmse−median）÷IQR / main score z = (wmse−median)/IQR
+    private double mahaScore;          // Mahalanobis 分（仅报告，不报警）/ Mahalanobis score (report only)
+    private double wmse;               // 窗口加权 MSE / window weighted MSE
+    private double[] perChannelErrors; // 每通道 MSE [5] / per-channel MSE [5]
+    private boolean aboveThreshold;    // 主分是否越阈值（是否报警）/ whether the main score crosses the threshold
+    private int hiddenSize;            // 该设备选中的 LSTM 隐藏层宽度 / selected LSTM hidden width for this device
+    private int windowLength;          // 窗口长度（轮数）/ window length in rounds
 
     public M3ScoreRecord() {
-        this.channel = "m3_context";
+        this.channel = "m3_context";   // 无参构造也固定通道标识 / no-arg ctor still sets the channel tag
     }
 
     public M3ScoreRecord(String device, long windowEnd, double mainScore, double mahaScore,
