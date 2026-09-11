@@ -105,22 +105,28 @@ if echo "$ENTRIES" | grep -q "__NO_LISTER__" || [ -z "$ENTRIES" ]; then
 else
     NATIVES=$(echo "$ENTRIES" | grep -aiE '\.(so|so\.[0-9]+|dylib|dll|jnilib)$' || true)
     NATIVE_COUNT=$(echo "$NATIVES" | grep -c . || true)
-    echo "  原生库条目数 / native-lib entries: $NATIVE_COUNT"
-    echo "$NATIVES" | sed 's/^/    /' | head -40
+    echo "  原生库条目总数（含无关依赖）/ total native-lib entries (incl. unrelated deps): $NATIVE_COUNT"
+    # 只校验 ND4J 张量栈的原生库（org/nd4j、org/bytedeco）；JNA/netty/snappy/lz4 等依赖本就自带多平台
+    # .so，与 nd4j-native 的 linux-x86_64 分类器无关，必须排除，否则会误判为 FAIL。
+    # Check ONLY the ND4J tensor-stack natives (org/nd4j, org/bytedeco). JNA/netty/snappy/lz4 ship
+    # multi-platform .so by default and are unrelated to the nd4j-native classifier — exclude them.
+    TENSOR_NATIVES=$(echo "$NATIVES" | grep -aiE 'org/(nd4j|bytedeco)/' || true)
+    echo "  ND4J 张量原生库 / ND4J tensor natives:"
+    echo "$TENSOR_NATIVES" | sed 's/^/    /' | head -40
     # 平台目录段：JavaCPP/ND4J 把 .so 放在 <group>/<platform>/ 下；抽取平台段做白名单校验。
     # Platform dir segment: JavaCPP/ND4J place .so under <group>/<platform>/; extract it for allow-listing.
-    PLATFORMS=$(echo "$NATIVES" | grep -aoE '(linux|macosx|windows|android|ios)-[a-z0-9_]+' | sort -u || true)
-    echo "  出现的平台段 / platforms present: $(echo "$PLATFORMS" | tr '\n' ' ')"
+    PLATFORMS=$(echo "$TENSOR_NATIVES" | grep -aoE '(linux|macosx|windows|android|ios)-[a-z0-9_]+' | sort -u || true)
+    echo "  张量库出现的平台段 / tensor-native platforms present: $(echo "$PLATFORMS" | tr '\n' ' ')"
     FOREIGN=$(echo "$PLATFORMS" | grep -avE '^linux-x86_64$' || true)
-    if [ -n "$NATIVES" ] && [ -z "$FOREIGN" ]; then
-        echo "  [PASS] 只含 linux-x86_64 原生库（张量库 + OpenBLAS，符合 classifier 生效预期）。"
-        echo "         Only linux-x86_64 natives present (tensor lib + OpenBLAS) — classifier took effect."
+    if [ -n "$TENSOR_NATIVES" ] && [ -z "$FOREIGN" ]; then
+        echo "  [PASS] ND4J 张量库只含 linux-x86_64（张量库 + OpenBLAS + JavaCPP，classifier 生效）。"
+        echo "         ND4J tensor natives are linux-x86_64 only (tensor lib + OpenBLAS + JavaCPP) — classifier took effect."
         PASS_JAR="PASS"
-    elif [ -z "$NATIVES" ]; then
-        echo "  [FAIL] jar 内未发现任何原生库 — nd4j-native linux-x86_64 classifier 可能未打进 jar。"
+    elif [ -z "$TENSOR_NATIVES" ]; then
+        echo "  [FAIL] jar 内未发现 ND4J 张量原生库 — nd4j-native linux-x86_64 classifier 可能未打进 jar。"
         PASS_JAR="FAIL"
     else
-        echo "  [FAIL] 发现非 linux-x86_64 平台库：$(echo "$FOREIGN" | tr '\n' ' ') — classifier 未生效，jar 含多平台库。"
+        echo "  [FAIL] ND4J 张量库出现非 linux-x86_64 平台：$(echo "$FOREIGN" | tr '\n' ' ') — classifier 未生效。"
         PASS_JAR="FAIL"
     fi
 fi

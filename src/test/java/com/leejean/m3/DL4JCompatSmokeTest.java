@@ -37,10 +37,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * M3 兼容性冒烟测试（DEV-D1 门槛）：证明 DL4J 1.0.0-M2.1 能在 Flink 1.13.6 MiniCluster 内
+ * M3 兼容性冒烟测试（DEV-D1 门槛）：证明 DL4J 1.0.0-beta7 能在 Flink 1.13.6 MiniCluster 内
  * 完成 LSTM 自编码器的构建、训练和推断，且与 Java 8 + 现有依赖无冲突。
+ * （beta7 字节码为 Java 7，主版本 51，可在 JDK 8 编译并在 Java 8 运行时加载；M2.1 为 Java 11 不兼容。）
  *
- * M3 compatibility smoke test (DEV-D1 gate): proves DL4J 1.0.0-M2.1 can build, train, and infer
+ * M3 compatibility smoke test (DEV-D1 gate): proves DL4J 1.0.0-beta7 can build, train, and infer
  * with a micro LSTM autoencoder inside a Flink 1.13.6 MiniCluster KeyedProcessFunction,
  * with no conflicts against Java 8 or existing dependencies.
  *

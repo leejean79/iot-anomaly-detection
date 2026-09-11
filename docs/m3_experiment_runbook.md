@@ -4,9 +4,10 @@
 适用对象是"每次跑实验前照着做一遍"的操作者。所有命令均在**本地 Mac** 的仓库根目录执行，脚本内部通过 ssh
 连到集群 master（`fa-master`）再 `docker exec` 进相应容器。
 
-> 模型说明 / Model note：M3 已按设计会决定回退为 Smile/JSAT 的重建模型（纯 JVM，Java 8）。因此本手册
-> **不含**堆外内存重配（`taskmanager.memory.task.off-heap.size` 等）与 DL4J 集群冒烟步骤——那些仅在
-> DL4J/ND4J 方案下才需要。若将来切回 DL4J，需另行恢复相应步骤。
+> 模型说明 / Model note：M3 使用 DL4J 的 LSTM 自编码器，依赖钉在 **1.0.0-beta7**（其字节码为
+> Java 7 / 主版本 51，可在 JDK 8 编译、在 Java 8 的 Flink 镜像加载运行；M2.1 为 Java 11 字节码，与
+> Java 8 集群不兼容，故不采用）。由于 beta7 仍通过 JavaCPP 使用原生 ND4J，**堆外内存重配与集群冒烟
+> 步骤是必需的**（见阶段零 0.5 与阶段一第 6 步）。
 
 ---
 
@@ -27,9 +28,18 @@
 | 0.2 起集群容器 | `bash deploy/scripts/1-sync-to-nodes.sh` 然后 `bash deploy/scripts/2-up-all.sh` | 首次；或改了 `docker-compose.*.yml` / `.env` 中集群参数时 |
 | 0.3 建 topic | `bash deploy/scripts/syn-create-topics.sh` | 首次；或需新增 topic 时（幂等，可重复跑） |
 | 0.4 传数据集 | `bash deploy/scripts/syn-upload-m1.sh --data-dir <本地 CSV 目录>` | 首次；数据集约 2.3GB，`rsync -P` 断点续传 |
+| 0.5 堆外内存重配 | 见下方说明（同步 `docker-compose.worker.yml` + `.env` 并重建 TaskManager） | 首次上线 M3；或改了 `SYN_TM_*`/`SYN_JAVACPP_*` 时 |
 
 > 注意 / Note：`2-up-all.sh` 会重建 master 与两台 worker 的容器。若旧 FA-iForest 作业正在跑，重建
-> TaskManager 会导致其任务重启（从 checkpoint 恢复）。仅在可容忍旧作业短暂重启的窗口执行 0.2。
+> TaskManager 会导致其任务重启（从 checkpoint 恢复）。仅在可容忍旧作业短暂重启的窗口执行 0.2 与 0.5。
+
+**关于 0.5 堆外内存重配 / About off-heap reconfiguration**：ND4J 经 JavaCPP 在 Java 堆外分配张量，而
+Flink 默认 `taskmanager.memory.task.off-heap.size=0`，未计量的原生分配会在训练期把容器顶出内存上限而
+被杀。`docker-compose.worker.yml` 已把 TaskManager 的 off-heap 提到 768MB、managed 降到 256MB，并通过
+`env.java.opts.taskmanager` 显式设定 JavaCPP 的 `maxbytes`/`maxphysicalbytes`/`cachedir`（详见该文件内注释与
+`.env` 的 `SYN_TM_*`/`SYN_JAVACPP_*`）。改动后必须重建 TaskManager 生效：先 `1-sync-to-nodes.sh` 把文件同步
+到各节点，再在两台 worker 上重建 taskmanager 容器（重跑 worker 的 compose；这会重启该 TM 上的旧作业，
+故同样需在可容忍窗口执行）。
 
 ---
 
@@ -68,6 +78,14 @@
    bash deploy/scripts/syn-replay-verify.sh --expected-total <EDA 参照值>
    ```
    - 这是标定/探针运行前的固定门槛；四条断言全过才继续。冒烟或功能性小实验可跳过本步。
+
+6. **（首次上线 M3 前跑一次）DL4J 集群冒烟 / DL4J cluster smoke（handover §2 决策 1 第三部分）**
+   ```bash
+   bash deploy/scripts/syn-m3-smoke.sh --parallelism 8
+   ```
+   - 在真实容器内验证四点：JavaCPP 堆外上限已生效、原生库解包目录对容器用户 9999 可写、TaskManager 的
+     JDK 为 Java 8、jar 内 ND4J 张量原生库仅 linux-x86_64。四点全 PASS 才可放心让 M3 长期在线。
+   - 前置：0.5 的堆外重配已生效（TM 已重建）；有 ≥ parallelism 个空闲 slot。该冒烟作业有界，会自行 FINISHED。
 
 ---
 
