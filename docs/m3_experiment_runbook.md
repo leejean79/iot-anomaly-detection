@@ -7,7 +7,7 @@
 > 模型说明 / Model note：M3 使用 DL4J 的 LSTM 自编码器，依赖钉在 **1.0.0-beta7**（其字节码为
 > Java 7 / 主版本 51，可在 JDK 8 编译、在 Java 8 的 Flink 镜像加载运行；M2.1 为 Java 11 字节码，与
 > Java 8 集群不兼容，故不采用）。由于 beta7 仍通过 JavaCPP 使用原生 ND4J，**堆外内存重配与集群冒烟
-> 步骤是必需的**（见阶段零 0.5 与阶段一第 6 步）。
+> 步骤是必需的**（见阶段零 0.3 与阶段一第 6 步）。
 
 ---
 
@@ -20,26 +20,61 @@
 
 ---
 
-## 阶段零：一次性准备（仅首次，或对应文件改动后重做）/ One-time setup
+## 阶段零：一次性准备 / One-time setup
 
-| 步骤 | 命令 | 何时需要重做 |
-|---|---|---|
-| 0.1 填写 `.env` | 复制 `deploy/env.example` 为 `deploy/.env` 并填节点 IP、SSH 密钥 | 节点/密钥变化时 |
-| 0.2 起集群容器 | `bash deploy/scripts/1-sync-to-nodes.sh` 然后 `bash deploy/scripts/2-up-all.sh` | 首次；或改了 `docker-compose.*.yml` / `.env` 中集群参数时 |
-| 0.3 建 topic | `bash deploy/scripts/syn-create-topics.sh` | 首次；或需新增 topic 时（幂等，可重复跑） |
-| 0.4 传数据集 | `bash deploy/scripts/syn-upload-m1.sh --data-dir <本地 CSV 目录>` | 首次；数据集约 2.3GB，`rsync -P` 断点续传 |
-| 0.5 堆外内存重配 | 见下方说明（同步 `docker-compose.worker.yml` + `.env` 并重建 TaskManager） | 首次上线 M3；或改了 `SYN_TM_*`/`SYN_JAVACPP_*` 时 |
+> **前提认知（很重要）/ Key premise**：本项目的 Flink/Kafka 集群是**已有、共享、正在运行**的
+> FA-iForest 基础设施（M1/M2 就跑在其上）。因此**不要**用 `0-prepare-local.sh` / `1-sync-to-nodes.sh`
+> / `2-up-all.sh` 去"重新部署"它——那套是从零部署整套集群的机器，会重载镜像、重建 master 与 worker
+> 容器，打断正在运行的旧作业。M3 只需要下面这几步；唯一会动到集群容器的是 0.3 的堆外重配，且只单独
+> 重建 taskmanager。
 
-> 注意 / Note：`2-up-all.sh` 会重建 master 与两台 worker 的容器。若旧 FA-iForest 作业正在跑，重建
-> TaskManager 会导致其任务重启（从 checkpoint 恢复）。仅在可容忍旧作业短暂重启的窗口执行 0.2 与 0.5。
+### 0.1 配置 `.env`（切勿覆盖已有的可用配置）/ Configure `.env` (do NOT clobber a working one)
 
-**关于 0.5 堆外内存重配 / About off-heap reconfiguration**：ND4J 经 JavaCPP 在 Java 堆外分配张量，而
-Flink 默认 `taskmanager.memory.task.off-heap.size=0`，未计量的原生分配会在训练期把容器顶出内存上限而
-被杀。`docker-compose.worker.yml` 已把 TaskManager 的 off-heap 提到 768MB、managed 降到 256MB，并通过
-`env.java.opts.taskmanager` 显式设定 JavaCPP 的 `maxbytes`/`maxphysicalbytes`/`cachedir`（详见该文件内注释与
-`.env` 的 `SYN_TM_*`/`SYN_JAVACPP_*`）。改动后必须重建 TaskManager 生效：先 `1-sync-to-nodes.sh` 把文件同步
-到各节点，再在两台 worker 上重建 taskmanager 容器（重跑 worker 的 compose；这会重启该 TM 上的旧作业，
-故同样需在可容忍窗口执行）。
+`deploy/.env` 是被 git 忽略的本地文件，保存真实节点 IP、`SSH_USER`、`SSH_KEY`。
+- **若 `deploy/.env` 已存在**（你之前跑 M1/M2 用过）：**保持原样，不要 `cp env.example .env` 覆盖它**，
+  否则会把 `SSH_USER`/`SSH_KEY`/节点 IP 重置成模板占位值，导致 `Permission denied (publickey)`。
+- **仅当 `deploy/.env` 不存在时**才 `cp deploy/env.example deploy/.env`，然后填入真实值：
+  - `NODE_MASTER_PUBLIC_IP`＝从本地能 ssh 到的 master 公网 IP；`NODE_*_IP`＝同 VPC 内网 IP；
+  - `SSH_USER`＝集群实际登录用户；`SSH_KEY`＝该用户被集群接受的私钥路径（权限须 `chmod 600`）。
+- 自检：`ssh -i <SSH_KEY> <SSH_USER>@<master公网IP> "echo ok"` 能出 `ok` 才算配好。
+
+### 0.2 建 topic / Create topics
+```bash
+bash deploy/scripts/syn-create-topics.sh          # 幂等；已存在则跳过
+```
+- 期望：`synergia-source`(8) / `-scores`(4) / `-monitoring`(1) / `-m1-out`(1) 均存在。
+
+### 0.3 堆外内存重配（仅首次上线 M3，或改了 SYN_TM_*/SYN_JAVACPP_* 时）/ Off-heap reconfig
+
+ND4J 经 JavaCPP 在 Java 堆外分配张量，而 Flink 默认 `taskmanager.memory.task.off-heap.size=0`，未计量的
+原生分配会在训练期把容器顶出内存上限而被杀。`docker-compose.worker.yml` 已把 off-heap 提到 768MB、
+managed 降到 256MB，并通过 `env.java.opts.taskmanager` 显式设定 JavaCPP 的 `maxbytes`/`maxphysicalbytes`/
+`cachedir`（详见该文件注释与 `.env` 的 `SYN_TM_*`/`SYN_JAVACPP_*`）。
+
+这是**唯一**需要动集群容器的一步，且**只重建两台 worker 的 taskmanager，不碰 master**。做法（在本地）：
+```bash
+# 1) 把改过的 worker compose 与 .env 传到两台 worker（不动 master、不重载镜像）
+for wk in <worker1 主机> <worker2 主机>; do
+  scp -i <SSH_KEY> deploy/compose/docker-compose.worker.yml "<SSH_USER>@$wk:$REMOTE_HOME/compose/"
+  scp -i <SSH_KEY> deploy/.env                              "<SSH_USER>@$wk:$REMOTE_HOME/.env"
+done
+# 2) 在每台 worker 上仅重建 taskmanager 容器（BROKER_ID/NODE_SELF_IP 按该节点填）
+ssh -i <SSH_KEY> <SSH_USER>@<worker1> \
+  "cd $REMOTE_HOME/compose && BROKER_ID=2 NODE_SELF_IP=<worker1内网IP> \
+   docker compose -f docker-compose.worker.yml --env-file ../.env up -d --force-recreate --no-deps taskmanager"
+# worker2 同理，BROKER_ID=3、NODE_SELF_IP=<worker2内网IP>
+```
+> 注意 / Note：重建 taskmanager 会重启该 TM 上正在跑的旧 FA-iForest 任务（从 checkpoint 恢复）。请在
+> 可容忍旧作业短暂重启的窗口执行。`--no-deps` 保证不连带重建同一 compose 里的 kafka 等其它服务。
+
+### 0.4 传数据集（仅当集群侧还没有数据集时）/ Upload dataset (only if absent)
+```bash
+bash deploy/scripts/syn-upload-m1.sh --data-dir <本地 CSV 目录>   # 约 2.3GB，rsync -P 断点续传
+```
+
+> 仅当集群**尚未部署**（全新环境）时，才需要 `0-prepare-local.sh`（先构建 Flink 镜像 tar）→
+> `1-sync-to-nodes.sh` → `2-up-all.sh` 这条全量部署链，并需对三台节点都有 SSH 权限。本项目属于共享
+> 已运行集群，正常不会走这条。
 
 ---
 
@@ -85,7 +120,7 @@ Flink 默认 `taskmanager.memory.task.off-heap.size=0`，未计量的原生分�
    ```
    - 在真实容器内验证四点：JavaCPP 堆外上限已生效、原生库解包目录对容器用户 9999 可写、TaskManager 的
      JDK 为 Java 8、jar 内 ND4J 张量原生库仅 linux-x86_64。四点全 PASS 才可放心让 M3 长期在线。
-   - 前置：0.5 的堆外重配已生效（TM 已重建）；有 ≥ parallelism 个空闲 slot。该冒烟作业有界，会自行 FINISHED。
+   - 前置：0.3 的堆外重配已生效（TM 已重建）；有 ≥ parallelism 个空闲 slot。该冒烟作业有界，会自行 FINISHED。
 
 ---
 
