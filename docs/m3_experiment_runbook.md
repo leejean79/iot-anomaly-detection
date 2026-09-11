@@ -46,6 +46,12 @@ bash deploy/scripts/syn-create-topics.sh          # 幂等；已存在则跳过
 
 ### 0.3 堆外内存重配（仅首次上线 M3，或改了 SYN_TM_*/SYN_JAVACPP_* 时）/ Off-heap reconfig
 
+> **访问前提与可延后 / Access note & deferral**：本步是全流程中**唯一**需要到达两台 worker 的操作
+> （Mac 直连 worker，或经 master 跳转 `ssh master → ssh worker`）。若你**只有 master 访问**（worker 一向
+> 是从 master 那边同步的），请**先跳过本步**：直接跑阶段一第 6 步的集群冒烟（`syn-m3-smoke.sh`，只用
+> master 访问）。它会在真实 worker 上加载 ND4J 原生库并回报堆外内存用量——若这个小模型在现有内存下
+> 不被 OOM 杀死，则**无需**做本步；若冒烟显示内存不足或容器被杀，再安排 worker 访问后回来执行本步。
+
 ND4J 经 JavaCPP 在 Java 堆外分配张量，而 Flink 默认 `taskmanager.memory.task.off-heap.size=0`，未计量的
 原生分配会在训练期把容器顶出内存上限而被杀。`docker-compose.worker.yml` 已把 off-heap 提到 768MB、
 managed 降到 256MB，并通过 `env.java.opts.taskmanager` 显式设定 JavaCPP 的 `maxbytes`/`maxphysicalbytes`/
