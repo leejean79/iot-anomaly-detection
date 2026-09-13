@@ -50,8 +50,14 @@ echo "  -> $BUILD_DIR/$JOB_JAR_NAME"
 # 镜像标签用 FLINK_IMAGE_TAG（Java 11 迁移 Addendum 2）；缺省回退到旧的 fa-iforest/flink:$FLINK_VERSION，
 # 以便回滚场景仍可用旧标签重建。/ tag from FLINK_IMAGE_TAG; falls back to the old tag for rollback builds.
 FLINK_IMAGE_TAG="${FLINK_IMAGE_TAG:-fa-iforest/flink:$FLINK_VERSION}"
-echo "[2/4] docker build $FLINK_IMAGE_TAG ..."
+# 固定 linux/amd64：集群节点是 x86_64，官方 flink:1.13.6-*-java11 也仅发布 amd64；在 Apple Silicon
+# (arm64) 上必须显式 --platform，否则报 "no match for platform in manifest"。可用 DOCKER_PLATFORM 覆盖。
+# Pin linux/amd64: the cluster is x86_64 and the official flink:1.13.6-*-java11 image ships amd64 only;
+# on Apple Silicon this is required or docker errors with "no match for platform". Override via DOCKER_PLATFORM.
+DOCKER_PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
+echo "[2/4] docker build $FLINK_IMAGE_TAG (--platform $DOCKER_PLATFORM) ..."
 docker build \
+    --platform "$DOCKER_PLATFORM" \
     -t "$FLINK_IMAGE_TAG" \
     -f "$DEPLOY_DIR/docker/Dockerfile.flink" \
     "$DEPLOY_DIR/docker/"
