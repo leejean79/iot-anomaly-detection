@@ -56,7 +56,7 @@ services:
   # (8081 REST UI, 6123 RPC, 6124 BlobServer, 49xxx 动态 metrics RPC)
   # bridge 模式只能转发显式 ports, 但 Flink 跨节点要用动态端口, 必须 host
   jobmanager:
-    image: fa-iforest/flink:${FLINK_VERSION}
+    image: ${FLINK_IMAGE_TAG:-fa-iforest/flink:1.13.6-java11}
     container_name: jobmanager
     restart: unless-stopped
     network_mode: host

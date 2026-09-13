@@ -47,9 +47,12 @@ cp "$JAR_PATH" "$BUILD_DIR/$JOB_JAR_NAME"
 echo "  -> $BUILD_DIR/$JOB_JAR_NAME"
 
 # ---------- 2. 构建自定义 Flink 镜像 ----------
-echo "[2/4] docker build fa-iforest/flink:$FLINK_VERSION ..."
+# 镜像标签用 FLINK_IMAGE_TAG（Java 11 迁移 Addendum 2）；缺省回退到旧的 fa-iforest/flink:$FLINK_VERSION，
+# 以便回滚场景仍可用旧标签重建。/ tag from FLINK_IMAGE_TAG; falls back to the old tag for rollback builds.
+FLINK_IMAGE_TAG="${FLINK_IMAGE_TAG:-fa-iforest/flink:$FLINK_VERSION}"
+echo "[2/4] docker build $FLINK_IMAGE_TAG ..."
 docker build \
-    -t "fa-iforest/flink:$FLINK_VERSION" \
+    -t "$FLINK_IMAGE_TAG" \
     -f "$DEPLOY_DIR/docker/Dockerfile.flink" \
     "$DEPLOY_DIR/docker/"
 
@@ -65,7 +68,7 @@ echo "  -> $BUILD_DIR/prometheus.yml"
 
 # ---------- 4. 导出镜像为 tar(用于传到节点) ----------
 echo "[4/4] save docker image to tar ..."
-docker save "fa-iforest/flink:$FLINK_VERSION" -o "$BUILD_DIR/fa-iforest-flink.tar"
+docker save "$FLINK_IMAGE_TAG" -o "$BUILD_DIR/fa-iforest-flink.tar"
 echo "  -> $BUILD_DIR/fa-iforest-flink.tar ($(du -h "$BUILD_DIR/fa-iforest-flink.tar" | cut -f1))"
 
 echo ""

@@ -56,7 +56,7 @@ services:
   # 这些值可用 .env 里的 SYN_TM_* / SYN_JAVACPP_* 覆盖；改后须重启 TaskManager 生效。
   # Override via SYN_TM_* / SYN_JAVACPP_* in .env; restart the TaskManager for changes to take effect.
   taskmanager:
-    image: fa-iforest/flink:${FLINK_VERSION}
+    image: ${FLINK_IMAGE_TAG:-fa-iforest/flink:1.13.6-java11}
     container_name: taskmanager-${BROKER_ID}
     restart: unless-stopped
     network_mode: host

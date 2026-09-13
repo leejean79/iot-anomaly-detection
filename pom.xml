@@ -38,17 +38,21 @@
     <properties>
         <flink.version>1.13.6</flink.version>
         <scala.binary.version>2.12</scala.binary.version>
-        <java.version>1.8</java.version>
+        <!-- 运行时/构建基线自 2026-09 起为 Java 11（Java 11 迁移 Addendum 2）：集群运行时切到
+             flink:1.13.6-scala_2.12-java11，编译按 release 11。Flink 仍 1.13.6、Kafka 仍 2.6.3、Scala 仍 2.12。
+             Runtime/build baseline is Java 11 as of 2026-09 (Java-11 migration Addendum 2). -->
+        <java.version>11</java.version>
+        <maven.compiler.release>11</maven.compiler.release>
         <kafka.version>2.6.3</kafka.version>
         <kotlin.version>1.4.32</kotlin.version>
-        <!-- DL4J/ND4J 钉在 beta7：其字节码为 Java 7（主版本 51），可在 JDK 8 编译、在 Java 8 的 Flink
-             镜像加载运行；M2.1 为 Java 11 字节码（主版本 55），与 Java 8 集群不兼容（见冒烟门槛决策）。
-             DL4J/ND4J pinned to beta7: its bytecode is Java 7 (major 51), so it compiles under JDK 8 and
-             loads on the Java 8 Flink image; M2.1 is Java 11 bytecode (major 55), incompatible with the
-             Java 8 cluster (see the smoke-gate finding). -->
-        <dl4j.version>1.0.0-beta7</dl4j.version>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <!-- DL4J/ND4J 回到 1.0.0-M2.1（Java 11 字节码，主版本 55）：集群已迁到 Java 11，可正常加载。
+             DL4J/ND4J back to 1.0.0-M2.1 (Java 11 bytecode, major 55): loadable now that the cluster is Java 11. -->
+        <dl4j.version>1.0.0-M2.1</dl4j.version>
+        <!-- 仅解析 linux-x86_64 原生库，避免 bytedeco 多平台原生库进 fat jar（Addendum 2 §2.2）。
+             Resolve only linux-x86_64 natives to keep bytedeco multi-platform binaries out of the fat jar. -->
+        <javacpp.platform>linux-x86_64</javacpp.platform>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -268,10 +272,45 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.8.1</version>
                 <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
+                    <!-- release 11 单一开关，避免与 source/target 冲突 / single release switch -->
+                    <release>${maven.compiler.release}</release>
                     <encoding>UTF-8</encoding>
                 </configuration>
+            </plugin>
+            <!-- 守卫：构建 JDK 必须是 11.x；任何依赖字节码不得高于 Java 11。若某依赖违反字节码规则，
+                 回报设计会，绝不改用更高版本 JDK 绕过（Addendum 2 §2.1 / §7）。
+                 Guards: the build JDK must be 11.x; no dependency's bytecode may exceed Java 11. A
+                 violation is reported to the design session, never worked around on a newer JDK. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.4.1</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>extra-enforcer-rules</artifactId>
+                        <version>1.7.0</version>
+                    </dependency>
+                </dependencies>
+                <executions>
+                    <execution>
+                        <id>enforce-java-and-bytecode</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[11,12)</version>
+                                </requireJavaVersion>
+                                <enforceBytecodeVersion>
+                                    <maxJdkVersion>11</maxJdkVersion>
+                                </enforceBytecodeVersion>
+                            </rules>
+                            <fail>true</fail>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

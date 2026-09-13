@@ -4,10 +4,11 @@
 适用对象是"每次跑实验前照着做一遍"的操作者。所有命令均在**本地 Mac** 的仓库根目录执行，脚本内部通过 ssh
 连到集群 master（`fa-master`）再 `docker exec` 进相应容器。
 
-> 模型说明 / Model note：M3 使用 DL4J 的 LSTM 自编码器，依赖钉在 **1.0.0-beta7**（其字节码为
-> Java 7 / 主版本 51，可在 JDK 8 编译、在 Java 8 的 Flink 镜像加载运行；M2.1 为 Java 11 字节码，与
-> Java 8 集群不兼容，故不采用）。由于 beta7 仍通过 JavaCPP 使用原生 ND4J，**堆外内存重配与集群冒烟
-> 步骤是必需的**（见阶段零 0.3 与阶段一第 6 步）。
+> 模型说明 / Model note：M3 使用 DL4J 的 LSTM 自编码器，依赖为 **1.0.0-M2.1**（Java 11 字节码）。
+> 集群运行时已自 2026-09 迁移到 **Java 11**（`flink:1.13.6-scala_2.12-java11`，Flink 版本不变；见
+> `docs/java11_migration_report.md` 与 Java-11 迁移 Addendum 2），因此 M2.1 可正常加载。构建按 `release 11`，
+> 需 JDK 11 工具链（pom 的 enforcer 会强制 `[11,12)`）。M2.1 通过 JavaCPP 使用原生 ND4J，故**堆外内存
+> 重配与集群冒烟步骤仍是必需的**（见阶段零 0.3 与阶段一第 6 步）。
 
 ---
 

@@ -187,6 +187,7 @@ public class M3ClusterSmoke {
             sb.append("javacpp.maxBytes=").append(Pointer.maxBytes()).append('\n');
             sb.append("javacpp.maxPhysicalBytes=").append(Pointer.maxPhysicalBytes()).append('\n');
             sb.append("javacpp.totalBytes=").append(Pointer.totalBytes()).append('\n');
+            sb.append("javacpp.totalCount=").append(Pointer.totalCount()).append('\n');
         } catch (Throwable t) {
             sb.append("javacpp.mem_err=").append(t).append('\n');
         }

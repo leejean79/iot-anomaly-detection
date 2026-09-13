@@ -6,6 +6,17 @@
 > existing 3-node cluster under a **coexistence strategy**: no old container, image, topic, or
 > datum is ever modified.
 
+> **运行时 / Runtime（自 2026-09，Java 11 迁移 Addendum 2）**：集群 Flink 运行时为 **Java 11**
+> （`flink:1.13.6-scala_2.12-java11`；Flink 版本仍 1.13.6、Kafka 仍 2.6.3、Scala 仍 2.12）。构建按
+> `release 11`、需 JDK 11 工具链。自定义镜像标签由 `.env` 的 `FLINK_IMAGE_TAG` 控制（默认
+> `fa-iforest/flink:1.13.6-java11`；回滚时改回 Java 8 镜像 `fa-iforest/flink:1.13.6`）。迁移过程与验证见
+> `docs/java11_migration_report.md`。这是对 DEV-D8 共存规则的**唯一授权例外**：仅重建 JobManager 与两台
+> TaskManager 容器，ZooKeeper、Kafka、监控栈、jar 挂载路径与所有 topic 均不动。
+> Runtime is **Java 11** as of 2026-09 (`flink:1.13.6-scala_2.12-java11`; Flink/Kafka/Scala unchanged).
+> Build targets `release 11` on a JDK 11 toolchain. The image tag is controlled by `FLINK_IMAGE_TAG`
+> in `.env`. See `docs/java11_migration_report.md`. This is the one authorized exception to the DEV-D8
+> coexistence rule: only the JobManager and the two TaskManagers are recreated.
+
 ## 目录 / Layout
 
 ```

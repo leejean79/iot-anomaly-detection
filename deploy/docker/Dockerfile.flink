@@ -1,7 +1,13 @@
 # Flink 1.13.6 镜像 (官方镜像已预装 prometheus reporter 插件于
 #   /opt/flink/plugins/metrics-prometheus/flink-metrics-prometheus-1.13.6.jar
 # 直接 FROM 即可 / Official image already ships the prometheus reporter plugin.)
-FROM flink:1.13.6-scala_2.12-java8
+#
+# 运行时自 2026-09 迁移到 Java 11（Java 11 迁移 Addendum 2）：Flink 版本不变（1.13.6），仅把基础镜像
+# 从 -java8 换成 -java11，使 DL4J 1.0.0-M2.1（Java 11 字节码）可加载。旧 FA-iForest 的 Java 8 jar 在
+# Java 11 上仍可运行。构建时用新标签（见 0-prepare-local.sh 的 FLINK_IMAGE_TAG），Java 8 镜像保留以便回滚。
+# Runtime migrated to Java 11 as of 2026-09 (Addendum 2): Flink stays 1.13.6, only the base image goes
+# from -java8 to -java11 so DL4J 1.0.0-M2.1 (Java 11 bytecode) loads; the old Java 8 jar still runs on 11.
+FROM flink:1.13.6-scala_2.12-java11
 
 # 提供 job jar 挂载点 / Mount point for user job jar
 RUN mkdir -p /opt/flink/usrlib

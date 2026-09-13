@@ -61,7 +61,7 @@ checks=(
     "com/leejean/m2/ReplayVerify.class|expected-total|重放完整性核验四断言（补充指令五 step1）"
     "com/leejean/m1/M1Job.class|checkpoint-max-state-mb|内存型 checkpoint 状态上限（补充指令五 根因修复：7 天蓄水池越过默认 5 MB）"
     "com/leejean/m2/M2Job.class|calib-days|M2 联合作业同源七天标定（防静默退回一天）"
-    "org/deeplearning4j/nn/multilayer/MultiLayerNetwork.class|MultiLayerNetwork|DL4J 1.0.0-beta7 LSTM 自编码器引擎（Java 8 字节码，M3 阶段 DEV-D1）"
+    "org/deeplearning4j/nn/multilayer/MultiLayerNetwork.class|MultiLayerNetwork|DL4J 1.0.0-M2.1 LSTM 自编码器引擎（Java 11 运行时，M3 阶段 DEV-D1）"
     "com/leejean/m3/M3Function.class|m3-phase|M3 LSTM-AE 状态机算子（M3 阶段 §3）"
     "com/leejean/m3/M3ScoreRecord.class|m3_context|M3 评分输出记录（M3 阶段 §3）"
     "com/leejean/m3/LstmAutoEncoder.class|serializeModel|M3 LSTM-AE 模型封装（M3 阶段 §3）"
