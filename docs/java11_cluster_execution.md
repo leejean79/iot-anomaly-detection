@@ -57,6 +57,11 @@ bash deploy/scripts/check-jar.sh       # 全 PASS 才继续 / must be all PASS
   `target/iot-anomaly-detection-1.0-SNAPSHOT.jar`；`check-jar` 全 PASS。
 - 失败兜底 / Fallback（平台）：若仍报 `no match for platform`，确认 Docker Desktop 已开启对 amd64 的模拟
   （Apple Silicon 默认可模拟）；或用 `DOCKER_PLATFORM=linux/amd64 bash deploy/scripts/0-prepare-local.sh` 显式指定。
+- 失败兜底 / Fallback（网络，国内常见）：若卡在 `load metadata for docker.io/library/flink:...`，是拉 Docker Hub
+  太慢/被限速。给 Docker Desktop 配镜像加速器（Settings → Docker Engine 加
+  `"registry-mirrors": ["https://docker.m.daocloud.io"]` 或阿里云专属 `https://<ID>.mirror.aliyuncs.com`，重启 Docker），
+  先 `docker pull --platform linux/amd64 flink:1.13.6-scala_2.12-java11` 拉通再跑本步。或改在集群 amd64 节点上构建
+  （节点通常已配加速器、且原生 amd64 免模拟），再内网分发。
 - 门槛验证 / Gate（另跑一次）：`0-prepare-local.sh` 用 `-DskipTests` 只出可部署产物；handover §2.3 的
   "JDK 11 全量测试"请另跑 `mvn clean verify`（enforcer 生效、跑测试），把 JDK 版本与测试数记入迁移报告 §2。
 - 失败兜底 / Fallback：若 enforcer 报 `Detected JDK version ... not in [11,12)`，说明当前不是 JDK 11——切换后重来。
