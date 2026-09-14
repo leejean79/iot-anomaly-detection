@@ -55,6 +55,21 @@ FLINK_IMAGE_TAG="${FLINK_IMAGE_TAG:-fa-iforest/flink:$FLINK_VERSION}"
 # Pin linux/amd64: the cluster is x86_64 and the official flink:1.13.6-*-java11 image ships amd64 only;
 # on Apple Silicon this is required or docker errors with "no match for platform". Override via DOCKER_PLATFORM.
 DOCKER_PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
+# 先 docker pull 基础镜像再 build：docker pull 会走 daemon.json 的 registry-mirrors 加速器，而 BuildKit 解析
+# FROM 时对 mirror 支持不稳定、常卡在 "load metadata"。pull 成功后基础镜像入本地缓存，build 的 FROM 直接用缓存、
+# 不再联网；pull 若失败（加速器都失效）则在此快速报错，而非无声卡死。基础镜像名从 Dockerfile 的 FROM 抽取。
+# Pull the base image before build: docker pull honors daemon.json registry-mirrors (BuildKit's FROM
+# resolution often does not, hence the "load metadata" stall). After a successful pull the base is cached
+# locally and build uses it offline; a failing pull errors here fast instead of hanging. Base parsed from FROM.
+BASE_IMAGE="$(grep -E '^[[:space:]]*FROM[[:space:]]' "$DEPLOY_DIR/docker/Dockerfile.flink" | head -1 | awk '{print $2}')"
+echo "[2/4] docker pull $BASE_IMAGE (--platform $DOCKER_PLATFORM) ..."
+if ! docker pull --platform "$DOCKER_PLATFORM" "$BASE_IMAGE"; then
+    echo "ERROR: 拉取基础镜像失败：$BASE_IMAGE" >&2
+    echo "  国内环境请确认 registry-mirrors 里有仍在运行的加速器（多数公共加速器 2024 年已关停），" >&2
+    echo "  推荐用阿里云专属加速器 https://<你的ID>.mirror.aliyuncs.com；或改在集群 amd64 节点上构建。" >&2
+    echo "  Base image pull failed; use a live registry mirror (many public ones are gone) or build on a node." >&2
+    exit 1
+fi
 echo "[2/4] docker build $FLINK_IMAGE_TAG (--platform $DOCKER_PLATFORM) ..."
 docker build \
     --platform "$DOCKER_PLATFORM" \
