@@ -347,6 +347,13 @@
                                         <exclude>org/bytedeco/**/windows-*/**</exclude>
                                         <exclude>org/nd4j/**/macosx-*/**</exclude>
                                         <exclude>org/nd4j/**/windows-*/**</exclude>
+                                        <!-- macOS 构建时 bytedeco/nd4j 的 macosx classifier 还会带入 GraalVM native-image
+                                             配置 JSON（META-INF/native-image/macosx-*/）；运行时不加载、无害，但一并剔除
+                                             以使 fat jar 名副其实 linux-only、避免自检误报。/ also drop the GraalVM
+                                             native-image config JSON that a macOS build's macosx classifier brings in
+                                             (harmless at runtime, removed so the jar is truly linux-only). -->
+                                        <exclude>META-INF/native-image/macosx-*/**</exclude>
+                                        <exclude>META-INF/native-image/windows-*/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
