@@ -46,7 +46,12 @@ services:
   #   2) managed 从 1024MB 降到 256MB（本项目不用 RocksDB 状态后端，那块基本闲置），使总量仍在 4096 内；
   #   3) JavaCPP 自身上限默认取 JVM 最大堆（非所愿）——显式设 maxbytes/maxphysicalbytes，使超限变成
   #      "抛异常"而非"容器被 kill"；并把原生库解包目录 cachedir 指向可写的 /tmp（容器用户 9999 的家目录
-  #      解包会撞老项目记录的挂载权限坑）。
+  #      解包会撞老项目记录的挂载权限坑）。注意两者语义不同：maxbytes 只管 JavaCPP 自己分配的原生内存，
+  #      须 <= task.off-heap；maxphysicalbytes 比对的是整个 JVM 进程 RSS（含 Java 堆、Metaspace、线程栈、
+  #      网络缓冲、mmap 的 .so），必须按 process.size=4096MB 来定，取 3584m，不能按堆外预算取 768m。
+  #      Note the two differ: maxbytes caps JavaCPP's own native allocations (<= task.off-heap), while
+  #      maxphysicalbytes is compared against the whole JVM process RSS (heap, metaspace, stacks, network
+  #      buffers, mmapped .so) and must be sized against process.size=4096MB — 3584m, not the 768m off-heap.
   # ND4J allocates tensors off-heap via JavaCPP while Flink's default task off-heap is 0, so unaccounted
   # native allocations can push the container past 4096MB and get it killed during training. Three explicit
   # settings (process size stays = TM_HEAP_MB=4096): raise task.off-heap to 768MB; cut managed from 1024MB
@@ -70,7 +75,7 @@ services:
         taskmanager.memory.process.size: ${TM_HEAP_MB}m
         taskmanager.memory.managed.size: ${SYN_TM_MANAGED_MEM_MB:-256}m
         taskmanager.memory.task.off-heap.size: ${SYN_TM_TASK_OFFHEAP_MB:-768}m
-        env.java.opts.taskmanager: -Dorg.bytedeco.javacpp.maxbytes=${SYN_JAVACPP_MAXBYTES:-512m} -Dorg.bytedeco.javacpp.maxphysicalbytes=${SYN_JAVACPP_MAXPHYSICALBYTES:-768m} -Dorg.bytedeco.javacpp.cachedir=${SYN_JAVACPP_CACHEDIR:-/tmp/javacpp-cache}
+        env.java.opts.taskmanager: -Dorg.bytedeco.javacpp.maxbytes=${SYN_JAVACPP_MAXBYTES:-512m} -Dorg.bytedeco.javacpp.maxphysicalbytes=${SYN_JAVACPP_MAXPHYSICALBYTES:-3584m} -Dorg.bytedeco.javacpp.cachedir=${SYN_JAVACPP_CACHEDIR:-/tmp/javacpp-cache}
         taskmanager.host: ${NODE_SELF_IP}
         parallelism.default: ${JOB_LOCAL_PARALLELISM}
         metrics.reporters: prom

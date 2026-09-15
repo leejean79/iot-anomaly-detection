@@ -200,6 +200,15 @@ public class M3ClusterSmoke {
             sb.append("javacpp.maxPhysicalBytes=").append(Pointer.maxPhysicalBytes()).append('\n');
             sb.append("javacpp.totalBytes=").append(Pointer.totalBytes()).append('\n');
             sb.append("javacpp.totalCount=").append(Pointer.totalCount()).append('\n');
+            // physicalBytes 是【整个 JVM 进程的 RSS】，也正是 JavaCPP 用来和 maxPhysicalBytes 比较的量；
+            // 它包含 Java 堆、Metaspace、线程栈、网络缓冲和 mmap 的 .so，远大于 totalBytes。缺了它就无法
+            // 解释 "totalBytes=0 却抛 OutOfMemoryError" 这类现象，因此必须一并上报。
+            // physicalBytes is the WHOLE JVM process RSS and is exactly what JavaCPP compares against
+            // maxPhysicalBytes; it covers heap, metaspace, stacks, network buffers and mmapped .so, so it is
+            // far larger than totalBytes. Without it, "totalBytes=0 yet OutOfMemoryError" is unexplainable.
+            sb.append("javacpp.physicalBytes=").append(Pointer.physicalBytes()).append('\n');
+            // 机器物理内存总量，用于判断上面的上限相对宿主机是否合理 / host RAM, to sanity-check the ceilings.
+            sb.append("javacpp.totalPhysicalBytes=").append(Pointer.totalPhysicalBytes()).append('\n');
         } catch (Throwable t) {
             sb.append("javacpp.mem_err=").append(t).append('\n');
         }

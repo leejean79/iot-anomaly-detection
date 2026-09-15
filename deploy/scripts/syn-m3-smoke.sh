@@ -12,7 +12,8 @@
 #       显式设界（超限抛异常而非 kill 容器）；由冒烟作业在 TM 内读回 JavaCPP 上限/用量佐证。
 #   点2 原生库解包目录：容器用户 9999 对 cachedir 是否可写；作业读回 Loader.getCacheDir()+可写位，
 #       脚本再（可选）exec 进 TM 容器以 uid 9999 实测 touch。
-#   点3 实际 JDK：门槛是 Java 8；作业读回每个 TM 的 java.version；脚本再对 jobmanager 交叉核对。
+#   点3 实际 JDK：门槛是 Java 11（Addendum 2 迁移后，DL4J 1.0.0-M2.1 为 Java 11 字节码，Java 8 已不可用）；
+#       作业读回每个 TM 的 java.version；脚本再对 jobmanager 交叉核对。
 #   点4 jar 原生二进制：列出 jar 内 .so/.dylib/.dll，确认只含 linux-x86_64（张量库 + OpenBLAS）；
 #       并给出 jar 大小与提交（含向两个 TM 分发 blob）的墙钟耗时行。
 #
@@ -73,11 +74,12 @@ echo ""
 echo "---- [Point 3] JDK actually used (jobmanager cross-check) ----"
 JM_JAVA=$(master "docker exec jobmanager java -version" 2>&1 || true)
 echo "$JM_JAVA"
-if echo "$JM_JAVA" | grep -qE '"1\.8\.|version "8'; then
-    echo "  [PASS] jobmanager runs Java 8"
+# Java 11 的版本串形如 openjdk version "11.0.16"；不再匹配 1.8 / Java 11 prints version "11.0.x".
+if echo "$JM_JAVA" | grep -qE 'version "11\.'; then
+    echo "  [PASS] jobmanager runs Java 11"
     PASS_JDK="PASS"
 else
-    echo "  [WARN] jobmanager Java version is not clearly 8 — inspect above; TM side is authoritative (job report)."
+    echo "  [WARN] jobmanager Java version is not clearly 11 — inspect above; TM side is authoritative (job report)."
     PASS_JDK="CHECK"
 fi
 
@@ -223,14 +225,13 @@ REPORTS=$(master "docker exec kafka-1 kafka-console-consumer.sh --bootstrap-serv
 echo "$REPORTS" | sed 's/^/  /'
 
 if [ -n "$REPORTS" ]; then
-    # 点3：所有子任务 java.version 均为 1.8 / all subtasks report Java 1.8
-    if echo "$REPORTS" | grep -q "java.version=1.8"; then
-        [ "$PASS_JDK" = "PASS" ] && true
+    # 点3：所有子任务 java.version 均为 11.x / all subtasks report Java 11
+    if echo "$REPORTS" | grep -q "java.version=11\."; then
         echo ""
-        echo "  [Point 3] TM java.version=1.8 confirmed in report."
+        echo "  [Point 3] TM java.version=11.x confirmed in report."
         PASS_JDK="PASS"
     else
-        echo "  [Point 3][WARN] TM java.version not reported as 1.8 — inspect reports above."
+        echo "  [Point 3][WARN] TM java.version not reported as 11.x — inspect reports above."
         PASS_JDK="CHECK"
     fi
     # 点2：原生加载成功 + cacheDir 可写 / native loaded + cacheDir writable
@@ -278,11 +279,11 @@ echo "===================================================================="
 echo "SUMMARY (report these four back to the design session, §9):"
 printf "  Point 1  off-heap budget (JavaCPP bounded) : %s\n" "$PASS_OFFHEAP"
 printf "  Point 2  native cachedir writable (uid 9999): %s\n" "$PASS_CACHEDIR"
-printf "  Point 3  JDK is Java 8                       : %s\n" "$PASS_JDK"
+printf "  Point 3  JDK is Java 11                      : %s\n" "$PASS_JDK"
 printf "  Point 4  jar natives = linux-x86_64 only     : %s\n" "$PASS_JAR"
 printf "  (aux)    ND4J native load on TMs             : %s\n" "$PASS_NATIVE"
 echo "  Also record: jar size, submit/distribution wall time above, and each TM's"
-echo "  javacpp.maxBytes/maxPhysicalBytes/totalBytes for the off-heap section of the report."
+echo "  javacpp.maxBytes/maxPhysicalBytes/totalBytes/physicalBytes for the off-heap section."
 echo "===================================================================="
 
 if echo "$PASS_OFFHEAP$PASS_CACHEDIR$PASS_JDK$PASS_JAR$PASS_NATIVE" | grep -q "FAIL"; then
