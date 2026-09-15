@@ -87,22 +87,147 @@ Repository changes completed:
 
 ---
 
-## Section 4 — Verification (operator to run on the cluster, paste outputs)
+## Section 4 — Verification (executed on the cluster)
 
-1. **Cluster health** — `syn-verify-cluster.sh` passes; `curl :8081/config` shows Flink 1.13.6;
-   `curl :8081/taskmanagers` and a subtask report show `java.version` 11 on every TaskManager.
-   _Paste output:_
-2. **Java 8 jar regression** — the Flink WordCount example (and, if practical, the old FA-iForest
-   smoke job) runs to completion, proving old Java 8 jars still run on Java 11.
-   _Paste output:_
-3. **M1 + M2 regression under Java 11** — replay the single day from M1 acceptance V-M1-1 (with the
-   integrity check) through the joint job; counts must reconcile exactly (rounds produced, guard
-   counters, M2 outlier counts for the locked radii). Start from fresh state; no Java 8 checkpoint
-   is restored.
-   _Paste output:_
-4. **M3 gate under Java 11** — `bash deploy/scripts/syn-m3-smoke.sh --parallelism 8`: all four points
-   plus `nd4j_native_ok=true` on all eight subtasks, with the memory readout. This closes V-M3-1.
-   _Paste the per-subtask JVM/memory readout:_
+Status: **4.1, 4.3 and 4.4 executed and recorded below. 4.2 is still outstanding.**
+
+### 4.1 Cluster health and JVM identity — PASS
+
+Every TaskManager subtask reported by the M3 cluster smoke job (`M3ClusterSmoke`, parallelism 8,
+four slots on each of the two TaskManagers):
+
+```
+java.version=11.0.16 | java.vendor=Oracle Corporation | java.vm.name=OpenJDK 64-Bit Server VM
+os.name=Linux | os.arch=amd64 | user.name=flink | heap.maxBytes=2030043136
+```
+
+The smoke script's own cross-check against the JobManager container (`docker exec jobmanager
+java -version`) reports Java 11 as well, and `curl :8081/config` reports Flink 1.13.6. Point 3 of
+the smoke summary reads `JDK is Java 11 : PASS`. The Flink version is therefore unchanged while
+both the JobManager and every TaskManager now run on Java 11.
+
+Note on the build machine (closes the open item in Section 1): the Mac's `mvn clean package`
+succeeded with `maven-enforcer-plugin`'s `requireJavaVersion [11,12)` bound to the default
+`validate` phase. A JDK outside 11.x would have failed the build before compilation, so the build
+toolchain is proven to be 11.x. The exact `java -version` string is still worth pasting here for
+the record.
+
+### 4.2 Java 8 jar regression — NOT YET RUN
+
+The Flink WordCount example (Java 8 bytecode, shipped inside the image at
+`/opt/flink/examples/streaming/WordCount.jar`) has not been submitted since the recreation onto the
+Java 11 image. This item is outstanding.
+
+There is, however, adjacent evidence that Java 11 runs Java 8 bytecode here: the old FA-iForest
+containers and their Java 8 jar coexist untouched on the same nodes, and `deploy/scripts/5-load-data.sh`
+still runs that jar on the Java 8 image by design. That is coexistence, not a regression test — it
+does not substitute for actually running a Java 8 jar on the Java 11 runtime.
+
+### 4.3 M1 + M2 regression under Java 11 — M1 PASS (exact), M2 closes but cannot be compared
+
+Preconditions met: topics and job state were cleared before the replay, so Kafka end offsets equal
+the message counts written by this run; M1Job and M2Job were RUNNING and consumed the data
+synchronously; no Java 8 checkpoint was restored.
+
+Replay (single day 2022-05-21, `--speedup 600 --start 2022-05-21 --end 2022-05-22`):
+
+```
+Finished. Produced (sent): 459472    Send errors: 0    Skipped malformed lines: 0
+Data files (csv/sniffed): 3471 / 0   Unknown-device records: 0   File read errors: 0
+Idle-compression events: 1           Total compressed wall: 2000 ms      rc=0
+```
+
+Offset reconciliation (`syn-m1-reconcile.sh`) against the V-M1-1 Java 8 baseline in
+`docs/m1_acceptance.md`:
+
+| partition | device | Java 11 actual | Java 8 baseline | diff |
+|---|---|---|---|---|
+| 0 | A | 65,688 | 65,688 | 0 |
+| 1 | B | 65,512 | 65,512 | 0 |
+| 2 | C | 65,568 | 65,568 | 0 |
+| 3 | D | 65,712 | 65,712 | 0 |
+| 4 | E | 65,720 | 65,720 | 0 |
+| 5 | F | 65,592 | 65,592 | 0 |
+| 6 | G | 65,680 | 65,680 | 0 |
+| 7 | H | 0 | 0 | 0 |
+| **source total** | — | **459,472** | **459,472** | **0** |
+| **rounds on `synergia-m1-out`** | — | **57,442** | **57,442** | **0** |
+
+Every partition, the ingestion total and the round count match the Java 8 baseline exactly. Device H
+is 0 on both sides, which is the recorded downtime window of 2022-05-21..05-23, not a loss.
+
+Counters (`syn-m2-metrics.sh`, job `55182a8615e051ca5336e6787a0d5b01`):
+
+```
+m2_gate_admitted 0        m2_gate_warmup_bypass 57442   m2_gate_missing_bypass 0
+m2_gate_censored_entered 0  m2_gate_coldstart_clear 0   m2_gate_late_drop 0
+m2_outliers_total 0       m2_points_total 0             m2_windows_total 0
+m1_assembler_rounds_total 57442      m1_assembler_incomplete_rounds 124
+m1_assembler_dup_keys 0              m1_scaler_warmup_rounds 57442
+m1_parser_censored_light 0   m1_parser_rssi_sentinel 0   m1_parser_unknown_sensor 0
+reconcile: admitted(0) = rounds(57442) − warmup(57442) − missing(0) = 0   → closed
+cross-check warmup: scaler(57442) vs gate(57442) → consistent
+```
+
+The M1 counters agree with the offsets (`m1_assembler_rounds_total` = 57,442 = the `m1-out` offset)
+and `dup_keys` is 0, so no duplicate rounds were emitted — the AT_LEAST_ONCE resend path was not
+triggered, i.e. the job did not restart mid-run.
+
+`m2_gate_admitted = 0` is expected on a one-day window and is not a failure. The warmup threshold is
+8,640 rounds per device; 57,442 rounds spread over the seven active devices is roughly 8,206 per
+device, just under that threshold, so every round left the gate through `warmup_bypass` and MCOD was
+never fed. The reconciliation identity closes exactly at zero, which is the assertion this stage can
+make. **What it cannot make is an outlier-count comparison**: with no admitted points there are no
+outliers to compare, and the Java 8 M2 baseline (`docs/m2_acceptance.md`, V-M2-2/V-M2-4) was recorded
+over the whole of 2022-03, not over this day. Section 5 below states the options.
+
+### 4.4 M3 gate under Java 11 — PASS (closes V-M3-1)
+
+`bash deploy/scripts/syn-m3-smoke.sh --parallelism 8`:
+
+```
+Point 1  off-heap budget (JavaCPP bounded)  : PASS
+Point 2  native cachedir writable (uid 9999): PASS
+Point 3  JDK is Java 11                     : PASS
+Point 4  jar natives = linux-x86_64 only    : PASS
+(aux)    ND4J native load on TMs            : PASS
+```
+
+All eight subtasks report `nd4j_native_ok=true`. Two defects had to be fixed before this passed, both
+recorded here because they are migration artifacts rather than M3 logic:
+
+1. **Missing OpenBLAS/JavaCPP natives in the fat jar.** `pom.xml` declared only
+   `nd4j-native:linux-x86_64` explicitly; `openblas` and `javacpp` resolved their native classifier
+   from the *build host*, so a macOS build produced macOS natives, which the shade excludes then
+   removed, leaving none. The TaskManagers failed with `UnsatisfiedLinkError: Could not find
+   jniopenblas_nolapack`. Fixed by declaring `org.bytedeco:openblas:0.3.19-1.5.7:linux-x86_64` and
+   `org.bytedeco:javacpp:1.5.7:linux-x86_64` explicitly.
+2. **`javacpp.maxphysicalbytes` sized as an off-heap budget.** It had been set to 768 MB to match
+   `taskmanager.memory.task.off-heap.size`, but JavaCPP compares it against the whole JVM process
+   RSS, which is already 769 MB before any tensor is allocated (`totalBytes = 0, physicalBytes =
+   769M`). Re-sized against `taskmanager.memory.process.size` (4096 MB) to 3584 MB.
+
+Memory configuration in force on each TaskManager: `javacpp.maxBytes=536870912` (512 MB),
+`javacpp.maxPhysicalBytes=3758096384` (3584 MB), `javacpp.cacheDir=/tmp/javacpp-cache` writable,
+`heap.maxBytes=2030043136`. _Paste the per-subtask readout from the passing run here, including the
+new `javacpp.physicalBytes` field, so the headroom under the 3584 MB ceiling is on record._
+
+---
+
+## Section 5 — Open items
+
+1. **4.2 Java 8 jar regression.** Run `flink run /opt/flink/examples/streaming/WordCount.jar` from
+   the JobManager container and record that it completes.
+2. **M2 outlier comparison.** Three options, in decreasing strength:
+   (a) replay the whole of 2022-03 at `--speedup 3600` and compare against the V-M2-4 Java 8
+   baseline (`m2_outliers_total` 1,249,163 / `m2_points_total` 59,378,802 = 2.1%, MC occupancy
+   93.8%) — the only route to an equality comparison, at roughly an hour of cluster time;
+   (b) replay about two days so M2 clears warmup and produces outliers — proves the path executes
+   under Java 11, but there is no Java 8 baseline at that window to compare against;
+   (c) accept 4.3 as it stands: M1 reconciles exactly, M2's counter identity closes, and the
+   outlier path is covered by the V-M2-1 equivalence tests, which pass on JDK 11 in the 74-test
+   suite.
+3. **Per-subtask memory readout** for 4.4, as noted above.
 
 ---
 
