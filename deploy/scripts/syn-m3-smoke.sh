@@ -120,9 +120,22 @@ else
     PLATFORMS=$(echo "$TENSOR_NATIVES" | grep -aoE '(linux|macosx|windows|android|ios)-[a-z0-9_]+' | sort -u || true)
     echo "  张量库出现的平台段 / tensor-native platforms present: $(echo "$PLATFORMS" | tr '\n' ' ')"
     FOREIGN=$(echo "$PLATFORMS" | grep -avE '^linux-x86_64$' || true)
-    if [ -n "$TENSOR_NATIVES" ] && [ -z "$FOREIGN" ]; then
-        echo "  [PASS] ND4J 张量库只含 linux-x86_64（张量库 + OpenBLAS + JavaCPP，classifier 生效）。"
-        echo "         ND4J tensor natives are linux-x86_64 only (tensor lib + OpenBLAS + JavaCPP) — classifier took effect."
+    # 仅"平台白名单"不足以保证可用：曾出现 openblas/javacpp 原生库**整体缺失**却通过白名单的情况
+    # （macOS 构建只拿到 macosx，剔除后一个不剩），运行时报 UnsatisfiedLinkError: jniopenblas_nolapack。
+    # 故此处同时断言三个必需原生库存在。/ A platform allow-list alone is not enough: a jar can pass it
+    # while missing the openblas/javacpp natives entirely (a macOS build resolves only macosx, and after
+    # dropping non-linux none remain), failing at runtime. Assert the three required natives are present.
+    MISSING=""
+    for lib in libnd4jcpu.so libjniopenblas_nolapack.so libjnijavacpp.so; do
+        echo "$TENSOR_NATIVES" | grep -q "$lib" || MISSING="$MISSING $lib"
+    done
+    if [ -n "$MISSING" ]; then
+        echo "  [FAIL] 缺少必需原生库：$MISSING"
+        echo "         Missing required natives — 检查 pom 是否显式声明 openblas/javacpp 的 linux-x86_64 classifier。"
+        PASS_JAR="FAIL"
+    elif [ -n "$TENSOR_NATIVES" ] && [ -z "$FOREIGN" ]; then
+        echo "  [PASS] ND4J 张量库只含 linux-x86_64，且必需原生库齐备（张量库 + OpenBLAS + JavaCPP）。"
+        echo "         Tensor natives are linux-x86_64 only and the required libs are all present."
         PASS_JAR="PASS"
     elif [ -z "$TENSOR_NATIVES" ]; then
         echo "  [FAIL] jar 内未发现 ND4J 张量原生库 — nd4j-native linux-x86_64 classifier 可能未打进 jar。"

@@ -51,6 +51,10 @@
         <!-- 仅解析 linux-x86_64 原生库，避免 bytedeco 多平台原生库进 fat jar（Addendum 2 §2.2）。
              Resolve only linux-x86_64 natives to keep bytedeco multi-platform binaries out of the fat jar. -->
         <javacpp.platform>linux-x86_64</javacpp.platform>
+        <!-- 与 DL4J/ND4J 1.0.0-M2.1 传递依赖的版本保持一致；用于显式声明 linux-x86_64 原生库。
+             Must match what DL4J/ND4J 1.0.0-M2.1 depends on; used to declare the linux-x86_64 natives. -->
+        <javacpp.version>1.5.7</javacpp.version>
+        <openblas.version>0.3.19-1.5.7</openblas.version>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -197,6 +201,26 @@
                     <artifactId>*</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <!-- openblas 与 javacpp 的 linux-x86_64 原生库必须**显式**声明（Addendum 1 §2.2）。
+             否则它们只按"构建宿主平台"传递解析：在 Linux 上打包恰好拿到 linux（看似正常），
+             在 macOS 上打包则只拿到 macosx，剔除非 linux 后 jar 里一个 openblas/javacpp 原生库都不剩，
+             运行时报 UnsatisfiedLinkError: Could not find jniopenblas_nolapack。版本须与 M2.1 依赖一致。
+             openblas and javacpp linux-x86_64 natives must be declared EXPLICITLY: otherwise they are
+             resolved for the BUILD HOST only (fine on Linux, macOS-only on a Mac), and after dropping
+             non-linux natives the jar ends up with none — failing at runtime with
+             "Could not find jniopenblas_nolapack". Versions must match what M2.1 depends on. -->
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>openblas</artifactId>
+            <version>${openblas.version}</version>
+            <classifier>linux-x86_64</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>javacpp</artifactId>
+            <version>${javacpp.version}</version>
+            <classifier>linux-x86_64</classifier>
         </dependency>
 
         <!-- =========================== Kafka connector =========================== -->
