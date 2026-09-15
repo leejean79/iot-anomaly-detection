@@ -173,13 +173,15 @@ The M1 counters agree with the offsets (`m1_assembler_rounds_total` = 57,442 = t
 and `dup_keys` is 0, so no duplicate rounds were emitted — the AT_LEAST_ONCE resend path was not
 triggered, i.e. the job did not restart mid-run.
 
-`m2_gate_admitted = 0` is expected on a one-day window and is not a failure. The warmup threshold is
-8,640 rounds per device; 57,442 rounds spread over the seven active devices is roughly 8,206 per
-device, just under that threshold, so every round left the gate through `warmup_bypass` and MCOD was
-never fed. The reconciliation identity closes exactly at zero, which is the assertion this stage can
-make. **What it cannot make is an outlier-count comparison**: with no admitted points there are no
-outliers to compare, and the Java 8 M2 baseline (`docs/m2_acceptance.md`, V-M2-2/V-M2-4) was recorded
-over the whole of 2022-03, not over this day. Section 5 below states the options.
+`m2_gate_admitted = 0` is expected on a one-day window and is not a failure. `M2Job` derives the
+warmup from `--calib-days` (default 7) times the rounds per day (86400 / `--nominal-period-sec` 10 =
+8,640), i.e. **60,480 rounds per device**, and `syn-submit-m2.sh` passes no override. This day's
+57,442 rounds over the seven active devices is roughly 8,206 each — about 13.6% of the threshold — so
+every round left the gate through `warmup_bypass` and MCOD was never fed. The reconciliation identity
+closes exactly at zero, which is the assertion this stage can make. **What it cannot make is an
+outlier-count comparison**: with no admitted points there are no outliers to compare, and the Java 8
+M2 baseline (`docs/m2_acceptance.md`, V-M2-2/V-M2-4) was recorded over the whole of 2022-03, not over
+this day. Section 5 below records the decision.
 
 ### 4.4 M3 gate under Java 11 — PASS (closes V-M3-1)
 
@@ -218,15 +220,15 @@ new `javacpp.physicalBytes` field, so the headroom under the 3584 MB ceiling is 
 
 1. **4.2 Java 8 jar regression.** Run `flink run /opt/flink/examples/streaming/WordCount.jar` from
    the JobManager container and record that it completes.
-2. **M2 outlier comparison.** Three options, in decreasing strength:
-   (a) replay the whole of 2022-03 at `--speedup 3600` and compare against the V-M2-4 Java 8
-   baseline (`m2_outliers_total` 1,249,163 / `m2_points_total` 59,378,802 = 2.1%, MC occupancy
-   93.8%) — the only route to an equality comparison, at roughly an hour of cluster time;
-   (b) replay about two days so M2 clears warmup and produces outliers — proves the path executes
-   under Java 11, but there is no Java 8 baseline at that window to compare against;
-   (c) accept 4.3 as it stands: M1 reconciles exactly, M2's counter identity closes, and the
-   outlier path is covered by the V-M2-1 equivalence tests, which pass on JDK 11 in the 74-test
-   suite.
+2. **M2 outlier comparison — decided, no further cluster run.** The user chose to accept 4.3 as it
+   stands: M1 reconciles exactly, M2's counter identity closes, and the correctness of the outlier
+   path itself is carried by the V-M2-1 equivalence tests (MCOD versus an O(n²) reference asserted
+   equal per sliding step), which pass on JDK 11 as part of the 74-test suite. The runtime migration
+   changed the JVM, not the algorithm, and a numerical divergence would surface in exactly those
+   tests. The rejected alternative — replaying the whole of 2022-03 to compare against the V-M2-4
+   Java 8 baseline (`m2_outliers_total` 1,249,163 / `m2_points_total` 59,378,802 = 2.1%, MC
+   occupancy 93.8%) — remains available if a cluster-level equality datum is ever needed for the
+   write-up; it costs roughly an hour of cluster time.
 3. **Per-subtask memory readout** for 4.4, as noted above.
 
 ---
