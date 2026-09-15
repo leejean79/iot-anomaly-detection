@@ -336,6 +336,17 @@
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
+                                        <!-- 只保留 linux-x86_64 原生库：剔除 bytedeco/nd4j 的 macOS/Windows 变体
+                                             （Addendum 1 §2.2）。在 macOS 上构建时宿主平台的 .dylib 会被打进 fat jar，
+                                             导致在 Java 11 的 linux 集群上 ND4J 初始化失败；此处按路径剔除，使无论在哪
+                                             构建都产出 linux-only jar。linux-x86_64 原生库保留不动。
+                                             Keep only linux-x86_64 natives: drop bytedeco/nd4j macOS/Windows variants.
+                                             A macOS build otherwise bundles host .dylib files that break ND4J init on the
+                                             Java 11 linux cluster; excluding by path yields a linux-only jar on any host. -->
+                                        <exclude>org/bytedeco/**/macosx-*/**</exclude>
+                                        <exclude>org/bytedeco/**/windows-*/**</exclude>
+                                        <exclude>org/nd4j/**/macosx-*/**</exclude>
+                                        <exclude>org/nd4j/**/windows-*/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

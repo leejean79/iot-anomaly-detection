@@ -87,7 +87,9 @@ fi
 # --------------------------------------------------------------------------
 echo ""
 echo "---- [Point 4] jar size + native-binary inventory ----"
-JAR_LS=$(master "ls -l $JAR_PATH" 2>&1 || true)
+# $JAR_PATH 是容器内路径（/opt/flink/usrlib），必须在容器内 ls，不能在宿主机 ls。
+# $JAR_PATH is a path inside the container, so ls must run via docker exec, not on the host.
+JAR_LS=$(master "docker exec jobmanager ls -l $JAR_PATH" 2>&1 || true)
 echo "  $JAR_LS"
 
 # 列出 jar 条目：容器内不保证有 unzip/jar/python，按序尝试 / list entries: try unzip → jar → python3
