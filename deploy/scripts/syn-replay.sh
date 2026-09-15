@@ -29,7 +29,7 @@
 #      bash deploy/scripts/syn-replay.sh stop       # 停止重放（停容器 + 杀 tmux 会话）
 #      bash deploy/scripts/syn-replay.sh fg --dry-run   # 前台阻塞运行（供快速 dry-run；断连即止）
 # 3. 前置条件 / Preconditions: M1Job 已 RUNNING（先提交作业再重放）；synergia-source 已建（8 分区）；
-#    数据集在 ${SYN_DATASET_DIR}；fa-iforest/flink:${FLINK_VERSION} 镜像在 master。
+#    数据集在 ${SYN_DATASET_DIR}；Java 11 镜像 ${FLINK_IMAGE_TAG} 已在 master（由 syn-sync-flink-image.sh 分发）。
 # 4. 期望产出 / Expected output: 消息落 synergia-source（显式分区）；进度与空闲压缩审计日志同时
 #    写入 master 的 ${REMOTE_HOME}/syn-replay.log（容器被 --rm 清理后仍可回看结果摘要）。
 # 5. 失败兜底 / Failure fallback: tmux 会话在 Mac 断连后仍继续；--resume 从 offset 续跑；
@@ -75,6 +75,16 @@ case "${1:-}" in
 esac
 REPLAY_ARGS="$*"
 
+# 运行本项目 jar 的临时容器必须用 Java 11 镜像 FLINK_IMAGE_TAG。本项目 jar 自 Addendum 2 起是 Java 11
+# 字节码（class file major 55），而旧的 fa-iforest/flink:$FLINK_VERSION 自带 JDK 8、只认到 major 52，
+# 会以 UnsupportedClassVersionError 直接启动失败。旧项目 FA-iForest 的 jar 仍是 Java 8 字节码，其脚本
+# （5-load-data.sh）继续用旧镜像，两者互不影响，这正是共存要求。
+# The throwaway container that runs THIS project's jar must use the Java 11 FLINK_IMAGE_TAG: the jar is
+# Java 11 bytecode (major 55) since Addendum 2, while fa-iforest/flink:$FLINK_VERSION ships JDK 8 (major 52
+# max) and fails outright with UnsupportedClassVersionError. The old FA-iForest jar is still Java 8, so its
+# own script (5-load-data.sh) keeps the old image — that separation is the coexistence requirement.
+RUN_IMAGE="${FLINK_IMAGE_TAG:-fa-iforest/flink:${FLINK_VERSION}}"
+
 # 组装重放器命令（供 start/fg 共用）/ assemble the replayer command (shared by start/fg)
 replayer_docker_cmd() {
     local name_flag="$1"   # 容器名标志或空 / --name flag or empty
@@ -82,7 +92,7 @@ replayer_docker_cmd() {
         -v ${REMOTE_HOME}/jars:/jars:ro \
         -v $DATASET_DIR:/data:ro \
         -v $REPLAY_STATE_DIR:/state \
-        fa-iforest/flink:${FLINK_VERSION} \
+        $RUN_IMAGE \
         java -cp /jars/$JAR_NAME $MAIN \
             --data-dir /data \
             --offset-file /state/.replayer.offset \

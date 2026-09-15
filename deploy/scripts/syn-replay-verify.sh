@@ -89,10 +89,20 @@ else
     echo "         断言一将判为'无参照'、脚本以退出码 3 结束。请补 EDA 三月逐日轮数合计后重跑。" >&2
 fi
 
+# 运行本项目 jar 的临时容器必须用 Java 11 镜像 FLINK_IMAGE_TAG。本项目 jar 自 Addendum 2 起是 Java 11
+# 字节码（class file major 55），而旧的 fa-iforest/flink:$FLINK_VERSION 自带 JDK 8、只认到 major 52，
+# 会以 UnsupportedClassVersionError 直接启动失败。旧项目 FA-iForest 的 jar 仍是 Java 8 字节码，其脚本
+# （5-load-data.sh）继续用旧镜像，两者互不影响，这正是共存要求。
+# The throwaway container that runs THIS project's jar must use the Java 11 FLINK_IMAGE_TAG: the jar is
+# Java 11 bytecode (major 55) since Addendum 2, while fa-iforest/flink:$FLINK_VERSION ships JDK 8 (major 52
+# max) and fails outright with UnsupportedClassVersionError. The old FA-iForest jar is still Java 8, so its
+# own script (5-load-data.sh) keeps the old image — that separation is the coexistence requirement.
+RUN_IMAGE="${FLINK_IMAGE_TAG:-fa-iforest/flink:${FLINK_VERSION}}"
+
 # 在临时容器里跑核验；容器/ssh 的退出码即断言门槛（0 全过 / 1 有失败 / 3 无 EDA 参照）。
 on_master "docker run --rm --user root \
     -v ${REMOTE_HOME}/jars:/jars:ro -v $WORK:/work \
-    fa-iforest/flink:${FLINK_VERSION} \
+    $RUN_IMAGE \
     java -cp /jars/$JAR_NAME com.leejean.m2.ReplayVerify \
         --rounds-jsonl /work/m1out.jsonl \
         --start-utc $START_UTC --end-utc $END_UTC \
