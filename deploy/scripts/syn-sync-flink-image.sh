@@ -17,6 +17,11 @@
 #      bash deploy/scripts/0-prepare-local.sh          # 先构建 jar + java11 镜像 tar
 #      bash deploy/scripts/syn-sync-flink-image.sh     # 再分发镜像+compose+.env 并 docker load
 #      bash deploy/scripts/2-up-all.sh                 # 最后仅重建变更了的 flink 容器（jobmanager/taskmanager）
+#    仅改了 .env 或 compose（例如调整 JavaCPP 上限）时，镜像并未变化，加 --config-only 跳过 642MB 镜像
+#    tar 的传输与 docker load，只下发 .env + 两个 compose：
+#      bash deploy/scripts/syn-sync-flink-image.sh --config-only && bash deploy/scripts/2-up-all.sh
+#    When only .env/compose changed (e.g. tuning the JavaCPP ceilings) the image is unchanged; --config-only
+#    ships just .env + the two compose files, skipping the 642MB tar transfer and docker load.
 # 3. 前置条件 / Preconditions: deploy/.env 填好节点 IP/SSH_KEY 与 FLINK_IMAGE_TAG；.build/ 下有镜像 tar。
 # 4. 期望产出 / Expected output: 三节点 $REMOTE_HOME 下有最新 .env 与 compose，镜像已 docker load；
 #    旧 Java 8 镜像 fa-iforest/flink:1.13.6 保留不动。
@@ -31,12 +36,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(dirname "$SCRIPT_DIR")"
 set -a; source "$DEPLOY_DIR/.env"; set +a
 
+# --config-only：只下发配置，不传镜像 tar、不 docker load / ship config only, no image tar, no docker load
+CONFIG_ONLY=false
+[ "${1:-}" = "--config-only" ] && CONFIG_ONLY=true
+
 BUILD_DIR="$DEPLOY_DIR/.build"
 IMAGE_TAR="$BUILD_DIR/fa-iforest-flink.tar"
 SSH_OPTS="-i ${SSH_KEY:-} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
 # 镜像 tar 必须已由 0-prepare-local.sh 生成 / the image tar must exist (built by 0-prepare-local.sh)
-if [[ ! -f "$IMAGE_TAR" ]]; then
+if [[ "$CONFIG_ONLY" == false && ! -f "$IMAGE_TAR" ]]; then
     echo "ERROR: 找不到镜像 tar：$IMAGE_TAR" >&2
     echo "  请先运行：bash deploy/scripts/0-prepare-local.sh / run 0-prepare-local.sh first." >&2
     exit 1
@@ -50,7 +59,11 @@ WORKER2_SSH=$(resolve_ssh_host "$NODE_WORKER2_IP" "${NODE_WORKER2_PUBLIC_IP:-}")
 
 echo "===================================================================="
 echo "syn-sync-flink-image.sh — 分发镜像+compose+.env（不含任何 jar）/ image+config only, no jar"
-echo "  image tar: $IMAGE_TAR"
+if [[ "$CONFIG_ONLY" == true ]]; then
+    echo "  模式 / mode: --config-only（只发 .env 与两个 compose / .env + compose files only）"
+else
+    echo "  image tar: $IMAGE_TAR"
+fi
 echo "  FLINK_IMAGE_TAG=${FLINK_IMAGE_TAG:-<未设置/unset>}"
 echo "===================================================================="
 
@@ -62,6 +75,10 @@ sync_one() {
     rsync -az -e "ssh $SSH_OPTS" "$DEPLOY_DIR/.env"                                "$SSH_USER@$host:$REMOTE_HOME/.env"
     rsync -az -e "ssh $SSH_OPTS" "$DEPLOY_DIR/compose/docker-compose.master.yml"  "$SSH_USER@$host:$REMOTE_HOME/compose/"
     rsync -az -e "ssh $SSH_OPTS" "$DEPLOY_DIR/compose/docker-compose.worker.yml"  "$SSH_USER@$host:$REMOTE_HOME/compose/"
+    if [[ "$CONFIG_ONLY" == true ]]; then
+        echo "  [config-only] 跳过镜像 tar 与 docker load / image tar and docker load skipped"
+        return
+    fi
     rsync -azP -e "ssh $SSH_OPTS" "$IMAGE_TAR"                                     "$SSH_USER@$host:$REMOTE_HOME/fa-iforest-flink.tar"
     echo "  [load image @ $host]"
     ssh $SSH_OPTS "$SSH_USER@$host" "docker load -i $REMOTE_HOME/fa-iforest-flink.tar"

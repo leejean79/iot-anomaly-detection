@@ -248,8 +248,26 @@ if [ -n "$REPORTS" ]; then
     # 点1：JavaCPP 上限已显式设界（非默认取 JVM 最大堆）/ JavaCPP ceilings explicitly bounded
     if echo "$REPORTS" | grep -q "D.maxphysicalbytes=null"; then
         PASS_OFFHEAP="FAIL"; echo "  [Point 1][FAIL] D.maxphysicalbytes=null — TM JVM opts not applied; restart TM after compose change."
+    # TM 实际生效的上限必须与本机 .env 一致。容器不重建时 JVM 仍带旧的 -D 参数，而这里本来只检查"是否显式
+    # 设置"，旧值同样能通过，结果一轮轮改配置却看不出没生效。显式比对可把"配置未下发/容器未重建"直接点名。
+    # The TM's effective ceiling must match the local .env. Without recreating the container the JVM keeps the
+    # old -D value, which the "is it set at all" check happily passes — hiding a stale container across runs.
+    elif [ -n "${SYN_JAVACPP_MAXPHYSICALBYTES:-}" ] \
+         && ! echo "$REPORTS" | grep -q "D.maxphysicalbytes=$SYN_JAVACPP_MAXPHYSICALBYTES"; then
+        PASS_OFFHEAP="FAIL"
+        echo "  [Point 1][FAIL] TM 生效值与 .env 不一致：.env 要求 D.maxphysicalbytes=$SYN_JAVACPP_MAXPHYSICALBYTES，"
+        echo "                  但报告里是上面那个旧值 —— 说明 compose/.env 未下发到节点，或 TaskManager 容器未重建。"
+        echo "                  修复：bash $SCRIPT_DIR/syn-sync-flink-image.sh --config-only && bash $SCRIPT_DIR/2-up-all.sh"
+        echo "  [Point 1][FAIL] TM effective value differs from .env — config not shipped, or TM not recreated."
     else
         PASS_OFFHEAP="PASS"; echo "  [Point 1] JavaCPP maxbytes/maxphysicalbytes explicitly set (see report); off-heap bounded."
+    fi
+    # jar 新鲜度：新版报告含 javacpp.physicalBytes；缺失说明集群上仍是旧 jar，未执行 syn-upload-m1.sh --jar-only。
+    # Jar freshness: the current report includes javacpp.physicalBytes; its absence means a stale jar on the cluster.
+    if ! echo "$REPORTS" | grep -q "javacpp.physicalBytes="; then
+        echo "  [Jar][WARN] 报告缺少 javacpp.physicalBytes 字段 —— 集群上的 jar 是旧版本。"
+        echo "              修复：mvn clean package -DskipTests && bash $SCRIPT_DIR/syn-upload-m1.sh --jar-only"
+        echo "  [Jar][WARN] report lacks javacpp.physicalBytes — the jar on the cluster is stale."
     fi
 else
     echo "  [WARN] 未消费到报告（作业可能未跑到 sink 或 topic 为空）。查 TM 日志中 '[M3-CLUSTER-SMOKE]' 行。"
