@@ -174,7 +174,19 @@ public class M3ClusterSmoke {
             double[][] recon = ae.reconstruct(windows[0]);
             nd4jOk = recon.length == 10 && recon[0].length == 5;
         } catch (Throwable t) {
-            nd4jErr = t.getClass().getName() + ": " + t.getMessage();
+            // 抓取完整根因链：ExceptionInInitializerError 的 message 为 null，真因在 getCause() 里，
+            // 逐层记录类名/消息/首个栈帧；并把完整堆栈打到 TM 日志便于定位。
+            // Capture the full cause chain: ExceptionInInitializerError's message is null and the real
+            // cause is in getCause(); record each level (class/message/top frame) and log the full trace.
+            StringBuilder eb = new StringBuilder();
+            java.util.Set<Throwable> seen = new java.util.HashSet<>();
+            for (Throwable c = t; c != null && seen.add(c); c = c.getCause()) {
+                eb.append(c.getClass().getName()).append(':').append(String.valueOf(c.getMessage()));
+                if (c.getStackTrace().length > 0) eb.append("@").append(c.getStackTrace()[0].toString());
+                eb.append(" <== ");
+            }
+            nd4jErr = eb.toString();
+            LOG.error("{} ND4J init failed (full trace)", MARKER, t);
         }
         sb.append("nd4j_native_ok=").append(nd4jOk).append('\n');
         if (nd4jErr != null) {
