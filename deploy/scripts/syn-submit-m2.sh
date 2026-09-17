@@ -9,6 +9,8 @@
 # 2. 调用命令 / Invocation:
 #      bash deploy/scripts/syn-submit-m2.sh                              # 用 .env 里的 W/S/R/k 占位默认
 #      bash deploy/scripts/syn-submit-m2.sh --extra '--mcod-r 1.5 --mcod-k 20'
+#      bash deploy/scripts/syn-submit-m2.sh --extra '--m3-enabled false'   # M2 基线运行（关闭 M3 转发）
+#      bash deploy/scripts/syn-submit-m2.sh --force                        # 跳过隔离预检（确需并行）
 # 3. 前置条件 / Preconditions: synergia-source(8 分区)/-scores/-monitoring 已建；jar 在
 #      <REMOTE_HOME>/jars/${SYN_JOB_JAR_NAME}；**M1Job 与 M2Job 不可同时运行**（都消费 synergia-source）。
 # 4. 期望产出 / Expected output: 打印 JobID 并轮询至 RUNNING；作业读 synergia-source，写 synergia-scores
@@ -25,10 +27,12 @@ set -a; source "$DEPLOY_DIR/.env"; set +a
 
 EXTRA_ARGS=""
 START_OFFSET="earliest"
+FORCE=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --extra) EXTRA_ARGS="$2"; shift 2 ;;
         --start-offset) START_OFFSET="$2"; shift 2 ;;
+        --force) FORCE=1; shift ;;   # 跳过隔离预检（确需并行时）/ skip the isolation preflight
         *) echo "Unknown arg: $1" >&2; exit 1 ;;
     esac
 done
@@ -63,7 +67,30 @@ echo "[preflight] topic '$SRC_TOPIC' 分区数 = $ACTUAL_PARTS OK"
 
 echo "===================================="
 echo "[submit] M2Job  main=$MAIN  p=$PARALLELISM  W=${WINDOW_SEC}s S=${SLIDE_SEC}s R=$MCOD_R k=$MCOD_K  start=$START_OFFSET"
-echo "  提醒 / reminder：确认没有 M1Job 在跑（二者都消费 synergia-source，不可并存）。"
+echo "===================================="
+
+# 隔离预检：与 syn-submit-m1.sh 对称的硬性拦截。此前这里只有一句提醒、不拦截，导致「先提交 M1Job
+# 再提交 M2Job」两个作业都能起来——而 M2Job 本身就含完整 M1 管线，二者并行会双写 synergia-m1-out
+# 与 synergia-monitoring 造成重复轮，且要等整轮重放跑完、核验断言（b）FAIL 才暴露，代价是一整轮作废。
+# Isolation preflight, symmetric with syn-submit-m1.sh. This used to be a printed reminder only, so
+# submitting M1Job and then M2Job started both — and M2Job already contains the full M1 chain, so the
+# two double-write synergia-m1-out and synergia-monitoring. The duplicates only surface when integrity
+# assertion (b) fails after the whole replay, costing the entire run.
+if [ "$FORCE" -ne 1 ]; then
+    RUNNING=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "docker exec jobmanager flink list 2>/dev/null" \
+        | grep -E '\(RUNNING\)' | grep -Ei 'M1Job|M2Job' || true)
+    if [ -n "$RUNNING" ]; then
+        echo "ERROR: 已有 M1/M2 作业在运行。M2Job 本身包含完整 M1 管线，二者并行会双写" >&2
+        echo "       synergia-m1-out / synergia-monitoring 造成重复轮：" >&2
+        echo "$RUNNING" | sed 's/^/       /' >&2
+        echo "       先取消我们自己的那个作业（flink cancel <JobID>），再提交；确需并行用 --force。" >&2
+        echo "       注意：旧项目 FA-iForest 的作业不在此列，绝不可取消。" >&2
+        echo "ERROR: an M1/M2 job is already running; M2Job contains the M1 chain, so the two would" >&2
+        echo "       double-write m1-out. Cancel ours first, or pass --force." >&2
+        exit 3
+    fi
+    echo "[preflight] 无并行的 M1/M2 作业 OK / no competing M1/M2 job"
+fi
 echo "===================================="
 submit_output=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "
     docker exec jobmanager flink run -d \

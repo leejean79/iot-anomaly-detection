@@ -56,7 +56,9 @@ was run and every `synergia-*` topic reported a zero end offset. No Java 8 check
 
 ## 2. Replay
 
-Jobs submitted before the replayer started. Job ids: M1Job `<jid>`, M2Job `<jid>`.
+The joint `M2Job` was submitted before the replayer started, and it was the **only** job running:
+it already contains the full M1 chain, so `M1Job` must not run alongside it (both consume
+`synergia-source` and both write `synergia-m1-out`). Job id: `<jid>`.
 
 The replayer ran in a detached `tmux` session. `--max-idle-wall` was **not** passed, so the default
 2000 ms applied — the runbook's literal `--max-idle-wall 2` would have meant 2 **milliseconds**,
@@ -136,7 +138,7 @@ and what you observe>`.
 | `m2_state_cold_clears` | |
 | Overall ratio (point-weighted) | |
 
-### 4.3 M1 counters — the Java 11 M1 baseline for a full month, as a by-product
+### 4.3 M1 counters — emitted by the M1 segment inside the joint M2Job; the Java 11 M1 baseline for a full month, as a by-product
 
 | Counter | Value |
 |---|---|

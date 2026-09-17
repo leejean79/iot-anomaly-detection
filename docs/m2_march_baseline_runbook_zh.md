@@ -96,16 +96,25 @@ JDK 绕过（Addendum 2 §7），切换 `JAVA_HOME` 后重试。`/jobs` 若有 R
 
 ## 3. 阶段二：先提交作业，再开始重放
 
-**顺序不可颠倒**：必须先让两个作业 RUNNING，再启动重放器，否则早期消息会在无人消费的状态下堆积，
-并使 M1 的 `earliest` 起始点与重放起点错位。
+**只提交 `M2Job` 一个作业。** `M2Job` 是**联合作业**，它自身就包含完整的 M1 管线
+（`RawLineParser → RoundAssembler → RobustScaler → RawCache`），在同一作业内算子链接续、不经 Kafka
+中转。`M1Job` 与 `M2Job` **不可同时运行**——二者都消费 `synergia-source`，都写 `synergia-m1-out`
+与 `synergia-monitoring`，并行会产生重复轮，正是完整性断言 (b)「零重复」要抓的故障。报告 §4.3 需要的
+M1 计数器就在 `M2Job` 内部产生，无需另起 `M1Job`。
+The joint M2Job already contains the whole M1 chain; M1Job and M2Job must never run together.
+
+**顺序不可颠倒**：必须先让作业 RUNNING，再启动重放器，否则早期消息会在无人消费的状态下堆积，
+并使 `earliest` 起始点与重放起点错位。
 
 ```bash
-# 2.1 提交 M1
-bash deploy/scripts/syn-submit-m1.sh
-# 2.2 提交 M2（关键：关闭 M3）
+# 2.1 确认没有任何 M1Job/M2Job 在跑（本项目的作业；旧项目 FA-iForest 的作业不得触碰）
+ssh -i "$SSH_KEY" root@"$NODE_MASTER_PUBLIC_IP" \
+    "docker exec jobmanager flink list" | grep -Ei 'M1Job|M2Job' || echo "  无本项目作业在跑，可继续"
+
+# 2.2 提交联合作业（关键：关闭 M3）。不要另外提交 M1Job。
 bash deploy/scripts/syn-submit-m2.sh --extra '--m3-enabled false'
 
-# 2.3 等两个作业 RUNNING，记录两个 job id
+# 2.3 等作业 RUNNING，记录 job id
 curl -s "http://$NODE_MASTER_PUBLIC_IP:8081/jobs/overview" | python3 -m json.tool | grep -E '"jid"|"name"|"state"'
 
 # 2.4 启动重放（tmux 常驻，本机断连不影响；不传 --max-idle-wall，沿用 2000 毫秒）
@@ -115,8 +124,10 @@ bash deploy/scripts/syn-replay.sh --speedup 3600 --start 2022-03-01 --end 2022-0
 bash deploy/scripts/syn-replay.sh logs
 ```
 
-**期望产出**：`/jobs/overview` 显示两个 RUNNING 作业；重放器最终打印 `Finished.` 汇总块与
-`rc=0`。加速 3600 倍下墙钟耗时约 20 到 60 分钟。
+**期望产出**：`/jobs/overview` 显示**恰好一个** RUNNING 作业，名为
+`M2Job - M1 ingestion/normalization + pMCOD + LSTM-AE contextual anomaly detection`；重放器最终
+打印 `Finished.` 汇总块与 `rc=0`。加速 3600 倍下墙钟耗时约 20 到 60 分钟。
+若看到两个本项目作业同时 RUNNING，**立即停止重放并取消多余的那个**，否则整轮会因重复轮作废。
 
 **必须记录的重放器汇总行**：`Produced (sent)`、`Send errors`、`Skipped malformed lines`、
 `Data files (csv/sniffed)`、`Unknown-device records`、`File read errors`、`Idle-compression events`、
