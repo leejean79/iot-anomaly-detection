@@ -140,6 +140,36 @@ def mean(xs):
     return sum(xs) / len(xs) if xs else 0.0
 
 
+def check_window_geometry(rows, window_sec, period_sec):
+    """由每窗平均点数反推作业实际生效的窗口长度，与期望值比对。
+
+    一个满窗应含 window_sec / period_sec 个轮。若实测点数系统性偏离，说明作业运行时的
+    `--window-sec` 与期望不符——这种错配会整体改变邻居密度、进而改变离群率，使逐设备比对
+    全面失真，且从离群率本身看不出原因。三月全月基线首跑即栽在这里（作业实际跑的是 1800 秒），
+    故把它做成显式检查而不是靠事后推算。
+    Infer the job's effective window from the mean points per window: a full window holds
+    window_sec / period_sec rounds. A systematic shortfall means the job ran with a different
+    --window-sec, which changes neighbour density and hence every device's outlier rate, while
+    looking like a plain algorithmic deviation. The first full-March baseline run hit exactly this.
+    """
+    expected = window_sec / period_sec
+    obs = mean([r["points"] / r["slides"] for r in rows if r["slides"]])
+    if not obs:
+        return None
+    eff = obs * period_sec
+    off = abs(obs - expected) / expected
+    if off <= 0.05:
+        return None
+    return (
+        "  [WARN] 窗口几何异常：每窗平均 %.1f 点，而 --window-sec %d / --period-sec %d 应为 %.0f 点。\n"
+        "         反推作业实际生效的窗口长度 ≈ %.0f 秒。窗口长度不符会整体改变邻居密度、\n"
+        "         进而抬高或压低所有设备的离群率，使下面的逐设备比对不可用。\n"
+        "         先核对 .env 的 SYN_M2_WINDOW_SEC 与提交作业时打印的 W= 值，改正后重跑作业。\n"
+        "  [WARN] Effective window ~%.0fs, not %ds — every device's rate is affected; check\n"
+        "         SYN_M2_WINDOW_SEC and the W= value printed at submit time before reading the table."
+        % (obs, window_sec, period_sec, expected, eff, eff, window_sec))
+
+
 def build_svg(rows, path):
     """逐设备平均离群率：Java 8 与 Java 11 并排（runbook 第 6 节要求的那张图）。
     Per-device mean outlier rate, Java 8 beside Java 11 (the figure section 6 asks for)."""
@@ -184,6 +214,10 @@ def main():
     ap.add_argument("--java8-probe", default="docs/m2_probe_7d_clean.csv")
     ap.add_argument("--r-per-device", default=os.environ.get("SYN_M2_R_PER_DEVICE", DEFAULT_R))
     ap.add_argument("--tol-rel", type=float, default=1.0, help="相对容差（%%）/ relative tolerance in percent")
+    # 期望的窗口几何：用于反推作业实际生效的窗口长度（见 check_window_geometry）
+    # Expected window geometry, used to infer the job's effective window length.
+    ap.add_argument("--window-sec", type=int, default=3600)
+    ap.add_argument("--period-sec", type=int, default=10)
     ap.add_argument("--no-compare", action="store_true")
     ap.add_argument("--out-csv"); ap.add_argument("--out-md"); ap.add_argument("--out-svg")
     a = ap.parse_args()
@@ -216,6 +250,11 @@ def main():
             "rate8": ref.get(dev, {}).get("rate"),
             "slides8": ref.get(dev, {}).get("slides"),
         })
+
+    geom = check_window_geometry(rows, a.window_sec, a.period_sec)
+    if geom:
+        print()
+        print(geom)
 
     med = sorted(r["slides"] for r in rows)[len(rows) // 2] if rows else 0
     fail = []
@@ -279,6 +318,9 @@ def main():
         return 0
     if fail:
         print("\n[FAIL] 以下设备超出 %.1f%% 相对容差：%s" % (a.tol_rel, ", ".join(r["device"] for r in fail)))
+        if geom:
+            print("       注意：上方已报窗口几何异常——八台设备同向偏差多半由此而来，"
+                  "应先改正窗口长度再谈算法层比对。")
         print("       按 runbook 第 5 节：**不要调参**。先查清是探针与作业的机制差异（窗口边界、标定切换时刻），")
         print("       还是真实偏差；无法用机制差异解释的偏差是需要上报设计会话的发现。")
         print("[FAIL] Do not tune. Identify the probe-versus-job mechanism first; an unexplained deviation is a finding.")
