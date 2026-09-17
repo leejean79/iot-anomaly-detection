@@ -101,7 +101,24 @@ def load_snapshots(path):
 
 def load_java8(path, r_map):
     """从 Java 8 探针 CSV 取每设备在其终值半径、k=10 处的 meanOutlierRate。
-    Pick each device's meanOutlierRate at its final radius (k = 10) from the Java 8 probe CSV."""
+    Pick each device's meanOutlierRate at its final radius (k = 10) from the Java 8 probe CSV.
+
+    该文件是纳入版本管理的验收交付物（提交 2fa8d10）。缺失通常是本地工作副本的问题，不是仓库没有，
+    因此这里给出可操作的恢复指令，而不是抛出原始回溯。
+    The file is a tracked acceptance deliverable; a miss is a local working-copy problem, so give the
+    operator a recovery command instead of a raw traceback."""
+    if not os.path.isfile(path):
+        raise SystemExit(
+            "ERROR: 找不到 Java 8 参照表：%s\n"
+            "  该文件是被版本管理跟踪的验收交付物，缺失通常是本地工作副本的问题。恢复方式：\n"
+            "      git checkout -- %s          # 本地被删\n"
+            "      git pull origin dev-claude  # 分支落后\n"
+            "  恢复后可复用已有转储重跑，无需重新转储：\n"
+            "      bash deploy/scripts/syn-m2-baseline.sh --tag <tag> --reuse-dump\n"
+            "  若只想先看聚合结果、暂不比对，可加 --no-compare。\n"
+            "ERROR: Java 8 reference table not found: %s (tracked file; restore it with git checkout,\n"
+            "  then re-run with --reuse-dump, or pass --no-compare to skip the comparison)."
+            % (path, path, path))
     ref = {}
     with open(path, "r", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
@@ -111,6 +128,11 @@ def load_java8(path, r_map):
             if abs(float(row["R"]) - r_map[dev]) > 1e-9 or int(float(row["k"])) != 10:
                 continue
             ref[dev] = {"rate": float(row["meanOutlierRate"]), "slides": int(float(row["slides"]))}
+    missing = [d for d in r_map if d not in ref]
+    if missing:
+        # 参照表存在但缺某设备在其终值半径处的行：点名，不静默少比 / name them, never silently skip
+        print("  [WARN] 参照表 %s 缺少以下设备在其终值半径、k=10 处的行：%s" % (path, ", ".join(missing)))
+        print("         这些设备将只报实测值、不做等值核验。请核对 --r-per-device 与参照表是否同一轮标定。")
     return ref
 
 
@@ -261,7 +283,22 @@ def main():
         print("       还是真实偏差；无法用机制差异解释的偏差是需要上报设计会话的发现。")
         print("[FAIL] Do not tune. Identify the probe-versus-job mechanism first; an unexplained deviation is a finding.")
         return 1
-    print("\n[PASS] 全部设备在 %.1f%% 相对容差内 —— 与 Java 8 探针等值。" % a.tol_rel)
+    # 结论必须写明实际比对了几台，绝不能把"没比"说成"等值"。
+    # The verdict must say how many were actually compared; never report "equal" for a device not compared.
+    compared = [r for r in rows if r["rate8"] is not None]
+    skipped = [r["device"] for r in rows if r["rate8"] is None]
+    if not compared:
+        print("\n[FAIL] 没有任何设备完成比对（参照表缺少全部设备的对应行）——不能据此下等值结论。")
+        print("[FAIL] No device was compared; the reference table matched none of them.")
+        return 1
+    print("\n[PASS] 已比对的 %d 台设备全部在 %.1f%% 相对容差内 —— 与 Java 8 探针等值。"
+          % (len(compared), a.tol_rel))
+    if skipped:
+        print("[PART] 但以下设备**未参与比对**（参照表无对应行），其等值性尚未验证：%s"
+              % ", ".join(skipped))
+        print("[PART] These devices were NOT compared and their equality is unverified: %s"
+              % ", ".join(skipped))
+        return 1
     return 0
 
 
