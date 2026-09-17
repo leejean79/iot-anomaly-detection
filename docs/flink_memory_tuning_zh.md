@@ -221,6 +221,53 @@ checkpoint 的对齐时间。
 观察指标是 **checkpoint 时长**而非失败率。三月那次是**失败**，这里的风险是**变慢**，两者的排查
 路径不同：前者查状态大小与存储上限，后者查 `heapUsed` 与 GC 日志。
 
+### 3.6 checkpoint 还有第二道上限：`akka.framesize`
+
+三月那次事故把单子任务状态上限从 5 MB 提到了 128 MB，但这**不是唯一的闸**。内存型 checkpoint 的
+状态要经由 Akka 远程调用（RPC）从 TaskManager 送到 JobManager，而这条 RPC 有自己的大小上限
+`akka.framesize`，**默认 10 MB**，我们从未调过。
+
+两个上限互相独立：
+
+| 上限 | 默认 / 本项目 | 管什么 |
+|---|---|---|
+| `--checkpoint-max-state-mb` | 5 MB / **128 MB** | 单子任务状态**允许多大** |
+| `akka.framesize` | **10 MB** / 未改 | 这份状态**能否经 RPC 送到 JobManager** |
+
+状态即便在 128 MB 之内，只要单条 acknowledge RPC 超过 10 MB 就会失败。实测报错形态：
+
+```
+RoundAssembler (3/8) - asynchronous part of checkpoint 28 could not be completed.
+Caused by: java.io.IOException: The rpc invocation size 24235046 exceeds the maximum akka framesize.
+```
+
+24,235,046 字节 = 23.1 MB，是 10 MB 的 2.3 倍。后果与三月那次一样：checkpoint 失败 → 作业重启。
+更严重的是，本集群的 JobManager 堆只有 448 MB（`JM_HEAP_MB=1024` 切分后），八个子任务各约 23 MB、
+一次 checkpoint 合计约 185 MB，最终 JobManager 自身也重启了——而集群**未配置 JobManager 高可用**，
+重启会让其上所有作业消失，**包括共存的旧项目 FA-iForest 的作业**。
+
+因此核算 checkpoint 预算时，三个数要一起看：单子任务状态上限、`akka.framesize`、JobManager 堆。
+
+### 3.7 全速消费与节流重放：同一作业，状态规模差一个量级
+
+这一条是上一节那次失败的**起因**，值得单独记。
+
+同样一份数据、同样的作业，从 Kafka **全速追赶消费**与用 `--speedup 3600` **节流重放**，
+checkpoint 状态规模完全不同：
+
+| 方式 | `RoundAssembler` 单子任务 checkpoint 状态 | 结果 |
+|---|---|---|
+| 节流重放（`--speedup 3600`） | 远小于 10 MB | checkpoint 全绿 |
+| 全速消费（无节流） | **23.1 MB** | 超 `akka.framesize`，作业与 JobManager 双双重启 |
+
+机制是：八个 Kafka 分区被全速读取时推进速度不一致，而 Flink 的水位线取各分区最小值，跑得快的
+分区的轮会一直"开着"等水位线推进，`RoundAssembler` 的未闭轮缓冲随之膨胀。节流重放时各分区推进
+同步，轮能及时闭合，缓冲就小得多。
+
+**容易踩的误区**：消费速度确实**不改变**事件时间的窗口语义——水位线取自消息自带的事件时间戳，
+与读取速度无关。但它**大幅改变状态规模**。只用前半句去论证"可以免去重放、直接重新消费"，
+就会漏掉后半句，正是本项目踩过的坑。
+
 ---
 
 ## 四、监控与调优参考流程
@@ -297,6 +344,8 @@ bash deploy/scripts/syn-m2-metrics.sh
 | `physicalBytes > maxPhysicalBytes` 但 `totalBytes = 0` | 进程级上限按堆外预算取值了 | 改按 `process.size` 取值 |
 | checkpoint 失败 → 作业重启 → 输出重复 | 单子任务状态越过存储上限（内存型默认 5 MB） | 调大 `--checkpoint-max-state-mb`，或改用文件系统存储 |
 | checkpoint 不失败但耗时变长 | 堆压力上升导致 GC 停顿变长，对齐变慢 | 看 `heapUsed` 与 GC 日志，而非状态大小 |
+| checkpoint 失败，日志含 `exceeds the maximum akka framesize` | 状态虽在 `checkpoint-max-state-mb` 之内，但单条 acknowledge RPC 超过 `akka.framesize`（默认 10 MB） | 两个上限独立，需一并核算；优先减小状态而非调大 framesize（后者是集群级配置，会影响共存的旧项目） |
+| 改用全速消费代替节流重放后 checkpoint 开始失败 | 分区推进不同步使未闭轮缓冲膨胀，状态规模涨一个量级 | 恢复节流重放；消费速度不改变窗口语义，但**改变状态规模** |
 | 调了配置但读回来仍是旧值 | 配置未下发到节点，或容器未重建 | 下发配置后 `up -d` 重建容器，再复测 |
 | 调大 managed 后张量库仍报内存不足 | managed 只服务 RocksDB，与原生库无关 | 改调 `task.off-heap.size` 与 JavaCPP 上限 |
 | 原生库找不到（`UnsatisfiedLinkError`） | 原生依赖的分类器由构建主机决定，跨平台构建时解析错了 | 在 `pom.xml` 中显式声明 `linux-x86_64` 分类器 |
@@ -321,7 +370,8 @@ bash deploy/scripts/syn-m2-metrics.sh
 | `org.bytedeco.javacpp.maxphysicalbytes` | 3584 MB | `SYN_JAVACPP_MAXPHYSICALBYTES` |
 | `org.bytedeco.javacpp.cachedir` | `/tmp/javacpp-cache` | `SYN_JAVACPP_CACHEDIR` |
 | checkpoint 单子任务状态上限 | 128 MB | `--checkpoint-max-state-mb`（作业默认） |
-| `jobmanager.memory.process.size` | 1600 MB | `docker-compose.master.yml` |
+| `jobmanager.memory.process.size` | 1024 MB（堆 448 MB） | `JM_HEAP_MB`（`.env`） |
+| `akka.framesize` | 未设置，取默认 10 MB | 集群级；改动会影响共存的旧项目 |
 
 三个 `SYN_JAVACPP_*` 与两个 `SYN_TM_*` 由 `deploy/compose/docker-compose.worker.yml` 读取，
 **改后必须重建 TaskManager 容器才生效**（它们是 JVM 启动参数，替换 jar 不会改变已运行 JVM 的上限）。

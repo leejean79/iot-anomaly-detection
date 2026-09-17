@@ -111,13 +111,25 @@ The joint M2Job already contains the whole M1 chain; M1Job and M2Job must never 
 ssh -i "$SSH_KEY" root@"$NODE_MASTER_PUBLIC_IP" \
     "docker exec jobmanager flink list" | grep -Ei 'M1Job|M2Job' || echo "  无本项目作业在跑，可继续"
 
-# 2.2 提交联合作业（关键：关闭 M3）。不要另外提交 M1Job。
-bash deploy/scripts/syn-submit-m2.sh --extra '--m3-enabled false'
+# 2.2 提交联合作业（关键：关闭 M3），并显式带上窗口长度
+#     显式传 --window-sec 3600 可覆盖 .env，杜绝配置漂移；提交后必须核对下面两行。
+bash deploy/scripts/syn-submit-m2.sh --extra '--m3-enabled false --window-sec 3600' 2>&1 | tee /tmp/submit.log
+grep -E 'W=|Window W/S' /tmp/submit.log
+#     必须同时看到  W=3600s  与  Window W/S:      3600s / 60s
+#     【首跑教训】第一次全月基线作废，正是因为作业实际跑的是 1800 秒窗口。窗口减半 → 每窗点数
+#     减半 → 半径内邻居密度减半 → 八台设备离群率同向抬高 92%~272%，而这一点从离群率本身看不出
+#     原因，要等一小时重放跑完、再从 m2_points_total/admitted 反推才能定位。此处一分钟的核对
+#     可以省掉那一小时。
 
 # 2.3 等作业 RUNNING，记录 job id
 curl -s "http://$NODE_MASTER_PUBLIC_IP:8081/jobs/overview" | python3 -m json.tool | grep -E '"jid"|"name"|"state"'
 
 # 2.4 启动重放（tmux 常驻，本机断连不影响；不传 --max-idle-wall，沿用 2000 毫秒）
+#     【不可省】--speedup 3600 的节流是必须的。曾尝试"源 topic 数据还在，直接重新消费、免去重放"
+#     这条捷径，结果全速追赶时八个分区推进不同步，RoundAssembler 的未闭轮缓冲涨到 23.1 MB，
+#     超过 akka.framesize 默认的 10 MB，checkpoint 连续失败并最终把共享的 JobManager 也拖重启
+#     （集群无 JM 高可用，重启会让旧项目 FA-iForest 的作业一并消失）。详见
+#     docs/flink_memory_tuning_zh.md 第 3.6、3.7 节。
 bash deploy/scripts/syn-replay.sh --speedup 3600 --start 2022-03-01 --end 2022-04-01
 
 # 2.5 观察进度（Ctrl+C 只停跟踪，不停重放）
