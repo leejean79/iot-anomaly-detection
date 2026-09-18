@@ -16,6 +16,12 @@
 > | Test suite | `<Tests run: 75, Failures: 0, Errors: 0, Skipped: 0>` |
 > | Replay window | 2022-03-01T00:00:00Z .. 2022-04-01T00:00:00Z, `--speedup 3600` |
 >
+> **STATUS 2026-09-18 — paused.** Two full replays completed cleanly (integrity assertions PASS, M1 reproduces
+> the clean run exactly), but the M2 per-device figures are void: MCOD admits only half of each round stream
+> because `DeviceRound`s carry a Flink timestamp of `roundTs + 30 s` while MCOD's admission test uses `roundTs`.
+> See `docs/reports/m2_window_timestamp_finding.md`. Sections 3, 4.1 and 4.3 below are filled from those runs;
+> sections 4.2, 5 and 6 await the fix ruling and a re-run.
+>
 > Written per the design session's runbook *Full-March Replay on Java 11 — Recording the M2 Baseline*
 > (v1.0, 2026-09-16) and its two clarifications of 2026-09-17.
 
