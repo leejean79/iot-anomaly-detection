@@ -16,7 +16,7 @@
 > | Test suite | `<Tests run: 75, Failures: 0, Errors: 0, Skipped: 0>` |
 > | Replay window | 2022-03-01T00:00:00Z .. 2022-04-01T00:00:00Z, `--speedup 3600` |
 >
-> **STATUS 2026-09-18 — paused.** Two full replays completed cleanly (integrity assertions PASS, M1 reproduces
+> **STATUS 2026-09-18 — fix applied, awaiting the re-run.** The timestamp-offset defect is fixed (M2 addendum, Option A: event time re-aligned to the nominal round time right after `RoundAssembler` in both `M1Job` and `M2Job`), with `PmcodTimestampOffsetTest` and `M1M2TimestampAlignmentTest` shipped alongside. This report is filled by the re-run of section 3 step 2 of the addendum. Previously: Two full replays completed cleanly (integrity assertions PASS, M1 reproduces
 > the clean run exactly), but the M2 per-device figures are void: MCOD admits only half of each round stream
 > because `DeviceRound`s carry a Flink timestamp of `roundTs + 30 s` while MCOD's admission test uses `roundTs`.
 > See `docs/reports/m2_window_timestamp_finding.md`. Sections 3, 4.1 and 4.3 below are filled from those runs;

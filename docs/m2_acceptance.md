@@ -60,6 +60,10 @@ bash deploy/scripts/syn-upload-m1.sh --jar-only
 
 ## V-M2-2 — 集群单日联合作业 + 计数器对账
 
+> **⚠ 半密度数据 / computed at half window density.** 本节的**在线**数字（作业侧 M2 统计）受 2026-09-18 发现的时间戳偏移缺陷影响：`RoundAssembler` 以 `轮时间戳 + 30s` 发射，窗口按该时钟分配，而 MCOD 的准入判据比对轮时间戳本身，导致每条轮流中约一半从未进入 MCOD 状态。见 `docs/reports/m2_window_timestamp_finding.md`。修复为 M2 补充件 Option A（2026-09-18）。**本节在线数字由 `docs/reports/m2_timestamp_fix_report.md` 取代；保留此处作为缺陷记录，勿删。** 离线探针表与逐设备半径标定不受影响。
+> Online figures here were computed at half window density (timestamp-offset defect of 2026-09-18); superseded by `docs/reports/m2_timestamp_fix_report.md`. Kept as the record of the defect.
+
+
 ```bash
 # 先提交 M2 联合作业（先作业后重放；若有 M1Job 在跑，先 cancel 自己的那个）
 bash deploy/scripts/syn-submit-m2.sh
@@ -159,6 +163,10 @@ bash deploy/scripts/syn-m2-probe.sh --max-messages 2000000
 ---
 
 ## V-M2-4 — 一个月段压测
+
+> **⚠ 半密度数据 / computed at half window density.** 本节的**在线**数字（作业侧 M2 统计）受 2026-09-18 发现的时间戳偏移缺陷影响：`RoundAssembler` 以 `轮时间戳 + 30s` 发射，窗口按该时钟分配，而 MCOD 的准入判据比对轮时间戳本身，导致每条轮流中约一半从未进入 MCOD 状态。见 `docs/reports/m2_window_timestamp_finding.md`。修复为 M2 补充件 Option A（2026-09-18）。**本节在线数字由 `docs/reports/m2_timestamp_fix_report.md` 取代；保留此处作为缺陷记录，勿删。** 离线探针表与逐设备半径标定不受影响。
+> Online figures here were computed at half window density (timestamp-offset defect of 2026-09-18); superseded by `docs/reports/m2_timestamp_fix_report.md`. Kept as the record of the defect.
+
 
 ```bash
 bash deploy/scripts/syn-submit-m2.sh

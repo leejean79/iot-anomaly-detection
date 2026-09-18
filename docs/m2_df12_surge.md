@@ -1,5 +1,9 @@
 # DF-12 六月停机恢复浪涌留档（收尾任务二）
 
+> **⚠ 半密度数据 / computed at half window density.** 本节的**在线**数字（作业侧 M2 统计）受 2026-09-18 发现的时间戳偏移缺陷影响：`RoundAssembler` 以 `轮时间戳 + 30s` 发射，窗口按该时钟分配，而 MCOD 的准入判据比对轮时间戳本身，导致每条轮流中约一半从未进入 MCOD 状态。见 `docs/reports/m2_window_timestamp_finding.md`。修复为 M2 补充件 Option A（2026-09-18）。**本节在线数字由 `docs/m2_df12_surge_v2.md` 取代；保留此处作为缺陷记录，勿删。** 离线探针表与逐设备半径标定不受影响。
+> Online figures here were computed at half window density (timestamp-offset defect of 2026-09-18); superseded by `docs/m2_df12_surge_v2.md`. Kept as the record of the defect.
+
+
 > **目的**（任务书）：把"漂移或分布切换的起点在点异常通道眼里表现为离群点爆发"这条目前只有文献
 > 论证（理论文档 B-12）的规律，变成有本项目实测数据背书的规律。产物为 M5a「分布切换静默」规则、
 > M6 冷启动、M7 全局/局部判别实验的预定素材。**本阶段只留档观察，不做浪涌抑制或规则实现。**
