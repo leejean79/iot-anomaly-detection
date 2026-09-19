@@ -302,9 +302,18 @@ fi
 # 这一项在本地就能判定，不必等部署到集群才发现。
 # Local preflight: the value goes verbatim to Akka's Typesafe Config parser, which rejects lowercase
 # "mb" while Flink's own MemorySize accepts it, so a bad unit only surfaces when the JobManager dies.
-FRAME_CFG="${SYN_AKKA_FRAMESIZE:-67108864b}"
+# 期望值只在这里算一次，下面的「写法校验」与「与容器实测比对」共用同一个变量。
+# 【教训】这两处曾各写各的默认值（一处 67108864b、一处 64mb），于是在 .env 根本没有设这一项时，
+# 脚本报出"与 .env 的 64mb 不一致"——而 .env 里连这行都没有，读者会去修一个不存在的问题。
+# Single source of truth: the two checks previously carried different fallbacks, so with the key
+# unset the script blamed a value that was nowhere in .env.
+if [ -n "${SYN_AKKA_FRAMESIZE:-}" ]; then
+    FRAME_CFG="$SYN_AKKA_FRAMESIZE"; FRAME_SRC=".env"
+else
+    FRAME_CFG="67108864b"; FRAME_SRC="compose 默认值"
+fi
 if printf '%s' "$FRAME_CFG" | grep -qE '^[0-9]+(b|B|byte|bytes|kB|kilobyte|kilobytes|K|k|Ki|KiB|kibibyte|kibibytes|MB|megabyte|megabytes|M|m|Mi|MiB|mebibyte|mebibytes|GB|gigabyte|gigabytes|G|g|Gi|GiB|gibibyte|gibibytes)$'; then
-    record "framesize 写法" PASS "$FRAME_CFG 可被 Typesafe Config 解析"
+    record "framesize 写法" PASS "$FRAME_CFG 可被 Typesafe Config 解析（来自 ${FRAME_SRC}）"
 else
     echo "  [!] SYN_AKKA_FRAMESIZE=$FRAME_CFG 的单位写法 Akka 解析不了。"
     record "framesize 写法" FAIL "$FRAME_CFG 写法不被接受或缺少单位 —— 改用纯字节写法（如 67108864b）；小写 mb/kb/gb 会让 JM 起不来"
@@ -317,11 +326,11 @@ try:
         if e.get("key")=="akka.framesize": print(e.get("value")); break
     else: print("<未设置，取默认 10485760b>")
 except Exception: print("?")' 2>/dev/null)"
-echo "  JobManager akka.framesize: ${FRAME:-?}（期望 ${SYN_AKKA_FRAMESIZE:-64mb}）"
+echo "  JobManager akka.framesize: ${FRAME:-?}（期望 ${FRAME_CFG}，来自 ${FRAME_SRC}）"
 case "${FRAME:-}" in
-    "${SYN_AKKA_FRAMESIZE:-64mb}") record "akka.framesize" PASS "$FRAME" ;;
+    "$FRAME_CFG") record "akka.framesize" PASS "$FRAME（期望值来自 ${FRAME_SRC}）" ;;
     "?"|"") record "akka.framesize" SKIP "读不到 /jobmanager/config$([ "$REST_OK" -eq 0 ] && echo '（REST 不可达，见 JM REST 可达 一项）')" ;;
-    *) record "akka.framesize" WARN "实测 ${FRAME}，与 .env 的 ${SYN_AKKA_FRAMESIZE:-64mb} 不一致；改动需重启 JM 与两个 TM" ;;
+    *) record "akka.framesize" WARN "容器实测 ${FRAME}，与期望值 ${FRAME_CFG}（来自 ${FRAME_SRC}）不一致；改动需重建 JM 与两个 TM 才生效" ;;
 esac
 
 LOCAL_JAR="$PROJECT_ROOT/target/$JAR_NAME"
