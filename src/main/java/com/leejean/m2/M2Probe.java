@@ -147,6 +147,26 @@ public final class M2Probe {
         System.out.printf("[probe] 读入完成：%d 行；有效点（跳过 warmup/缺失后）%d；设备 %d%n",
                 total, validPts, byDevice.size());
 
+        // 有效设备为 0 就是硬失败，必须非零退出。此前这里只打印一行「设备 0」便继续，最终写出一份
+        // **只有表头**的 CSV，脚本还报「已拉回本地」——看上去一切正常，实则整轮探针白跑。
+        // 最常见的成因是转储条数不够：标定期（预热）的轮会被整段跳过，而 7 天标定在 10 秒周期下是
+        // 483,840 轮，若 --max-messages 小于它，转下来的全是预热轮，有效点自然为 0。
+        // Zero usable devices is a hard failure and must exit non-zero. It previously printed one line
+        // and carried on, emitting a header-only CSV that the wrapper reported as a success. The usual
+        // cause is too few dumped messages: the whole warm-up window is skipped, and a 7-day window at
+        // a 10-second period is 483,840 rounds.
+        if (byDevice.isEmpty()) {
+            System.err.println("ERROR: 有效设备为 0——本次探针没有任何可用数据，不会产出可用的 CSV。");
+            System.err.printf("       读入 %d 行，其中跳过预热 %d 行、缺失掩码 %d 行、解析失败 %d 行。%n",
+                    total, skippedWarmup, skippedMissing, parseErrors);
+            if (skippedWarmup >= total && total > 0) {
+                System.err.println("       全部行都是预热轮：转储条数不足以覆盖标定期。");
+                System.err.println("       7 天标定 = 483,840 轮（10 秒周期），请把 --max-messages 提高到");
+                System.err.println("       能覆盖整段的数值（整月约 2,049,816 轮，建议 3000000）。");
+            }
+            System.exit(3);
+        }
+
         // 可选：逐设备逐通道离散度诊断（复用同一份标定段数据）/ optional per-channel dispersion diagnostic
         if (!dispersionOut.isEmpty()) {
             writeDispersion(byDevice, dispersionOut);

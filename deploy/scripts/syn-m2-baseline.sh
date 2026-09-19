@@ -17,6 +17,7 @@
 #      bash deploy/scripts/syn-m2-baseline.sh
 #      bash deploy/scripts/syn-m2-baseline.sh --tag march --max-messages 400000
 #      bash deploy/scripts/syn-m2-baseline.sh --reuse-dump      # 复用上次转储，只重跑分析
+#      bash deploy/scripts/syn-m2-baseline.sh --probe-ref docs/m2_probe_corrected.csv   # 换新口径参考表
 # 3. 前置条件 / Preconditions: 三月重放已跑完且 M1/M2 作业已排空（syn-m2-metrics.sh 两次读数一致）；
 #    synergia-monitoring 里已有 M2 快照（windowEnd>0）。**必须在 syn-clean-topics.sh 之前运行**——
 #    清理会删掉本脚本要读的监测数据。
@@ -39,10 +40,17 @@ PROJECT_ROOT="$(dirname "$DEPLOY_DIR")"
 set -a; source "$DEPLOY_DIR/.env"; set +a
 
 TAG="march"; MAX_MESSAGES=2000000; TIMEOUT_MS=60000; REUSE=false; TOL_REL=1.0
+# 参考表：默认仍是 Java 8 时期的 docs/m2_probe_7d_clean.csv（旧口径）。探针口径修正之后，应改指
+# 新口径产出的表（--probe-ref docs/m2_probe_corrected.csv），否则比较里会带上「排空尾巴」造成的
+# 约 0.0059 个百分点的固定偏移。见 docs/reports/m2_march_baseline_findings.md 第 3 节。
+# Reference table; after the probe caliber fix this should point at the corrected table, otherwise the
+# comparison carries the drain-tail offset of about 0.0059 percentage points.
+PROBE_REF=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --tag) TAG="$2"; shift 2 ;;
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
+        --probe-ref) PROBE_REF="$2"; shift 2 ;;
         --timeout-ms) TIMEOUT_MS="$2"; shift 2 ;;
         --tol-rel) TOL_REL="$2"; shift 2 ;;
         --reuse-dump) REUSE=true; shift ;;
@@ -86,11 +94,19 @@ if [ ! -s "$LOCAL_JSONL" ]; then
     exit 2
 fi
 
+[ -z "$PROBE_REF" ] && PROBE_REF="$PROJECT_ROOT/docs/m2_probe_7d_clean.csv"
+if [ ! -f "$PROBE_REF" ]; then
+    echo "ERROR: 参考表不存在：$PROBE_REF" >&2
+    echo "       用 --probe-ref <路径> 指定，或先跑 syn-m2-probe.sh 产出新口径参考表。" >&2
+    exit 2
+fi
+
 echo ""
-echo "[2/2] 逐设备聚合 + Java 8 等值核验"
+echo "[2/2] 逐设备聚合 + 参考表等值核验"
+echo "      参考表 / reference: $PROBE_REF"
 python3 "$SCRIPT_DIR/m2_device_baseline.py" \
     --monitoring-jsonl "$LOCAL_JSONL" \
-    --java8-probe "$PROJECT_ROOT/docs/m2_probe_7d_clean.csv" \
+    --java8-probe "$PROBE_REF" \
     --r-per-device "${SYN_M2_R_PER_DEVICE:-A=1.0,B=1.0,C=1.0,D=0.75,E=1.0,F=1.0,G=1.5,H=1.0}" \
     --tol-rel "$TOL_REL" \
     --out-csv "$OUT_DIR/m2_java11_${TAG}_per_device.csv" \

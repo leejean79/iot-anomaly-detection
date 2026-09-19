@@ -194,19 +194,23 @@ bash deploy/scripts/syn-m2-metrics.sh
 bash deploy/scripts/syn-replay-verify.sh --tol-pct 0.2
 
 # 2-7 探针·新口径（今后的判据基准）
-bash deploy/scripts/syn-m2-probe.sh --r-grid 1.0 --k-grid 10 --out-name m2_probe_corrected.csv
+#     【--max-messages 不可省】预热轮会被整段跳过，7 天标定 = 483,840 轮；转储条数若不覆盖标定期，
+#     有效设备为 0、整轮白跑。脚本默认已提到 3000000，但显式写出来更保险。
+bash deploy/scripts/syn-m2-probe.sh --max-messages 3000000 --r-grid 1.0 --k-grid 10 \
+    --out-name m2_probe_corrected.csv
 
 # 2-8 探针·旧口径（仅用于与 Java 8 参考表同口径对照）
-bash deploy/scripts/syn-m2-probe.sh --r-grid 1.0 --k-grid 10 --legacy-drain-tail \
-    --out-name m2_probe_legacy.csv
+bash deploy/scripts/syn-m2-probe.sh --max-messages 3000000 --r-grid 1.0 --k-grid 10 \
+    --legacy-drain-tail --out-name m2_probe_legacy.csv
 
 # 2-9 顺带产出设备 G 逐小时分布（与探针同一份转储，零额外代价）
-bash deploy/scripts/syn-m2-probe.sh --r-grid 1.5 --k-grid 10 \
+bash deploy/scripts/syn-m2-probe.sh --max-messages 3000000 --r-grid 1.5 --k-grid 10 \
     --hod-device G --hod-name m2_hod_G_v2.csv --hod-r 1.5 --hod-k 10 \
     --out-name m2_probe_G_v2.csv
 
-# 2-10 逐设备基线（必须在清理 topic 之前）
-bash deploy/scripts/syn-m2-baseline.sh --tag march
+# 2-10 逐设备基线（必须在清理 topic 之前）。比较一通过后改用新口径参考表；若比较一未通过，
+#      先用默认参考表留一份对照，再上报。
+bash deploy/scripts/syn-m2-baseline.sh --tag march --probe-ref docs/m2_probe_corrected.csv
 ```
 
 **判读依据**依次是：2-2 必须同时打印 `W=3600s`、`Window W/S: 3600s / 60s`、

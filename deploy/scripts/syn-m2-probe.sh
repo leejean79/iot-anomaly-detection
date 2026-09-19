@@ -30,7 +30,12 @@ DEPLOY_DIR="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$DEPLOY_DIR")"
 set -a; source "$DEPLOY_DIR/.env"; set +a
 
-MAX_MESSAGES=300000
+# 默认转储条数。【必须覆盖整个标定期】标定（预热）期的轮会被整段跳过，7 天标定在 10 秒周期下是
+# 483,840 轮；若本值小于它，转下来的全是预热轮、有效设备为 0，整轮探针白跑（2026-09-19 实际发生过）。
+# 三月整月约 2,049,816 轮，故默认取 3,000,000，与 syn-replay-verify.sh 的默认值一致。
+# Must cover the whole calibration window: warm-up rounds are skipped wholesale, and a 7-day window at
+# a 10-second period is 483,840 rounds. March holds about 2,049,816, so default to 3,000,000.
+MAX_MESSAGES=3000000
 R_GRID="${SYN_M2_PROBE_R_GRID:-0.5,1.0,1.5,2.0,2.5,3.0}"
 K_GRID="${SYN_M2_PROBE_K_GRID:-5,10,20}"
 WINDOW_SEC="${SYN_M2_WINDOW_SEC:-3600}"
@@ -144,6 +149,14 @@ on_master "docker run --rm --user root \
         --out /work/m2_probe.csv \
         --window-sec $WINDOW_SEC --slide-sec $SLIDE_SEC \
         --r-grid $R_GRID --k-grid $K_GRID $DISP_ARG $HOD_ARG $REPR_ARG $LEGACY_ARG"
+
+PROBE_RC=$?
+if [ "$PROBE_RC" -ne 0 ]; then
+    echo "" >&2
+    echo "ERROR: M2Probe 退出码 ${PROBE_RC}——本次探针失败，**不拉回任何 CSV**（避免留下只有表头的假产物）。" >&2
+    echo "       上方 stderr 已给出成因与处置；最常见的是 --max-messages 未覆盖标定期。" >&2
+    exit "$PROBE_RC"
+fi
 
 echo "===================================="
 echo "[probe] CSV（master）：$CSV"
