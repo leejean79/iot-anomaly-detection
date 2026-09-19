@@ -14,6 +14,8 @@
 #      bash deploy/scripts/syn-m2-probe.sh --r-grid 0.5,1.0,1.5,2.0 --k-grid 5,10,20 --window-sec 3600 --slide-sec 60
 #      # 补跑不同网格、换个文件名免覆盖已存表（如逐设备 R 标定）：
 #      bash deploy/scripts/syn-m2-probe.sh --r-grid 0.75,1.0,1.25,1.5,1.75 --k-grid 10 --out-name m2_probe_calib.csv
+#      # 旧口径对照（含排空尾巴，仅用于与 Java 8 参考表做同口径比较，不作判据基准）：
+#      bash deploy/scripts/syn-m2-probe.sh --legacy-drain-tail --out-name m2_probe_legacy.csv
 # 3. 前置条件 / Preconditions: synergia-m1-out 已含目标月份的标准化 DeviceRound（M1Job 已跑过该段）。
 # 4. 期望产出 / Expected output: master 上 ${REMOTE_HOME}/m2_probe.csv（device,R,k,slides,meanWindowPoints,
 #      meanOutlierRate,fracZeroSlides）+ stdout 通俗解读；末尾把 CSV 拉回本地 deploy/../docs/ 便于附验收。
@@ -47,6 +49,11 @@ HOD_K="10"
 # Optional calibration-representativeness CSV name (instruction 4 step3; empty = off) and day list.
 CALIB_REPR_NAME=""
 CALIB_REPR_DAYS="1,7"
+# 旧口径开关：恢复修正前的滑窗上界（多滑 W/S 步让窗口排空）。用于与 Java 8 时期的参考表
+# docs/m2_probe_7d_clean.csv 做同口径比较——那份表是旧口径算的，而本项目 jar 已是 Java 11 字节码、
+# 无法在 JDK 8 上重算。默认关闭 = 与运行中作业一致的新口径。
+# Legacy caliber switch for same-caliber comparison against the frozen Java 8 reference.
+LEGACY_TAIL=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
@@ -62,6 +69,7 @@ while [[ $# -gt 0 ]]; do
         --hod-k) HOD_K="$2"; shift 2 ;;
         --calib-repr-name) CALIB_REPR_NAME="$2"; shift 2 ;;
         --calib-repr-days) CALIB_REPR_DAYS="$2"; shift 2 ;;
+        --legacy-drain-tail) LEGACY_TAIL=1; shift ;;
         *) echo "Unknown arg: $1" >&2; exit 1 ;;
     esac
 done
@@ -110,6 +118,12 @@ REPR_ARG=""
 if [ -n "$CALIB_REPR_NAME" ]; then
     REPR_ARG="--calib-repr-out /work/m2_calib_repr.csv --calib-repr-days $CALIB_REPR_DAYS"
 fi
+# 旧口径（仅用于同口径对照）/ legacy caliber, for a same-caliber comparison only
+LEGACY_ARG=""
+if [ "$LEGACY_TAIL" -eq 1 ]; then
+    LEGACY_ARG="--legacy-drain-tail true"
+    echo "[probe] **旧口径**（含排空尾巴）——仅用于与 Java 8 参考表做同口径对照，不可用作新的判据基准。"
+fi
 
 # 运行本项目 jar 的临时容器必须用 Java 11 镜像 FLINK_IMAGE_TAG。本项目 jar 自 Addendum 2 起是 Java 11
 # 字节码（class file major 55），而旧的 fa-iforest/flink:$FLINK_VERSION 自带 JDK 8、只认到 major 52，
@@ -129,7 +143,7 @@ on_master "docker run --rm --user root \
         --rounds-jsonl /work/m1out.jsonl \
         --out /work/m2_probe.csv \
         --window-sec $WINDOW_SEC --slide-sec $SLIDE_SEC \
-        --r-grid $R_GRID --k-grid $K_GRID $DISP_ARG $HOD_ARG $REPR_ARG"
+        --r-grid $R_GRID --k-grid $K_GRID $DISP_ARG $HOD_ARG $REPR_ARG $LEGACY_ARG"
 
 echo "===================================="
 echo "[probe] CSV（master）：$CSV"

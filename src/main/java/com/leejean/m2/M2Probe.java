@@ -62,6 +62,19 @@ public final class M2Probe {
         int[] kGrid = parseInts(a.getOrDefault("k-grid", "5,10,20"));
         // 离群率"过高"阈值，仅用于解读文字（不定终值）
         double highRate = Double.parseDouble(a.getOrDefault("high-rate", "0.2"));
+        // 兼容开关：恢复修正前的滑窗上界（windowStart <= maxArrival），即多滑 W/S 步让窗口排空。
+        // 【用途】Java 8 时期的参考表 docs/m2_probe_7d_clean.csv 是用**旧口径**算出来的，而本项目的 jar
+        // 已是 Java 11 字节码、无法再在 JDK 8 上运行，那份参考值因此无法用新口径重算。有了这个开关，
+        // 就能在同一份数据、同一个运行时下分别跑出新旧两种口径，从而把「运行时差异」与「口径差异」
+        // 拆成两次单变量比较，而不是一次改两个变量。默认 false = 与运行中作业一致的新口径。
+        // Compatibility switch restoring the pre-fix bound. The Java 8 reference table cannot be
+        // recomputed with the new bound (the jar is Java 11 bytecode now), so this lets both calibers
+        // be produced on identical data and runtime, turning one two-variable comparison into two
+        // single-variable ones. Default false = the corrected, job-matching caliber.
+        boolean legacyDrainTail = Boolean.parseBoolean(a.getOrDefault("legacy-drain-tail", "false"));
+        System.out.println("[probe] 滑窗口径 / sweep caliber: "
+                + (legacyDrainTail ? "legacy（含排空尾巴，windowStart <= maxArrival）"
+                                   : "corrected（与作业一致，windowEnd <= maxArrival）"));
 
         // 读入并按设备分组（跳过 warmup / 缺失掩码非空，口径同 M2Gate）
         ObjectMapper mapper = new ObjectMapper();
@@ -154,7 +167,8 @@ public final class M2Probe {
             if (pts == null || pts.isEmpty()) {
                 System.out.println("[hod] 设备 " + hodDevice + " 无有效轮，跳过小时分布");
             } else {
-                writeOutlierHod(pts, hodR, hodK, windowSec * 1000L, slideSec * 1000L, hodDevice, hodOut);
+                writeOutlierHod(pts, hodR, hodK, windowSec * 1000L, slideSec * 1000L, hodDevice, hodOut,
+                        legacyDrainTail);
                 System.out.println("[hod] " + hodDevice + " 离群点 UTC 小时分布 (R=" + hodR
                         + " k=" + hodK + ") → " + hodOut);
             }
@@ -180,7 +194,7 @@ public final class M2Probe {
                 for (double rr : rGrid) {
                     for (int kk : kGrid) {
                         long t0 = System.currentTimeMillis();
-                        RateResult res = sweep(pts, rr, kk, windowMs, slideMs);
+                        RateResult res = sweep(pts, rr, kk, windowMs, slideMs, legacyDrainTail);
                         done++;
                         long now = System.currentTimeMillis();
                         System.out.printf("[sweep] (%d/%d) %s R=%.2f k=%d → slides=%d rate=%.6f  用时 %.1fs，累计 %.1fs%n",
@@ -389,7 +403,7 @@ public final class M2Probe {
      * 白天时段成批互相找不到邻居、离群集中在白天"的预言：防护前应见白天聚集，防护后应趋于均匀。
      */
     private static void writeOutlierHod(List<McodPoint> pts, double r, int k, long windowMs, long slideMs,
-                                        String device, String outCsv) throws java.io.FileNotFoundException {
+                                        String device, String outCsv, boolean legacyDrainTail) throws java.io.FileNotFoundException {
         long[] outByHour = new long[24];
         long[] ptsByHour = new long[24];
         List<McodPoint> copy = new ArrayList<>(pts.size());
@@ -410,7 +424,9 @@ public final class M2Probe {
             // the watermark, which stalls at the last event. The old bound kept sliding W/S steps past
             // the final point while the window drained; once the draining window holds fewer than k
             // neighbours every point is an outlier and the slide saturates at 1.0, lifting the mean.
-            for (long windowEnd = slideMs; windowEnd <= maxArrival; windowEnd += slideMs) {
+            for (long windowEnd = slideMs;
+                 legacyDrainTail ? (windowEnd - windowMs <= maxArrival) : (windowEnd <= maxArrival);
+                 windowEnd += slideMs) {
             long windowStart = windowEnd - windowMs;
             while (cursor < copy.size() && copy.get(cursor).arrival < windowEnd) {
                 active.add(copy.get(cursor));
@@ -449,7 +465,8 @@ public final class M2Probe {
     /** 对一个设备的点序列跑一遍滑动窗口，返回离群率统计（复用 McodCore，忠实一致）。 */
     // 包级可见（非 private）：ProbeDrainTailTest 直接调用真实实现，守住循环上界不被改回去。
     // Package-private so ProbeDrainTailTest can call the real implementation as a regression guard.
-    static RateResult sweep(List<McodPoint> pts, double r, int k, long windowMs, long slideMs) {
+    static RateResult sweep(List<McodPoint> pts, double r, int k, long windowMs, long slideMs,
+                            boolean legacyDrainTail) {
         if (pts.isEmpty()) {
             return new RateResult(0, 0, 0, 0);
         }
@@ -476,7 +493,9 @@ public final class M2Probe {
             // the watermark, which stalls at the last event. The old bound kept sliding W/S steps past
             // the final point while the window drained; once the draining window holds fewer than k
             // neighbours every point is an outlier and the slide saturates at 1.0, lifting the mean.
-            for (long windowEnd = slideMs; windowEnd <= maxArrival; windowEnd += slideMs) {
+            for (long windowEnd = slideMs;
+                 legacyDrainTail ? (windowEnd - windowMs <= maxArrival) : (windowEnd <= maxArrival);
+                 windowEnd += slideMs) {
             long windowStart = windowEnd - windowMs;
             while (cursor < copy.size() && copy.get(cursor).arrival < windowEnd) {
                 active.add(copy.get(cursor));

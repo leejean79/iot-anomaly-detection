@@ -72,21 +72,49 @@ ssh fa-master "curl -s localhost:8081/jobmanager/config" | python3 -m json.tool 
 同时作用于 `kafka-*` 与 `zookeeper`，若输出里出现 `Recreating kafka-1`，**立即中止**——那会让
 broker 拿到全新空卷、topic 数据归零。正常情况下这两个容器的配置没变，compose 不会重建它们。
 
-### 2.4 重跑探针，重建 Java 参考值
+### 2.4 重跑探针，重建参考值（顺序已更正）
 
-口径改了，`docs/m2_probe_7d_clean.csv` 这份参考值是用**旧口径**算出来的，必须重算，否则逐设备
-等值核验仍会带着那 0.0059 个百分点的偏移。
+**更正**：本节 1.0 版把探针写成可以在环境复位之后单独执行，这是错的。`syn-m2-probe.sh` 消费的是
+**`synergia-m1-out`**（见该脚本第 17 行的前置条件与第 86 行消费的 topic），而 `syn-reset-env.sh`
+会连同 `m1-out` 一起清空。因此探针**不能**在复位之后单独跑，它必须跑在一次完整重放**之后**、
+`syn-clean-topics.sh` 之前——也就是折进 2.5 节第 2 轮（三月基线）里。
+
+同时要更正 1.0 版给出的判读依据。它要求「新旧探针 CSV 对比，slides 应恰好减少 60」，但现有的旧表
+`docs/m2_probe_7d_clean.csv` 是 **Java 8 运行时 + 旧口径**算出来的，而新表会是 **Java 11 运行时 +
+新口径**——一次比较里变了两个变量，得出的差值无法归因。更麻烦的是，那份 Java 8 参考**无法用新口径
+重算**：本项目的 jar 自 Addendum 2 起是 Java 11 字节码（class file major 55），在 JDK 8 上会直接
+`UnsupportedClassVersionError`。
+
+解决办法是把一次双变量比较拆成两次单变量比较。`M2Probe` 新增了 `--legacy-drain-tail` 开关，可以在
+**同一份数据、同一个运行时**下复现旧口径，于是：
 
 ```bash
-bash deploy/scripts/syn-m2-probe.sh        # 按该脚本自身的参数说明执行
+# 执行环境：本地 Mac，仓库根目录
+# 前置条件：三月重放已完成，M2Job 已排空（syn-m2-metrics.sh 连续两次读数一致），topic 尚未清理
+# 甲、新口径（今后的判据基准）
+bash deploy/scripts/syn-m2-probe.sh --r-grid 1.0 --k-grid 10 --out-name m2_probe_corrected.csv
+# 乙、旧口径（仅用于与 Java 8 参考表做同口径对照）
+bash deploy/scripts/syn-m2-probe.sh --r-grid 1.0 --k-grid 10 --legacy-drain-tail \
+     --out-name m2_probe_legacy.csv
 ```
 
-**期望产出**：新的探针 CSV。判读依据：新旧两份对比，每台设备的 `slides` 应恰好**减少 60**
-（`W/S`），`meanOutlierRate` 应**下降约 0.0059 个百分点**——这两个数与三月基线实测的差值一致，
-即为修正生效的确证。设备 H 的两项都应基本不变（它本就没有排空尾巴差异）。
+两次比较各自只变一个变量：
 
-**失败兜底**：若 `slides` 的减少量不是 60，说明窗口几何与假设不符，请把新旧 CSV 一并贴出，
-**不要**继续往下走。
+| 比较 | 两侧 | 唯一变量 | 期望结果 |
+| --- | --- | --- | --- |
+| 比较一：运行时等值 | `m2_probe_legacy.csv`（J11+旧口径） 对 `m2_probe_7d_clean.csv`（J8+旧口径） | 运行时 | 逐设备 `meanOutlierRate` 落在 ±1% 内 |
+| 比较二：口径差异 | `m2_probe_corrected.csv` 对 `m2_probe_legacy.csv` | 口径 | 逐设备 `slides` 恰好少 **60**，比率之和恰好少约 **2.00** |
+
+**判读依据**就是上表右列这三个数：**±1%**、**恰好 60**、**约 2.00**。比较一通过，说明 Java 8 到
+Java 11 的迁移在探针这条路径上是等值的；比较二的两个数与三月基线实测的差值一致，说明口径修正的
+效果正如所析。设备 H 在比较二里两项都应为 0（它本就没有排空尾巴差异）。
+
+**失败兜底**：比较二里 `slides` 的减少量若不是 60，说明窗口几何与假设不符，**立即停下**，把两份
+CSV 一并贴出；比较一若超出 ±1%，那是一个真正的迁移等值问题，也要停下上报，**不要**调任何参数。
+
+**留档**：比较一通过之后，`m2_probe_corrected.csv` 取代 `m2_probe_7d_clean.csv` 成为
+`m2_device_baseline.py` 的参考基准（该脚本的 `--java8-probe` 参数指向它）。旧表保留不删，它是
+Java 8 时期的历史锚点。
 
 ### 2.5 四轮重跑（顺序不可颠倒）
 
@@ -95,7 +123,8 @@ bash deploy/scripts/syn-m2-probe.sh        # 按该脚本自身的参数说明�
 1. **M1 单日回归**——确认修正没有影响 M1 段。
 2. **三月基线**：提交作业 → `syn-ckpt-watch.sh`（独立终端常驻）→ `--speedup 3600` 重放 →
    `syn-m2-metrics.sh` 连续两次读数一致 → `syn-replay-verify.sh --tol-pct 0.2`（**现在是五条
-   断言**）→ `syn-m2-baseline.sh --tag march`。逐设备核验此时应落进 ±1% 容差。
+   断言**）→ **2.4 节的两次探针（新口径与旧口径）** → `syn-m2-baseline.sh --tag march`。
+   注意 2.4 节的探针必须在这一步之内完成，因为它读 `synergia-m1-out`，一旦清理 topic 就没有输入了。
 3. **六月 DF-12 突变** `syn-m2-surge.sh --tag v2`。
 4. **设备 G 逐小时分布 v2**——注意它用的是已修正的 `writeOutlierHod`。
 
