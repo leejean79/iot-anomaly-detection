@@ -3,7 +3,14 @@
 > **From:** the coding agent. **To:** the design session.
 > **Date:** 2026-09-18. **Status:** blocked, awaiting a ruling. No code or configuration changed since the M2 addendum fix; nothing tuned.
 > **Context:** M2 Addendum — Timestamp Alignment Fix (Option A), section 3 step 2 (the March baseline) and section 7 (boundaries).
-> **What is asked:** pick one of options A / B / E in section 6, and rule on the section 7 boundary question.
+> **What is asked:** pick option A or B in section 6, and authorise the diagnostic in section 3.5.
+>
+> **Revision 2, 2026-09-19 — option E is withdrawn and one attribution is corrected.** Asked to explain
+> option E's mechanism, the coding agent measured it instead of asserting it, and the measurement refutes
+> it: the proposed representation is 10 % *larger* on the wire, not smaller. The same check showed that the
+> 26.1 MB payload is **not** the calibration reservoir and **not** confined to the warm-up window. The
+> origin of the 26.1 MB is therefore **still unidentified**; section 3.5 names the one diagnostic that will
+> settle it. Sections 1, 2, 3.1, 3.2 and 4–5 are unaffected.
 
 ---
 
@@ -74,11 +81,14 @@ A **successful** checkpoint, taken after the reservoir froze:
 | MonitoringAggregator → sink | 19.6 KB |
 | **Total** | **9.40 MB** (≈1.17 MB per subtask) |
 
-`RobustScaler` shows 46.1 KB here because `RobustScalerFunction` clears the reservoirs at the freeze boundary. The failing checkpoint 79, at a 10 s interval, falls roughly 790 s into the run — inside the accumulation phase, before that clear. This corrects an earlier assessment of mine that called the risk inherent to the whole month; it is inherent to the **warm-up window** only.
+`RobustScaler` shows 46.1 KB here because `RobustScalerFunction` clears the reservoirs at the freeze boundary.
 
-### 3.4 Why the payload is 26 MB
+**This table is from a later, successful run and does not locate the 26.1 MB.** An earlier revision of this brief inferred that the failing checkpoint 79 fell inside the reservoir-accumulation phase. That inference is wrong, and the arithmetic that refutes it is simple: at `--speedup 3600`, March's 31 days replay in 31 × 86,400 ÷ 3,600 ≈ **744 s** of wall clock. Checkpoint 79, at a 10 s interval, is at roughly **790 s** — past the end of the replay, not in the warm-up. The seven-day warm-up occupies only the first ≈168 s, about the first 17 checkpoints.
 
-`RobustScalerFunction` holds `List<ListState<Double>> reservoirs` — one `ListState<Double>` per channel, values added one at a time and boxed:
+### 3.4 The reservoir is not the cause — measured, not estimated
+
+The earlier hypothesis was that the payload is `RobustScalerFunction`'s calibration reservoir, held as
+`List<ListState<Double>>` — one `ListState<Double>` per channel, values boxed:
 
 ```java
 private transient List<ListState<Double>> reservoirs;   // one reservoir per channel
@@ -87,7 +97,50 @@ reservoirs.get(c).add(transforms[c].apply(round.getX()[c]));
 reservoirs.get(c).clear();   // released at the freeze boundary
 ```
 
-Per device the reservoir holds `--calib-days 7 × 8,640 rounds/day = 60,480` rounds × 5 channels = **302,400 boxed entries**. At the observed 26.1 MB that is ≈91 bytes per entry, consistent with boxed `Double` plus per-element list-state framing.
+Serialising exactly that shape with Flink's own serializers, at the production size of
+`--calib-days 7 × 8,640 = 60,480` rounds × 5 channels per device:
+
+| Representation | Serialized size | Bytes per double |
+|---|---:|---:|
+| Current: `ListState<Double>` × 5 channels | 2,419,220 B = **2.31 MB** | 8.0 |
+| Proposed (option E): `ListState<double[5]>` | 2,661,124 B = **2.54 MB** | 8.8 |
+
+Two conclusions follow, both against the earlier reasoning:
+
+1. **The reservoir is 2.31 MB, not 26.1 MB.** The "≈91 bytes per entry" figure in the earlier revision was
+   obtained by dividing 26.1 MB by the entry count — it assumed the conclusion it was offered as evidence for.
+2. **Option E would make the checkpoint larger, not smaller.** Boxing costs *heap* memory (a `Double` object
+   header plus a reference, ~32 B live), but a checkpoint stores *serialized* bytes, and `DoubleSerializer`
+   writes 8 B whether the value was boxed or not. Switching to `double[]` adds a 4-byte array-length prefix
+   per round, hence the 10 % increase. Conflating heap footprint with serialized size is the error.
+
+Option E is therefore withdrawn. It would not have solved the problem, and it would have spent a section 7
+boundary ruling on a change with no benefit.
+
+### 3.5 What the 26.1 MB actually is — one diagnostic will settle it
+
+The origin is unidentified. What is known:
+
+- It is not the reservoir (2.31 MB, measured above).
+- It is not `Pmcod`: during the warm-up every round is dropped by `M2Gate`, so MCOD holds nothing then; and
+  after the freeze the whole job checkpoints at 9.40 MB across all eight subtasks.
+- The only operator ever *named* in a framesize failure is `RoundAssembler`, in the earlier unthrottled-catch-up
+  run: "`RoundAssembler (3/8)` — asynchronous part of checkpoint 28 could not be completed … 23.1 MB". Its state
+  is the map of still-open rounds, which grows whenever the watermark — the minimum across the eight Kafka
+  partitions — lags behind the fastest partitions. A 3,600× replay is fast enough in wall-clock terms for that
+  skew to build, which would make this the same mechanism as the unthrottled run, merely less extreme.
+  **This is a hypothesis, not a finding.**
+
+The diagnostic: the per-operator `Checkpointed Data Size` of a checkpoint **near the failure** in job
+`df4b689e…`, rather than of a later successful one — in the Flink UI, Checkpoints → History → an entry in the
+70s → the per-operator breakdown; or
+
+```
+curl -s "http://<master>:8081/jobs/df4b689ea735b1f0446c458baa66cc33/checkpoints/details/78/subtasks"
+```
+
+Whichever operator carries the bulk determines which remedy is even applicable, so this should precede any
+ruling on a state-shrinking option.
 
 ### 3.5 A misleading configuration worth noting
 
@@ -117,23 +170,30 @@ Per device the reservoir holds `--calib-days 7 × 8,640 rounds/day = 60,480` rou
 |---|---|---|---|---|---|
 | **A** | Raise `akka.framesize` (e.g. to 64 MB) | **Yes** — cluster-wide setting; the JobManager is shared with the FA-iForest project and must be restarted, which drops every job on it (there is no JobManager high availability) | Yes | Yes | No |
 | **B** | Disable checkpointing for baseline runs (`--checkpoint-ms 0`, a new "0 disables" branch in the jobs) | No | **No** — a mid-run failure loses the whole run; the at-least-once Kafka sink's flush behaviour without checkpoints needs confirming | No — the state still peaks, it is simply never snapshotted | No |
-| **E** | Store the reservoir as one `double[]` per round instead of boxed `Double` per channel value | No | Yes | **Yes** — estimated ≈3.2 MB, under the 10 MB limit | **Needs a ruling — see section 7** |
+| ~~E~~ | ~~Store the reservoir as `double[]` per round~~ | — | — | **Withdrawn** — measured 10 % *larger* on the wire (section 3.4) | — |
 
 Option C (longer checkpoint interval, higher tolerable-failure count) only delays the failure: the state stays large for the whole warm-up, so every attempt in that window fails. Option D (shrink the reservoir by shortening `--calib-days`) is excluded by section 7, which forbids changing the calibration.
 
-**Coding agent's recommendation: E, with B as the no-code-change fallback if the design session wants to re-run immediately.** E removes the cause, leaves the shared cluster alone and keeps fault tolerance; its cost is one storage-representation change under test. A is not recommended: restarting a JobManager shared with another project, to accommodate a peak that exists only during warm-up, is disproportionate.
+A further option becomes available if section 3.5 confirms the `RoundAssembler` hypothesis:
+
+| | Change | Touches the shared cluster | Keeps fault tolerance | Fixes the cause |
+|---|---|---|---|---|
+| **F** | Lower the replay speed-up (for example 3,600 → 600, as the single-day regression already uses) so partition progress stays closer together and the open-round buffer does not build | No | Yes | Yes, if the skew hypothesis holds |
+
+**Coding agent's recommendation: run the section 3.5 diagnostic first.** With option E withdrawn, the choice
+between A, B and F turns entirely on which operator holds the 26.1 MB, and that is one HTTP request away. If an
+immediate re-run is wanted without waiting, **B** is the only option that needs no further information — it does
+not touch the shared cluster and it removes the failure mode by removing checkpointing, at the cost of fault
+tolerance. **A** remains available but is disproportionate for a peak whose origin is not yet known.
 
 ---
 
-## 7. The boundary question the design session must settle
+## 7. The section 7 boundary question — no longer live
 
-Addendum section 7 forbids changing "the calibration procedure". Option E changes **how the reservoir is stored**, not what is computed: the per-channel median and IQR, the freeze instant, the bypass decisions and every emitted value are bit-for-bit unchanged, because the same sample values are appended in the same order and read back in the same order.
-
-The coding agent's reading is that a serialization-form change is not a change to the calibration procedure — but that line should be drawn by the design session, not assumed.
-
-If E is authorised, it ships with a regression test asserting that, for one identical input stream, the old and new storage forms produce identical per-channel medians, IQRs, freeze round indices and bypass flags — turning "the computation is unchanged" from a claim into an executable assertion, in the same style as the two tests delivered with the Option A fix.
-
----
+The earlier revision asked the design session to rule on whether a serialization-form change to the reservoir
+falls under the addendum's ban on changing the calibration procedure. With option E withdrawn that question is
+moot and **no ruling is needed**. It is recorded here only so the question is not re-raised without cause: none
+of the remaining options (A, B, F) touches `McodCore`, the radii, the calibration procedure or any M3 code path.
 
 ## 8. A second, smaller ruling requested
 
