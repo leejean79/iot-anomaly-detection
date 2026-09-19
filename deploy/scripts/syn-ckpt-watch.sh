@@ -105,42 +105,20 @@ if [ ! -f "$OUT" ]; then
     echo "wall_clock,ckpt_id,ckpt_status,operator,state_size_bytes,state_size_mb,acked_subtasks,max_subtask_bytes,max_subtask_mb" > "$OUT"
 fi
 
-SEEN_FILE="$(mktemp)"
-trap 'rm -f "$SEEN_FILE" "$JOB_JSON_FILE"' EXIT
-START_TS=$(date +%s)
-
-while true; do
-    NOW=$(date +%s)
-    if [ "$DURATION" -gt 0 ] && [ $((NOW - START_TS)) -ge "$DURATION" ]; then
-        echo "达到 --duration ${DURATION}s，结束采集。CSV: $OUT"
-        exit 0
-    fi
-
-    CK_JSON="$(mcurl "$REST/jobs/$JID/checkpoints")"
-    if [ -z "$CK_JSON" ] || printf '%s' "$CK_JSON" | grep -q '"errors"'; then
-        echo "[$(date '+%F %T')] WARN: 作业 $JID 已不可查询（可能已重启/结束）。CSV 保留已采集部分: $OUT" >&2
-        exit 3
-    fi
-
-    # 待处理的 checkpoint id（history 中尚未记录过的）/ checkpoint ids not yet recorded
-    IDS="$(printf '%s' "$CK_JSON" | python3 -c '
-import json,sys
-h=json.load(sys.stdin).get("history",[])
-print(" ".join(str(c["id"]) for c in sorted(h,key=lambda c:c["id"])))')"
-
-    for CID in $IDS; do
-        grep -qx "$CID" "$SEEN_FILE" 2>/dev/null && continue
-        DET="$(mcurl "$REST/jobs/$JID/checkpoints/details/$CID")"
-        [ -z "$DET" ] && continue
-        printf '%s' "$DET" | grep -q '"errors"' && { echo "$CID" >> "$SEEN_FILE"; continue; }
-
-        # 逐算子解析：tasks 是 vertexId → 汇总；名字需从作业计划里取。
-        # Per-operator parse: "tasks" maps vertexId → summary; names come from the job plan.
-        printf '%s' "$DET" | python3 - "$JID" "$CID" "$OUT" "$TOP" "$FRAMESIZE_MB" "$JOB_JSON_FILE" <<'PY'
+# 逐算子解析器：写成独立文件，供下面的循环用管道喂 JSON（见循环内的注释）。
+# Per-operator parser, written to a file so the loop can pipe JSON into it.
+PARSER="$(mktemp)"
+cat > "$PARSER" <<'PY'
 import json, sys, datetime
 
 jid, cid, out, top, frame_mb, job_file = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), float(sys.argv[5]), sys.argv[6]
-det = json.load(sys.stdin)
+try:
+    det = json.load(sys.stdin)
+except ValueError as e:
+    raw = sys.stdin.read() if not sys.stdin.closed else ""
+    print("  [WARN] checkpoint %s 的 details 响应不是合法 JSON（%s）；前 200 字符：%s"
+          % (cid, e, raw[:200]))
+    sys.exit(0)
 try:
     with open(job_file, encoding="utf-8") as jf:
         names = {v["id"]: v["name"] for v in json.load(jf).get("vertices", [])}
@@ -183,6 +161,43 @@ if len(rows) > top:
     print("  …… 其余 %d 个算子已写入 CSV" % (len(rows) - top))
 print("  本次合计：%.3f MB" % (sum(r[1] for r in rows) / 1048576.0))
 PY
+
+SEEN_FILE="$(mktemp)"
+trap 'rm -f "$SEEN_FILE" "$JOB_JSON_FILE" "$PARSER"' EXIT
+START_TS=$(date +%s)
+
+while true; do
+    NOW=$(date +%s)
+    if [ "$DURATION" -gt 0 ] && [ $((NOW - START_TS)) -ge "$DURATION" ]; then
+        echo "达到 --duration ${DURATION}s，结束采集。CSV: $OUT"
+        exit 0
+    fi
+
+    CK_JSON="$(mcurl "$REST/jobs/$JID/checkpoints")"
+    if [ -z "$CK_JSON" ] || printf '%s' "$CK_JSON" | grep -q '"errors"'; then
+        echo "[$(date '+%F %T')] WARN: 作业 $JID 已不可查询（可能已重启/结束）。CSV 保留已采集部分: $OUT" >&2
+        exit 3
+    fi
+
+    # 待处理的 checkpoint id（history 中尚未记录过的）/ checkpoint ids not yet recorded
+    IDS="$(printf '%s' "$CK_JSON" | python3 -c '
+import json,sys
+h=json.load(sys.stdin).get("history",[])
+print(" ".join(str(c["id"]) for c in sorted(h,key=lambda c:c["id"])))')"
+
+    for CID in $IDS; do
+        grep -qx "$CID" "$SEEN_FILE" 2>/dev/null && continue
+        DET="$(mcurl "$REST/jobs/$JID/checkpoints/details/$CID")"
+        [ -z "$DET" ] && continue
+        printf '%s' "$DET" | grep -q '"errors"' && { echo "$CID" >> "$SEEN_FILE"; continue; }
+
+        # 逐算子解析：tasks 是 vertexId → 汇总；名字需从作业计划里取。
+        # Per-operator parse: "tasks" maps vertexId → summary; names come from the job plan.
+        # 注意：这里必须调用**文件**而不是 `python3 - <<'PY'`。后者把 heredoc 当作标准输入来读取
+        # 程序本身，管道里的 JSON 会被丢弃，json.load(sys.stdin) 只能读到 EOF。
+        # NOTE: must invoke the parser as a FILE. With `python3 - <<'PY'` the heredoc becomes stdin
+        # (the program itself), the piped JSON is discarded, and json.load(sys.stdin) sees EOF.
+        printf '%s' "$DET" | python3 "$PARSER" "$JID" "$CID" "$OUT" "$TOP" "$FRAMESIZE_MB" "$JOB_JSON_FILE"
         echo "$CID" >> "$SEEN_FILE"
     done
 
