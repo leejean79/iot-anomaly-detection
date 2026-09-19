@@ -136,24 +136,38 @@ rows = []
 for vid, t in (det.get("tasks") or {}).items():
     total = pick(t, "state_size", "stateSize")
     acked = pick(t, "num_acknowledged_subtasks", "numAcknowledgedSubtasks")
+    # 逐子任务峰值：Flink 1.13 的 /checkpoints/details/<id> 响应里**没有** per-task summary，
+    # 该字段缺失时必须记为「不可用」而不是 0——否则会读成「远低于 framesize」的假象。
+    # 真要拿峰值需再调 /checkpoints/details/<id>/subtasks/<vertexId>（本脚本暂未调用）。
+    # Peak per subtask: Flink 1.13's details response has no per-task summary. Report it as
+    # unavailable rather than 0, which would read as "far below framesize".
     summary = t.get("summary") or {}
     ss = summary.get("state_size") or summary.get("stateSize") or {}
-    peak = pick(ss, "max") if isinstance(ss, dict) else 0
-    rows.append((names.get(vid, vid), int(total or 0), int(acked or 0), int(peak or 0)))
+    peak = ss.get("max") if isinstance(ss, dict) else None
+    peak = int(peak) if peak is not None else None
+    rows.append((names.get(vid, vid), int(total or 0), int(acked or 0), peak))
 
 # 按"单子任务峰值"降序，而非合计：framesize 限制的是单条确认 RPC，合计大小不是判据。
 # Sort by peak-per-subtask, not total: framesize caps a single acknowledge RPC.
-rows.sort(key=lambda r: (-r[3], -r[1]))
+rows.sort(key=lambda r: (-(r[3] if r[3] is not None else -1), -r[1]))
 wall = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 with open(out, "a", encoding="utf-8") as f:
     for name, total, acked, peak in rows:
-        f.write('%s,%s,%s,"%s",%d,%.3f,%d,%d,%.3f\n'
-                % (wall, cid, status, name.replace('"', "'"), total, total / 1048576.0, acked, peak, peak / 1048576.0))
+        pk = "" if peak is None else "%d" % peak
+        pk_mb = "" if peak is None else "%.3f" % (peak / 1048576.0)
+        f.write('%s,%s,%s,"%s",%d,%.3f,%d,%s,%s\n'
+                % (wall, cid, status, name.replace('"', "'"), total, total / 1048576.0, acked, pk, pk_mb))
 
 warn = frame_mb * 1048576 * 0.8
 print("\n[%s] checkpoint %s  状态=%s" % (wall, cid, status))
 print("  %-46s %12s %10s %14s" % ("算子 / operator", "合计 MB", "已确认", "单子任务峰值 MB"))
+if all(r[3] is None for r in rows):
+    print("  （本 Flink 版本的 details 响应不含 per-task summary，单子任务峰值列为 n/a；"
+          "合计除以并行度可作粗略下界）")
 for name, total, acked, peak in rows[:top]:
+    if peak is None:
+        print("  %-46s %12.3f %10d %14s" % (name[:46], total / 1048576.0, acked, "n/a"))
+        continue
     flag = "  <== 逼近 framesize" if peak >= warn else ""
     print("  %-46s %12.3f %10d %14.3f%s"
           % (name[:46], total / 1048576.0, acked, peak / 1048576.0, flag))
