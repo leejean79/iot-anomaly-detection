@@ -90,7 +90,7 @@ python3 "$SCRIPT_DIR/m2_surge.py" \
     --timeline-csv "$PROJECT_ROOT/docs/m2_surge_timeline${SUFFIX}.csv"
 rc=$?
 if [ "$rc" -ne 0 ]; then
-    echo "ERROR: m2_surge.py 分析失败（退出码 $rc）——上方为原因，产出未生成。" >&2
+    echo "ERROR: m2_surge.py 分析失败（退出码 ${rc}）——上方为原因，产出未生成。" >&2
     exit "$rc"
 fi
 

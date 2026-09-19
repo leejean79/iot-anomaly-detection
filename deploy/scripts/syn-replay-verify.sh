@@ -158,11 +158,11 @@ except Exception:
 nums=[int(float(v)) for v in vals]
 print(max(nums) if nums else -1)' 2>/dev/null || echo -1)"
     if [ "$RESTARTS" -lt 0 ]; then
-        echo "[断言五 零重启]   SKIP —— 读不到 numRestarts/fullRestarts 指标（作业 $JID）。"
+        echo "[断言五 零重启]   SKIP —— 读不到 numRestarts/fullRestarts 指标（作业 ${JID}）。"
     elif [ "$RESTARTS" -eq 0 ]; then
         echo "[断言五 零重启]   PASS —— 作业 $JID 重启次数 0。"
     else
-        echo "[断言五 零重启]   FAIL —— 作业 $JID 重启次数 $RESTARTS。"
+        echo "[断言五 零重启]   FAIL —— 作业 $JID 重启次数 ${RESTARTS}。"
         echo "                  计数器已在重启时归零，本轮的一切对账恒等式与逐设备结果均不可用；"
         echo "                  请清场后重跑，不要在此结果上继续标定或探针。"
         RESTART_RC=1

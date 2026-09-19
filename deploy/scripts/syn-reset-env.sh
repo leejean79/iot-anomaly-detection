@@ -328,7 +328,7 @@ try:
 except Exception: print("?")' 2>/dev/null)"
 echo "  JobManager akka.framesize: ${FRAME:-?}（期望 ${FRAME_CFG}，来自 ${FRAME_SRC}）"
 case "${FRAME:-}" in
-    "$FRAME_CFG") record "akka.framesize" PASS "$FRAME（期望值来自 ${FRAME_SRC}）" ;;
+    "$FRAME_CFG") record "akka.framesize" PASS "${FRAME}（期望值来自 ${FRAME_SRC}）" ;;
     "?"|"") record "akka.framesize" SKIP "读不到 /jobmanager/config$([ "$REST_OK" -eq 0 ] && echo '（REST 不可达，见 JM REST 可达 一项）')" ;;
     *) record "akka.framesize" WARN "容器实测 ${FRAME}，与期望值 ${FRAME_CFG}（来自 ${FRAME_SRC}）不一致；改动需重建 JM 与两个 TM 才生效" ;;
 esac
@@ -345,7 +345,7 @@ if [ -f "$LOCAL_JAR" ]; then
         record "jar 一致" FAIL "不一致 —— bash deploy/scripts/syn-upload-m1.sh --jar-only 后重跑"
     fi
 else
-    record "jar 一致" SKIP "本地 target/ 下没有 $JAR_NAME（先 mvn -DskipTests package）"
+    record "jar 一致" SKIP "本地 target/ 下没有 ${JAR_NAME}（先 mvn -DskipTests package）"
 fi
 
 # ---------- 核对表 ----------

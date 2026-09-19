@@ -103,7 +103,7 @@ ENTRIES=$(master "docker exec jobmanager sh -c '$LIST_CMD'" 2>/dev/null || true)
 
 if echo "$ENTRIES" | grep -q "__NO_LISTER__" || [ -z "$ENTRIES" ]; then
     echo "  [WARN] jobmanager 容器内无 unzip/jar/python3，无法列出 jar 条目。"
-    echo "         回退：在任一有 unzip 的机器上运行 deploy/scripts/check-jar.sh $JAR_NAME，"
+    echo "         回退：在任一有 unzip 的机器上运行 deploy/scripts/check-jar.sh ${JAR_NAME}，"
     echo "         或 docker cp 出 jar 后本地 unzip -l | grep -E '\\.(so|dylib|dll)$'。"
     PASS_JAR="CHECK"
 else
@@ -159,7 +159,7 @@ FREE_SLOTS=$(echo "$OVERVIEW" | grep -oE '"slots-available":[0-9]+' | grep -oE '
 if [ -n "$FREE_SLOTS" ]; then
     echo "  slots-available=$FREE_SLOTS  (need $PARALLELISM)"
     if [ "$FREE_SLOTS" -lt "$PARALLELISM" ]; then
-        echo "  ERROR: 空闲 slot 不足（$FREE_SLOTS < $PARALLELISM）。请等在跑作业释放 slot，或 --parallelism 调小；" >&2
+        echo "  ERROR: 空闲 slot 不足（$FREE_SLOTS < ${PARALLELISM}）。请等在跑作业释放 slot，或 --parallelism 调小；" >&2
         echo "         绝不取消在跑作业腾位。/ not enough free slots; do NOT cancel running jobs." >&2
         exit 2
     fi
@@ -212,7 +212,7 @@ done
 T2=$(date +%s)
 echo "  job state=$STATE  total wall (submit→terminal) = $((T2-T0))s"
 if [ "$STATE" != "FINISHED" ]; then
-    echo "  [WARN] 作业未在 ${SMOKE_TIMEOUT}s 内 FINISHED（state=$STATE）。查 JM/TM 日志；报告可能不完整。"
+    echo "  [WARN] 作业未在 ${SMOKE_TIMEOUT}s 内 FINISHED（state=${STATE}）。查 JM/TM 日志；报告可能不完整。"
 fi
 
 # --------------------------------------------------------------------------
@@ -255,7 +255,7 @@ if [ -n "$REPORTS" ]; then
     elif [ -n "${SYN_JAVACPP_MAXPHYSICALBYTES:-}" ] \
          && ! echo "$REPORTS" | grep -q "D.maxphysicalbytes=$SYN_JAVACPP_MAXPHYSICALBYTES"; then
         PASS_OFFHEAP="FAIL"
-        echo "  [Point 1][FAIL] TM 生效值与 .env 不一致：.env 要求 D.maxphysicalbytes=$SYN_JAVACPP_MAXPHYSICALBYTES，"
+        echo "  [Point 1][FAIL] TM 生效值与 .env 不一致：.env 要求 D.maxphysicalbytes=${SYN_JAVACPP_MAXPHYSICALBYTES}，"
         echo "                  但报告里是上面那个旧值 —— 说明 compose/.env 未下发到节点，或 TaskManager 容器未重建。"
         echo "                  修复：bash $SCRIPT_DIR/syn-sync-flink-image.sh --config-only && bash $SCRIPT_DIR/2-up-all.sh"
         echo "  [Point 1][FAIL] TM effective value differs from .env — config not shipped, or TM not recreated."
