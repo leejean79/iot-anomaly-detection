@@ -32,6 +32,33 @@
 
 ## 2. 修正后的测试步骤
 
+### 2.0 执行顺序总览（先看这张表，再看各节细节）
+
+**本节的小节编号是内容分类，不是执行顺序。** 尤其 2.4 的两条探针命令**不单独执行**，它们嵌在
+2.5 第 2 轮（三月基线）的中间——因为探针读 `synergia-m1-out`，必须在重放产生数据之后、清理 topic
+之前跑。按下表从上往下执行即可。
+
+| 步 | 动作 | 对应小节 |
+| --- | --- | --- |
+| 1 | 本地：`mvn -o test`、`lint-scripts.sh`、打包、`check-jar.sh` | 2.1 |
+| 2 | 上传 jar：`syn-upload-m1.sh --jar-only` | 2.1 |
+| 3 | 环境复位：`syn-reset-env.sh`，核对表须全 PASS | 2.2 |
+| 4 | 使 `akka.framesize` 生效（若尚未生效）：`1-sync-to-nodes.sh` → `2-up-all.sh` | 2.3 |
+| 5 | **第 1 轮**：M1 单日回归 | 2.5 第 1 条 |
+| 6 | 复位环境 | 2.2 |
+| 7 | **第 2 轮起步**：提交 M2Job → 启动 `syn-ckpt-watch.sh` → `--speedup 3600` 重放三月 | 2.5 第 2 条 |
+| 8 | 等排空：`syn-m2-metrics.sh` 连续两次读数一致 | 2.5 第 2 条 |
+| 9 | 完整性闸门：`syn-replay-verify.sh --tol-pct 0.2`（五条断言） | 2.5 第 2 条 |
+| 10 | **探针新口径**：`syn-m2-probe.sh --out-name m2_probe_corrected.csv` | **2.4** |
+| 11 | **探针旧口径**：`syn-m2-probe.sh --legacy-drain-tail --out-name m2_probe_legacy.csv` | **2.4** |
+| 12 | 两次比较判读（±1% / 恰好 60 / 约 2.00） | **2.4** |
+| 13 | 逐设备基线：`syn-m2-baseline.sh --tag march` | 2.5 第 2 条 |
+| 14 | 复位环境，再跑第 3 轮（六月突变 v2）与第 4 轮（设备 G 逐小时 v2） | 2.5 第 3、4 条 |
+
+第 10 到 12 步**必须在第 13 步之前、且在任何 `syn-clean-topics.sh` 之前**完成。一旦 topic 被清，
+`m1-out` 就没有数据，探针只能等下一轮重放。
+
+
 ### 2.1 本地：单元测试与打包
 
 ```bash
@@ -72,7 +99,7 @@ ssh fa-master "curl -s localhost:8081/jobmanager/config" | python3 -m json.tool 
 同时作用于 `kafka-*` 与 `zookeeper`，若输出里出现 `Recreating kafka-1`，**立即中止**——那会让
 broker 拿到全新空卷、topic 数据归零。正常情况下这两个容器的配置没变，compose 不会重建它们。
 
-### 2.4 重跑探针，重建参考值（顺序已更正）
+### 2.4 重跑探针，重建参考值（**本节命令在 2.5 第 2 轮之内执行，不单独跑**）
 
 **更正**：本节 1.0 版把探针写成可以在环境复位之后单独执行，这是错的。`syn-m2-probe.sh` 消费的是
 **`synergia-m1-out`**（见该脚本第 17 行的前置条件与第 86 行消费的 topic），而 `syn-reset-env.sh`
