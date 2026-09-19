@@ -400,7 +400,17 @@ public final class M2Probe {
         long maxArrival = copy.get(copy.size() - 1).arrival;
         int cursor = 0;
         List<McodPoint> active = new ArrayList<>();
-        for (long windowEnd = slideMs; windowEnd - windowMs <= maxArrival; windowEnd += slideMs) {
+        // 循环上界必须与运行中的作业口径一致：Flink 只触发 windowEnd ≤ 当前水位线的窗口，
+            // 而流未结束时水位线停在最后一个事件上。原先的 windowEnd - windowMs <= maxArrival
+            // 等价于 windowStart <= maxArrival，会在最后一个点之后继续滑 W/S 步、让窗口逐步排空；
+            // 排空段里点数跌到 k 以下时窗内全员离群、该滑窗离群率饱和为 1.0，而「逐滑窗比率的算术
+            // 平均」对这类滑窗没有加权保护，于是整体抬高约 2.0/滑窗数 的恒定加性偏移。实测三月基线
+            // 中 A–G 七台设备恰好各差 60 = W/S 个滑窗、比率之和恰好各差约 2.00，即此。
+            // The bound must match a running job: Flink only fires windows whose end is at or before
+            // the watermark, which stalls at the last event. The old bound kept sliding W/S steps past
+            // the final point while the window drained; once the draining window holds fewer than k
+            // neighbours every point is an outlier and the slide saturates at 1.0, lifting the mean.
+            for (long windowEnd = slideMs; windowEnd <= maxArrival; windowEnd += slideMs) {
             long windowStart = windowEnd - windowMs;
             while (cursor < copy.size() && copy.get(cursor).arrival < windowEnd) {
                 active.add(copy.get(cursor));
@@ -437,7 +447,9 @@ public final class M2Probe {
     }
 
     /** 对一个设备的点序列跑一遍滑动窗口，返回离群率统计（复用 McodCore，忠实一致）。 */
-    private static RateResult sweep(List<McodPoint> pts, double r, int k, long windowMs, long slideMs) {
+    // 包级可见（非 private）：ProbeDrainTailTest 直接调用真实实现，守住循环上界不被改回去。
+    // Package-private so ProbeDrainTailTest can call the real implementation as a regression guard.
+    static RateResult sweep(List<McodPoint> pts, double r, int k, long windowMs, long slideMs) {
         if (pts.isEmpty()) {
             return new RateResult(0, 0, 0, 0);
         }
@@ -454,7 +466,17 @@ public final class M2Probe {
         double sumRate = 0;
         long sumWindowPoints = 0;
         long zeroSlides = 0;
-        for (long windowEnd = slideMs; windowEnd - windowMs <= maxArrival; windowEnd += slideMs) {
+        // 循环上界必须与运行中的作业口径一致：Flink 只触发 windowEnd ≤ 当前水位线的窗口，
+            // 而流未结束时水位线停在最后一个事件上。原先的 windowEnd - windowMs <= maxArrival
+            // 等价于 windowStart <= maxArrival，会在最后一个点之后继续滑 W/S 步、让窗口逐步排空；
+            // 排空段里点数跌到 k 以下时窗内全员离群、该滑窗离群率饱和为 1.0，而「逐滑窗比率的算术
+            // 平均」对这类滑窗没有加权保护，于是整体抬高约 2.0/滑窗数 的恒定加性偏移。实测三月基线
+            // 中 A–G 七台设备恰好各差 60 = W/S 个滑窗、比率之和恰好各差约 2.00，即此。
+            // The bound must match a running job: Flink only fires windows whose end is at or before
+            // the watermark, which stalls at the last event. The old bound kept sliding W/S steps past
+            // the final point while the window drained; once the draining window holds fewer than k
+            // neighbours every point is an outlier and the slide saturates at 1.0, lifting the mean.
+            for (long windowEnd = slideMs; windowEnd <= maxArrival; windowEnd += slideMs) {
             long windowStart = windowEnd - windowMs;
             while (cursor < copy.size() && copy.get(cursor).arrival < windowEnd) {
                 active.add(copy.get(cursor));
@@ -485,7 +507,7 @@ public final class M2Probe {
                 sumRate / slides, (double) zeroSlides / slides);
     }
 
-    private static final class RateResult {
+    static final class RateResult {
         final long slides;
         final double meanWindowPoints;
         final double meanOutlierRate;

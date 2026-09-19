@@ -75,6 +75,14 @@ services:
         taskmanager.memory.process.size: ${TM_HEAP_MB}m
         taskmanager.memory.managed.size: ${SYN_TM_MANAGED_MEM_MB:-256}m
         taskmanager.memory.task.off-heap.size: ${SYN_TM_TASK_OFFHEAP_MB:-768}m
+        # akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+        # JobManagerCheckpointStorage，状态随**确认 RPC** 回传，因此它就是真正的 checkpoint 上限
+        # （曾有一条 27,329,480 字节的确认 RPC 撞上默认值导致作业重启、重放基线作废）。抬到 64 MB
+        # 作为纵深防护，给后续加入 M3 模型状态的运行留出余量。JM 与 TM 两侧必须一致。
+        # akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+        # checkpoint state rides inside the acknowledge RPC, so this is the real ceiling. Must match on
+        # both JobManager and TaskManager.
+        akka.framesize: ${SYN_AKKA_FRAMESIZE:-64mb}
         env.java.opts.taskmanager: -Dorg.bytedeco.javacpp.maxbytes=${SYN_JAVACPP_MAXBYTES:-512m} -Dorg.bytedeco.javacpp.maxphysicalbytes=${SYN_JAVACPP_MAXPHYSICALBYTES:-3584m} -Dorg.bytedeco.javacpp.cachedir=${SYN_JAVACPP_CACHEDIR:-/tmp/javacpp-cache}
         taskmanager.host: ${NODE_SELF_IP}
         parallelism.default: ${JOB_LOCAL_PARALLELISM}

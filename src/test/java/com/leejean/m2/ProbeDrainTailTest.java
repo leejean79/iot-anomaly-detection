@@ -16,7 +16,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 参考值低约 0.0059 个百分点，且每台的滑窗数恰好比探针少 <b>60</b> 个。60 正是 W/S = 3600/60，
  * 即一个完整窗长折合的滑动步数。本测试把这个差异的机制固化下来。
  *
- * <p>机制：{@code M2Probe.sweep} 的循环条件是 {@code windowEnd - windowMs <= maxArrival}，也就是
+ * <p><b>修复状态</b>：{@code M2Probe} 的两处滑窗循环（{@code sweep} 与 {@code writeOutlierHod}）已按设计
+ * 会话裁决改为 {@code windowEnd <= maxArrival}。本测试保留下来有两个用途：一是固化机制，二是
+ * {@link #realSweepUsesTheJobBound()} 直接调用真实的 {@code M2Probe.sweep}，守住上界不被改回去。
+ *
+ * <p>机制（修复前）：{@code M2Probe.sweep} 的循环条件曾是 {@code windowEnd - windowMs <= maxArrival}，也就是
  * {@code windowStart <= maxArrival}，因此它会一直滑到<b>窗口起点越过最后一个数据点</b>为止——在最后
  * 一个点之后还要多走 W/S 个滑动步，这段里窗口只出不进、逐步排空。而运行中的 Flink 作业只会触发
  * {@code windowEnd <= 当前水位线} 的窗口，流未结束时水位线停在最后一个事件上，这 W/S 个排空窗口
@@ -130,5 +134,22 @@ class ProbeDrainTailTest {
         // 近似恒定的加性偏移，这正是 A–G 七台一致偏低约 0.0059 个百分点的形状。
         assertTrue(probe.sumRate - job.sumRate > 1.0,
                 "排空段贡献的比率之和应大于 1，实测 " + (probe.sumRate - job.sumRate));
+    }
+
+    @Test
+    @DisplayName("回归守卫：真实的 M2Probe.sweep 用的是作业口径的上界，不含排空尾巴")
+    void realSweepUsesTheJobBound() {
+        List<McodPoint> pts = denseDevice(6);
+        // 真实实现 / the real implementation
+        M2Probe.RateResult real = M2Probe.sweep(pts, 1.0, 10, WINDOW_MS, SLIDE_MS);
+        // 两种口径的复刻 / both bounds, replicated
+        Sweep job = sweep(pts, 1.0, 10, false);
+        Sweep probeOldBound = sweep(pts, 1.0, 10, true);
+
+        assertEquals(job.slides, real.slides,
+                "M2Probe.sweep 的滑窗数应与作业口径一致；若等于 " + probeOldBound.slides
+                        + " 说明排空尾巴的上界被改回去了");
+        assertEquals((double) job.sumRate / job.slides, real.meanOutlierRate, 1e-12,
+                "meanOutlierRate 也应与作业口径一致");
     }
 }

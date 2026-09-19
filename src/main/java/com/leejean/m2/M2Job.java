@@ -131,7 +131,7 @@ public class M2Job {
         System.out.println("Warmup rounds:   " + warmupRounds
                 + (params.has("warmup-rounds") ? " (explicit --warmup-rounds)" : " (from --calib-days)"));
         System.out.println("Relative guard:  " + (relativeGuard ? "ON" : "OFF (default)"));
-        System.out.println("Ckpt max state:  " + ckptMaxStateMb + " MB/subtask (memory-backed)");
+        com.leejean.m1.CheckpointCeiling.print(ckptMaxStateMb);   // 打印两个上限与生效值 / both ceilings
         System.out.println("Ckpt tolerable failures: " + ckptTolerableFailures
                 + (ckptTolerableFailures > 0 ? "  [DIAGNOSTIC MODE: job will not restart on failed checkpoints]" : ""));
         System.out.println("Window W/S:      " + windowSec + "s / " + slideSec + "s");

@@ -2,10 +2,11 @@
 # ============================================================================
 # syn-replay-verify.sh
 # 重放完整性核验（补充指令五 step1）——每次标定/探针运行前的**固定前置门槛**。把 synergia-m1-out
-# 转储成 JSONL，在 master 临时 flink 容器里跑 com.leejean.m2.ReplayVerify，四条断言全过才放行。
+# 转储成 JSONL，在 master 临时 flink 容器里跑 com.leejean.m2.ReplayVerify，四条断言全过、且作业
+# 重启次数为 0（断言五，由本脚本经 Flink REST 检查）才放行。
 # Replay-integrity gate: dump synergia-m1-out and run ReplayVerify; proceed only if all four assertions pass.
 #
-# 四条断言 / four assertions:
+# 五条断言 / five assertions（①~④ 由 ReplayVerify 判定，⑤ 由本脚本经 REST 判定）:
 #   ① 轮数对账：消费总轮数与 EDA 三月逐日合计一致（需 --expected-total；否则退出码 3，不臆造参照）。
 #   ② 零重复：同设备同时间戳零重复（重发在此暴露）。
 #   ③ 边界对齐：最早=start、最晚=end−周期（含边界空档容差）。
@@ -119,9 +120,61 @@ else
     rm -f "$LOCAL_REPORT" 2>/dev/null || true
 fi
 
+# ---------------------------------------------------------------------------
+# 断言五：整轮运行期间作业的重启次数为 0 / assertion 5: zero job restarts.
+# 【为何必须有这一条】Flink 的指标计数器是**每 JVM** 的，作业一旦重启就全部归零，而 checkpoint
+# 恢复的状态却继续存在。于是重启之后所有对账恒等式都不再成立，且从计数器表面完全看不出来——曾经
+# 观测到 m1_scaler_warmup_rounds=0 与 m2_gate_admitted=25,518 并列这种自相矛盾的读数。断言二靠
+# 重复轮抓到了那一次，断言五抓的是这一**类**。
+# Metrics counters are per-JVM and reset on restart while checkpointed state survives, so every
+# reconciliation identity is void after a restart even when the counters look healthy.
+# ---------------------------------------------------------------------------
+REST="http://$NODE_MASTER_IP:8081"
+restarts_of() {
+    # Flink 1.13 的作业指标名为 numRestarts（旧名 fullRestarts，部分版本仍在）。
+    on_master "curl -s --max-time 20 '$REST/jobs/$1/metrics?get=numRestarts,fullRestarts'" 2>/dev/null
+}
+JOB_JSON="$(on_master "curl -s --max-time 20 '$REST/jobs'" 2>/dev/null || true)"
+JID="$(printf '%s' "$JOB_JSON" | python3 -c '
+import json,sys
+try:
+    running=[j["id"] for j in json.load(sys.stdin).get("jobs",[]) if j.get("status")=="RUNNING"]
+except Exception:
+    running=[]
+print(running[0] if len(running)==1 else "")' 2>/dev/null || true)"
+
+RESTART_RC=0
+if [ -z "$JID" ]; then
+    echo "[断言五 零重启]   SKIP —— 未能唯一确定 RUNNING 作业（作业已结束或有多个）。"
+    echo "                  请手工核对：curl $REST/jobs/<JobID>/metrics?get=numRestarts"
+else
+    M_JSON="$(restarts_of "$JID" || true)"
+    RESTARTS="$(printf '%s' "$M_JSON" | python3 -c '
+import json,sys
+try:
+    vals=[m.get("value") for m in json.load(sys.stdin) if m.get("value") not in (None,"")]
+except Exception:
+    vals=[]
+nums=[int(float(v)) for v in vals]
+print(max(nums) if nums else -1)' 2>/dev/null || echo -1)"
+    if [ "$RESTARTS" -lt 0 ]; then
+        echo "[断言五 零重启]   SKIP —— 读不到 numRestarts/fullRestarts 指标（作业 $JID）。"
+    elif [ "$RESTARTS" -eq 0 ]; then
+        echo "[断言五 零重启]   PASS —— 作业 $JID 重启次数 0。"
+    else
+        echo "[断言五 零重启]   FAIL —— 作业 $JID 重启次数 $RESTARTS。"
+        echo "                  计数器已在重启时归零，本轮的一切对账恒等式与逐设备结果均不可用；"
+        echo "                  请清场后重跑，不要在此结果上继续标定或探针。"
+        RESTART_RC=1
+    fi
+fi
+if [ "$VERIFY_RC" -eq 0 ] && [ "$RESTART_RC" -ne 0 ]; then
+    VERIFY_RC=1
+fi
+
 echo "===================================="
 case "$VERIFY_RC" in
-    0) echo "✅ 四条断言全部通过——**允许**进入标定/探针（step2）。" ;;
+    0) echo "✅ 五条断言全部通过——**允许**进入标定/探针（step2）。" ;;
     3) echo "⛔ 退出码 3：断言一缺 EDA 参照。请用 --expected-total <三月逐日合计> 或 .env 的 SYN_EDA_MARCH_ROUNDS_TOTAL 重跑。" ;;
     *) echo "⛔ 退出码 ${VERIFY_RC}：有断言未通过——**拦住**后续标定/探针，请先解决重放完整性问题（见上方逐条与 docs/${REPORT_NAME}）。" ;;
 esac

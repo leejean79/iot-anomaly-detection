@@ -67,6 +67,14 @@ services:
         jobmanager.rpc.address: ${NODE_MASTER_IP}
         jobmanager.rpc.port: 6123
         jobmanager.memory.process.size: ${JM_HEAP_MB}m
+        # akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+        # JobManagerCheckpointStorage，状态随**确认 RPC** 回传，因此它就是真正的 checkpoint 上限
+        # （曾有一条 27,329,480 字节的确认 RPC 撞上默认值导致作业重启、重放基线作废）。抬到 64 MB
+        # 作为纵深防护，给后续加入 M3 模型状态的运行留出余量。JM 与 TM 两侧必须一致。
+        # akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+        # checkpoint state rides inside the acknowledge RPC, so this is the real ceiling. Must match on
+        # both JobManager and TaskManager.
+        akka.framesize: ${SYN_AKKA_FRAMESIZE:-64mb}
         parallelism.default: ${JOB_LOCAL_PARALLELISM}
         rest.address: 0.0.0.0
         rest.bind-address: 0.0.0.0
