@@ -225,10 +225,16 @@ step "7/8 清理远端中间产物、盘点孤儿卷 / clear scratch dirs, repor
 run "ssh fa-master \"rm -rf $RHOME/m2probe $RHOME/m2baseline $RHOME/m2surge\" >/dev/null 2>&1 || true"
 TOTAL_DANG=0
 for h in "${NODES[@]}"; do
-    n="$(ssh "$h" "docker volume ls -q -f dangling=true | wc -l" 2>/dev/null | tr -d ' ')"
-    mb="$(ssh "$h" "du -sm \$(docker volume ls -q -f dangling=true | sed 's#^#/var/lib/docker/volumes/#') 2>/dev/null | awk '{s+=\$1} END{print s+0}'" 2>/dev/null)"
-    echo "  $h: 孤儿卷 ${n:-0} 个，约 ${mb:-0} MB"
-    TOTAL_DANG=$(( TOTAL_DANG + ${n:-0} ))
+    # 一次远端调用同时取「个数」与「合计 MB」，并且**必须**在列表为空时短路：
+    # 若直接把空列表喂给 du，du 会退化成度量当前目录（登录后的家目录），于是打印出
+    # 「0 个、约 18 MB」这种自相矛盾的读数。/ Guard the empty case: `du` with no operand
+    # measures the login directory, which prints "0 volumes, 18 MB".
+    read -r n mb <<<"$(ssh "$h" 'v=$(docker volume ls -q -f dangling=true); \
+        if [ -z "$v" ]; then echo "0 0"; else \
+        echo "$(echo "$v" | wc -l | tr -d " ") $(du -sm $(echo "$v" | sed "s#^#/var/lib/docker/volumes/#") 2>/dev/null | awk "{s+=\$1} END{print s+0}")"; fi' 2>/dev/null)"
+    n="${n:-0}"; mb="${mb:-0}"
+    echo "  $h: 孤儿卷 ${n} 个，约 ${mb} MB"
+    TOTAL_DANG=$(( TOTAL_DANG + n ))
     if [ "$PRUNE_VOLUMES" -eq 1 ]; then
         run "ssh '$h' 'docker volume prune -f' >/dev/null 2>&1"
     fi
