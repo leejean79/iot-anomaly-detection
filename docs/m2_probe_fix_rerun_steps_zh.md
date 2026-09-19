@@ -143,19 +143,108 @@ CSV 一并贴出；比较一若超出 ±1%，那是一个真正的迁移等值�
 `m2_device_baseline.py` 的参考基准（该脚本的 `--java8-probe` 参数指向它）。旧表保留不删，它是
 Java 8 时期的历史锚点。
 
-### 2.5 四轮重跑（顺序不可颠倒）
+### 2.5 四轮重跑：逐条命令
 
-按交接文档的顺序执行，每一轮都以 `syn-reset-env.sh` 全 PASS 开头：
+每一轮都以环境复位开头，复位核对表全 PASS 才继续。所有命令的执行环境均为**本地 Mac、仓库根目录**。
 
-1. **M1 单日回归**——确认修正没有影响 M1 段。
-2. **三月基线**：提交作业 → `syn-ckpt-watch.sh`（独立终端常驻）→ `--speedup 3600` 重放 →
-   `syn-m2-metrics.sh` 连续两次读数一致 → `syn-replay-verify.sh --tol-pct 0.2`（**现在是五条
-   断言**）→ **2.4 节的两次探针（新口径与旧口径）** → `syn-m2-baseline.sh --tag march`。
-   注意 2.4 节的探针必须在这一步之内完成，因为它读 `synergia-m1-out`，一旦清理 topic 就没有输入了。
-3. **六月 DF-12 突变** `syn-m2-surge.sh --tag v2`。
-4. **设备 G 逐小时分布 v2**——注意它用的是已修正的 `writeOutlierHod`。
+#### 第 1 轮：M1 单日回归（约 15 分钟）
 
----
+目的是确认探针口径修正与 framesize 改动没有影响 M1 段。使用 2022-05-21 这一天，因为
+`syn-m1-reconcile.sh` 内置的就是这一天的逐分区基线（总计 459,472 条、57,442 轮）。
+
+```bash
+bash deploy/scripts/syn-reset-env.sh --yes
+bash deploy/scripts/syn-create-topics.sh
+bash deploy/scripts/syn-submit-m1.sh
+bash deploy/scripts/syn-replay.sh --speedup 3600 --start 2022-05-21 --end 2022-05-22
+bash deploy/scripts/syn-replay.sh logs          # 观察进度，Ctrl+C 只停跟踪
+bash deploy/scripts/syn-m1-reconcile.sh
+```
+
+**判读依据**：重放器打印 `Produced (sent) 459472` 与 `rc=0`；`syn-m1-reconcile.sh` 逐分区全部相等、
+退出码 0。
+
+**失败兜底**：偏移量大于基线，通常意味着 topic 未清空或重放了不止一次——回到复位重来。
+
+#### 第 2 轮：三月基线 + 两次探针（约 1.5 小时）
+
+```bash
+# 2-1 复位与建 topic
+bash deploy/scripts/syn-reset-env.sh --yes
+bash deploy/scripts/syn-create-topics.sh
+
+# 2-2 只提交 M2Job（它已包含完整 M1 管线；M1Job 与 M2Job 不可同时运行）
+bash deploy/scripts/syn-submit-m2.sh --extra \
+    '--m3-enabled false --window-sec 3600 --checkpoint-tolerable-failures 100 --checkpoint-ms 30000' \
+    2>&1 | tee /tmp/submit.log
+grep -E 'W=|Window W/S|Ckpt tolerable failures|Ckpt effective ceiling' /tmp/submit.log
+
+# 2-3 另开一个终端窗口，常驻观测 checkpoint 大小（必须在重放之前启动）
+bash deploy/scripts/syn-ckpt-watch.sh --interval 15 --out docs/reports/ckpt_sizes_march_v2.csv
+
+# 2-4 回到第一个终端，启动重放（--speedup 3600 不可省）
+bash deploy/scripts/syn-replay.sh --speedup 3600 --start 2022-03-01 --end 2022-04-01
+bash deploy/scripts/syn-replay.sh logs
+
+# 2-5 等作业排空：连续两次读数一致
+bash deploy/scripts/syn-m2-metrics.sh
+bash deploy/scripts/syn-m2-metrics.sh
+
+# 2-6 完整性闸门（五条断言）
+bash deploy/scripts/syn-replay-verify.sh --tol-pct 0.2
+
+# 2-7 探针·新口径（今后的判据基准）
+bash deploy/scripts/syn-m2-probe.sh --r-grid 1.0 --k-grid 10 --out-name m2_probe_corrected.csv
+
+# 2-8 探针·旧口径（仅用于与 Java 8 参考表同口径对照）
+bash deploy/scripts/syn-m2-probe.sh --r-grid 1.0 --k-grid 10 --legacy-drain-tail \
+    --out-name m2_probe_legacy.csv
+
+# 2-9 顺带产出设备 G 逐小时分布（与探针同一份转储，零额外代价）
+bash deploy/scripts/syn-m2-probe.sh --r-grid 1.5 --k-grid 10 \
+    --hod-device G --hod-name m2_hod_G_v2.csv --hod-r 1.5 --hod-k 10 \
+    --out-name m2_probe_G_v2.csv
+
+# 2-10 逐设备基线（必须在清理 topic 之前）
+bash deploy/scripts/syn-m2-baseline.sh --tag march
+```
+
+**判读依据**依次是：2-2 必须同时打印 `W=3600s`、`Window W/S: 3600s / 60s`、
+`Ckpt tolerable failures: 100`、`Ckpt effective ceiling: 64.0 MB` 且由 akka.framesize 决定；
+2-6 五条断言全 PASS；2-7 与 2-8 的对比见 2.4 节的两张表（**±1%**、**恰好 60**、**约 2.00**）；
+2-10 逐设备核验落进 ±1% 容差。
+
+**失败兜底**：2-6 任一断言 FAIL 就**停下**，不要读后面的结果；2-7 与 2-8 的差值若不是 60 与 2.00，
+把两份 CSV 一并贴出再判断。
+
+#### 第 3 轮：六月 DF-12 突变 v2（约 1 小时）
+
+重放段沿用 `docs/m2_df12_surge.md` 记录的 2022-06-05 至 2022-06-20。
+
+```bash
+bash deploy/scripts/syn-reset-env.sh --yes
+bash deploy/scripts/syn-create-topics.sh
+bash deploy/scripts/syn-submit-m2.sh --extra \
+    '--m3-enabled false --window-sec 3600 --checkpoint-tolerable-failures 100 --checkpoint-ms 30000'
+bash deploy/scripts/syn-replay.sh --speedup 3600 --start 2022-06-05 --end 2022-06-20
+bash deploy/scripts/syn-replay.sh logs
+bash deploy/scripts/syn-m2-metrics.sh
+bash deploy/scripts/syn-m2-metrics.sh
+bash deploy/scripts/syn-m2-surge.sh --tag v2
+```
+
+**判读依据**：七台设备（A 到 G）各在 2022-06-12 23:01 恰好触发一次冷启动清空，H 在约 7 小时 20 分
+后；与 `docs/m2_df12_surge.md` 第 65、80 行记录的旧结论逐项对照。
+
+#### 第 4 轮：设备 G 逐小时分布 v2
+
+**这一轮的范围有一处未定，需要你或设计会话先确认。** 现有的
+`docs/m2_hod_G_before.csv` 与 `docs/m2_hod_G_after.csv` 对应的是「相对退化防护**关闭**」与「**开启**」
+两种作业配置，而防护开关是 `--relative-guard`（补充指令四已默认关闭）。要完整复现 before/after
+需要**两次完整重放**。仓库里也没有记录这两份 CSV 当初用的是哪个月份的数据。
+
+因此第 2 轮的 2-9 步先以**当前默认配置**（防护关闭）在三月数据上产出 `m2_hod_G_v2.csv`，代价为零。
+是否还需要「防护开启」那一份、以及是否必须换回原始月份，请确认后再决定要不要为它单独花一次重放。
 
 ## 3. 关于交接文档里的方案 E：不应实施
 
