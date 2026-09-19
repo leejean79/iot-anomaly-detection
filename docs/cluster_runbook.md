@@ -43,6 +43,16 @@
 
 同一套集群上**还并存着旧项目 FA-iForest**（其容器、镜像、topic、数据）。以下是不可逾越的红线：
 
+> **状态更新（2026-09-19，用户确认）**：旧项目 FA-iForest 的 Kafka 与 ZooKeeper 数据在本项目
+> 环境搭建过程中已被误删，此后集群上所有容器也已不复存在，2026-09-19 的卷清理又回收了残留的
+> 孤儿匿名卷。**因此下面第 1 到第 4 条此刻保护的已不是活数据。** 集群上仍属于旧项目的，只有
+> `/opt/fa-iforest/jars/FA-iForest-1.0-SNAPSHOT.jar`（125 MB）这一个文件，它必须保留。
+> 这四条红线予以保留而不是删除，原因有两条：一是它们对应的护栏（例如 `syn-clean-topics.sh` 的
+> 前缀白名单）本身零成本且已写进脚本；二是一旦将来恢复旧项目，它们立即重新生效。
+> Status: the old project's Kafka/ZooKeeper data was already lost during this project's environment
+> setup and the orphaned volumes have since been pruned. Only its jar remains and must be kept. The
+> rules below are retained because the guards cost nothing and apply again if it is ever restored.
+
 1. **`flink list` 会同时列出旧 job 和本项目 M1Job。只按 JobID cancel 自己的 M1Job，绝不 cancel 旧 job。**
    本项目作业主类是 `com.leejean.m1.M1Job`；不确定时先在 Flink UI 里按名字/主类核对再动手。
 2. **只碰 `synergia-` 前缀 topic。** `syn-clean-topics.sh` 内建前缀白名单护栏，结构上无法删除
