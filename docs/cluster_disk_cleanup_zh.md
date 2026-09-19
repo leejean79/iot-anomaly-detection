@@ -101,14 +101,22 @@ master 的 `/opt/fa-iforest` 明细（第二大块，合计约 5.0 GB）：
 
 ```bash
 # 执行环境：本地 Mac，任意目录（走 ~/.ssh/config 的主机别名，无需 source .env）
-ssh fa-master \
-    "ls /var/lib/docker/volumes/94202209b1dd7bda29a2b04b2a6aadea0f736e97/_data | head -20"
-ssh fa-worker2 \
-    "ls /var/lib/docker/volumes/3eb86097330af3b1e710f74204a31ea8eec3850d/_data | head -20"
+# 不要手工抄卷 ID——下面的命令自己找出最大的那个卷再列目录。
+for h in fa-master fa-worker2; do
+    echo "===== $h"
+    ssh "$h" 'TOP=$(du -sm /var/lib/docker/volumes/*/_data 2>/dev/null | sort -rn | head -1 | awk "{print \$2}"); echo "最大卷: $TOP"; ls "$TOP" | head -20'
+done
+
+# 若想看前三大的卷各占多少（含完整的 64 位卷 ID）：
+ssh fa-master 'du -sm /var/lib/docker/volumes/*/_data 2>/dev/null | sort -rn | head -3'
 ```
 
 如果列出的是 `kafka-logs-*` 或一堆 `<topic>-<分区号>` 目录，那就确认了这些是历次 broker 容器
 遗留的数据；如果是别的东西，请把输出贴出来再决定。
+
+**关于卷 ID 的长度**：Docker 匿名卷的 ID 是 **64 位**十六进制字符串。`syn-disk-report.sh`
+的 5b 小节最初把它截断到 40 位显示，照抄那个截断值去 `ls` 会得到
+`No such file or directory`——这是显示缺陷，不是卷不存在。脚本已改为完整打印，上面的命令则干脆不依赖人工抄写。
 
 确认无误、且确认旧项目的这些数据不再需要之后：
 

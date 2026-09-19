@@ -121,7 +121,9 @@ DANGLING=$(docker volume ls -q -f dangling=true 2>/dev/null)
 du -sm /var/lib/docker/volumes/*/ 2>/dev/null | sort -rn | head -"$TOP" | while read -r mb path; do
     vid=$(basename "$path")
     if printf '%s\n' "$DANGLING" | grep -qx "$vid"; then use="未被引用 dangling"; else use="使用中 in-use"; fi
-    printf "  %8d MB  %-12s %s\n" "$mb" "$use" "$(echo "$vid" | cut -c1-40)"
+    # 完整打印 64 位卷 ID——截断后的 ID 既不能 ls 也不能 docker volume rm。
+    # Print the full 64-hex volume id; a truncated one is useless for ls or docker volume rm.
+    printf "  %8d MB  %-12s %s\n" "$mb" "$use" "$vid"
 done
 DANGMB=$(for v in $DANGLING; do du -sm "/var/lib/docker/volumes/$v" 2>/dev/null | awk '{print $1}'; done | awk '{s+=$1} END {print s+0}')
 echo "  无容器引用的卷合计: ${DANGMB:-0} MB   （docker volume prune 可回收，**不可撤销**）"
