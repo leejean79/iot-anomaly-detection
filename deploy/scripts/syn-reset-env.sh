@@ -108,6 +108,31 @@ else
     record "容器在位" PASS "六个核心容器齐全"
 fi
 
+# ---------- 1b. JobManager REST 可达性 ----------
+# 【为何单列一项】REST 不可达时，第 4 项「无作业在跑」与第 8 项「akka.framesize」都会退化成 SKIP，
+# 而一串 SKIP 看上去人畜无害——但 REST 不可达意味着**作业根本提交不上去**，是硬故障而不是"跳过"。
+# 这一项把它明确记为 FAIL，并让后面两项在备注里指回这里。
+# Why its own check: when REST is unreachable the later checks degrade to SKIP, which reads as
+# benign; but an unreachable REST means no job can be submitted at all. Record it as a hard failure.
+step "1b/8 JobManager REST 可达性 / JobManager REST reachability"
+REST_OK=0
+OVERVIEW="$(ssh fa-master "curl -s --max-time 10 '$REST/overview'" 2>/dev/null)"
+if printf '%s' "$OVERVIEW" | grep -q 'slots-total'; then
+    REST_OK=1
+    SLOTS0="$(printf '%s' "$OVERVIEW" | python3 -c '
+import json,sys
+try:
+    d=json.load(sys.stdin); print("%s/%s" % (d.get("slots-available"), d.get("slots-total")))
+except Exception: print("?")' 2>/dev/null)"
+    echo "  $REST 可达，可用 slot: $SLOTS0"
+    record "JM REST 可达" PASS "slot $SLOTS0"
+else
+    echo "  $REST 无响应。"
+    echo "  排查顺序：ssh fa-master \"docker ps --format '{{.Names}}\t{{.Status}}' | grep -i jobmanager\""
+    echo "            ssh fa-master \"docker logs jobmanager --tail 60\""
+    record "JM REST 可达" FAIL "$REST 无响应 —— 作业无法提交，先查 docker logs jobmanager"
+fi
+
 # ---------- 2. 磁盘门槛 ----------
 step "2/8 磁盘门槛 / free space >= ${MIN_FREE_GB} GB"
 DISK_BAD=""
@@ -160,7 +185,11 @@ import json,sys
 try: js=json.load(sys.stdin).get("jobs",[])
 except Exception: js=[]
 print(sum(1 for j in js if j.get("state")=="RUNNING"))' 2>/dev/null || echo "?")"
-if [ "$STILL" = "0" ]; then record "无作业在跑" PASS "RUNNING 作业数 0"
+if [ "$REST_OK" -eq 0 ]; then
+    # REST 不可达时 JSON 解析失败同样会得到 0，那是"读不到"而不是"没有作业"，不可据此判 PASS。
+    # An unreachable REST also parses to 0; that is "unknown", not "none running".
+    record "无作业在跑" SKIP "REST 不可达，无从判断（见 JM REST 可达 一项）"
+elif [ "$STILL" = "0" ]; then record "无作业在跑" PASS "RUNNING 作业数 0"
 elif [ "$DRY_RUN" -eq 1 ]; then record "无作业在跑" SKIP "dry-run 未取消"
 else record "无作业在跑" FAIL "仍有 $STILL 个 RUNNING 作业，请在 Flink UI 上核对后处理"; fi
 
@@ -275,7 +304,7 @@ except Exception: print("?")' 2>/dev/null)"
 echo "  JobManager akka.framesize: ${FRAME:-?}（期望 ${SYN_AKKA_FRAMESIZE:-64mb}）"
 case "${FRAME:-}" in
     "${SYN_AKKA_FRAMESIZE:-64mb}") record "akka.framesize" PASS "$FRAME" ;;
-    "?"|"") record "akka.framesize" SKIP "读不到 /jobmanager/config" ;;
+    "?"|"") record "akka.framesize" SKIP "读不到 /jobmanager/config$([ "$REST_OK" -eq 0 ] && echo '（REST 不可达，见 JM REST 可达 一项）')" ;;
     *) record "akka.framesize" WARN "实测 ${FRAME}，与 .env 的 ${SYN_AKKA_FRAMESIZE:-64mb} 不一致；改动需重启 JM 与两个 TM" ;;
 esac
 
