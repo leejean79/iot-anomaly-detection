@@ -55,27 +55,40 @@
 
 ---
 
-## 3. master 节点的实测账（40 GB 盘，已用 31 GB）
+## 3. 三台节点的实测账（2026-09-19 第二次盘点）
+
+卷的实测值已经拿到，三台节点的账目如下。
+
+| 节点 | 盘容量 / 已用 / 可用 | 卷实测合计 | 其中无引用（可回收） | 卷占已用空间比 |
+| --- | --- | --- | --- | --- |
+| fa-master | 40 GB / 31 GB / 6.4 GB | 17,652 MB | **17,579 MB**（180 个 / 共 182 个） | 约 57% |
+| fa-worker1 | 40 GB / 15 GB / 23 GB | 7,330 MB | **7,367 MB**（60 个 / 共 60 个） | 约 49% |
+| fa-worker2 | 40 GB / 26 GB / 12 GB | 18,636 MB | **18,668 MB**（61 个 / 共 61 个） | 约 72% |
+
+（可回收值略高于卷合计，是 `du` 对目录本身按块计量造成的取整差，不影响判断。）
+
+第 2 节倒推的「master 约 21 GB」偏高了约 3.5 GB，worker-1 的「约 11 GB」偏高约 3.7 GB，
+worker-2 的「约 22 GB」偏高约 3.4 GB。三处偏差量级一致，说明倒推法系统性地把镜像层与
+`/var/lib/docker` 其他内容算进了卷里。**今后一律以 5b 小节的实测值为准。**
+
+master 上仍在使用的卷只有 2 个，其中 `compose_prom-data` 占 212 MB，另一个是 Grafana 的数据卷；
+它们被运行中的 prometheus 与 grafana 容器引用，`docker volume prune` 不会碰它们，Prometheus 的
+历史指标因此得以保留。
+
+master 与 worker-2 上各有一个约 11.5 GB 的单体大卷（`94202209b1dd…` 与 `3eb86097330a…`），
+两者合计就占了全部可回收量的一半。worker-1 上最大的一个只有 2,111 MB。
+
+master 的 `/opt/fa-iforest` 明细（第二大块，合计约 5.0 GB）：
 
 | 项目 | 实测 | 处置 |
 | --- | --- | --- |
-| Docker 卷（182 个，在用 2 个） | 待 5b 实测；按总账倒推约 21 GB | 第一大头，见 4.1 |
-| Docker 镜像合计 | 4.58 GB，其中悬空 2 个 | 悬空的可回收，见 4.2 |
-| `/opt/fa-iforest/datasets` | 2350 MB | **保留**，重放器要用 |
-| `/opt/fa-iforest/m2probe` | 1105 MB | 可删，脚本下次运行会重建 |
-| `/opt/fa-iforest/fa-iforest-flink.tar` | 632 MB | 可删，`docker load` 之后无用 |
-| `/opt/fa-iforest/jars` | 339 MB（旧项目 125 MB + 本项目 214 MB） | **两个都保留** |
-| `/opt/fa-iforest/mon_full.jsonl` | 300 MB | 删前确认，见 4.3 |
-| `/opt/fa-iforest/m2baseline` | 265 MB | 可删，脚本会重建 |
-| `/opt/fa-iforest/m2surge` | 71 MB | 可删，脚本会重建 |
-| `/var/log` 与 journal | 378 MB / 360 MB | 可收缩 |
-| 容器 json 日志 | 4 MB | 不值得动 |
-
-已知项合计约 10 GB，而全盘已用 31 GB，**差额约 21 GB 只能落在 Docker 卷上**。这是倒推，不是实测；
-以 5b 小节的 `du` 数字为准。
-
-worker-1 已用 15 GB、worker-2 已用 26 GB，两台的 `/opt/fa-iforest` 都只有 632 MB 的镜像 tar，
-镜像各 2.98 GB，因此它们的差额（约 11 GB 与 22 GB）同样落在卷上。
+| `datasets` | 2350 MB | **保留**，重放器要用 |
+| `m2probe` | 1105 MB | 可删，脚本下次运行会重建 |
+| `fa-iforest-flink.tar` | 632 MB | 可删，但须在镜像核对之后，见 4.2 |
+| `jars` | 339 MB（旧项目 125 MB + 本项目 214 MB） | **两个都保留** |
+| `mon_full.jsonl` | 300 MB | 删前确认，见 4.3 |
+| `m2baseline` | 265 MB | 可删，脚本会重建 |
+| `m2surge` | 71 MB | 可删，脚本会重建 |
 
 ---
 
@@ -83,17 +96,24 @@ worker-1 已用 15 GB、worker-2 已用 26 GB，两台的 `/opt/fa-iforest` 都�
 
 ### 4.1 第一级：回收孤儿卷（最大的一块，需你确认）
 
-先看清楚再动手：
+**执行之前，先花一分钟看清最大的几个卷装的是什么。** 这一步是只读的，代价极低，而它把一个
+不可撤销的删除从「不知道删了什么」变成「知道删了什么」：
 
 ```bash
 # 执行环境：本地 Mac，仓库根目录
-bash deploy/scripts/syn-disk-report.sh --top 30   # 看新增的 5b 小节实测值
+set -a; source deploy/.env; set +a
+ssh -i "$SSH_KEY" "$SSH_USER@$NODE_MASTER_PUBLIC_IP" \
+    "ls /var/lib/docker/volumes/94202209b1dd7bda29a2b04b2a6aadea0f736e97/_data | head -20"
+ssh -i "$SSH_KEY" "$SSH_USER@$NODE_WORKER2_PUBLIC_IP" \
+    "ls /var/lib/docker/volumes/3eb86097330af3b1e710f74204a31ea8eec3850d/_data | head -20"
 ```
 
-确认「无容器引用的卷合计」这个数字，并确认旧项目的 Kafka 数据不再需要之后：
+如果列出的是 `kafka-logs-*` 或一堆 `<topic>-<分区号>` 目录，那就确认了这些是历次 broker 容器
+遗留的数据；如果是别的东西，请把输出贴出来再决定。
+
+确认无误、且确认旧项目的这些数据不再需要之后：
 
 ```bash
-# 执行环境：三台节点，逐台执行；不可撤销
 set -a; source deploy/.env; set +a
 for h in "$NODE_MASTER_PUBLIC_IP" "$NODE_WORKER1_PUBLIC_IP" "$NODE_WORKER2_PUBLIC_IP"; do
     echo "--- $h"
@@ -101,13 +121,23 @@ for h in "$NODE_MASTER_PUBLIC_IP" "$NODE_WORKER1_PUBLIC_IP" "$NODE_WORKER2_PUBLI
 done
 ```
 
-预计回收：master 约 21 GB、worker-1 约 11 GB、worker-2 约 22 GB（倒推值，以 5b 实测为准）。
-风险：**不可撤销**，旧项目历次运行的 Kafka 数据随之消失。由于这些卷不会被任何新容器挂回，
-保留它们唯一的价值是「将来手工把某个卷挂到临时容器上翻查旧数据」。
+实测可回收：master 17,579 MB、worker-1 7,367 MB、worker-2 18,668 MB。
+回收之后的可用空间约为 master 23.5 GB、worker-1 30 GB、worker-2 30 GB——**仅这一步就足以
+让三台节点都越过 20 GB 的门槛**。
 
-**更保守的做法**：如果你想先留一手，可以只删除**修改时间最早**的那一批。5b 小节按大小排序列出了
-最大的若干个卷，`ls -ld --time-style=long-iso /var/lib/docker/volumes/*/` 可以看到各自的时间，
-据此逐个 `docker volume rm <卷名>`。代价是要手工判断，收益是可以分批回收。
+**不要加 `-a`。** 当前这 301 个待回收的卷全部是匿名卷（十六进制名），默认的
+`docker volume prune` 就能清掉；加 `-a` 会把带名字的卷也纳入范围，而 `compose_prom-data`
+与 Grafana 数据卷正是带名字的卷——虽然它们被运行中的容器引用因而不会被删，但没有必要去冒
+这个风险。
+
+风险：**不可撤销**。这些卷不会被任何新容器挂回（新建 broker 容器会拿到全新的空卷），所以保留
+它们唯一的价值是「将来手工把某个卷挂到临时容器上翻查旧数据」。
+
+**更保守的做法**：只删小的、留下两个 11.5 GB 的大卷。这样 master 仍可回收 6,035 MB、
+worker-2 仍可回收 7,030 MB。再加上第二级的 tar 包与 journal、第三级的中间产物（master 多出
+1,441 MB），master 约有 14.6 GB、worker-2 约有 19.7 GB 可用。这两个数字**没有把悬空镜像的
+约 2.5 GB 算进去**——4.2 节说明了那份数据自相矛盾，在核实之前不计入。两台都低于 20 GB 门槛，
+但很可能仍够跑完一轮。要走这条路径就逐个 `docker volume rm <卷名>`，而不是 `prune`。
 
 ### 4.2 第二级：完全安全，不影响任何数据（注意执行顺序）
 
