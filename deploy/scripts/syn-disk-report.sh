@@ -105,6 +105,28 @@ else
 fi
 hr
 
+echo "### 5b. Docker 数据卷实测 / docker volumes (measured with du)"
+# 【为何单列一节】wurstmeister/kafka 等镜像在 Dockerfile 里声明了 VOLUME，因此每次**新建容器**都会
+# 生成一个匿名卷来存放 kafka-logs；容器被删除后这个匿名卷不会自动消失，于是历次实验的 broker 数据
+# 会以「孤儿卷」的形式一直留在盘上。`docker system df` 的 Local Volumes 一行实测会显著高于真实占用
+# （worker-1 曾报 51.73 GB 而整块盘只用了 15 GB），所以这里一律以 du 的实测值为准。
+# Why a separate section: images like wurstmeister/kafka declare VOLUME, so every new container gets
+# an anonymous volume for its kafka-logs; removing the container leaves that volume behind. The
+# Local Volumes row of `docker system df` overcounts, so measure with du instead.
+VOLTOT=$(du -sm /var/lib/docker/volumes 2>/dev/null | awk '{print $1}')
+echo "  /var/lib/docker/volumes 实测合计: ${VOLTOT:-N/A} MB"
+echo "  卷总数: $(docker volume ls -q 2>/dev/null | wc -l | tr -d ' ')   其中无容器引用（dangling）: $(docker volume ls -q -f dangling=true 2>/dev/null | wc -l | tr -d ' ')"
+echo "  -- 最大的若干个卷（含是否被容器引用）/ largest volumes --"
+DANGLING=$(docker volume ls -q -f dangling=true 2>/dev/null)
+du -sm /var/lib/docker/volumes/*/ 2>/dev/null | sort -rn | head -"$TOP" | while read -r mb path; do
+    vid=$(basename "$path")
+    if printf '%s\n' "$DANGLING" | grep -qx "$vid"; then use="未被引用 dangling"; else use="使用中 in-use"; fi
+    printf "  %8d MB  %-12s %s\n" "$mb" "$use" "$(echo "$vid" | cut -c1-40)"
+done
+DANGMB=$(for v in $DANGLING; do du -sm "/var/lib/docker/volumes/$v" 2>/dev/null | awk '{print $1}'; done | awk '{s+=$1} END {print s+0}')
+echo "  无容器引用的卷合计: ${DANGMB:-0} MB   （docker volume prune 可回收，**不可撤销**）"
+hr
+
 echo "### 6. ${RHOME} 下的占用 / remote home"
 du -sm "$RHOME"/* 2>/dev/null | sort -rn | head -"$TOP" | awk '{printf "  %10d MB  %s\n",$1,$2}' \
     || echo "  N/A"
@@ -130,6 +152,7 @@ echo "  镜像 tar 包 $RHOME/fa-iforest-flink.tar : ${T:-0} MB   （docker load
 D=$(docker images -f dangling=true -q 2>/dev/null | wc -l | tr -d ' ')
 echo "  悬空镜像数量: ${D:-0} 个   （docker image prune 可回收，不影响在用镜像）"
 echo "  容器 json 日志合计: ${TOTLOG:-N/A} MB   （truncate 可回收，注意会丢失历史日志）"
+echo "  无容器引用的 Docker 卷: ${DANGMB:-0} MB   （历次 Kafka 容器留下的孤儿卷，通常是最大的一块）"
 J=$(du -sm "$RHOME"/jars 2>/dev/null | awk '{print $1}')
 echo "  $RHOME/jars 合计: ${J:-0} MB   （每个本项目 fat jar 约 214 MB，旧版本可删）"
 REMOTE_EOF
