@@ -74,7 +74,14 @@ services:
         # akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
         # checkpoint state rides inside the acknowledge RPC, so this is the real ceiling. Must match on
         # both JobManager and TaskManager.
-        akka.framesize: ${SYN_AKKA_FRAMESIZE:-64mb}
+        # 【单位写法有坑，务必用纯字节】该值被**原样透传给 Akka**，由 Typesafe Config 解析，而不是
+        # Flink 的 MemorySize。Typesafe Config 接受 MB / M / m / MiB，但**不接受小写 mb**；而 Flink
+        # 自己的解析器接受 64mb，于是写错时配置层面看不出问题，直到 JobManager 启动、Akka 报
+        # "Could not parse size-in-bytes unit 'mb'" 才暴露，且 JM 直接起不来、REST 无响应。
+        # 因此一律沿用 Flink 官方默认所用的纯字节写法（默认值就是 10485760b）。67108864b = 64 MiB。
+        # UNIT PITFALL: the value goes verbatim to Akka and is parsed by Typesafe Config, which
+        # rejects lowercase "mb" while Flink's own MemorySize accepts it. Always use plain bytes.
+        akka.framesize: ${SYN_AKKA_FRAMESIZE:-67108864b}
         parallelism.default: ${JOB_LOCAL_PARALLELISM}
         rest.address: 0.0.0.0
         rest.bind-address: 0.0.0.0

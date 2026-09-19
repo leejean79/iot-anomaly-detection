@@ -294,6 +294,22 @@ else
     record "JavaCPP 上限" FAIL "实测 ${TM_PHYS:-?} 与 .env 不一致"
 fi
 
+# 本地预检：SYN_AKKA_FRAMESIZE 的单位写法必须是 Typesafe Config 能解析的。
+# 【为何要这一条】akka.framesize 的值被**原样透传给 Akka**，由 Typesafe Config 解析，而不是 Flink 的
+# MemorySize。Typesafe Config 接受 b/B/kB/K/k/KiB/MB/M/m/MiB/GB/G/g/GiB，**不接受小写 mb/kb/gb**；
+# 而 Flink 自己的解析器接受 64mb，于是写错时在配置层面毫无征兆，直到 JobManager 启动时 Akka 抛出
+# "Could not parse size-in-bytes unit 'mb'"、JM 直接起不来、REST 无响应为止（2026-09-19 实际发生过）。
+# 这一项在本地就能判定，不必等部署到集群才发现。
+# Local preflight: the value goes verbatim to Akka's Typesafe Config parser, which rejects lowercase
+# "mb" while Flink's own MemorySize accepts it, so a bad unit only surfaces when the JobManager dies.
+FRAME_CFG="${SYN_AKKA_FRAMESIZE:-67108864b}"
+if printf '%s' "$FRAME_CFG" | grep -qE '^[0-9]+(b|B|byte|bytes|kB|kilobyte|kilobytes|K|k|Ki|KiB|kibibyte|kibibytes|MB|megabyte|megabytes|M|m|Mi|MiB|mebibyte|mebibytes|GB|gigabyte|gigabytes|G|g|Gi|GiB|gibibyte|gibibytes)$'; then
+    record "framesize 写法" PASS "$FRAME_CFG 可被 Typesafe Config 解析"
+else
+    echo "  [!] SYN_AKKA_FRAMESIZE=$FRAME_CFG 的单位写法 Akka 解析不了。"
+    record "framesize 写法" FAIL "$FRAME_CFG 写法不被接受或缺少单位 —— 改用纯字节写法（如 67108864b）；小写 mb/kb/gb 会让 JM 起不来"
+fi
+
 FRAME="$(ssh fa-master "curl -s --max-time 20 '$REST/jobmanager/config'" 2>/dev/null | python3 -c '
 import json,sys
 try:
