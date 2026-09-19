@@ -7,6 +7,15 @@
 > 本手册与脚本一一对应（`deploy/scripts/`）。所有命令都在**本地 Mac** 执行，脚本内部通过
 > ssh 免密操作 master/worker。凡涉及原始 kafka 命令的地方，`<brokers>` 指
 > `NODE_MASTER_IP:9092,NODE_WORKER1_IP:9092,NODE_WORKER2_IP:9092`（见 `deploy/.env`）。
+>
+> **登录约定（强制）**：一切人工执行的即席命令一律用主机别名登录——`ssh fa-master`、
+> `ssh fa-worker1`、`ssh fa-worker2`，不要再写
+> `ssh -i "$SSH_KEY" "$SSH_USER@$NODE_MASTER_PUBLIC_IP"` 这种展开形式。三个别名由
+> `deploy/scripts/refresh-ips.sh` 在每次实例重启后同时写入 `~/.ssh/config` 与 `deploy/.env`
+> （见该脚本第 184 到 186 行），因此别名始终指向当前公网 IP，而展开形式既冗长又容易在 IP
+> 变化后失效。脚本内部仍沿用 `.env` 里的变量，不受此约定影响。
+> Login convention: always use the host aliases fa-master / fa-worker1 / fa-worker2 for ad-hoc
+> commands; refresh-ips.sh keeps them current in ~/.ssh/config. Scripts keep using .env internally.
 
 ---
 

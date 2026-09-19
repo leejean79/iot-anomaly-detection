@@ -100,11 +100,10 @@ master 的 `/opt/fa-iforest` 明细（第二大块，合计约 5.0 GB）：
 不可撤销的删除从「不知道删了什么」变成「知道删了什么」：
 
 ```bash
-# 执行环境：本地 Mac，仓库根目录
-set -a; source deploy/.env; set +a
-ssh -i "$SSH_KEY" "$SSH_USER@$NODE_MASTER_PUBLIC_IP" \
+# 执行环境：本地 Mac，任意目录（走 ~/.ssh/config 的主机别名，无需 source .env）
+ssh fa-master \
     "ls /var/lib/docker/volumes/94202209b1dd7bda29a2b04b2a6aadea0f736e97/_data | head -20"
-ssh -i "$SSH_KEY" "$SSH_USER@$NODE_WORKER2_PUBLIC_IP" \
+ssh fa-worker2 \
     "ls /var/lib/docker/volumes/3eb86097330af3b1e710f74204a31ea8eec3850d/_data | head -20"
 ```
 
@@ -114,10 +113,9 @@ ssh -i "$SSH_KEY" "$SSH_USER@$NODE_WORKER2_PUBLIC_IP" \
 确认无误、且确认旧项目的这些数据不再需要之后：
 
 ```bash
-set -a; source deploy/.env; set +a
-for h in "$NODE_MASTER_PUBLIC_IP" "$NODE_WORKER1_PUBLIC_IP" "$NODE_WORKER2_PUBLIC_IP"; do
+for h in fa-master fa-worker1 fa-worker2; do
     echo "--- $h"
-    ssh -i "$SSH_KEY" "$SSH_USER@$h" "docker volume prune -f"
+    ssh "$h" "docker volume prune -f"
 done
 ```
 
@@ -148,10 +146,9 @@ worker-2 仍可回收 7,030 MB。再加上第二级的 tar 包与 journal、第�
 判据本身存在矛盾，就不要把「万一被删掉之后还能从 tar 包恢复」这条退路提前砍掉。
 
 ```bash
-set -a; source deploy/.env; set +a
-for h in "$NODE_MASTER_PUBLIC_IP" "$NODE_WORKER1_PUBLIC_IP" "$NODE_WORKER2_PUBLIC_IP"; do
+for h in fa-master fa-worker1 fa-worker2; do
     echo "--- $h"
-    ssh -i "$SSH_KEY" "$SSH_USER@$h" "
+    ssh "$h" "
         docker image prune -f
         journalctl --vacuum-size=200M
         echo '--- prune 之后仍存在的 flink 镜像 ---'
@@ -163,13 +160,13 @@ done
 只有当上面每一台都打印出 `fa-iforest/flink:1.13.6-java11` 之后，才执行删除 tar 包这一步：
 
 ```bash
-for h in "$NODE_MASTER_PUBLIC_IP" "$NODE_WORKER1_PUBLIC_IP" "$NODE_WORKER2_PUBLIC_IP"; do
-    ssh -i "$SSH_KEY" "$SSH_USER@$h" "rm -f ${REMOTE_HOME}/fa-iforest-flink.tar && echo '  tar 已删除'"
+for h in fa-master fa-worker1 fa-worker2; do
+    ssh "$h" "rm -f /opt/fa-iforest/fa-iforest-flink.tar && echo '  tar 已删除'"
 done
 ```
 
 万一某台的 flink 镜像真的消失了，立即用该节点上**尚未删除**的 tar 包恢复：
-`ssh ... "docker load -i ${REMOTE_HOME}/fa-iforest-flink.tar"`。
+`ssh <该节点别名> "docker load -i /opt/fa-iforest/fa-iforest-flink.tar"`。
 
 预计回收：每节点 tar 包 632 MB、悬空镜像最多约 2.5 GB、journal 约 150 到 200 MB。
 **注意 `docker image prune` 一律不加 `-a`**：当前三台节点都没有 Flink 容器在运行，加了 `-a` 会
@@ -188,10 +185,10 @@ Kafka 数据已全部消失，如果它是唯一副本，删掉就再也无法�
 
 ```bash
 # 若决定保留一份本地副本：
-scp -i "$SSH_KEY" "$SSH_USER@$NODE_MASTER_PUBLIC_IP:${REMOTE_HOME}/mon_full.jsonl" /tmp/
+scp fa-master:/opt/fa-iforest/mon_full.jsonl /tmp/
 # 确认之后再删：
-ssh -i "$SSH_KEY" "$SSH_USER@$NODE_MASTER_PUBLIC_IP" \
-    "rm -rf ${REMOTE_HOME}/m2probe ${REMOTE_HOME}/m2baseline ${REMOTE_HOME}/m2surge"
+ssh fa-master \
+    "rm -rf /opt/fa-iforest/m2probe /opt/fa-iforest/m2baseline /opt/fa-iforest/m2surge"
 ```
 
 ---

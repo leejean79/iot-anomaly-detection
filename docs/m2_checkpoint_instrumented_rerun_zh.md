@@ -81,10 +81,9 @@ bash deploy/scripts/refresh-ips.sh              # 确认无误后真正写入 .e
 ### 2.3 验证 SSH 连通
 
 ```bash
-# 执行环境：本地 Mac，仓库根目录
-set -a; source deploy/.env; set +a
-for h in "$NODE_MASTER_PUBLIC_IP" "$NODE_WORKER1_PUBLIC_IP" "$NODE_WORKER2_PUBLIC_IP"; do
-    ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=10 "$SSH_USER@$h" \
+# 执行环境：本地 Mac，任意目录（走 ~/.ssh/config 的主机别名）
+for h in fa-master fa-worker1 fa-worker2; do
+    ssh -o ConnectTimeout=10 "$h" \
         "hostname && docker ps --format '{{.Names}}' | tr '\n' ' ' && echo" || echo "  连接失败: $h"
 done
 ```
@@ -113,9 +112,8 @@ bash deploy/scripts/2-up-all.sh
 统一核对一次，成本极低。
 
 ```bash
-# 执行环境：本地 Mac，仓库根目录
-set -a; source deploy/.env; set +a
-ssh -i "$SSH_KEY" "$SSH_USER@$NODE_WORKER1_PUBLIC_IP" \
+# 执行环境：本地 Mac，任意目录（走 ~/.ssh/config 的主机别名）
+ssh fa-worker1 \
     "docker inspect taskmanager-2 --format '{{.Config.Image}}' && \
      docker inspect taskmanager-2 | grep -i maxphysicalbytes"
 ```
