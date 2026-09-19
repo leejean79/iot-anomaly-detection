@@ -144,6 +144,23 @@ def main():
             continue
         base = mean([r for (t, r, n, o, c) in pre if n > 0]) if pre else None
         win = [(t, r, n, o, c) for (t, r, n, o, c) in post if t <= rec + peak_win]
+        if not win:
+            # 恢复时刻之后的 --peak-search-hours 窗内一条快照都没有。最常见的成因是自动侦测没找到
+            # >= --min-outage-gap-hours 的空档，于是退回 --outage-end 这个兜底时刻，而该设备的数据
+            # 实际上要到更晚才恢复。此前这里直接 max() 空序列抛 ValueError，整个分析中断、八台设备
+            # 一个都出不来；现在记为 n/a 并说明，其余设备照常产出。
+            # No snapshot within peak-search-hours of the recovery instant: usually the fallback
+            # --outage-end was used because no gap was detected, and this device resumes later.
+            # Previously max() on an empty sequence aborted the whole analysis.
+            first_post = post[0][0]
+            stats[dev] = dict(recovery=rec, baseline=base, peak_r=None, peak_t=None,
+                              transient=None, refill=None, first_cold=None, n_cold=0,
+                              note=("恢复时刻后 %.1f 小时内无快照（恢复时刻 %d，该设备首个恢复后快照 %d，"
+                                    "相差 %.1f 小时）；多半是自动侦测未找到空档而退回了 --outage-end 兜底值"
+                                    % (peak_win / 3600.0, rec, first_post, (first_post - rec) / 3600.0)))
+            print("  [WARN] 设备 %s：恢复时刻后 %.1fh 内无快照（首个恢复后快照晚 %.1fh），该设备记为 n/a。"
+                  % (dev, peak_win / 3600.0, (first_post - rec) / 3600.0))
+            continue
         peak_t, peak_r = max(((t, r) for (t, r, n, o, c) in win), key=lambda x: x[1])
         # 浪涌衰减：率首次回落到 ≤ max(基线×factor, 绝对下限)
         thr = max((base or 0) * args.return_factor, args.return_abs_floor)
