@@ -63,6 +63,16 @@ public class M1Job {
         // Memory-backed checkpoint per-subtask state cap (MB). Flink default 5 MB; the 7-day warm-up reservoir
         // exceeds it → failed checkpoints → restarts → at-least-once re-emission (instruction-5 root cause).
         int ckptMaxStateMb = params.getInt("checkpoint-max-state-mb", 128);
+        // 诊断用参数：容忍的连续 checkpoint 失败次数。Flink 默认值为 0，即第一次 checkpoint 失败就直接让作业重启；
+        // 而重启会触发 AT_LEAST_ONCE 重发，进而污染回放基线，使得失败现场无法观测。把它调高（例如 100）之后，
+        // 作业在越过 akka.framesize 上限时不会立即重启，操作者可以在 Flink UI 的 Checkpoints 页面实时读到
+        // 逐算子、逐子任务的状态大小，从而定位大状态的来源。默认 0 表示保持与现有行为完全一致。
+        // Diagnostics-only parameter: number of tolerated consecutive checkpoint failures. Flink's default is 0,
+        // meaning the first failed checkpoint restarts the job, and that restart triggers AT_LEAST_ONCE
+        // re-emission which contaminates the replay baseline and destroys the evidence. Raising it (e.g. 100)
+        // keeps the job running past an akka.framesize breach so per-operator checkpoint sizes can be read live
+        // in the Flink UI. The default of 0 keeps today's behaviour byte-for-byte unchanged.
+        int ckptTolerableFailures = params.getInt("checkpoint-tolerable-failures", 0);
 
         // 标定窗口（补充指令四 step2）：由"前 N 天"事件时间换算轮数——每日轮数 = 86400/标称周期秒（10s→8640/日），
         // 默认 7 天（覆盖办公环境一个周作息周期）。仍支持 --warmup-rounds 显式覆盖（供测试/回归对齐旧一天窗口）。
@@ -91,6 +101,8 @@ public class M1Job {
         System.out.println("Relative guard:  " + (relativeGuard ? "ON" : "OFF (default, 撤销/revoked)"));
         System.out.println("IQR epsilon:     " + epsilon);
         System.out.println("Ckpt max state:  " + ckptMaxStateMb + " MB/subtask (memory-backed)");
+        System.out.println("Ckpt tolerable failures: " + ckptTolerableFailures
+                + (ckptTolerableFailures > 0 ? "  [DIAGNOSTIC MODE: job will not restart on failed checkpoints]" : ""));
         System.out.println("Cache depth:     " + cacheDepth);
         System.out.println("========================================");
 
@@ -102,6 +114,9 @@ public class M1Job {
         // FileSystemCheckpointStorage；保留 JM 内存存储、只放大上限。/ raise the memory-backed cap (no shared FS here).
         env.getCheckpointConfig().setCheckpointStorage(
                 new JobManagerCheckpointStorage(ckptMaxStateMb * 1024 * 1024));
+        // 诊断开关：容忍若干次 checkpoint 失败而不重启作业（见 ckptTolerableFailures 注释）。
+        // Diagnostics: tolerate N failed checkpoints without restarting the job.
+        env.getCheckpointConfig().setTolerableCheckpointFailureNumber(ckptTolerableFailures);
 
         Properties consumerProps = new Properties();
         consumerProps.setProperty("bootstrap.servers", brokers);

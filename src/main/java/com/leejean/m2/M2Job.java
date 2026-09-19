@@ -85,6 +85,16 @@ public class M2Job {
         long checkpointMs = params.getLong("checkpoint-ms", 10000L);
         // 内存型 checkpoint 单子任务状态上限（MB），默认 128；七天预热蓄水池会越过 Flink 默认 5 MB（补充指令五 根因）。
         int ckptMaxStateMb = params.getInt("checkpoint-max-state-mb", 128);
+        // 诊断用参数：容忍的连续 checkpoint 失败次数。Flink 默认值为 0，即第一次 checkpoint 失败就直接让作业重启；
+        // 而重启会触发 AT_LEAST_ONCE 重发，进而污染回放基线，使得失败现场无法观测。把它调高（例如 100）之后，
+        // 作业在越过 akka.framesize 上限时不会立即重启，操作者可以在 Flink UI 的 Checkpoints 页面实时读到
+        // 逐算子、逐子任务的状态大小，从而定位大状态的来源。默认 0 表示保持与现有行为完全一致。
+        // Diagnostics-only parameter: number of tolerated consecutive checkpoint failures. Flink's default is 0,
+        // meaning the first failed checkpoint restarts the job, and that restart triggers AT_LEAST_ONCE
+        // re-emission which contaminates the replay baseline and destroys the evidence. Raising it (e.g. 100)
+        // keeps the job running past an akka.framesize breach so per-operator checkpoint sizes can be read live
+        // in the Flink UI. The default of 0 keeps today's behaviour byte-for-byte unchanged.
+        int ckptTolerableFailures = params.getInt("checkpoint-tolerable-failures", 0);
         // M2 窗口与算法参数（占位默认；(R,k) 终值由探针交回设计会话裁决）
         int windowSec = params.getInt("window-sec", 3600);       // W
         int slideSec = params.getInt("slide-sec", 60);           // S
@@ -122,6 +132,8 @@ public class M2Job {
                 + (params.has("warmup-rounds") ? " (explicit --warmup-rounds)" : " (from --calib-days)"));
         System.out.println("Relative guard:  " + (relativeGuard ? "ON" : "OFF (default)"));
         System.out.println("Ckpt max state:  " + ckptMaxStateMb + " MB/subtask (memory-backed)");
+        System.out.println("Ckpt tolerable failures: " + ckptTolerableFailures
+                + (ckptTolerableFailures > 0 ? "  [DIAGNOSTIC MODE: job will not restart on failed checkpoints]" : ""));
         System.out.println("Window W/S:      " + windowSec + "s / " + slideSec + "s");
         System.out.println("MCOD R/k:        " + r + " / " + k
                 + (rPerDevice.isEmpty() ? " (global R for all devices)"
@@ -142,6 +154,9 @@ public class M2Job {
         // 抬高内存型 checkpoint 状态上限（集群无共享 FS，不用 FileSystemCheckpointStorage）。
         env.getCheckpointConfig().setCheckpointStorage(
                 new JobManagerCheckpointStorage(ckptMaxStateMb * 1024 * 1024));
+        // 诊断开关：容忍若干次 checkpoint 失败而不重启作业（见 ckptTolerableFailures 注释）。
+        // Diagnostics: tolerate N failed checkpoints without restarting the job.
+        env.getCheckpointConfig().setTolerableCheckpointFailureNumber(ckptTolerableFailures);
 
         Properties consumerProps = new Properties();
         consumerProps.setProperty("bootstrap.servers", brokers);
