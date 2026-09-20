@@ -47,7 +47,18 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     private static final Logger LOG = LoggerFactory.getLogger(M3Function.class);
 
     private static final int N_FEATURES = Channels.N_DET;    // 5
-    private static final int ROUNDS_PER_DAY = 8640;          // 10s 轮 × 86,400s/天 = 8,640 / 10s rounds per day
+    /** 生产取值：10 秒一轮 × 86,400 秒/天 = 8,640 轮/天。/ production value. */
+    static final int DEFAULT_ROUNDS_PER_DAY = 8640;
+
+    /**
+     * 每天折合多少轮。生产上恒为 {@link #DEFAULT_ROUNDS_PER_DAY}；**仅测试**可经包级构造函数调小，
+     * 否则验证一次相位跃迁就要喂 8,640 条以上的轮，单元测试无法承受。调小它不改变任何算法语义——
+     * 它只决定「几轮算一天」这个换算，相位跃迁的判据、训练、标定逻辑一概不变。
+     * Rounds per day; production is always the default. Only tests shrink it via the package-private
+     * constructor, since otherwise a single phase transition needs more than 8,640 rounds. Shrinking
+     * it changes no algorithmic semantics — only how many rounds count as a day.
+     */
+    private final int roundsPerDay;
     private static final String DEVICE_G = "G";              // 设备 G Light 通道需特殊处理 / device G Light needs special handling
 
     private final int trainDays;
@@ -78,6 +89,14 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     private transient ValueState<Integer> selectedHidden;
     private transient ValueState<Long> trainExcluded;           // 离群净化排除的窗口数 / outlier-sanitized excluded windows
 
+    /**
+     * 最近一次训练实际跑完的 epoch 数。**仅供测试**断言早停确实截断了训练——用墙钟耗时来判断早停
+     * 既不确定也会在慢机器上假失败，用实际 epoch 数则是精确的。生产路径不读取它。
+     * Epochs actually run in the most recent training. Test-only: asserting on wall-clock time would
+     * be both imprecise and flaky on slow machines, while the epoch count is exact.
+     */
+    transient int lastTrainEpochs;
+
     private transient Counter collectingCount;
     private transient Counter trainingCount;
     private transient Counter onlineCount;
@@ -97,6 +116,16 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                       int windowLength, double zThreshold, double[] channelWeights,
                       int maxEpochs, int earlyStopPatience,
                       OutputTag<MonitoringSnapshot> m3MonitoringTag) {
+        this(trainDays, earlyStopDays, threshDays, windowLength, zThreshold, channelWeights,
+                maxEpochs, earlyStopPatience, m3MonitoringTag, DEFAULT_ROUNDS_PER_DAY);
+    }
+
+    /** 包级构造：仅供测试调小 {@code roundsPerDay}。/ package-private; tests only. */
+    M3Function(int trainDays, int earlyStopDays, int threshDays,
+               int windowLength, double zThreshold, double[] channelWeights,
+               int maxEpochs, int earlyStopPatience,
+               OutputTag<MonitoringSnapshot> m3MonitoringTag, int roundsPerDay) {
+        this.roundsPerDay = roundsPerDay;
         this.trainDays = trainDays;
         this.earlyStopDays = earlyStopDays;
         this.threshDays = threshDays;
@@ -211,9 +240,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         byte[] flatMask = flattenMasks(masks);
 
         // 按已见轮数把窗口分配到三段：训练 / 早停 / 阈值标定 / route windows into train / early-stop / threshold segments
-        long trainRounds = (long) trainDays * ROUNDS_PER_DAY;
-        long esRounds = (long) earlyStopDays * ROUNDS_PER_DAY;
-        long thRounds = (long) threshDays * ROUNDS_PER_DAY;
+        long trainRounds = (long) trainDays * roundsPerDay;
+        long esRounds = (long) earlyStopDays * roundsPerDay;
+        long thRounds = (long) threshDays * roundsPerDay;
 
         if (count <= trainRounds) {
             if (!hasOutlier) {
@@ -279,6 +308,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
 
             for (int epoch = 0; epoch < maxEpochs; epoch++) {
                 ae.trainEpoch(trainData, trainMaskData);   // 训练一轮 / one training epoch
+                lastTrainEpochs = epoch + 1;               // 供测试断言早停确实生效 / for the early-stop test
 
                 // 早停：早停集损失若不再下降超过 patience 轮则停 / early stop when early-stop loss stalls for `patience` epochs
                 double esLoss = evaluateLoss(ae, esData);
