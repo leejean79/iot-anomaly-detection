@@ -16,11 +16,16 @@
 > | Test suite | `<Tests run: 75, Failures: 0, Errors: 0, Skipped: 0>` |
 > | Replay window | 2022-03-01T00:00:00Z .. 2022-04-01T00:00:00Z, `--speedup 3600` |
 >
-> **STATUS 2026-09-18 — fix applied, awaiting the re-run.** The timestamp-offset defect is fixed (M2 addendum, Option A: event time re-aligned to the nominal round time right after `RoundAssembler` in both `M1Job` and `M2Job`), with `PmcodTimestampOffsetTest` and `M1M2TimestampAlignmentTest` shipped alongside. This report is filled by the re-run of section 3 step 2 of the addendum. Previously: Two full replays completed cleanly (integrity assertions PASS, M1 reproduces
-> the clean run exactly), but the M2 per-device figures are void: MCOD admits only half of each round stream
-> because `DeviceRound`s carry a Flink timestamp of `roundTs + 30 s` while MCOD's admission test uses `roundTs`.
-> See `docs/reports/m2_window_timestamp_finding.md`. Sections 3, 4.1 and 4.3 below are filled from those runs;
-> sections 4.2, 5 and 6 await the fix ruling and a re-run.
+> **STATUS 2026-09-19 — 已归档为正式基线。** 事件时间偏移缺陷已修复（M2 增补 方案 A：在 `M1Job` 与
+> `M2Job` 中于 `RoundAssembler` 之后把事件时间重新对齐到标称轮时间），配套 `PmcodTimestampOffsetTest`
+> 与 `M1M2TimestampAlignmentTest`。修复后的三月重放五条完整性断言全部通过、三道闸对账精确闭合、
+> 作业重启次数为 0，本报告即由该次运行填写。
+>
+> **逐设备探针比较已按 2026-09-19 的裁决延后**，不再为它单独安排一次三月重放：修正后的探针对作业的
+> ±1% 逐设备比较，挂到 **M3 的 flag-on 三月运行**上完成（保留该次运行的 `m1-out` 转储，在其上跑修正
+> 口径的探针，比较结果记入 M3 对照报告）。当前已量化的残差为 A–G 各 −0.0059 个百分点、H 为 0，成因是
+> 探针的排空尾巴（多 60 个滑窗、比率之和多约 2.00），作业侧正确，半径决策在该偏移下不变——详见
+> `docs/reports/m2_march_baseline_findings.md` 第 3 节与 `docs/reports/m2_round2_closeout.md`。
 >
 > Written per the design session's runbook *Full-March Replay on Java 11 — Recording the M2 Baseline*
 > (v1.0, 2026-09-16) and its two clarifications of 2026-09-17.

@@ -121,7 +121,11 @@ def load_java8(path, r_map):
             % (path, path, path))
     ref = {}
     with open(path, "r", encoding="utf-8") as fh:
-        for row in csv.DictReader(fh):
+        # 跳过以 # 开头的注释行：退役的参考表在文件头带有口径警示注释，若不跳过会被 DictReader
+        # 当成表头，整份文件解析错乱。/ Skip '#' comment lines; a retired reference table carries a
+        # caliber warning at the top, which DictReader would otherwise take as the header row.
+        rows = (ln for ln in fh if not ln.lstrip().startswith("#"))
+        for row in csv.DictReader(rows):
             dev = row.get("device")
             if dev not in r_map:
                 continue

@@ -28,7 +28,9 @@ RATE_FLOOR = 1e-5   # 相对变化分母下限，避免极小基数噪声 / floo
 def load(path, k):
     d = defaultdict(dict)
     with open(path, newline="", encoding="utf-8") as f:
-        for r in csv.DictReader(f):
+        # 跳过 # 注释行（同 m2_device_baseline.py）/ skip '#' comment lines
+        rows = (ln for ln in f if not ln.lstrip().startswith("#"))
+        for r in csv.DictReader(rows):
             if int(float(r["k"])) != k:
                 continue
             d[r["device"]][round(float(r["R"]), 2)] = float(r["meanOutlierRate"])

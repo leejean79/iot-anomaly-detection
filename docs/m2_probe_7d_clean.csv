@@ -1,3 +1,8 @@
+# ⚠ 本表由**修正前**的探针滑窗上界算出（含排空尾巴，偏差 ≈ +2.00/滑窗数），**不可**与修正后的
+# 探针或运行中的作业直接比较。保留作为半径标定的记录——标定的结论不受该偏移影响。
+# Computed with the pre-fix probe loop bound (drain-tail bias ~ +2.00/N_slides); not directly
+# comparable with the corrected probe or the job. Retained as the record of the radius calibration,
+# whose decisions are unaffected. 见 docs/reports/m2_march_baseline_findings.md 第 3 节。
 device,R,k,slides,meanWindowPoints,meanOutlierRate,fracZeroSlides
 A,0.75,10,33678,356.22,0.000522,0.9868
 A,1.00,10,33678,356.22,0.000481,0.9936

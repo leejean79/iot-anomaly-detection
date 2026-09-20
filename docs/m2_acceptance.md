@@ -11,6 +11,7 @@
 | **V-M2-2** | 集群联合作业运行 + 计数器对账 + scores/monitoring 产出 | ✅ **PASS**（对账逐字闭合、scores>0、监测含 M2 信号；详见下） |
 | **V-M2-3** | (R,k) 校准探针表交付（含通俗解读段） | ✅ **PASS**（2022-03 整月 8 设备网格，`docs/m2_probe.csv` + 解读；候选带 R∈[1.0,1.5]/k=10 交设计会话） |
 | **V-M2-4** | 一个月段 k=3600 压测（吞吐/反压/checkpoint/MCOD 状态规模）+ DF-12 段观察 | ✅ **PASS**（无反压、97/97 checkpoint 亚秒全绿、状态有界稳定 ~8.4MB、对账闭合；DF-12 六月量级为可选补测） |
+| **V-M2-5** | Java 11 迁移后的逐设备等值核验 | ⚖️ **以机制结案**（残差 A–G 各 −0.0059 个百分点、H 为 0，成因为探针排空尾巴；作业侧正确，半径决策不变。±1% 形式化比较延至 M3 flag-on 三月运行；见 `docs/reports/m2_round2_closeout.md`） |
 
 **迁移忠实性**：`Pmcod.scala` / `Data.scala` / `Utils.scala` 三文件逐行对照迁移到
 `com.leejean.m2.{McodCore, McodPoint, McodDistance, MicroCluster}`，注释标注了对应原文行号段与
