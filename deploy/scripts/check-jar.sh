@@ -72,6 +72,7 @@ checks=(
     "com/leejean/m3/M3Scorer.class|computeMahalanobis|M3 评分器（z-score + Mahalanobis）（M3 阶段 §3）"
     "com/leejean/source/Injector.class|stuck|M3 注入模式四类型之一（M3 阶段 §4 Deliverable B）"
     "com/leejean/m3/M3ClusterSmoke.class|M3-CLUSTER-SMOKE|M3 集群冒烟作业（M3 阶段 §2 决策 1 第三部分）"
+    "com/leejean/m3/M3Grid.class|hidden-grid|M3 离线超参数网格（V-M3-3）"
 )
 
 fail=0

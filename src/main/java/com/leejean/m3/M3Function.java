@@ -470,6 +470,17 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
 
     /** 在数据集上求平均 WMSE（早停选型用，掩码不参与）/ mean WMSE over a dataset (for model selection; no mask). */
     private double evaluateLoss(LstmAutoEncoder ae, double[][][] data) {
+        return evaluateLoss(ae, data, channelWeights);
+    }
+
+    /**
+     * 在给定数据集上计算平均加权均方误差。包级可见的静态方法，供 {@link M3Grid} 复用——离线网格
+     * 选型用的早停集误差必须与在线训练里用的是同一个度量，否则选型结论对在线行为没有意义。
+     * Average weighted mean squared error over a dataset. Package-private and static so {@link M3Grid}
+     * uses the very same metric the online training uses; otherwise its selection says nothing about
+     * online behaviour.
+     */
+    static double evaluateLoss(LstmAutoEncoder ae, double[][][] data, double[] channelWeights) {
         if (data.length == 0) return Double.MAX_VALUE;   // 空集视为最差损失 / empty set → worst possible loss
         WeightedMseLoss lossCalc = new WeightedMseLoss(N_FEATURES, channelWeights);
         double total = 0.0;
@@ -555,7 +566,13 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
      * @param xNorm 归一化特征向量（原地修改）/ normalized feature vector (modified in place)
      * @param device 设备 ID / device ID
      */
-    private static void zeroDeviceGLight(double[] xNorm, String device) {
+    /**
+     * 包级可见（非 private）：离线网格程序 {@link M3Grid} 需要用**完全相同**的口径预处理输入，
+     * 否则网格选出的超参数与在线算子跑的不是同一件事。共用同一份实现，避免两处实现随时间漂移。
+     * Package-private so {@link M3Grid} preprocesses input with exactly the same caliber; sharing one
+     * implementation keeps the offline grid and the online operator from drifting apart.
+     */
+    static void zeroDeviceGLight(double[] xNorm, String device) {
         if (DEVICE_G.equals(device) && xNorm.length > Channels.LIGHT_INDEX) {
             xNorm[Channels.LIGHT_INDEX] = 0.0;
         }
