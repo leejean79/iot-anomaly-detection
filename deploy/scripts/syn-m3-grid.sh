@@ -22,6 +22,8 @@
 #      bash deploy/scripts/syn-m3-grid.sh --devices E,G,C --hidden-grid 40,60,90 --window-grid 30,60,120
 #      bash deploy/scripts/syn-m3-grid.sh --no-scores        # 不转储 scores，跳过训练净化
 #      bash deploy/scripts/syn-m3-grid.sh --reuse-dump       # 复用上次转储，只重跑网格
+#      bash deploy/scripts/syn-m3-grid.sh --detach           # 后台跑，训练与本地 ssh 连接脱钩
+#      bash deploy/scripts/syn-m3-grid.sh --collect          # 取回后台任务的状态与结果
 #    参数 / Arguments:
 #      --devices <列表>        代表设备，默认 E,G,C（E 在带内、G 被掩码、C 结构中等）
 #      --hidden-grid <列表>    隐藏层大小网格，默认 40,60,90
@@ -34,15 +36,28 @@
 #      --out-name <文件名>     本地 CSV 文件名，默认 m3_grid.csv
 #      --no-scores             不转储 scores（跳过训练净化）
 #      --reuse-dump            复用 master 上已有的转储
+#      --detach                把训练容器交给 master 的 Docker 守护进程后台托管，启动后立即返回。
+#                              适用于耗时数小时以上、本地 Mac 会休眠或需要关机的场合。
+#      --collect               查询后台任务状态：仍在运行则打印进度；已成功结束则拉回 CSV 并清理
+#                              容器；失败则打印日志尾部、保留容器供排查，并以其退出码结束。
+#
+# 【为什么需要后台模式】默认跑法用 ssh 前台附着执行 docker run，本地 Mac 一旦休眠，ssh 断开，
+# 脚本拿到的是 ssh 的断线退出码而不是 M3Grid 的退出码，于是判定失败并拒绝拉回 CSV；远端容器是否
+# 继续运行也无从保证。--detach 把容器交给 Docker 守护进程，训练从此不依赖本地连接；守护进程会
+# 保留容器的退出码与完整日志，--collect 据此判读，不丢失任何依据。
+# Why a detached mode: the default run attaches over ssh, so a sleeping laptop breaks the run.
 # 3. 前置条件 / Preconditions: synergia-m1-out 与 synergia-scores 已含目标月份的数据
 #      （即 M2 联合作业已跑过该段重放），且 topic 尚未被清理。
 # 4. 期望产出 / Expected output: stdout 逐组合打印进度与解读；本地 docs/<out-name>；
 #      每一行含 device,hiddenSize,windowLength,trainWindows,trainExcluded,esWindows,
 #      epochs,esLoss,trainSeconds,sanitized。
+#      使用 --detach 时，本次调用只打印容器名与后续命令，CSV 要等 --collect 成功之后才出现在本地。
 # 5. 常见失败兜底 / Failure fallback:
 #      「转储里没有任何一台目标设备的可用轮」→ 多半是 --max-messages 不足以覆盖标定期
 #      （预热轮会被整段跳过，7 天标定 = 483,840 轮），提高它后重跑；
-#      「样本不足，跳过」→ 该设备在训练段或早停段没切出窗口，检查转储是否覆盖足够天数。
+#      「样本不足，跳过」→ 该设备在训练段或早停段没切出窗口，检查转储是否覆盖足够天数；
+#      --collect 报「找不到容器」→ 后台任务从未启动，或已被 --collect 成功回收过一次，
+#      前者重新执行 --detach，后者结果已在 docs/<out-name>。
 #
 # 缩写自查 / Abbreviations: epoch = 训练时在整个训练集上完整跑一遍；
 #   早停（early stopping）= 早停集误差不再下降时提前结束训练；CSV = 逗号分隔值。
@@ -56,7 +71,7 @@ set -a; source "$DEPLOY_DIR/.env"; set +a
 
 DEVICES="E,G,C"; HIDDEN_GRID="40,60,90"; WINDOW_GRID="30,60,120"
 TRAIN_DAYS=7; ES_DAYS=2; MAX_EPOCHS=200; PATIENCE=10
-MAX_MESSAGES=3000000; OUT_NAME="m3_grid.csv"; USE_SCORES=1; REUSE=0
+MAX_MESSAGES=3000000; OUT_NAME="m3_grid.csv"; USE_SCORES=1; REUSE=0; DETACH=0; COLLECT=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --devices) DEVICES="$2"; shift 2 ;;
@@ -70,6 +85,8 @@ while [[ $# -gt 0 ]]; do
         --out-name) OUT_NAME="$2"; shift 2 ;;
         --no-scores) USE_SCORES=0; shift ;;
         --reuse-dump) REUSE=1; shift ;;
+        --detach) DETACH=1; shift ;;
+        --collect) COLLECT=1; shift ;;
         *) echo "Unknown arg: $1" >&2; exit 1 ;;
     esac
 done
@@ -79,6 +96,59 @@ JAR_NAME="${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}"
 RHOME="${REMOTE_HOME:-/opt/fa-iforest}"
 WORK="${RHOME}/m3grid"
 RUN_IMAGE="${FLINK_IMAGE_TAG:-fa-iforest/flink:1.13.6-java11}"
+
+CONTAINER_NAME="syn-m3grid"
+LOCAL_CSV="${PROJECT_ROOT}/docs/${OUT_NAME}"
+
+if [ "$DETACH" -eq 1 ] && [ "$COLLECT" -eq 1 ]; then
+    echo "ERROR: --detach 与 --collect 不能同时使用；前者启动后台任务，后者取回其结果。" >&2
+    exit 1
+fi
+
+# 把 master 上的 CSV 拉回本地。成功返回 0，失败删掉半截文件并返回 1。
+# Pull the CSV back from master; on failure remove the partial file.
+pull_csv() {
+    if ssh fa-master "cat ${WORK}/m3_grid.csv" > "$LOCAL_CSV" 2>/dev/null && [ -s "$LOCAL_CSV" ]; then
+        echo "[grid] 已拉回本地：${LOCAL_CSV}"
+        return 0
+    fi
+    rm -f "$LOCAL_CSV" 2>/dev/null || true
+    echo "[grid] 拉回失败，可手动：ssh fa-master \"cat ${WORK}/m3_grid.csv\" > docs/${OUT_NAME}" >&2
+    return 1
+}
+
+if [ "$COLLECT" -eq 1 ]; then
+    STATE="$(ssh fa-master "docker inspect -f '{{.State.Status}} {{.State.ExitCode}}' ${CONTAINER_NAME} 2>/dev/null" || true)"
+    STATUS="$(echo "$STATE" | awk '{print $1}')"
+    CODE="$(echo "$STATE" | awk '{print $2}')"
+    if [ -z "${STATUS:-}" ]; then
+        echo "ERROR: master 上找不到容器 ${CONTAINER_NAME}。" >&2
+        echo "       要么后台任务从未启动（重新执行 --detach），" >&2
+        echo "       要么上一次 --collect 已经成功回收过它（结果应已在 docs/ 下）。" >&2
+        exit 4
+    fi
+    if [ "$STATUS" = "running" ]; then
+        echo "[grid] 后台任务仍在运行。最近的进度如下："
+        ssh fa-master "docker logs --tail 20 ${CONTAINER_NAME} 2>&1" || true
+        echo ""
+        echo "[grid] 稍后重新执行：bash deploy/scripts/syn-m3-grid.sh --collect --out-name ${OUT_NAME}"
+        echo "[grid] 实时跟随日志：ssh fa-master 'docker logs -f ${CONTAINER_NAME}'"
+        exit 0
+    fi
+    echo "[grid] 后台任务已结束，退出码 ${CODE}。完整日志如下："
+    ssh fa-master "docker logs ${CONTAINER_NAME} 2>&1" || true
+    if [ "${CODE:-1}" -ne 0 ]; then
+        echo "" >&2
+        echo "ERROR: M3Grid 退出码 ${CODE}——网格未完成，**不拉回 CSV**（避免留下不完整的产物）。" >&2
+        echo "       容器 ${CONTAINER_NAME} 已保留供排查；排查完毕后手动清理：" >&2
+        echo "       ssh fa-master 'docker rm ${CONTAINER_NAME}'" >&2
+        exit "$CODE"
+    fi
+    pull_csv || exit 1
+    ssh fa-master "docker rm ${CONTAINER_NAME} >/dev/null 2>&1" || true
+    echo "提醒：本阶段**不定终值**——网格表交设计会话裁决 (hidden, window)。"
+    exit 0
+fi
 
 echo "===================================================================="
 echo "syn-m3-grid.sh — V-M3-3 离线超参数网格"
@@ -119,28 +189,53 @@ if [ "$USE_SCORES" -eq 1 ]; then
     fi
 fi
 
-ssh fa-master "docker run --rm --user root \
-    -v ${RHOME}/jars:/jars:ro -v ${WORK}:/work \
-    ${RUN_IMAGE} \
-    java -cp /jars/${JAR_NAME} com.leejean.m3.M3Grid \
+RUN_MOUNTS="-v ${RHOME}/jars:/jars:ro -v ${WORK}:/work"
+RUN_CMD="java -cp /jars/${JAR_NAME} com.leejean.m3.M3Grid \
         --rounds-jsonl /work/m1out.jsonl ${SCORES_ARG} \
         --devices ${DEVICES} --hidden-grid ${HIDDEN_GRID} --window-grid ${WINDOW_GRID} \
         --train-days ${TRAIN_DAYS} --early-stop-days ${ES_DAYS} \
         --max-epochs ${MAX_EPOCHS} --patience ${PATIENCE} \
         --out /work/m3_grid.csv"
+
+if [ "$DETACH" -eq 1 ]; then
+    # 后台模式刻意不加 --rm：容器结束后要保留退出码与日志，供 --collect 判读，回收由 --collect 负责。
+    # Deliberately no --rm here: the exit code and logs must survive for --collect to read.
+    EXIST="$(ssh fa-master "docker inspect -f '{{.State.Status}}' ${CONTAINER_NAME} 2>/dev/null" || true)"
+    if [ -n "${EXIST:-}" ]; then
+        echo "ERROR: master 上已存在容器 ${CONTAINER_NAME}（状态 ${EXIST}）。" >&2
+        echo "       若上一次任务还在跑，请等它结束；若已结束，先执行 --collect 取回结果。" >&2
+        echo "       确认不再需要时可手动删除：ssh fa-master 'docker rm -f ${CONTAINER_NAME}'" >&2
+        exit 5
+    fi
+    ssh fa-master "docker run -d --name ${CONTAINER_NAME} --user root ${RUN_MOUNTS} ${RUN_IMAGE} ${RUN_CMD}" >/dev/null
+    RC=$?
+    if [ "$RC" -ne 0 ]; then
+        echo "ERROR: 后台容器启动失败，退出码 ${RC}。" >&2
+        exit "$RC"
+    fi
+    echo ""
+    echo "[grid] 已在 master 上以后台方式启动容器 ${CONTAINER_NAME}。"
+    echo "[grid] 训练由 master 的 Docker 守护进程托管，**与本地 ssh 连接无关**："
+    echo "       本地 Mac 休眠、断网、关机都不会中断它。"
+    echo ""
+    echo "  查看进度：ssh fa-master 'docker logs --tail 20 ${CONTAINER_NAME}'"
+    echo "  跟随日志：ssh fa-master 'docker logs -f ${CONTAINER_NAME}'"
+    echo "  取回结果：bash deploy/scripts/syn-m3-grid.sh --collect --out-name ${OUT_NAME}"
+    echo ""
+    exit 0
+fi
+
+ssh fa-master "docker run --rm --user root ${RUN_MOUNTS} ${RUN_IMAGE} ${RUN_CMD}"
 RC=$?
 if [ "$RC" -ne 0 ]; then
     echo "" >&2
     echo "ERROR: M3Grid 退出码 ${RC}——网格未完成，**不拉回 CSV**（避免留下不完整的产物）。" >&2
+    if [ "$RC" -eq 255 ]; then
+        echo "       退出码 255 是 ssh 断线，不是 M3Grid 的退出码：本地休眠或网络中断都会这样。" >&2
+        echo "       耗时较长的网格请改用 --detach 启动、--collect 取回。" >&2
+    fi
     exit "$RC"
 fi
 
-LOCAL_CSV="${PROJECT_ROOT}/docs/${OUT_NAME}"
-if ssh fa-master "cat ${WORK}/m3_grid.csv" > "$LOCAL_CSV" 2>/dev/null && [ -s "$LOCAL_CSV" ]; then
-    echo "[grid] 已拉回本地：${LOCAL_CSV}"
-else
-    rm -f "$LOCAL_CSV" 2>/dev/null || true
-    echo "[grid] 拉回失败，可手动：ssh fa-master \"cat ${WORK}/m3_grid.csv\" > docs/${OUT_NAME}" >&2
-    exit 1
-fi
+pull_csv || exit 1
 echo "提醒：本阶段**不定终值**——网格表交设计会话裁决 (hidden, window)。"
