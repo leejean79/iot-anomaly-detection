@@ -19,13 +19,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * V-M3-2：状态机跃迁、早停、设备隔离、模型权重经 checkpoint 恢复后仍然有效。
  *
- * <p>本测试用 Flink 官方的算子测试夹具（{@link KeyedOneInputStreamOperatorTestHarness}）直接驱动
- * {@link M3Function}，而不是起 MiniCluster 跑整个作业。两个原因：其一，只有算子层面的夹具才能做
- * snapshot 与 restore，这是「权重挺过 checkpoint」这一条的必要条件；其二，夹具允许精确控制喂进去的
- * 轮数与顺序，从而逐条断言相位跃迁。
+ * <p>本测试使用 Flink 提供的<b>算子测试夹具</b>（operator test harness，具体是
+ * {@link KeyedOneInputStreamOperatorTestHarness} 这个类）直接驱动 {@link M3Function}，而不是启动
+ * MiniCluster 运行整个作业。所谓测试夹具，是指可以在不启动完整作业的前提下单独实例化一个算子、
+ * 逐条把记录喂给它、并对它的状态做快照与从快照恢复的工具类。
  *
- * <p>为了让一次跃迁不必喂 8,640 条轮，测试经包级构造函数把「每天折合多少轮」调小。这个量只决定
- * 「几轮算一天」的换算，不改变跃迁判据、训练与标定的任何逻辑。
+ * <p>选用它而不是 MiniCluster 有两个原因。第一，只有在单个算子这一层才能做快照与恢复，而这正是
+ * 「模型权重经 checkpoint 恢复后仍然有效」这一条验收要求的必要条件，MiniCluster 只能运行完整作业，
+ * 做不到这一点。第二，测试夹具允许精确控制喂进去的轮数与顺序，从而可以逐条断言相位跃迁。
+ *
+ * <p>为了让验证一次相位跃迁不必喂入 8,640 条轮，测试通过<b>包级私有的构造函数</b>
+ * （package-private constructor，即不带 public 修饰符、只对同一个 Java 包内的类可见的构造函数）
+ * 把「每天折合多少轮」这个换算值调小。该值只决定「多少条轮算作一天」，不改变相位跃迁的判据，
+ * 也不改变训练与标定的任何逻辑。
  *
  * <p>Uses Flink's operator test harness rather than a MiniCluster: only the harness can snapshot and
  * restore an operator, which the "weights survive a checkpoint" item requires, and it gives exact

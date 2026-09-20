@@ -51,7 +51,8 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     static final int DEFAULT_ROUNDS_PER_DAY = 8640;
 
     /**
-     * 每天折合多少轮。生产上恒为 {@link #DEFAULT_ROUNDS_PER_DAY}；**仅测试**可经包级构造函数调小，
+     * 每天折合多少轮。生产上恒为 {@link #DEFAULT_ROUNDS_PER_DAY}；**仅测试**可经包级私有的构造函数
+     * （package-private constructor，即不带 public 修饰符、只对同一个 Java 包内的类可见）调小，
      * 否则验证一次相位跃迁就要喂 8,640 条以上的轮，单元测试无法承受。调小它不改变任何算法语义——
      * 它只决定「几轮算一天」这个换算，相位跃迁的判据、训练、标定逻辑一概不变。
      * Rounds per day; production is always the default. Only tests shrink it via the package-private
@@ -120,7 +121,11 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                 maxEpochs, earlyStopPatience, m3MonitoringTag, DEFAULT_ROUNDS_PER_DAY);
     }
 
-    /** 包级构造：仅供测试调小 {@code roundsPerDay}。/ package-private; tests only. */
+    /**
+     * 包级私有的构造函数（package-private constructor）：不带 public 修饰符，只对同一个 Java 包内的
+     * 类可见，因此同包下的测试类可以调用，包外的生产代码调用不到。仅供测试调小 {@code roundsPerDay}。
+     * Package-private constructor, visible only within this package; tests only.
+     */
     M3Function(int trainDays, int earlyStopDays, int threshDays,
                int windowLength, double zThreshold, double[] channelWeights,
                int maxEpochs, int earlyStopPatience,

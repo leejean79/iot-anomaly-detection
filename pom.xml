@@ -287,10 +287,13 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Flink 算子测试夹具 / Flink operator test harness.
-             V-M3-2 要求验证「模型权重经 checkpoint 恢复后仍然有效」。这需要对算子做快照与恢复，
-             而 MiniCluster 只能跑完整作业、无法在算子层面 snapshot/restore，因此引入官方测试夹具
-             KeyedOneInputStreamOperatorTestHarness（test-jar）。仅测试作用域，不进 fat jar。
+        <!-- Flink 算子测试夹具（operator test harness）/ Flink operator test harness.
+             这里说的「测试夹具」指 Flink 提供的 KeyedOneInputStreamOperatorTestHarness 这个类：
+             它可以在不启动完整 Flink 作业的前提下单独实例化一个算子，逐条把记录喂给它，并对它的
+             状态做快照（snapshot）与从快照恢复（restore）。
+             引入它的原因是 V-M3-2 要求验证「模型权重经 checkpoint 恢复后仍然有效」，而 MiniCluster
+             只能运行完整作业，无法在单个算子这一层做快照与恢复。
+             这些依赖的作用域是 test，只在运行测试时生效，不会被打进用于集群部署的 fat jar。
              V-M3-2 requires checking that model weights survive a checkpoint restore, which needs
              operator-level snapshot/restore; MiniCluster cannot do that. Test scope only. -->
         <dependency>
