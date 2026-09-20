@@ -1,5 +1,5 @@
 # ⚠ 半密度数据：受 2026-09-18 时间戳偏移缺陷影响，约一半的轮从未进入 MCOD 状态。
-# 见 docs/reports/m2_window_timestamp_finding.md；应由 docs/m2_surge_stats_v2.csv 取代（**该文件尚未产出**，见 docs/reports/m2_round2_closeout.md）。保留作为缺陷记录，勿删。
+# 见 docs/reports/m2_window_timestamp_finding.md；由 docs/m2_surge_stats_v2.csv 取代（2026-09-20 产出，见 docs/m2_df12_surge_v2.md）。保留作为缺陷记录，勿删。
 # Computed at half window density (timestamp-offset defect, 2026-09-18); superseded by docs/m2_surge_stats_v2.csv.
 device,recovery_ts,recovery_iso,baseline_rate,peak_rate,ratio,transient_sec,transient_over_W,refill_sec,refill_over_W,first_cold_iso,n_cold,note
 A,1655074860,2022-06-12 23:01,0.001532,1.000000,652.7,240,0.067,3360,0.933,2022-06-12 23:01,1,

@@ -1,7 +1,7 @@
 # DF-12 六月停机恢复浪涌留档（收尾任务二）
 
-> **⚠ 半密度数据 / computed at half window density.** 本节的**在线**数字（作业侧 M2 统计）受 2026-09-18 发现的时间戳偏移缺陷影响：`RoundAssembler` 以 `轮时间戳 + 30s` 发射，窗口按该时钟分配，而 MCOD 的准入判据比对轮时间戳本身，导致每条轮流中约一半从未进入 MCOD 状态。见 `docs/reports/m2_window_timestamp_finding.md`。修复为 M2 补充件 Option A（2026-09-18）。**本节在线数字应由 `docs/m2_df12_surge_v2.md` 取代，但**该文件尚未产出**——v2 重跑于 2026-09-20 首次尝试未能出结论（重放窗口与七天标定期冲突，见 `docs/reports/m2_round2_closeout.md`）。在它产出之前，本节仍是唯一的在线数字来源，读时须记得它是半密度的。** 离线探针表与逐设备半径标定不受影响。
-> Online figures here were computed at half window density (timestamp-offset defect of 2026-09-18); to be superseded by `docs/m2_df12_surge_v2.md`, which does not exist yet; the v2 re-run of 2026-09-20 produced no conclusions. Kept as the record of the defect and, for now, still the only source of the online figures.
+> **⚠ 半密度数据 / computed at half window density.** 本节的**在线**数字（作业侧 M2 统计）受 2026-09-18 发现的时间戳偏移缺陷影响：`RoundAssembler` 以 `轮时间戳 + 30s` 发射，窗口按该时钟分配，而 MCOD 的准入判据比对轮时间戳本身，导致每条轮流中约一半从未进入 MCOD 状态。见 `docs/reports/m2_window_timestamp_finding.md`。修复为 M2 补充件 Option A（2026-09-18）。****本节在线数字已由 `docs/m2_df12_surge_v2.md`（2026-09-20）取代**；保留此处作为缺陷记录，勿删。其中浪涌幅度与衰减那一组数字作废，恢复同时性与冷启动清空次数两项结论在 v2 中复现一致。** 离线探针表与逐设备半径标定不受影响。
+> Online figures here were computed at half window density (timestamp-offset defect of 2026-09-18); superseded by `docs/m2_df12_surge_v2.md` (2026-09-20). Kept as the record of the defect.
 
 
 > **目的**（任务书）：把"漂移或分布切换的起点在点异常通道眼里表现为离群点爆发"这条目前只有文献

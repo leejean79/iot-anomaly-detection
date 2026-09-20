@@ -130,12 +130,20 @@ def main():
         if fallback_recovery:
             pre = [p for p in pts if p[0] < fallback_recovery]
             post = [p for p in pts if p[0] >= fallback_recovery]
-            return (fallback_recovery, pre, post)
+            return (fallback_recovery, pre, post)   # 兜底：该值来自 --outage-end，不是实测
         return (None, pts, [])
 
     stats = {}
+    # 记录每台设备的恢复时刻是"实测"（数据里真有空档）还是"兜底"（退回 --outage-end 常量）。
+    # 【为何要分】问三统计恢复时刻的离散度来论证"全场同时 = 全局事件"，而兜底值是一个写死的常量，
+    # 把它混进去算出来的跨度是人造的，不是观测（2026-09-20 实际发生过：设备 H 用兜底值算出
+    # 跨度 11940 s，并据此打印"跨度大于一个 W，需看时间线判断是否分批恢复"——那个数没有任何观测支撑）。
+    # Mark whether each recovery instant was measured from a real gap or fell back to the --outage-end
+    # constant; a fallback must not enter the simultaneity statistic, which would then be an artefact.
+    rec_measured = {}
     for dev in sorted(series):
         rec, pre, post = detect_recovery(series[dev])
+        rec_measured[dev] = (rec is not None and rec != fallback_recovery)
         if rec is None or not post:
             # 没侦测到停机空档 → 无法区分停机前/后，基线不可信，一律 n/a（不拿恢复段数据充当基线）
             stats[dev] = dict(recovery=rec, baseline=None, peak_r=None, peak_t=None,
@@ -196,17 +204,26 @@ def main():
               % (dev, iso(s["recovery"]), b, pk, ratio, tr, rf))
 
     # ---- 问三：同时性（用恢复时刻）----
-    recs = [(dev, s["recovery"]) for dev, s in stats.items() if s["recovery"]]
+    recs = [(dev, st["recovery"]) for dev, st in stats.items()
+            if st["recovery"] and rec_measured.get(dev)]
+    fellback = [dev for dev, st in stats.items()
+                if st["recovery"] and not rec_measured.get(dev)]
     if recs:
         tmin = min(t for _, t in recs)
         tmax = max(t for _, t in recs)
         print("\n【问三】各设备恢复时刻的离散度（同时性 = 全局事件的实证）：")
         for dev, t in sorted(recs, key=lambda x: x[1]):
-            print("   %-3s  恢复@ %s   (距最早 %+d s)" % (dev, iso(t), t - tmin))
-        print("   恢复时刻跨度 max−min = %d s = %.2f×W；%s"
-              % (tmax - tmin, (tmax - tmin) / W,
+            print("   %-3s  恢复@ %s   (距最早 %+d s)  [实测空档]" % (dev, iso(t), t - tmin))
+        print("   恢复时刻跨度 max−min = %d s = %.2f×W（仅计入 %d 台实测设备）；%s"
+              % (tmax - tmin, (tmax - tmin) / W, len(recs),
                  "≈ 同时 → 支持'全场同时 = 全局事件'" if (tmax - tmin) <= W
                  else "跨度大于一个 W，需看时间线判断是否分批恢复"))
+    if fellback:
+        print("   以下设备的恢复时刻**未能实测**（数据里没有 >= --min-outage-gap-hours 的空档），"
+              "已退回 --outage-end 常量，**不计入上面的跨度统计**：")
+        for dev in sorted(fellback):
+            print("   %-3s  无实测恢复时刻；常见成因是该设备的标定期覆盖了整段停机，"
+                  "停机前没有任何 M2 快照可供比对。" % dev)
 
     # ---- 问四 ----
     print("\n【问四】冷启动清空 vs 浪涌（先后）：")
