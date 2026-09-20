@@ -26,6 +26,12 @@
 #      --out <路径>       CSV 输出路径，默认 docs/reports/ckpt_sizes_<JobID 前 8 位>.csv
 #      --framesize-mb <n> 告警阈值（单子任务字节数超过它的 80% 即告警），默认 10
 #      --top <n>          每次 checkpoint 控制台只打印最大的 n 个算子，默认 8
+#      --no-subtasks      关闭逐子任务峰值采集。默认**开启**：脚本会对每个算子额外调一次
+#                         /checkpoints/details/<id>/subtasks/<vertexId>，取该算子各并行实例中
+#                         最大的那个状态大小。这是判断是否逼近 akka.framesize 的唯一可靠依据，
+#                         因为 framesize 限制的是单条确认 RPC（即单个子任务），而 details 接口
+#                         在 Flink 1.13 上只给出该算子所有子任务的合计。代价是每次 checkpoint
+#                         每个算子多一次 HTTP 请求，轮询间隔 15 秒以上时可忽略。
 # 3. 前置条件 / Preconditions:
 #      集群已启动且作业处于 RUNNING；提交作业时应带 --checkpoint-tolerable-failures（例如 100），
 #      否则第一次越限就会重启作业，曲线在此中断。
@@ -53,6 +59,14 @@ DURATION=0
 OUT=""
 FRAMESIZE_MB=10
 TOP=8
+# 是否逐算子再调一次「逐子任务」接口取每个并行实例的状态大小。默认开启。
+# 【为何默认开启】akka.framesize 限制的是**单条确认 RPC**，也就是**单个子任务**的状态，而
+# /checkpoints/details/<id> 这个接口在 Flink 1.13 上只给出该算子所有子任务的**合计**，不含逐子任务
+# 明细。若不取逐子任务，峰值一列只能留空，看上去像"远低于上限"，而这正是需要盯住的那个量。
+# 代价是每次 checkpoint 每个算子多一次 HTTP 请求（经 ssh 转发），轮询间隔 15 秒以上时可忽略。
+# Enabled by default: akka.framesize caps a single acknowledge RPC, i.e. one subtask, while the
+# details endpoint on Flink 1.13 reports only the per-operator total across subtasks.
+SUBTASKS=1
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --jid) JID="$2"; shift 2 ;;
@@ -61,6 +75,7 @@ while [[ $# -gt 0 ]]; do
         --out) OUT="$2"; shift 2 ;;
         --framesize-mb) FRAMESIZE_MB="$2"; shift 2 ;;
         --top) TOP="$2"; shift 2 ;;
+        --no-subtasks) SUBTASKS=0; shift ;;   # 关闭逐子任务采集（减少 HTTP 请求）
         *) echo "Unknown arg: $1" >&2; exit 1 ;;
     esac
 done
@@ -108,10 +123,22 @@ fi
 # 逐算子解析器：写成独立文件，供下面的循环用管道喂 JSON（见循环内的注释）。
 # Per-operator parser, written to a file so the loop can pipe JSON into it.
 PARSER="$(mktemp)"
+PEAKS="$(mktemp)"   # 逐子任务峰值 {vertexId: bytes} / per-subtask peaks
 cat > "$PARSER" <<'PY'
 import json, sys, datetime
 
 jid, cid, out, top, frame_mb, job_file = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), float(sys.argv[5]), sys.argv[6]
+peaks_file = sys.argv[7] if len(sys.argv) > 7 else ""
+# 逐子任务峰值 {vertexId: bytes}，由外层脚本调 subtasks 接口收集；文件为空表示本次没有采集。
+peaks = {}
+if peaks_file:
+    try:
+        with open(peaks_file, encoding="utf-8") as pf:
+            txt = pf.read().strip()
+        if txt:
+            peaks = json.loads(txt)
+    except Exception:
+        peaks = {}
 try:
     det = json.load(sys.stdin)
 except ValueError as e:
@@ -144,6 +171,9 @@ for vid, t in (det.get("tasks") or {}).items():
     summary = t.get("summary") or {}
     ss = summary.get("state_size") or summary.get("stateSize") or {}
     peak = ss.get("max") if isinstance(ss, dict) else None
+    # 优先用 subtasks 接口取回的逐子任务峰值；details 自带的 summary 只是退路。
+    if vid in peaks:
+        peak = peaks[vid]
     peak = int(peak) if peak is not None else None
     rows.append((names.get(vid, vid), int(total or 0), int(acked or 0), peak))
 
@@ -162,8 +192,8 @@ warn = frame_mb * 1048576 * 0.8
 print("\n[%s] checkpoint %s  状态=%s" % (wall, cid, status))
 print("  %-46s %12s %10s %14s" % ("算子 / operator", "合计 MB", "已确认", "单子任务峰值 MB"))
 if all(r[3] is None for r in rows):
-    print("  （本 Flink 版本的 details 响应不含 per-task summary，单子任务峰值列为 n/a；"
-          "合计除以并行度可作粗略下界）")
+    print("  （未取到逐子任务峰值：本 Flink 版本的 details 响应不含 per-task summary，且逐子任务接口"
+          "也未返回可用数值；合计除以并行度只能作粗略下界。若是用 --no-subtasks 关闭了采集，去掉它即可）")
 for name, total, acked, peak in rows[:top]:
     if peak is None:
         print("  %-46s %12.3f %10d %14s" % (name[:46], total / 1048576.0, acked, "n/a"))
@@ -177,7 +207,7 @@ print("  本次合计：%.3f MB" % (sum(r[1] for r in rows) / 1048576.0))
 PY
 
 SEEN_FILE="$(mktemp)"
-trap 'rm -f "$SEEN_FILE" "$JOB_JSON_FILE" "$PARSER"' EXIT
+trap 'rm -f "$SEEN_FILE" "$JOB_JSON_FILE" "$PARSER" "$PEAKS"' EXIT
 START_TS=$(date +%s)
 
 while true; do
@@ -205,13 +235,66 @@ print(" ".join(str(c["id"]) for c in sorted(h,key=lambda c:c["id"])))')"
         [ -z "$DET" ] && continue
         printf '%s' "$DET" | grep -q '"errors"' && { echo "$CID" >> "$SEEN_FILE"; continue; }
 
+        # 逐子任务峰值：details 接口不含该明细，需对每个算子再调一次 subtasks 接口。
+        # 结果汇总成 {vertexId: 最大子任务状态字节数} 写入临时文件，供解析器读取。
+        # Per-subtask peak: the details endpoint omits it, so call the subtasks endpoint per vertex
+        # and collect {vertexId: max subtask state bytes} into a temp file for the parser.
+        : > "$PEAKS"
+        if [ "$SUBTASKS" -eq 1 ]; then
+            VIDS="$(printf '%s' "$DET" | python3 -c '
+import json,sys
+try:
+    print(" ".join((json.load(sys.stdin).get("tasks") or {}).keys()))
+except Exception:
+    print("")' 2>/dev/null)"
+            {
+                printf '{'
+                FIRST=1
+                for VID in $VIDS; do
+                    SUB="$(mcurl "$REST/jobs/$JID/checkpoints/details/$CID/subtasks/$VID")"
+                    MAXB="$(printf '%s' "$SUB" | python3 -c '
+import json,sys
+def size(d):
+    if not isinstance(d, dict):
+        return None
+    for k in ("state_size", "stateSize"):
+        if isinstance(d.get(k), (int, float)):
+            return int(d[k])
+    return None
+try:
+    doc = json.load(sys.stdin)
+except Exception:
+    print(""); raise SystemExit
+best = None
+for st in (doc.get("subtasks") or []):
+    # 逐子任务的状态大小可能直接在子任务对象上，也可能在其嵌套的 checkpoint 对象里。
+    v = size(st)
+    if v is None:
+        v = size(st.get("checkpoint"))
+    if v is not None and (best is None or v > best):
+        best = v
+# 退路：若逐子任务明细缺失，但该接口给了 summary.state_size.max，也可用。
+if best is None:
+    sm = ((doc.get("summary") or {}).get("state_size") or {})
+    if isinstance(sm.get("max"), (int, float)):
+        best = int(sm["max"])
+print("" if best is None else best)' 2>/dev/null)"
+                    [ -z "$MAXB" ] && continue
+                    [ "$FIRST" -eq 0 ] && printf ','
+                    printf '"%s":%s' "$VID" "$MAXB"
+                    FIRST=0
+                done
+                printf '}'
+            } > "$PEAKS"
+        fi
+
         # 逐算子解析：tasks 是 vertexId → 汇总；名字需从作业计划里取。
         # Per-operator parse: "tasks" maps vertexId → summary; names come from the job plan.
         # 注意：这里必须调用**文件**而不是 `python3 - <<'PY'`。后者把 heredoc 当作标准输入来读取
         # 程序本身，管道里的 JSON 会被丢弃，json.load(sys.stdin) 只能读到 EOF。
         # NOTE: must invoke the parser as a FILE. With `python3 - <<'PY'` the heredoc becomes stdin
         # (the program itself), the piped JSON is discarded, and json.load(sys.stdin) sees EOF.
-        printf '%s' "$DET" | python3 "$PARSER" "$JID" "$CID" "$OUT" "$TOP" "$FRAMESIZE_MB" "$JOB_JSON_FILE"
+        printf '%s' "$DET" | python3 "$PARSER" "$JID" "$CID" "$OUT" "$TOP" "$FRAMESIZE_MB" "$JOB_JSON_FILE" "$PEAKS"
         echo "$CID" >> "$SEEN_FILE"
     done
 
