@@ -210,11 +210,16 @@ public final class M3Grid {
                                     + "训练 %d 个 epoch，用时 %.1fs（训练集 %d 窗，剔除 %d 窗，早停集 %d 窗）%n",
                             done, totalCombos, device, hs, win, r.esLoss, r.epochs, r.trainSeconds,
                             r.trainWindows, r.trainExcluded, r.esWindows);
+                    // 每完成一个组合就落盘一次。全量网格要连续跑十几个小时，若只在全部结束后才写
+                    // CSV，中途任何中止都会让已完成的组合一并作废。
+                    // Persist after every combination: the full grid runs for many hours, and writing
+                    // the CSV only at the very end would discard all completed work on any abort.
+                    writeCsv(results, outCsv, false);
                 }
             }
         }
 
-        writeCsv(results, outCsv);
+        writeCsv(results, outCsv, true);
         interpret(results, outCsv);
     }
 
@@ -356,7 +361,12 @@ public final class M3Grid {
         return byDevice;
     }
 
-    private static void writeCsv(List<Result> results, String path) throws Exception {
+    /**
+     * 写出 CSV。{@code announce} 为 false 时不打印提示，供每完成一个组合后的增量落盘使用，
+     * 以免全量网格刷出几十行重复提示。
+     * Write the CSV; announce=false is the quiet incremental save after each combination.
+     */
+    private static void writeCsv(List<Result> results, String path, boolean announce) throws Exception {
         try (PrintWriter pw = new PrintWriter(path, "UTF-8")) {
             pw.println("device,hiddenSize,windowLength,trainWindows,trainExcluded,esWindows,"
                     + "epochs,esLoss,trainSeconds,sanitized");
@@ -366,7 +376,9 @@ public final class M3Grid {
                         r.esWindows, r.epochs, r.esLoss, r.trainSeconds, r.sanitized);
             }
         }
-        System.out.println("[grid] CSV → " + path);
+        if (announce) {
+            System.out.println("[grid] CSV → " + path);
+        }
     }
 
     /** 逐设备给出早停集误差最小的组合，并列出与它同一量级的其他组合，供设计会话裁决选型。 */

@@ -170,6 +170,17 @@ if [ "$COLLECT" -eq 1 ]; then
         echo "       日志末尾若**没有**「进程正在退出」那一行，说明它是被直接杀死而非自行退出。" >&2
         echo "       容器 ${CONTAINER_NAME} 已保留供排查；排查完毕后手动清理：" >&2
         echo "       ssh fa-master 'docker rm ${CONTAINER_NAME}'" >&2
+        # M3Grid 每完成一个组合就落盘一次，因此中止时 master 上可能留有**部分**结果。
+        # 它以 .partial 后缀单独拉回，绝不冒充完整产物。
+        # M3Grid saves after each combination, so a partial CSV may exist; pull it under a .partial
+        # name so it can never be mistaken for the complete artifact.
+        if ssh fa-master "cat ${WORK}/m3_grid.csv" > "${LOCAL_CSV}.partial" 2>/dev/null \
+                && [ "$(wc -l < "${LOCAL_CSV}.partial")" -gt 1 ]; then
+            echo "       已完成的组合并未丢失：部分结果拉回到 ${LOCAL_CSV}.partial" >&2
+            echo "       （共 $(($(wc -l < "${LOCAL_CSV}.partial") - 1)) 行，**不是**完整网格）" >&2
+        else
+            rm -f "${LOCAL_CSV}.partial" 2>/dev/null || true
+        fi
         exit "$CODE"
     fi
     pull_csv || exit 1
