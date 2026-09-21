@@ -111,12 +111,11 @@ class M3GridTest {
         List<String> lines = java.nio.file.Files.readAllLines(out);
         assertEquals(2, lines.size(), "表头加一行结果");
         assertTrue(lines.get(0).endsWith(",sanitized"), "CSV 应含 sanitized 列");
-        String[] f = lines.get(1).split(",");
-        assertEquals("E", f[0]);
-        assertEquals("false", f[f.length - 1],
+        assertEquals("E", col(lines, "device"));
+        assertEquals("false", col(lines, "sanitized"),
                 "未提供 --scores-jsonl 时不应做训练净化，该列须为 false");
-        int trainWindows = Integer.parseInt(f[3]);
-        int excluded = Integer.parseInt(f[4]);
+        int trainWindows = Integer.parseInt(col(lines, "trainWindows"));
+        int excluded = Integer.parseInt(col(lines, "trainExcluded"));
         assertEquals(0, excluded, "没有离群名单就不该剔除任何窗口");
         assertTrue(trainWindows > 0, "应切出训练窗口，实测 " + trainWindows);
     }
@@ -147,9 +146,26 @@ class M3GridTest {
                 "--max-epochs", "2", "--patience", "1",
                 "--out", out.toString()});
 
-        String[] f = java.nio.file.Files.readAllLines(out).get(1).split(",");
-        assertEquals("true", f[f.length - 1], "提供了离群名单，sanitized 列应为 true");
-        assertEquals(2, Integer.parseInt(f[4]),
-                "两条离群轮分属两个不同窗口，应剔除 2 个训练窗口，实测 " + f[4]);
+        List<String> lines = java.nio.file.Files.readAllLines(out);
+        assertEquals("true", col(lines, "sanitized"), "提供了离群名单，sanitized 列应为 true");
+        String excluded = col(lines, "trainExcluded");
+        assertEquals(2, Integer.parseInt(excluded),
+                "两条离群轮分属两个不同窗口，应剔除 2 个训练窗口，实测 " + excluded);
+    }
+
+    /**
+     * 按**列名**从 CSV 的第一行结果里取值。此前这些断言是按列序号取的，往 CSV 中间插入一列就会
+     * 让它们悄悄读到相邻列上去——改用列名之后，加列不再需要同步改测试。
+     * Look a value up by column name; index-based access silently breaks when a column is inserted.
+     */
+    private static String col(List<String> lines, String name) {
+        String[] header = lines.get(0).split(",");
+        String[] values = lines.get(1).split(",");
+        for (int i = 0; i < header.length; i++) {
+            if (header[i].equals(name)) {
+                return values[i];
+            }
+        }
+        throw new IllegalArgumentException("CSV 表头里没有列 " + name + "：" + lines.get(0));
     }
 }

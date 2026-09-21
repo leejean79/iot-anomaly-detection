@@ -112,8 +112,19 @@ public class M2Job {
         int m3ThreshDays = params.getInt("m3-thresh-days", 2);
         int m3WindowLength = params.getInt("m3-window-length", 60);
         double m3ZThreshold = params.getDouble("m3-z-threshold", 2.22);
-        int m3MaxEpochs = params.getInt("m3-max-epochs", 100);
+        // 上限 60：2026-09-21 的实测中早停在第 26 个 epoch 自然触发，60 已留有充分余量，
+        // 再高只会在某个组合迟迟不收敛时白白拉长冷启动（补遗三 §1）。
+        // Cap 60: early stopping fired at epoch 26 in the 2026-09-21 probe.
+        int m3MaxEpochs = params.getInt("m3-max-epochs", 60);
         int m3EarlyStopPatience = params.getInt("m3-earlystop-patience", 10);
+        // 隐藏层宽度：全机队统一，由设计会话依离线网格 V-M3-3 定死（补遗三 §3）。
+        // 默认 60 为网格中点，待 V-M3-3 出结果后由设计会话裁定并改此默认值。
+        // Fleet-wide hidden size, to be fixed by the design session from the offline grid.
+        int m3HiddenSize = params.getInt("m3-hidden-size", 60);
+        // 小批量大小：**必须与离线网格所用的值一致**，否则补遗三 §6 的等值核验不成立。
+        // 默认 1 即 2026-09-21 参照点的口径；待步骤 A 的扫描选定后改此默认值。
+        // Must match the offline grid's value; default 1 reproduces the reference reading.
+        int m3BatchSize = params.getInt("m3-batch-size", 1);
         // 通道权重表（决策 5）：设备 G 的 Light 权重为零（临时；M6 级-0 重估修复尺度后恢复）
         // Channel weights: device G's Light weight is zero (temporary; restore once M6 level-0 re-estimation)
         // 此处为全局默认全 1；逐设备权重在 M3Function 内按配置覆盖
@@ -144,6 +155,8 @@ public class M2Job {
             System.out.println("M3 window:       " + m3WindowLength + " rounds");
             System.out.println("M3 z-threshold:  " + m3ZThreshold);
             System.out.println("M3 max epochs:   " + m3MaxEpochs + " (patience=" + m3EarlyStopPatience + ")");
+            System.out.println("M3 hidden size:  " + m3HiddenSize + "  (fleet-wide, fixed from the offline grid)");
+            System.out.println("M3 batch size:   " + m3BatchSize + "   (must match the offline grid)");
         }
         System.out.println("========================================");
 
@@ -282,7 +295,8 @@ public class M2Job {
                     .process(new M3Function(
                             m3TrainDays, m3EarlyStopDays, m3ThreshDays,
                             m3WindowLength, m3ZThreshold, m3ChannelWeights,
-                            m3MaxEpochs, m3EarlyStopPatience, m3MonTag))
+                            m3MaxEpochs, m3EarlyStopPatience,
+                            m3HiddenSize, m3BatchSize, m3MonTag))
                     .name("M3-LSTM-AE");
 
             // M3 上下文评分 → synergia-scores

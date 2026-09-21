@@ -82,27 +82,57 @@ public class LstmAutoEncoder implements Serializable {
      * @return 平均损失 / average loss
      */
     public double trainEpoch(double[][][] windows, boolean[][][] weightMasks) {
+        return trainEpoch(windows, weightMasks, 1);        // 默认逐窗更新，即历史行为 / default: per-window updates
+    }
+
+    /**
+     * 训练一个 epoch，按给定的小批量大小成组更新权重。
+     *
+     * <p><b>小批量大小的含义</b>：一次权重更新用到多少个窗口。取 1 时每个窗口单独产生一次更新，
+     * 即本方法的历史行为，也是 2026-09-21 参照读数所用的口径；取 32 时 32 个窗口被堆成一个
+     * {@code [32, nFeatures, seqLen]} 张量，梯度在这 32 个窗口上取平均后只更新一次权重。
+     * 这不只是工程提速，它改变优化行为，因此需经补遗三 §2 的 5% 判据把关。
+     * Mini-batch size = how many windows contribute to one weight update. This changes the
+     * optimization behaviour, not only the speed.
+     *
+     * <p>两条刻意固定的口径，改动它们会使小批量大小不再是唯一变量：
+     * <ul>
+     *   <li><b>不打乱窗口顺序</b>：参照读数是按时间顺序逐窗更新的，引入洗牌就等于同时改了两个变量。</li>
+     *   <li><b>保留末尾不足一批的窗口</b>：1,001 个窗口按 32 切分得到 31 个完整小批量加一个只含 9 个
+     *       窗口的末尾小批量，它照常参与训练——丢弃它等于悄悄少用了一部分数据。</li>
+     * </ul>
+     * Two pinned details: windows are never shuffled, and the short tail mini-batch is kept.
+     *
+     * @param batchSize 小批量大小，须为正 / mini-batch size, must be positive
+     */
+    public double trainEpoch(double[][][] windows, boolean[][][] weightMasks, int batchSize) {
+        if (batchSize < 1) {
+            throw new IllegalArgumentException("小批量大小须为正，收到 " + batchSize);
+        }
+        if (windows.length == 0) {
+            return 0.0;
+        }
         double totalLoss = 0.0;
-        int count = 0;
-        for (int w = 0; w < windows.length; w++) {
-            double[][] window = windows[w];
-            int seqLen = window.length;
-            INDArray input = toRnnInput(window, seqLen);   // 转 RNN 张量 / to RNN tensor
+        int batches = 0;
+        for (int start = 0; start < windows.length; start += batchSize) {
+            // 末尾不足一批时 actual 小于 batchSize，该小批量照常训练 / short tail batch is trained as-is
+            int actual = Math.min(batchSize, windows.length - start);
+            int seqLen = windows[start].length;
+            INDArray input = toRnnInput(windows, start, actual, seqLen);
             INDArray labels = input.dup();                 // 自编码器：标签即输入的副本 / label is a copy of the input
 
-            if (weightMasks != null && weightMasks[w] != null) {
+            if (weightMasks != null) {
                 // 有掩码：用标签掩码把删失/缺失元素的损失权重置零（决策 3/6）
                 // With a mask: a label mask zeroes the loss weight of censored/missing elements
-                INDArray mask = toMaskArray(weightMasks[w], seqLen);
-                DataSet ds = new DataSet(input, labels, null, mask);
-                model.fit(ds);
+                INDArray mask = toMaskArray(weightMasks, start, actual, seqLen);
+                model.fit(new DataSet(input, labels, null, mask));
             } else {
                 model.fit(new DataSet(input, labels));     // 无掩码：全元素参与 / no mask: all elements count
             }
-            totalLoss += model.score();                    // 累加本窗口训练后损失 / accumulate this window's score
-            count++;
+            totalLoss += model.score();                    // 累加本小批量训练后损失 / accumulate this batch's score
+            batches++;
         }
-        return count > 0 ? totalLoss / count : 0.0;        // 平均损失（空集返回 0）/ mean loss (0 on empty set)
+        return batches > 0 ? totalLoss / batches : 0.0;
     }
 
     /**
@@ -126,6 +156,51 @@ public class LstmAutoEncoder implements Serializable {
         for (int t = 0; t < seqLen; t++) {                 // t = 时间步 / time step
             for (int f = 0; f < nFeatures; f++) {          // f = 特征通道 / feature channel
                 arr.putScalar(new int[]{0, f, t}, window[t][f]);   // window[t][f] → [0,f,t]
+            }
+        }
+        return arr;
+    }
+
+    /**
+     * 构建一个小批量的 RNN 输入张量 {@code [count, nFeatures, seqLen]}，取 windows 中从 from 起的
+     * count 个窗口，顺序原样保留。
+     * Build one mini-batch input tensor from `count` windows starting at `from`, order preserved.
+     */
+    private INDArray toRnnInput(double[][][] windows, int from, int count, int seqLen) {
+        INDArray arr = Nd4j.create(count, nFeatures, seqLen);
+        for (int b = 0; b < count; b++) {                  // b = 小批量内的序号 / index within the mini-batch
+            double[][] window = windows[from + b];
+            for (int t = 0; t < seqLen; t++) {
+                for (int f = 0; f < nFeatures; f++) {
+                    arr.putScalar(new int[]{b, f, t}, window[t][f]);
+                }
+            }
+        }
+        return arr;
+    }
+
+    /**
+     * 构建一个小批量的标签掩码张量 {@code [count, nFeatures, seqLen]}。某个窗口的掩码为 null 时，
+     * 该窗口整段记为全有效，与逐窗版本的处置一致。
+     * Build one mini-batch label mask; a null per-window mask means that window is fully valid,
+     * matching the per-window path.
+     */
+    private INDArray toMaskArray(boolean[][][] weightMasks, int from, int count, int seqLen) {
+        INDArray arr = Nd4j.ones(count, nFeatures, seqLen);
+        for (int b = 0; b < count; b++) {
+            boolean[][] mask = weightMasks[from + b];
+            if (mask == null) {
+                continue;                                  // 该窗口全有效 / this window is fully valid
+            }
+            for (int t = 0; t < seqLen; t++) {
+                if (mask[t] == null) {
+                    continue;
+                }
+                for (int f = 0; f < nFeatures; f++) {
+                    if (!mask[t][f]) {                     // 无效元素置 0 → 该项不计入损失 / excluded from loss
+                        arr.putScalar(new int[]{b, f, t}, 0.0);
+                    }
+                }
             }
         }
         return arr;

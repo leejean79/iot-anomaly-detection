@@ -14,6 +14,7 @@ import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -48,6 +49,10 @@ class M3StateMachineTest {
     private static final int WINDOW_LENGTH = 8;     // 窗口长度（轮）
     private static final int MAX_EPOCHS = 30;
     private static final int PATIENCE = 3;
+    /** 隐藏层宽度：全机队统一参数，不再由算子自行搜索（补遗三 §3）。 */
+    private static final int HIDDEN_SIZE = 12;
+    /** 小批量大小：取 1，与生产默认值及 2026-09-21 的参照口径一致。 */
+    private static final int BATCH_SIZE = 1;
     private static final double Z_THRESHOLD = 3.0;
     /** 训练 + 早停 + 标定三段合计的轮数；喂满之后算子应处于 ONLINE 相位。 */
     private static final int ROUNDS_TO_ONLINE = (TRAIN_DAYS + ES_DAYS + THRESH_DAYS) * ROUNDS_PER_DAY;
@@ -56,7 +61,7 @@ class M3StateMachineTest {
         double[] weights = new double[Channels.N_DET];
         java.util.Arrays.fill(weights, 1.0);
         return new M3Function(TRAIN_DAYS, ES_DAYS, THRESH_DAYS, WINDOW_LENGTH, Z_THRESHOLD,
-                weights, MAX_EPOCHS, PATIENCE, null, ROUNDS_PER_DAY);
+                weights, MAX_EPOCHS, PATIENCE, HIDDEN_SIZE, BATCH_SIZE, null, ROUNDS_PER_DAY);
     }
 
     private static OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> newHarness()
@@ -148,7 +153,7 @@ class M3StateMachineTest {
         java.util.Arrays.fill(weights, 1.0);
         final int maxEpochs = 2000;
         M3Function fn = new M3Function(TRAIN_DAYS, ES_DAYS, THRESH_DAYS, WINDOW_LENGTH, Z_THRESHOLD,
-                weights, maxEpochs, 1, null, ROUNDS_PER_DAY);
+                weights, maxEpochs, 1, HIDDEN_SIZE, BATCH_SIZE, null, ROUNDS_PER_DAY);
         KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h =
                 new KeyedOneInputStreamOperatorTestHarness<>(
                         new KeyedProcessOperator<>(fn), AnnotatedRound::getDevice,
@@ -208,5 +213,73 @@ class M3StateMachineTest {
             assertTrue(drain(fresh).isEmpty(),
                     "未恢复的新算子在同样输入下不应打分——否则恢复测试无判别力");
         }
+    }
+
+    @Test
+    @DisplayName("冷启动只训练一个模型，隐藏层宽度取自参数而非算子自行搜索")
+    void coldStartTrainsExactlyOneModel() throws Exception {
+        double[] weights = new double[Channels.N_DET];
+        java.util.Arrays.fill(weights, 1.0);
+        // 这里刻意取 12——它不在被取消的那个硬编码网格 {40, 60, 90} 里。若搜索循环日后被重新引入，
+        // 模型就会按 40、60、90 训练三次，下面两条断言都会失败。
+        // 12 is deliberately outside the removed hard-coded grid, so a reintroduced search fails here.
+        M3Function fn = new M3Function(TRAIN_DAYS, ES_DAYS, THRESH_DAYS, WINDOW_LENGTH, Z_THRESHOLD,
+                weights, MAX_EPOCHS, PATIENCE, HIDDEN_SIZE, BATCH_SIZE, null, ROUNDS_PER_DAY);
+        try (KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h =
+                     new KeyedOneInputStreamOperatorTestHarness<>(
+                             new KeyedProcessOperator<>(fn), AnnotatedRound::getDevice,
+                             TypeInformation.of(String.class))) {
+            h.open();
+            feed(h, "E", ROUNDS_TO_ONLINE + WINDOW_LENGTH + 2, 1_000_000L, new Random(21));
+            assertFalse(drain(h).isEmpty(), "应已进入 ONLINE 并产出评分");
+            assertEquals(1, fn.lastTrainModels,
+                    "冷启动应当只训练一个模型，实测训练了 " + fn.lastTrainModels
+                            + " 个——算子自带的隐藏层搜索已按补遗三 §3 取消");
+        }
+    }
+
+    @Test
+    @DisplayName("参数错配：用与训练时不同的隐藏层宽度恢复，拒绝打分而不是静默出分")
+    void restoringWithMismatchedHiddenSizeFailsLoudly() throws Exception {
+        Random rnd = new Random(7);
+        org.apache.flink.runtime.checkpoint.OperatorSubtaskState snapshot;
+
+        try (OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> h = newHarness()) {
+            feed(h, "E", ROUNDS_TO_ONLINE + WINDOW_LENGTH + 5, 1_000_000L, rnd);
+            assertFalse(drain(h).isEmpty(), "快照之前应已进入 ONLINE");
+            snapshot = h.snapshot(1L, 1L);
+        }
+
+        // 换一个隐藏层宽度恢复。错配的模型算出来的分毫无意义，而且不会有任何外在症状，
+        // 所以这里要求的是「响亮地失败」，不是「尽力打分」。
+        // A mismatched model produces meaningless scores with no outward symptom; fail loudly.
+        double[] weights = new double[Channels.N_DET];
+        java.util.Arrays.fill(weights, 1.0);
+        M3Function mismatched = new M3Function(TRAIN_DAYS, ES_DAYS, THRESH_DAYS, WINDOW_LENGTH,
+                Z_THRESHOLD, weights, MAX_EPOCHS, PATIENCE, HIDDEN_SIZE + 4, BATCH_SIZE,
+                null, ROUNDS_PER_DAY);
+        try (KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h2 =
+                     new KeyedOneInputStreamOperatorTestHarness<>(
+                             new KeyedProcessOperator<>(mismatched), AnnotatedRound::getDevice,
+                             TypeInformation.of(String.class))) {
+            h2.setup();
+            h2.initializeState(snapshot);
+            h2.open();
+
+            Exception thrown = assertThrows(Exception.class,
+                    () -> feed(h2, "E", WINDOW_LENGTH + 3, 3_000_000L, new Random(7)),
+                    "隐藏层宽度与模型不符时不得继续打分");
+            assertTrue(messageChain(thrown).contains("拒绝用错配的模型打分"),
+                    "异常应当明确指出是参数错配，实际信息：" + messageChain(thrown));
+        }
+    }
+
+    /** 把异常链上的全部信息串起来，便于在 Flink 包装过异常之后仍能断言根因。 */
+    private static String messageChain(Throwable t) {
+        StringBuilder sb = new StringBuilder();
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            sb.append(c.getMessage()).append(" | ");
+        }
+        return sb.toString();
     }
 }

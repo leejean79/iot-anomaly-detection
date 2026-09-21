@@ -86,6 +86,8 @@ public final class M3Grid {
         int epochs;
         double esLoss;
         double trainSeconds;
+        int batchSize;
+        String ompThreads;
         boolean sanitized;   // 是否做了训练净化 / whether sanitization was applied
     }
 
@@ -103,6 +105,17 @@ public final class M3Grid {
         int esDays = Integer.parseInt(a.getOrDefault("early-stop-days", "2"));
         int maxEpochs = Integer.parseInt(a.getOrDefault("max-epochs", "200"));
         int patience = Integer.parseInt(a.getOrDefault("patience", "10"));
+        // 小批量大小。默认 1 即 2026-09-21 参照点的口径；步骤 A 正是要扫描它。
+        // Mini-batch size; 1 reproduces the reference reading, and step A sweeps it.
+        int batchSize = Integer.parseInt(a.getOrDefault("batch-size", "1"));
+        // OpenMP 线程数**不由本程序设置**，它由容器的 OMP_NUM_THREADS 环境变量决定。此处只是把它
+        // 读出来写进 CSV，使每一行自带它是在什么并行度下测出来的。ND4J 启动日志里的
+        // "Number of threads used for OpenMP BLAS" 才是权威确认。
+        // The thread count is set by the container's OMP_NUM_THREADS; this only records it.
+        String ompThreads = System.getenv("OMP_NUM_THREADS");
+        if (ompThreads == null || ompThreads.isEmpty()) {
+            ompThreads = "default";
+        }
         // 每天折合多少轮。默认 8,640，与在线算子一致；只有当转储的轮密度确实不同于生产时才需要改动
         // （例如单元测试用几十条轮验证切分逻辑）。它只决定「多少条轮算作一天」，不改变任何其他语义。
         // Rounds per day; only change it when the dump's round density genuinely differs from
@@ -134,9 +147,10 @@ public final class M3Grid {
         long esRounds = (long) esDays * roundsPerDay;
         int totalCombos = byDevice.size() * hiddenGrid.length * windowGrid.length;
         System.out.printf("[grid] 开始：%d 设备 × %d 隐藏层 × %d 窗口长度 = %d 种组合"
-                        + "（训练 %d 天 / 早停 %d 天，maxEpochs=%d，patience=%d）%n",
+                        + "（训练 %d 天 / 早停 %d 天，maxEpochs=%d，patience=%d，"
+                        + "小批量大小=%d，OpenMP 线程=%s）%n",
                 byDevice.size(), hiddenGrid.length, windowGrid.length, totalCombos,
-                trainDays, esDays, maxEpochs, patience);
+                trainDays, esDays, maxEpochs, patience, batchSize, ompThreads);
 
         List<Result> results = new ArrayList<>();
         int done = 0;
@@ -162,36 +176,31 @@ public final class M3Grid {
                         split.earlyStop.length, hiddenGrid.length, memoryLine());
 
                 for (int hs : hiddenGrid) {
-                    long t0 = System.currentTimeMillis();
-                    LstmAutoEncoder ae = new LstmAutoEncoder(N_FEATURES, hs);
-                    double prevLoss = Double.MAX_VALUE;
-                    int noImprove = 0;
-                    int epochsRun = 0;
-                    for (int epoch = 0; epoch < maxEpochs; epoch++) {
-                        long epochStart = System.currentTimeMillis();
-                        ae.trainEpoch(split.train, split.trainMasks);
-                        epochsRun = epoch + 1;
-                        double esLoss = M3Function.evaluateLoss(ae, split.earlyStop, channelWeights);
-                        // 逐 epoch 输出：既是存活信号，也把耗时与内存占用的走向留在日志里，
-                        // 以便事后判断进程是被内核终止的还是自己退出的。
-                        // Per-epoch output: a liveness signal, and a record of the cost and memory trend.
-                        System.out.printf("[epoch] %s hidden=%d window=%d  第 %d/%d 轮  "
-                                        + "早停集误差 %.6f  本轮 %.1fs  本组合累计 %.1fs  %s%n",
-                                device, hs, win, epochsRun, maxEpochs, esLoss,
-                                (System.currentTimeMillis() - epochStart) / 1000.0,
-                                (System.currentTimeMillis() - t0) / 1000.0, memoryLine());
-                        if (esLoss < prevLoss - 1e-6) {
-                            prevLoss = esLoss;
-                            noImprove = 0;
-                        } else {
-                            noImprove++;
-                            if (noImprove >= patience) {
-                                System.out.printf("[epoch] %s hidden=%d window=%d  早停触发："
-                                                + "连续 %d 轮无改善，于第 %d 轮中止。%n",
-                                        device, hs, win, patience, epochsRun);
-                                break;
-                            }
-                        }
+                    final int fhs = hs;
+                    final int fwin = win;
+                    final String fdev = device;
+                    // 与在线算子共用同一份训练实现（M3Training），这是补遗三 §6 等值核验的前提。
+                    // The same training core the online operator uses — the basis of the parity check.
+                    M3Training.Config cfg = new M3Training.Config(
+                            N_FEATURES, hs, batchSize, maxEpochs, patience, channelWeights);
+                    M3Training.Result trained = M3Training.train(
+                            cfg, split.train, split.trainMasks, split.earlyStop,
+                            new M3Training.EpochListener() {
+                                @Override
+                                public void onEpoch(int epoch, double esLoss, double epochSeconds) {
+                                    // 逐 epoch 输出：既是存活信号，也把耗时与内存占用的走向留在日志里，
+                                    // 以便事后判断进程是被内核终止的还是自己退出的。
+                                    // Per-epoch output: a liveness signal plus the cost and memory trend.
+                                    System.out.printf("[epoch] %s hidden=%d window=%d batch=%d  第 %d/%d 轮  "
+                                                    + "早停集误差 %.6f  本轮 %.1fs  %s%n",
+                                            fdev, fhs, fwin, cfg.batchSize, epoch, cfg.maxEpochs,
+                                            esLoss, epochSeconds, memoryLine());
+                                }
+                            });
+                    if (trained.epochs < maxEpochs) {
+                        System.out.printf("[epoch] %s hidden=%d window=%d  早停触发：连续 %d 轮无改善，"
+                                        + "于第 %d 轮中止。%n",
+                                device, hs, win, patience, trained.epochs);
                     }
                     Result r = new Result();
                     r.device = device;
@@ -200,10 +209,12 @@ public final class M3Grid {
                     r.trainWindows = split.train.length;
                     r.trainExcluded = split.trainExcluded;
                     r.esWindows = split.earlyStop.length;
-                    r.epochs = epochsRun;
-                    r.esLoss = M3Function.evaluateLoss(ae, split.earlyStop, channelWeights);
-                    r.trainSeconds = (System.currentTimeMillis() - t0) / 1000.0;
+                    r.epochs = trained.epochs;
+                    r.esLoss = trained.earlyStopLoss;
+                    r.trainSeconds = trained.seconds;
                     r.sanitized = sanitized;
+                    r.batchSize = batchSize;
+                    r.ompThreads = ompThreads;
                     results.add(r);
                     done++;
                     System.out.printf("[grid] (%d/%d) %s hidden=%d window=%d → 早停集误差 %.6f，"
@@ -368,12 +379,16 @@ public final class M3Grid {
      */
     private static void writeCsv(List<Result> results, String path, boolean announce) throws Exception {
         try (PrintWriter pw = new PrintWriter(path, "UTF-8")) {
-            pw.println("device,hiddenSize,windowLength,trainWindows,trainExcluded,esWindows,"
-                    + "epochs,esLoss,trainSeconds,sanitized");
+            pw.println("device,hiddenSize,windowLength,batchSize,ompThreads,"
+                    + "trainWindows,trainExcluded,esWindows,"
+                    + "epochs,esLoss,trainSeconds,secPerEpoch,sanitized");
             for (Result r : results) {
-                pw.printf("%s,%d,%d,%d,%d,%d,%d,%.8f,%.1f,%s%n",
-                        r.device, r.hiddenSize, r.windowLength, r.trainWindows, r.trainExcluded,
-                        r.esWindows, r.epochs, r.esLoss, r.trainSeconds, r.sanitized);
+                // secPerEpoch 由程序算出并写入，避免事后手算出错 / computed here, not by hand afterwards
+                double secPerEpoch = r.epochs > 0 ? r.trainSeconds / r.epochs : 0.0;
+                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%.1f,%.1f,%s%n",
+                        r.device, r.hiddenSize, r.windowLength, r.batchSize, r.ompThreads,
+                        r.trainWindows, r.trainExcluded, r.esWindows,
+                        r.epochs, r.esLoss, r.trainSeconds, secPerEpoch, r.sanitized);
             }
         }
         if (announce) {

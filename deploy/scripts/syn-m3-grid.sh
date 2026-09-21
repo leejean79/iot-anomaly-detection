@@ -30,7 +30,11 @@
 #      --window-grid <列表>    窗口长度网格，默认 30,60,120
 #      --train-days <n>        训练段天数，默认 7
 #      --early-stop-days <n>   早停段天数，默认 2
-#      --max-epochs <n>        单次训练的上限轮数，默认 200
+#      --max-epochs <n>        单次训练的上限轮数，默认 60（补遗三 §1 定的生产值）
+#      --batch-size <n>        小批量大小，即一次权重更新用到多少个窗口，默认 1。
+#                              默认 1 即 2026-09-21 参照点的口径；步骤 A 正是要扫描这个参数。
+#      --omp-threads <n>       容器内 OpenMP 线程数，默认 1。经 OMP_NUM_THREADS 环境变量传入，
+#                              ND4J 启动日志里的 "Number of threads used for OpenMP BLAS" 是权威确认。
 #      --patience <n>          早停耐心，默认 10
 #      --max-messages <n>      每个 topic 的转储条数上限，默认 3000000
 #      --out-name <文件名>     本地 CSV 文件名，默认 m3_grid.csv
@@ -72,7 +76,8 @@ PROJECT_ROOT="$(dirname "$DEPLOY_DIR")"
 set -a; source "$DEPLOY_DIR/.env"; set +a
 
 DEVICES="E,G,C"; HIDDEN_GRID="40,60,90"; WINDOW_GRID="30,60,120"
-TRAIN_DAYS=7; ES_DAYS=2; MAX_EPOCHS=200; PATIENCE=10
+TRAIN_DAYS=7; ES_DAYS=2; MAX_EPOCHS=60; PATIENCE=10
+BATCH_SIZE=1; OMP_THREADS=1
 MAX_MESSAGES=3000000; OUT_NAME="m3_grid.csv"; USE_SCORES=1; REUSE=0; DETACH=0; COLLECT=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -82,6 +87,8 @@ while [[ $# -gt 0 ]]; do
         --train-days) TRAIN_DAYS="$2"; shift 2 ;;
         --early-stop-days) ES_DAYS="$2"; shift 2 ;;
         --max-epochs) MAX_EPOCHS="$2"; shift 2 ;;
+        --batch-size) BATCH_SIZE="$2"; shift 2 ;;
+        --omp-threads) OMP_THREADS="$2"; shift 2 ;;
         --patience) PATIENCE="$2"; shift 2 ;;
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
         --out-name) OUT_NAME="$2"; shift 2 ;;
@@ -193,6 +200,7 @@ echo "===================================================================="
 echo "syn-m3-grid.sh — V-M3-3 离线超参数网格"
 echo "  设备 ${DEVICES}   隐藏层 ${HIDDEN_GRID}   窗口长度 ${WINDOW_GRID}"
 echo "  训练 ${TRAIN_DAYS} 天 / 早停 ${ES_DAYS} 天   maxEpochs=${MAX_EPOCHS} patience=${PATIENCE}"
+echo "  小批量大小 ${BATCH_SIZE}   OpenMP 线程 ${OMP_THREADS}"
 echo "  训练净化：$([ "$USE_SCORES" -eq 1 ] && echo '开启（转储 scores 还原离群标记）' || echo '关闭')"
 echo "===================================================================="
 
@@ -234,12 +242,12 @@ fi
 # the PREVIOUS run's file back and pass it off as this run's result.
 ssh fa-master "rm -f ${WORK}/m3_grid.csv" || true
 
-RUN_MOUNTS="-v ${RHOME}/jars:/jars:ro -v ${WORK}:/work"
+RUN_MOUNTS="-v ${RHOME}/jars:/jars:ro -v ${WORK}:/work -e OMP_NUM_THREADS=${OMP_THREADS}"
 RUN_CMD="java -cp /jars/${JAR_NAME} com.leejean.m3.M3Grid \
         --rounds-jsonl /work/m1out.jsonl ${SCORES_ARG} \
         --devices ${DEVICES} --hidden-grid ${HIDDEN_GRID} --window-grid ${WINDOW_GRID} \
         --train-days ${TRAIN_DAYS} --early-stop-days ${ES_DAYS} \
-        --max-epochs ${MAX_EPOCHS} --patience ${PATIENCE} \
+        --max-epochs ${MAX_EPOCHS} --patience ${PATIENCE} --batch-size ${BATCH_SIZE} \
         --out /work/m3_grid.csv"
 
 if [ "$DETACH" -eq 1 ]; then

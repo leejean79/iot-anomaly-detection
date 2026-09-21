@@ -70,7 +70,20 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     private final double[] channelWeights;
     private final int maxEpochs;
     private final int earlyStopPatience;
-    private final int[] hiddenSizeGrid;
+    /**
+     * 隐藏层宽度。补遗三 §3 裁定它是**全机队统一**的参数，由设计会话依离线网格 V-M3-3 定死，
+     * 与窗口长度同级。此前此处是硬编码的 {40, 60, 90} 三点搜索，冷启动因而要训练三个模型；
+     * 该搜索已按裁定移除，冷启动只训练一个模型。
+     * Hidden size is a fleet-wide parameter fixed by the design session from the offline grid;
+     * the former built-in {40, 60, 90} search is removed and cold start trains a single model.
+     */
+    private final int hiddenSize;
+    /**
+     * 小批量大小。必须与离线网格所用的值一致，否则补遗三 §6 的等值核验（在线冷启动误差与网格值
+     * 相差不超过 5%）无从成立。
+     * Must match the offline grid's value, or the parity check of addendum 3 §6 cannot hold.
+     */
+    private final int batchSize;
     private final OutputTag<MonitoringSnapshot> m3MonitoringTag;
 
     // ---- Flink 状态 / Flink state ----
@@ -88,6 +101,13 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     private transient ValueState<byte[]> modelBytes;            // 训练后的模型参数 / trained model bytes
     private transient ValueState<byte[]> scorerBytes;           // 标定后的评分器 / calibrated scorer
     private transient ValueState<Integer> selectedHidden;
+    /**
+     * 模型训练时所用的窗口长度。与 {@link #selectedHidden} 一并落在 checkpoint 状态里，目的是
+     * 让日后修改参数无法「悄悄地」用不匹配的模型去打分（补遗三 §3）。恢复时若与当前配置不符，
+     * 在 {@link #handleOnline} 处直接抛异常而不是凑合打分。
+     * The window length the model was trained with; a mismatch on restore fails loudly.
+     */
+    private transient ValueState<Integer> trainedWindow;
     private transient ValueState<Long> trainExcluded;           // 离群净化排除的窗口数 / outlier-sanitized excluded windows
 
     /**
@@ -97,6 +117,14 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
      * be both imprecise and flaky on slow machines, while the epoch count is exact.
      */
     transient int lastTrainEpochs;
+
+    /**
+     * 最近一次冷启动里训练了几个模型。**仅供测试**断言算子确实只训练一个模型——补遗三 §3 取消了
+     * 算子自带的隐藏层搜索，此前每台设备冷启动要训练三个。本计数器把「只训练一个」这件事变成可断言的
+     * 事实，防止日后有人重新引入搜索循环而无人察觉。生产路径不读取它。
+     * Models trained in the most recent cold start. Test-only: it makes "exactly one model" assertable.
+     */
+    transient int lastTrainModels;
 
     private transient Counter collectingCount;
     private transient Counter trainingCount;
@@ -111,14 +139,17 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
      * @param channelWeights 通道权重表（null = 全 1）/ channel weights (null = all ones)
      * @param maxEpochs      最大训练 epoch 数 / maximum training epochs
      * @param earlyStopPatience 早停耐心（连续无改善的 epoch 数）/ early-stopping patience
+     * @param hiddenSize     隐藏层宽度，全机队统一 / fleet-wide hidden size
+     * @param batchSize      小批量大小，须与离线网格一致 / mini-batch size, must match the grid
      * @param m3MonitoringTag 监测侧输出标签 / monitoring side-output tag
      */
     public M3Function(int trainDays, int earlyStopDays, int threshDays,
                       int windowLength, double zThreshold, double[] channelWeights,
-                      int maxEpochs, int earlyStopPatience,
+                      int maxEpochs, int earlyStopPatience, int hiddenSize, int batchSize,
                       OutputTag<MonitoringSnapshot> m3MonitoringTag) {
         this(trainDays, earlyStopDays, threshDays, windowLength, zThreshold, channelWeights,
-                maxEpochs, earlyStopPatience, m3MonitoringTag, DEFAULT_ROUNDS_PER_DAY);
+                maxEpochs, earlyStopPatience, hiddenSize, batchSize,
+                m3MonitoringTag, DEFAULT_ROUNDS_PER_DAY);
     }
 
     /**
@@ -128,7 +159,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
      */
     M3Function(int trainDays, int earlyStopDays, int threshDays,
                int windowLength, double zThreshold, double[] channelWeights,
-               int maxEpochs, int earlyStopPatience,
+               int maxEpochs, int earlyStopPatience, int hiddenSize, int batchSize,
                OutputTag<MonitoringSnapshot> m3MonitoringTag, int roundsPerDay) {
         this.roundsPerDay = roundsPerDay;
         this.trainDays = trainDays;
@@ -139,7 +170,8 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         this.channelWeights = channelWeights;
         this.maxEpochs = maxEpochs;
         this.earlyStopPatience = earlyStopPatience;
-        this.hiddenSizeGrid = new int[]{40, 60, 90};
+        this.hiddenSize = hiddenSize;
+        this.batchSize = batchSize;
         this.m3MonitoringTag = m3MonitoringTag;
     }
 
@@ -173,6 +205,8 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                 new ValueStateDescriptor<>("m3-scorer", PrimitiveArrayTypeInfo.BYTE_PRIMITIVE_ARRAY_TYPE_INFO));
         selectedHidden = getRuntimeContext().getState(
                 new ValueStateDescriptor<>("m3-hidden", Types.INT));
+        trainedWindow = getRuntimeContext().getState(
+                new ValueStateDescriptor<>("m3-trained-window", Types.INT));
         trainExcluded = getRuntimeContext().getState(
                 new ValueStateDescriptor<>("m3-train-excluded", Types.LONG));
 
@@ -301,43 +335,36 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                  + "{} early-stop windows",
                  device, trainFlats.size(), excluded != null ? excluded : 0, esFlats.size());
 
-        // 在隐藏层宽度网格上各训练一个模型，按早停集损失选最优 / grid-search hidden size, pick the best by early-stop loss
-        int bestHidden = hiddenSizeGrid[0];
-        double bestEsLoss = Double.MAX_VALUE;
-        LstmAutoEncoder bestModel = null;
+        // 训练单个模型（补遗三 §3：隐藏层宽度是全机队统一参数，冷启动不再自行搜索）。
+        // 训练本身交给 M3Training 这个纯函数，与离线网格 M3Grid 调用同一份实现，使补遗三 §6 的
+        // 等值核验有意义——两边的小批量大小、epoch 上限、早停判据由同一段代码决定，无法各自漂移。
+        // Train a single model via the shared pure function, so the online path and the offline grid
+        // cannot diverge — which is what makes the parity check of addendum 3 §6 meaningful.
+        M3Training.Config cfg = new M3Training.Config(
+                N_FEATURES, hiddenSize, batchSize, maxEpochs, earlyStopPatience, channelWeights);
+        final String dev = device;
+        M3Training.Result trained = M3Training.train(cfg, trainData, trainMaskData, esData,
+                new M3Training.EpochListener() {
+                    @Override
+                    public void onEpoch(int epoch, double esLoss, double epochSeconds) {
+                        // 在线训练会长时间占住任务线程，逐 epoch 落日志是唯一能看到它还在推进的途径，
+                        // 也是补遗三 §4 要求记录「逐设备在算子内训练墙钟时间」的数据来源。
+                        // Per-epoch logging is the only visibility into in-operator training.
+                        LOG.info("[M3] Device {} training epoch {}/{}: early-stop loss={}, {}s",
+                                 dev, epoch, maxEpochs, esLoss, epochSeconds);
+                    }
+                });
+        lastTrainEpochs = trained.epochs;
+        lastTrainModels++;
+        LstmAutoEncoder bestModel = trained.model;
 
-        for (int hs : hiddenSizeGrid) {
-            LstmAutoEncoder ae = new LstmAutoEncoder(N_FEATURES, hs);
-            double prevLoss = Double.MAX_VALUE;
-            int patience = 0;                          // 连续无改善的 epoch 计数 / consecutive no-improvement epochs
+        LOG.info("[M3] Device {} trained: hidden={}, window={}, batch={}, {} epochs, "
+                 + "early-stop loss={}, {}s",
+                 device, hiddenSize, windowLength, batchSize, trained.epochs,
+                 trained.earlyStopLoss, trained.seconds);
 
-            for (int epoch = 0; epoch < maxEpochs; epoch++) {
-                ae.trainEpoch(trainData, trainMaskData);   // 训练一轮 / one training epoch
-                lastTrainEpochs = epoch + 1;               // 供测试断言早停确实生效 / for the early-stop test
-
-                // 早停：早停集损失若不再下降超过 patience 轮则停 / early stop when early-stop loss stalls for `patience` epochs
-                double esLoss = evaluateLoss(ae, esData);
-                if (esLoss < prevLoss - 1e-6) {
-                    prevLoss = esLoss;
-                    patience = 0;                      // 有改善则重置耐心 / improvement resets patience
-                } else {
-                    patience++;
-                    if (patience >= earlyStopPatience) break;
-                }
-            }
-
-            double finalEsLoss = evaluateLoss(ae, esData);
-            LOG.info("[M3] Device {} hidden={}: early-stop loss={}", device, hs, finalEsLoss);
-
-            if (finalEsLoss < bestEsLoss) {            // 记录早停损失最低的模型 / keep the lowest-early-stop-loss model
-                bestEsLoss = finalEsLoss;
-                bestHidden = hs;
-                bestModel = ae;
-            }
-        }
-
-        LOG.info("[M3] Device {} selected hidden={} (loss={})", device, bestHidden, bestEsLoss);
-        selectedHidden.update(bestHidden);             // 记住选中的隐藏层宽度供在线复原 / remember hidden size for online restore
+        selectedHidden.update(hiddenSize);             // 记住训练时的隐藏层宽度供在线复原 / hidden size used
+        trainedWindow.update(windowLength);            // 一并记住窗口长度，防止参数变更后静默错配 / and the window length
 
         modelBytes.update(bestModel.serializeModel()); // 模型参数写入 Flink 状态 / persist model params to Flink state
 
@@ -425,11 +452,25 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         byte[] sBytes = scorerBytes.value();
         if (mBytes == null || sBytes == null) return;
 
+        // 模型是按某一组 (隐藏层宽度, 窗口长度) 训练出来的。若作业参数此后被改动，用旧模型继续打分
+        // 会得到无意义的分数，而且不会有任何外在症状。补遗三 §3 要求这种情况不得静默发生，故在此
+        // 直接抛异常中止，而不是凑合打分——错配的分数比作业失败更难发现。
+        // Fail loudly rather than score with a model trained under different parameters.
         Integer hs = selectedHidden.value();
-        if (hs == null) hs = 60;                        // 缺失时回退到网格中值 / fall back to the grid's middle size
+        Integer tw = trainedWindow.value();
+        if (hs == null || tw == null) {
+            throw new IllegalStateException("设备 " + device + " 已进入 ONLINE，但状态里缺少训练时的"
+                    + "隐藏层宽度或窗口长度，无法确认模型与当前参数匹配。");
+        }
+        if (hs != hiddenSize || tw != windowLength) {
+            throw new IllegalStateException("设备 " + device + " 的模型是按 hidden=" + hs
+                    + "、window=" + tw + " 训练的，当前作业参数为 hidden=" + hiddenSize
+                    + "、window=" + windowLength + "，两者不符，拒绝用错配的模型打分。"
+                    + "若确需更换参数，请清除该作业的状态后重新冷启动。");
+        }
 
         LstmAutoEncoder ae = new LstmAutoEncoder(N_FEATURES, hs);
-        ae.deserializeModel(mBytes);                   // 按选中宽度复原模型 / restore the model at the selected width
+        ae.deserializeModel(mBytes);                   // 按训练时的宽度复原模型 / restore at the trained width
 
         M3Scorer scorer;
         try (java.io.ObjectInputStream ois = new java.io.ObjectInputStream(
@@ -469,27 +510,13 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     }
 
     /** 在数据集上求平均 WMSE（早停选型用，掩码不参与）/ mean WMSE over a dataset (for model selection; no mask). */
-    private double evaluateLoss(LstmAutoEncoder ae, double[][][] data) {
-        return evaluateLoss(ae, data, channelWeights);
-    }
-
     /**
-     * 在给定数据集上计算平均加权均方误差。包级可见的静态方法，供 {@link M3Grid} 复用——离线网格
-     * 选型用的早停集误差必须与在线训练里用的是同一个度量，否则选型结论对在线行为没有意义。
-     * Average weighted mean squared error over a dataset. Package-private and static so {@link M3Grid}
-     * uses the very same metric the online training uses; otherwise its selection says nothing about
-     * online behaviour.
+     * 早停集误差，委派给训练核心 {@link M3Training#evaluateLoss}。
+     * 保留这两个包级可见的入口是为了不改动 {@link M3Grid} 与既有测试的调用点；实现只有一份。
+     * Delegates to the training core; a single implementation, two call-compatible entry points.
      */
     static double evaluateLoss(LstmAutoEncoder ae, double[][][] data, double[] channelWeights) {
-        if (data.length == 0) return Double.MAX_VALUE;   // 空集视为最差损失 / empty set → worst possible loss
-        WeightedMseLoss lossCalc = new WeightedMseLoss(N_FEATURES, channelWeights);
-        double total = 0.0;
-        for (double[][] window : data) {
-            double[][] recon = ae.reconstruct(window);
-            WeightedMseLoss.LossResult lr = lossCalc.compute(window, recon, null, window.length);
-            total += lr.wmse;
-        }
-        return total / data.length;
+        return M3Training.evaluateLoss(ae, data, channelWeights);
     }
 
     /** 窗口 [时间步][通道] 摊平成一维（行优先）供 Flink 状态存储 / flatten [step][channel] to 1-D (row-major) for state. */
