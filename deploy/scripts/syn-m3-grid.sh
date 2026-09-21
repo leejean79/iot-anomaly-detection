@@ -38,8 +38,10 @@
 #      --reuse-dump            复用 master 上已有的转储
 #      --detach                把训练容器交给 master 的 Docker 守护进程后台托管，启动后立即返回。
 #                              适用于耗时数小时以上、本地 Mac 会休眠或需要关机的场合。
-#      --collect               查询后台任务状态：仍在运行则打印进度；已成功结束则拉回 CSV 并清理
-#                              容器；失败则打印日志尾部、保留容器供排查，并以其退出码结束。
+#      --collect               查询后台任务状态。仍在运行时打印启动时刻、容器 CPU 与内存占用、
+#                              master 的内存余量，以及最近 12 行逐 epoch 进度；已成功结束则拉回
+#                              CSV 并清理容器；失败则打印退出码、是否被内核内存杀手终止
+#                              （OOMKilled）、起止时刻与完整日志，保留容器供排查，并以其退出码结束。
 #
 # 【为什么需要后台模式】默认跑法用 ssh 前台附着执行 docker run，本地 Mac 一旦休眠，ssh 断开，
 # 脚本拿到的是 ssh 的断线退出码而不是 M3Grid 的退出码，于是判定失败并拒绝拉回 CSV；远端容器是否
@@ -118,9 +120,15 @@ pull_csv() {
 }
 
 if [ "$COLLECT" -eq 1 ]; then
-    STATE="$(ssh fa-master "docker inspect -f '{{.State.Status}} {{.State.ExitCode}}' ${CONTAINER_NAME} 2>/dev/null" || true)"
-    STATUS="$(echo "$STATE" | awk '{print $1}')"
-    CODE="$(echo "$STATE" | awk '{print $2}')"
+    # 一次 inspect 取齐判读所需的全部字段，避免多次往返导致读到不一致的快照。
+    # One inspect for every field needed, so the snapshot is self-consistent.
+    STATE="$(ssh fa-master "docker inspect -f '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}|{{.State.StartedAt}}|{{.State.FinishedAt}}|{{.State.Error}}' ${CONTAINER_NAME} 2>/dev/null" || true)"
+    STATUS="$(echo "$STATE" | cut -d'|' -f1)"
+    CODE="$(echo "$STATE" | cut -d'|' -f2)"
+    OOM="$(echo "$STATE" | cut -d'|' -f3)"
+    STARTED="$(echo "$STATE" | cut -d'|' -f4)"
+    FINISHED="$(echo "$STATE" | cut -d'|' -f5)"
+    DERR="$(echo "$STATE" | cut -d'|' -f6)"
     if [ -z "${STATUS:-}" ]; then
         echo "ERROR: master 上找不到容器 ${CONTAINER_NAME}。" >&2
         echo "       要么后台任务从未启动（重新执行 --detach），" >&2
@@ -128,18 +136,38 @@ if [ "$COLLECT" -eq 1 ]; then
         exit 4
     fi
     if [ "$STATUS" = "running" ]; then
-        echo "[grid] 后台任务仍在运行。最近的进度如下："
-        ssh fa-master "docker logs --tail 20 ${CONTAINER_NAME} 2>&1" || true
+        echo "===================== 后台任务仍在运行 ====================="
+        echo "  启动时刻：${STARTED}"
+        echo "  当前资源占用（CPU 接近 100% 属正常，单线程 BLAS 占满一个核）："
+        ssh fa-master "docker stats --no-stream --format '  CPU {{.CPUPerc}}   内存 {{.MemUsage}} ({{.MemPerc}})   进程数 {{.PIDs}}' ${CONTAINER_NAME}" || true
+        echo "  master 节点内存余量："
+        ssh fa-master "free -h | sed -n '1,2p' | sed 's/^/    /'" || true
         echo ""
-        echo "[grid] 稍后重新执行：bash deploy/scripts/syn-m3-grid.sh --collect --out-name ${OUT_NAME}"
-        echo "[grid] 实时跟随日志：ssh fa-master 'docker logs -f ${CONTAINER_NAME}'"
+        echo "  最近的训练进度（每个 epoch 一行）："
+        ssh fa-master "docker logs --tail 12 ${CONTAINER_NAME} 2>&1 | sed 's/^/    /'" || true
+        echo ""
+        echo "  稍后重新执行：bash deploy/scripts/syn-m3-grid.sh --collect --out-name ${OUT_NAME}"
+        echo "  实时跟随日志：ssh fa-master 'docker logs -f ${CONTAINER_NAME}'"
         exit 0
     fi
-    echo "[grid] 后台任务已结束，退出码 ${CODE}。完整日志如下："
+    echo "===================== 后台任务已结束 ====================="
+    echo "  退出码：${CODE}"
+    echo "  是否被内核内存杀手终止（OOMKilled）：${OOM}"
+    echo "  启动 ${STARTED}   结束 ${FINISHED}"
+    [ -n "${DERR:-}" ] && echo "  Docker 记录的错误：${DERR}"
+    echo "  master 节点当前内存余量："
+    ssh fa-master "free -h | sed -n '1,2p' | sed 's/^/    /'" || true
+    echo ""
+    echo "  完整日志如下："
     ssh fa-master "docker logs ${CONTAINER_NAME} 2>&1" || true
     if [ "${CODE:-1}" -ne 0 ]; then
         echo "" >&2
         echo "ERROR: M3Grid 退出码 ${CODE}——网格未完成，**不拉回 CSV**（避免留下不完整的产物）。" >&2
+        if [ "${CODE}" = "137" ] || [ "${OOM}" = "true" ]; then
+            echo "       退出码 137 或 OOMKilled=true 表示进程被 SIGKILL 终止，通常是内存不足；" >&2
+            echo "       请核对上面的内存余量，以及日志里每个 epoch 末尾的「进程驻留」走向。" >&2
+        fi
+        echo "       日志末尾若**没有**「进程正在退出」那一行，说明它是被直接杀死而非自行退出。" >&2
         echo "       容器 ${CONTAINER_NAME} 已保留供排查；排查完毕后手动清理：" >&2
         echo "       ssh fa-master 'docker rm ${CONTAINER_NAME}'" >&2
         exit "$CODE"

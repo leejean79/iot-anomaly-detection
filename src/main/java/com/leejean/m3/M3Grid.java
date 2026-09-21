@@ -92,6 +92,9 @@ public final class M3Grid {
     public static void main(String[] args) throws Exception {
         Map<String, String> a = parseArgs(args);
         String jsonl = a.getOrDefault("rounds-jsonl", "m1out.jsonl");
+        announceRuntime();
+        installTerminationHook();
+
         String outCsv = a.getOrDefault("out", "m3_grid.csv");
         String[] devices = a.getOrDefault("devices", "E,G,C").split(",");
         int[] hiddenGrid = parseInts(a.getOrDefault("hidden-grid", "40,60,90"));
@@ -149,6 +152,15 @@ public final class M3Grid {
                     done += hiddenGrid.length;
                     continue;
                 }
+                // 切分结果在训练**之前**打印。训练一个 epoch 要一两分钟，若等到组合结束才输出，
+                // 运行中的日志会长时间毫无动静，无法区分「正在训练」与「已经死掉」。
+                // Print the split BEFORE training: otherwise the log is silent for minutes on end
+                // and a live run is indistinguishable from a dead one.
+                System.out.printf("[grid] %s 窗口长度 %d：训练集 %d 窗（剔除 %d 窗）、早停集 %d 窗，"
+                                + "本窗口长度下将依次训练 %d 个隐藏层宽度。%s%n",
+                        device, win, split.train.length, split.trainExcluded,
+                        split.earlyStop.length, hiddenGrid.length, memoryLine());
+
                 for (int hs : hiddenGrid) {
                     long t0 = System.currentTimeMillis();
                     LstmAutoEncoder ae = new LstmAutoEncoder(N_FEATURES, hs);
@@ -156,15 +168,27 @@ public final class M3Grid {
                     int noImprove = 0;
                     int epochsRun = 0;
                     for (int epoch = 0; epoch < maxEpochs; epoch++) {
+                        long epochStart = System.currentTimeMillis();
                         ae.trainEpoch(split.train, split.trainMasks);
                         epochsRun = epoch + 1;
                         double esLoss = M3Function.evaluateLoss(ae, split.earlyStop, channelWeights);
+                        // 逐 epoch 输出：既是存活信号，也把耗时与内存占用的走向留在日志里，
+                        // 以便事后判断进程是被内核终止的还是自己退出的。
+                        // Per-epoch output: a liveness signal, and a record of the cost and memory trend.
+                        System.out.printf("[epoch] %s hidden=%d window=%d  第 %d/%d 轮  "
+                                        + "早停集误差 %.6f  本轮 %.1fs  本组合累计 %.1fs  %s%n",
+                                device, hs, win, epochsRun, maxEpochs, esLoss,
+                                (System.currentTimeMillis() - epochStart) / 1000.0,
+                                (System.currentTimeMillis() - t0) / 1000.0, memoryLine());
                         if (esLoss < prevLoss - 1e-6) {
                             prevLoss = esLoss;
                             noImprove = 0;
                         } else {
                             noImprove++;
                             if (noImprove >= patience) {
+                                System.out.printf("[epoch] %s hidden=%d window=%d  早停触发："
+                                                + "连续 %d 轮无改善，于第 %d 轮中止。%n",
+                                        device, hs, win, patience, epochsRun);
                                 break;
                             }
                         }
@@ -377,6 +401,54 @@ public final class M3Grid {
         }
         System.out.println("提醒：本阶段**不定终值**——上表交设计会话裁决 (hidden, window)。");
         System.out.println("完整结果见 " + outCsv);
+    }
+
+    /**
+     * 启动自述：把这次运行拿到的内存额度打印出来。上一次运行在建好网络之后无声消失，日志里没有
+     * 任何可供判断的数字，本行就是为补上这个缺口而加的。
+     * Announce the memory budget at startup; the previous run vanished silently with nothing logged.
+     */
+    private static void announceRuntime() {
+        Runtime rt = Runtime.getRuntime();
+        System.out.printf("[grid] 运行环境：可用处理器 %d 个，JVM 堆上限 %d MB，%s%n",
+                rt.availableProcessors(), rt.maxMemory() / 1048576L, memoryLine());
+        System.out.println("[grid] 提示：堆上限之外，ND4J 的张量分配走**堆外内存**，"
+                + "因此判断内存是否吃紧应当看下面每一行末尾的「进程驻留」。");
+    }
+
+    /**
+     * 注册终止钩子。它能区分两类死法：进程收到 SIGTERM 或正常退出时钩子会打印一行；被内核的内存
+     * 杀手以 SIGKILL 终止时钩子**不会**执行，日志里也就不会有这一行。日志末尾有没有它，直接
+     * 回答了「是自己退出的还是被杀死的」。
+     * A shutdown hook distinguishes SIGTERM/normal exit (the line is printed) from SIGKILL (it is not).
+     */
+    private static void installTerminationHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+            @Override
+            public void run() {
+                System.out.printf("[grid] 进程正在退出（此行说明进程是正常结束或收到 SIGTERM；"
+                        + "若日志末尾没有此行，说明它是被 SIGKILL 直接终止的）。%s%n", memoryLine());
+                System.out.flush();
+            }
+        }));
+    }
+
+    /**
+     * 一行内存读数：JVM 堆的已用与上限，以及整个进程的驻留内存。后者包含 ND4J 的堆外分配，是判断
+     * 内存杀手风险的依据；取不到时记为 n/a 而不是让监控本身把程序搞崩。
+     * One line of memory readings; the process-resident figure includes ND4J's off-heap allocations.
+     */
+    private static String memoryLine() {
+        Runtime rt = Runtime.getRuntime();
+        long heapUsedMb = (rt.totalMemory() - rt.freeMemory()) / 1048576L;
+        long heapMaxMb = rt.maxMemory() / 1048576L;
+        String rss = "n/a";
+        try {
+            rss = (org.bytedeco.javacpp.Pointer.physicalBytes() / 1048576L) + " MB";
+        } catch (Throwable ignored) {
+            // 取不到进程驻留内存不影响训练，保持 n/a / failing to read RSS must not break training
+        }
+        return String.format("堆 %d/%d MB，进程驻留 %s", heapUsedMb, heapMaxMb, rss);
     }
 
     private static Map<String, String> parseArgs(String[] args) {
