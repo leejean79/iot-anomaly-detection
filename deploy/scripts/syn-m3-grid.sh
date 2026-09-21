@@ -189,6 +189,12 @@ if [ "$USE_SCORES" -eq 1 ]; then
     fi
 fi
 
+# 启动前删掉上一次留下的 CSV。否则本次若在写出 CSV 之前就中止，--collect 会把**上一次的旧结果**
+# 当成本次产物拉回来，造成一次静默的误判。删掉之后，CSV 存在即意味着本次确实写出了结果。
+# Remove any stale CSV first: otherwise a run that dies before writing one would let --collect pull
+# the PREVIOUS run's file back and pass it off as this run's result.
+ssh fa-master "rm -f ${WORK}/m3_grid.csv" || true
+
 RUN_MOUNTS="-v ${RHOME}/jars:/jars:ro -v ${WORK}:/work"
 RUN_CMD="java -cp /jars/${JAR_NAME} com.leejean.m3.M3Grid \
         --rounds-jsonl /work/m1out.jsonl ${SCORES_ARG} \
