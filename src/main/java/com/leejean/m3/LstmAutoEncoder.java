@@ -68,17 +68,29 @@ public class LstmAutoEncoder implements Serializable {
      */
     private final boolean reverseTarget;
     private static final long SEED = 42L;               // 固定随机种子，保证可复现 / fixed seed for reproducibility
-    private static final double LEARNING_RATE = 0.01;   // Adam 学习率 / Adam learning rate
+    /**
+     * Adam 学习率。原为写死的 0.01（为旧的两层结构所定）；2026-09-22 的裁决书第三节明文解除
+     * 「不改学习率」的边界，范围限于诊断及其后的选值，故改为构造参数。默认仍是 0.01，
+     * 以免在诊断出结论之前悄悄改变既有行为。
+     * The Adam learning rate, formerly hard-coded at 0.01 for the two-layer architecture.
+     */
+    private final double learningRate;
+    private static final double DEFAULT_LEARNING_RATE = 0.01;
 
     // model 不参与 Java 序列化（transient）；跨 checkpoint 用 serializeModel/deserializeModel 手工搬运。
     // model is transient (excluded from Java serialization); moved across checkpoints via (de)serializeModel.
     private transient MultiLayerNetwork model;
 
     public LstmAutoEncoder(int nFeatures, int hiddenSize, int windowLength) {
-        this(nFeatures, hiddenSize, windowLength, true);
+        this(nFeatures, hiddenSize, windowLength, true, DEFAULT_LEARNING_RATE);
     }
 
     public LstmAutoEncoder(int nFeatures, int hiddenSize, int windowLength, boolean reverseTarget) {
+        this(nFeatures, hiddenSize, windowLength, reverseTarget, DEFAULT_LEARNING_RATE);
+    }
+
+    public LstmAutoEncoder(int nFeatures, int hiddenSize, int windowLength,
+                           boolean reverseTarget, double learningRate) {
         if (windowLength < 1) {
             throw new IllegalArgumentException("窗口长度须为正，收到 " + windowLength);
         }
@@ -86,13 +98,18 @@ public class LstmAutoEncoder implements Serializable {
         this.hiddenSize = hiddenSize;
         this.windowLength = windowLength;
         this.reverseTarget = reverseTarget;
-        this.model = buildModel(nFeatures, hiddenSize, windowLength);   // 构造即建网并初始化 / build & init
+        this.learningRate = learningRate;
+        this.model = buildModel(nFeatures, hiddenSize, windowLength, learningRate);
     }
 
-    private static MultiLayerNetwork buildModel(int nFeatures, int hiddenSize, int windowLength) {
+    private static MultiLayerNetwork buildModel(int nFeatures, int hiddenSize, int windowLength,
+                                               double learningRate) {
         MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
                 .seed(SEED)                                // 可复现 / reproducible
-                .updater(new Adam(LEARNING_RATE))          // Adam 优化器 / Adam optimizer
+                .updater(new Adam(learningRate))           // Adam 优化器 / Adam optimizer
+                // 梯度裁剪：当前未启用（gradientNormalization 为 None，2026-09-22 实测确认）。
+                // 裁决书第五节要求核实并报告此项；本次诊断不改动它。
+                // Gradient clipping is NOT enabled; verified 2026-09-22, unchanged by this ruling.
                 .weightInit(WeightInit.XAVIER)             // Xavier 初始化 / Xavier weight init
                 .list()
                 // 第 0 层：编码器 LSTM，沿时间正向读完整个窗口 / encoder LSTM over the whole window
@@ -377,5 +394,6 @@ public class LstmAutoEncoder implements Serializable {
     /** 参数总数。裁决书第二节要求把参数量写入设计活文档。/ total parameter count, required by the ruling. */
     public long paramCount() { return model.numParams(); }
     public boolean isReverseTarget() { return reverseTarget; }
+    public double getLearningRate() { return learningRate; }
     public MultiLayerNetwork getModel() { return model; }
 }

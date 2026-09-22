@@ -129,6 +129,10 @@ public class M2Job {
         // 做成参数是为了将来能做消融实验（裁决书第二节）。
         // Reversed reconstruction target, on by default, switchable for ablation.
         boolean m3ReverseTarget = params.getBoolean("m3-reverse-target", true);
+        // 学习率。原为写死的 0.01；2026-09-22 裁决书第三节授权改动，范围限于诊断及其后的选值。
+        // 默认仍是 0.01，待学习率诊断出结论后由设计会话裁定并改此默认值。
+        // The learning rate, authorized to change by the 2026-09-22 ruling; default unchanged for now.
+        double m3LearningRate = params.getDouble("m3-learning-rate", 0.01);
         // 通道权重表（决策 5）：设备 G 的 Light 权重为零（临时；M6 级-0 重估修复尺度后恢复）
         // Channel weights: device G's Light weight is zero (temporary; restore once M6 level-0 re-estimation)
         // 此处为全局默认全 1；逐设备权重在 M3Function 内按配置覆盖
@@ -162,6 +166,7 @@ public class M2Job {
             System.out.println("M3 hidden size:  " + m3HiddenSize + "  (fleet-wide, fixed from the offline grid)");
             System.out.println("M3 batch size:   " + m3BatchSize + "   (must match the offline grid)");
             System.out.println("M3 reverse tgt:  " + m3ReverseTarget + " (reversed reconstruction target)");
+            System.out.println("M3 learning rate:" + m3LearningRate + " (Adam; no gradient clipping)");
         }
         System.out.println("========================================");
 
@@ -301,7 +306,7 @@ public class M2Job {
                             m3TrainDays, m3EarlyStopDays, m3ThreshDays,
                             m3WindowLength, m3ZThreshold, m3ChannelWeights,
                             m3MaxEpochs, m3EarlyStopPatience,
-                            m3HiddenSize, m3BatchSize, m3ReverseTarget, m3MonTag))
+                            m3HiddenSize, m3BatchSize, m3ReverseTarget, m3LearningRate, m3MonTag))
                     .name("M3-LSTM-AE");
 
             // M3 上下文评分 → synergia-scores

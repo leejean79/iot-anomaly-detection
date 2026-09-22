@@ -33,6 +33,12 @@
 #      --max-epochs <n>        单次训练的上限轮数，默认 60（补遗三 §1 定的生产值）
 #      --batch-grid <列表>     小批量大小网格，即一次权重更新用到多少个窗口，默认 "1"。
 #                              默认 1 即 2026-09-21 参照点的口径；步骤 A 传 "1,16,32,64" 一次跑完。
+#      --lr-grid <列表>        学习率网格，默认 "0.01"。2026-09-22 裁决书第三节授权改动学习率，
+#                              范围限于诊断及其后的选值。
+#      --no-early-stop         关闭早停，每一行跑满 --max-epochs 轮。诊断要看完整曲线，
+#                              早停会把三档曲线截断在不同位置上，彼此就不可比了。
+#      --per-epoch-name <文件名> 额外产出逐轮 CSV（每档每轮一行，含训练集误差与早停集误差），
+#                              拉回到本地 docs/<文件名>。曲线图由它绘制。
 #      --no-reverse-target     关闭逆序重构目标（默认开启）。仅供消融实验；关闭后与在线算子的
 #                              默认值不一致，等值核验会失效，不可用于正式网格。
 #      --reference-loss <v>    参照早停集误差。给出后 CSV 的 relDeltaVsRef 列写出相对偏差，
@@ -91,7 +97,7 @@ set -a; source "$DEPLOY_DIR/.env"; set +a
 DEVICES="E,G,C"; HIDDEN_GRID="40,60,90"; WINDOW_GRID="30,60,120"
 TRAIN_DAYS=7; ES_DAYS=2; MAX_EPOCHS=60; PATIENCE=10
 BATCH_GRID="1"; OMP_THREADS=1; REFERENCE_LOSS=""; NODE="master"; CONTAINER_MB=""; PROBE_ONLY=0
-REVERSE_TARGET=1
+REVERSE_TARGET=1; LR_GRID="0.01"; NO_EARLY_STOP=0; PER_EPOCH_NAME=""
 MAX_MESSAGES=3000000; OUT_NAME="m3_grid.csv"; USE_SCORES=1; REUSE=0; DETACH=0; COLLECT=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -105,6 +111,9 @@ while [[ $# -gt 0 ]]; do
         --omp-threads) OMP_THREADS="$2"; shift 2 ;;
         --reference-loss) REFERENCE_LOSS="$2"; shift 2 ;;
         --no-reverse-target) REVERSE_TARGET=0; shift ;;
+        --lr-grid) LR_GRID="$2"; shift 2 ;;
+        --no-early-stop) NO_EARLY_STOP=1; shift ;;
+        --per-epoch-name) PER_EPOCH_NAME="$2"; shift 2 ;;
         --node) NODE="$2"; shift 2 ;;
         --container-mb) CONTAINER_MB="$2"; shift 2 ;;
         --probe-nodes) PROBE_ONLY=1; shift ;;
@@ -278,6 +287,15 @@ if [ "$COLLECT" -eq 1 ]; then
         exit "$CODE"
     fi
     pull_csv || exit 1
+    if [ -n "$PER_EPOCH_NAME" ]; then
+        if ssh "$RUN_HOST" "cat ${WORK}/m3_per_epoch.csv" > "${PROJECT_ROOT}/docs/${PER_EPOCH_NAME}" 2>/dev/null \
+                && [ -s "${PROJECT_ROOT}/docs/${PER_EPOCH_NAME}" ]; then
+            echo "[grid] 逐轮 CSV 已拉回本地：${PROJECT_ROOT}/docs/${PER_EPOCH_NAME}"
+        else
+            rm -f "${PROJECT_ROOT}/docs/${PER_EPOCH_NAME}" 2>/dev/null || true
+            echo "[grid] 逐轮 CSV 拉回失败，可手动：ssh ${RUN_HOST} 'cat ${WORK}/m3_per_epoch.csv' > docs/${PER_EPOCH_NAME}" >&2
+        fi
+    fi
     ssh "$RUN_HOST" "docker rm ${CONTAINER_NAME} >/dev/null 2>&1" || true
     echo "提醒：本阶段**不定终值**——网格表交设计会话裁决 (hidden, window)。"
     exit 0
@@ -287,7 +305,8 @@ echo "===================================================================="
 echo "syn-m3-grid.sh — V-M3-3 离线超参数网格"
 echo "  设备 ${DEVICES}   隐藏层 ${HIDDEN_GRID}   窗口长度 ${WINDOW_GRID}"
 echo "  训练 ${TRAIN_DAYS} 天 / 早停 ${ES_DAYS} 天   maxEpochs=${MAX_EPOCHS} patience=${PATIENCE}"
-echo "  小批量大小 ${BATCH_GRID}   OpenMP 线程 ${OMP_THREADS}"
+echo "  小批量大小 ${BATCH_GRID}   学习率 ${LR_GRID}   OpenMP 线程 ${OMP_THREADS}"
+[ "$NO_EARLY_STOP" -eq 1 ] && echo "  **早停已关闭**：每一行跑满 ${MAX_EPOCHS} 轮"
 echo "  运行节点 ${RUN_HOST}   容器上限 ${MEM_MB} MB（-Xmx ${XMX_MB}m，JavaCPP ${JAVACPP_MB}m）"
 [ -n "$REFERENCE_LOSS" ] && echo "  参照早停集误差 ${REFERENCE_LOSS}（按 5% 判据给出小批量选型建议）"
 echo "  训练净化：$([ "$USE_SCORES" -eq 1 ] && echo '开启（转储 scores 还原离群标记）' || echo '关闭')"
@@ -350,13 +369,17 @@ if [ "$RUN_HOST" != "fa-master" ]; then
     done
 fi
 
-ssh "$RUN_HOST" "rm -f ${WORK}/m3_grid.csv" || true
+ssh "$RUN_HOST" "rm -f ${WORK}/m3_grid.csv ${WORK}/m3_per_epoch.csv" || true
 
 REF_ARG=""
 [ -n "$REFERENCE_LOSS" ] && REF_ARG="--reference-loss ${REFERENCE_LOSS}"
 # 逆序重构目标默认开启，须与在线算子的默认值一致；两边不一致会让等值核验失效。
 REV_ARG=""
 [ "$REVERSE_TARGET" -eq 0 ] && REV_ARG="--reverse-target false"
+ES_ARG=""
+[ "$NO_EARLY_STOP" -eq 1 ] && ES_ARG="--no-early-stop true"
+PER_EPOCH_ARG=""
+[ -n "$PER_EPOCH_NAME" ] && PER_EPOCH_ARG="--per-epoch-csv /work/m3_per_epoch.csv"
 
 RUN_MOUNTS="-m ${MEM_MB}m -v ${RHOME}/jars:/jars:ro -v ${WORK}:/work -e OMP_NUM_THREADS=${OMP_THREADS}"
 RUN_CMD="java -Xmx${XMX_MB}m -Dorg.bytedeco.javacpp.maxbytes=${JAVACPP_MB}m \
@@ -366,6 +389,7 @@ RUN_CMD="java -Xmx${XMX_MB}m -Dorg.bytedeco.javacpp.maxbytes=${JAVACPP_MB}m \
         --devices ${DEVICES} --hidden-grid ${HIDDEN_GRID} --window-grid ${WINDOW_GRID} \
         --train-days ${TRAIN_DAYS} --early-stop-days ${ES_DAYS} \
         --max-epochs ${MAX_EPOCHS} --patience ${PATIENCE} --batch-grid ${BATCH_GRID} \
+        --lr-grid ${LR_GRID} ${ES_ARG} ${PER_EPOCH_ARG} \
         ${REF_ARG} ${REV_ARG} --out /work/m3_grid.csv"
 
 if [ "$DETACH" -eq 1 ]; then

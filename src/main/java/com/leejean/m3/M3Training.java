@@ -35,6 +35,8 @@ public final class M3Training {
         public final int windowLength;
         /** 重构目标是否取逆序，默认开启（裁决书第二节）。/ reversed reconstruction target, on by default. */
         public final boolean reverseTarget;
+        /** Adam 学习率。2026-09-22 裁决书第三节起成为可选参数 / the Adam learning rate. */
+        public final double learningRate;
         /** 小批量大小。1 表示逐窗更新，即 2026-09-21 参照点所用的口径 / 1 = per-window updates. */
         public final int batchSize;
         public final int maxEpochs;
@@ -45,11 +47,19 @@ public final class M3Training {
         public Config(int nFeatures, int hiddenSize, int windowLength, int batchSize,
                       int maxEpochs, int patience, double[] channelWeights) {
             this(nFeatures, hiddenSize, windowLength, batchSize, maxEpochs, patience,
-                    channelWeights, true);
+                    channelWeights, true, 0.01);
         }
 
         public Config(int nFeatures, int hiddenSize, int windowLength, int batchSize,
                       int maxEpochs, int patience, double[] channelWeights, boolean reverseTarget) {
+            this(nFeatures, hiddenSize, windowLength, batchSize, maxEpochs, patience,
+                    channelWeights, reverseTarget, 0.01);
+        }
+
+        public Config(int nFeatures, int hiddenSize, int windowLength, int batchSize,
+                      int maxEpochs, int patience, double[] channelWeights,
+                      boolean reverseTarget, double learningRate) {
+            this.learningRate = learningRate;
             this.nFeatures = nFeatures;
             this.hiddenSize = hiddenSize;
             this.windowLength = windowLength;
@@ -84,7 +94,12 @@ public final class M3Training {
      * Per-epoch callback for progress reporting; null means no reporting.
      */
     public interface EpochListener {
-        void onEpoch(int epoch, double earlyStopLoss, double epochSeconds);
+        /**
+         * @param trainLoss     该 epoch 的训练集误差（各小批量 score 的平均）。它与早停集误差一起
+         *                      才能判断训练是「没在学」还是「学了但过拟合」——只看后者无法区分。
+         *                      / the training loss; needed to tell "not learning" from "overfitting"
+         */
+        void onEpoch(int epoch, double trainLoss, double earlyStopLoss, double epochSeconds);
     }
 
     /**
@@ -110,7 +125,7 @@ public final class M3Training {
                                EpochListener listener) {
         long t0 = System.currentTimeMillis();
         LstmAutoEncoder ae = new LstmAutoEncoder(
-                cfg.nFeatures, cfg.hiddenSize, cfg.windowLength, cfg.reverseTarget);
+                cfg.nFeatures, cfg.hiddenSize, cfg.windowLength, cfg.reverseTarget, cfg.learningRate);
 
         double prevLoss = Double.MAX_VALUE;
         int noImprove = 0;                                 // 连续无改善的 epoch 计数 / consecutive no-improvement epochs
@@ -118,12 +133,13 @@ public final class M3Training {
 
         for (int epoch = 0; epoch < cfg.maxEpochs; epoch++) {
             long epochStart = System.currentTimeMillis();
-            ae.trainEpoch(trainWindows, trainMasks, cfg.batchSize);
+            double trainLoss = ae.trainEpoch(trainWindows, trainMasks, cfg.batchSize);
             epochsRun = epoch + 1;
 
             double esLoss = evaluateLoss(ae, earlyStopWindows, cfg.channelWeights);
             if (listener != null) {
-                listener.onEpoch(epochsRun, esLoss, (System.currentTimeMillis() - epochStart) / 1000.0);
+                listener.onEpoch(epochsRun, trainLoss, esLoss,
+                        (System.currentTimeMillis() - epochStart) / 1000.0);
             }
 
             if (esLoss < prevLoss - 1e-6) {

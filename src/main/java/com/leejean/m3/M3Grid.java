@@ -86,16 +86,11 @@ public final class M3Grid {
         int epochs;
         double esLoss;
         double trainSeconds;
-        /** 早停集中**不含**离群轮的窗口的平均误差 / mean loss over clean early-stop windows. */
-        double esLossClean;
-        /** 早停集中**含**离群轮的窗口的平均误差 / mean loss over outlier-bearing early-stop windows. */
-        double esLossOutlier;
-        /** 两者之比。**只作诊断，不作判据**（裁决书第三节）。/ diagnostic only, never a criterion. */
-        double separationRatio;
         /**
-         * 上面两个平均值各自是由多少个窗口算出来的。没有这两个数，分离比无法判读：若含离群轮的窗口
-         * 只有个位数，这个比值就由一两个窗口的个性决定，其波动不说明任何模型性质。
-         * The window counts behind the two means; without them the ratio cannot be interpreted.
+         * 早停集里不含／含 M2 离群轮的窗口数。分离比已按 2026-09-22 裁决书第二节取消——实测表明
+         * 288 个早停窗口里含离群轮的只有 1 个，该比值由单个窗口的个性决定，无法判读。这两个计数
+         * 予以保留，因为它们记录了「为什么取消」这个事实本身，日后换数据段时可据此重新评估。
+         * Kept after the separation ratio was removed: they record why it was removed (1 of 288).
          */
         int esCleanWindows;
         int esOutlierWindows;
@@ -108,7 +103,14 @@ public final class M3Grid {
          * median. Without it there is no way to tell whether a given loss is good.
          */
         double esLossBaseline;
+        /**
+         * 是否算训练成功（2026-09-22 裁决书第四节）：早停集误差须比平凡基线低至少三成。
+         * 不满足者不得参与任何选择——它连「一律猜中位数」都没有明显胜过，谈不上学到了东西。
+         * Trained successfully only if the loss is at least 30% below the trivial baseline.
+         */
+        boolean trainedOk;
         int batchSize;
+        double learningRate;
         String ompThreads;
         boolean sanitized;   // 是否做了训练净化 / whether sanitization was applied
     }
@@ -140,6 +142,14 @@ public final class M3Grid {
         // 重构目标是否取逆序。默认开启，与在线算子的默认值一致；两边不一致会让等值核验失效。
         // Reversed reconstruction target; must match the online operator's value.
         boolean reverseTarget = !"false".equalsIgnoreCase(a.getOrDefault("reverse-target", "true"));
+        // 学习率网格。2026-09-22 裁决书第三节授权改动学习率，范围限于诊断及其后的选值。
+        // Learning-rate grid; the 2026-09-22 ruling authorizes changing it for this diagnosis.
+        double[] lrGrid = parseDoubles(a.getOrDefault("lr-grid", "0.01"));
+        // 关闭早停：每档跑满 maxEpochs 轮。诊断要看完整曲线，早停会把曲线截断在不同位置上，
+        // 三档之间就不可比了（裁决书第三节「关闭早停，每档跑满六十轮」）。
+        // Disable early stopping so all rows run the full length and remain comparable.
+        boolean noEarlyStop = a.containsKey("no-early-stop");
+        String perEpochPath = a.getOrDefault("per-epoch-csv", "");
         // OpenMP 线程数**不由本程序设置**，它由容器的 OMP_NUM_THREADS 环境变量决定。此处只是把它
         // 读出来写进 CSV，使每一行自带它是在什么并行度下测出来的。ND4J 启动日志里的
         // "Number of threads used for OpenMP BLAS" 才是权威确认。
@@ -177,11 +187,21 @@ public final class M3Grid {
 
         long trainRounds = (long) trainDays * roundsPerDay;
         long esRounds = (long) esDays * roundsPerDay;
-        int totalCombos = byDevice.size() * hiddenGrid.length * windowGrid.length * batchGrid.length;
+        int totalCombos = byDevice.size() * hiddenGrid.length * windowGrid.length
+                * batchGrid.length * lrGrid.length;
         System.out.printf("[grid] 开始：%d 设备 × %d 隐藏层 × %d 窗口长度 × %d 小批量大小 = %d 种组合"
                         + "（训练 %d 天 / 早停 %d 天，maxEpochs=%d，patience=%d，OpenMP 线程=%s）%n",
                 byDevice.size(), hiddenGrid.length, windowGrid.length, batchGrid.length, totalCombos,
                 trainDays, esDays, maxEpochs, patience, ompThreads);
+
+        PrintWriter perEpochCsv = null;
+        if (!perEpochPath.isEmpty()) {
+            perEpochCsv = new PrintWriter(perEpochPath, "UTF-8");
+            perEpochCsv.println("device,hiddenSize,windowLength,batchSize,learningRate,"
+                    + "epoch,trainLoss,esLoss,esLossBaseline,epochSeconds");
+            perEpochCsv.flush();
+        }
+        final PrintWriter perEpochWriter = perEpochCsv;
 
         List<Result> results = new ArrayList<>();
         int done = 0;
@@ -214,6 +234,9 @@ public final class M3Grid {
                         split.earlyStop.length, esOutlierCount, esOutlierCount,
                         split.earlyStop.length - esOutlierCount, hiddenGrid.length, memoryLine());
 
+                // 基线只取决于数据，训练前算一次即可，逐轮行与结果行共用。
+                final double fBaseline = zeroBaselineLoss(split.earlyStop, channelWeights);
+                for (double lr : lrGrid) {
                 for (int bs : batchGrid) {
                 for (int hs : hiddenGrid) {
                     final int fhs = hs;
@@ -222,20 +245,35 @@ public final class M3Grid {
                     // 与在线算子共用同一份训练实现（M3Training），这是补遗三 §6 等值核验的前提。
                     // The same training core the online operator uses — the basis of the parity check.
                     M3Training.Config cfg = new M3Training.Config(
-                            N_FEATURES, hs, win, bs, maxEpochs, patience, channelWeights,
-                            reverseTarget);
+                            N_FEATURES, hs, win, bs, maxEpochs,
+                            noEarlyStop ? Integer.MAX_VALUE : patience,
+                            channelWeights, reverseTarget, lr);
                     M3Training.Result trained = M3Training.train(
                             cfg, split.train, split.trainMasks, split.earlyStop,
                             new M3Training.EpochListener() {
                                 @Override
-                                public void onEpoch(int epoch, double esLoss, double epochSeconds) {
+                                public void onEpoch(int epoch, double trainLoss, double esLoss,
+                                                    double epochSeconds) {
                                     // 逐 epoch 输出：既是存活信号，也把耗时与内存占用的走向留在日志里，
                                     // 以便事后判断进程是被内核终止的还是自己退出的。
                                     // Per-epoch output: a liveness signal plus the cost and memory trend.
-                                    System.out.printf("[epoch] %s hidden=%d window=%d batch=%d  第 %d/%d 轮  "
-                                                    + "早停集误差 %.6f  本轮 %.1fs  %s%n",
-                                            fdev, fhs, fwin, cfg.batchSize, epoch, cfg.maxEpochs,
-                                            esLoss, epochSeconds, memoryLine());
+                                    System.out.printf("[epoch] %s hidden=%d window=%d batch=%d lr=%s  "
+                                                    + "第 %d/%d 轮  训练集误差 %.6f  早停集误差 %.6f  "
+                                                    + "本轮 %.1fs  %s%n",
+                                            fdev, fhs, fwin, cfg.batchSize, cfg.learningRate,
+                                            epoch, cfg.maxEpochs, trainLoss, esLoss,
+                                            epochSeconds, memoryLine());
+                                    if (perEpochWriter != null) {
+                                        // 逐轮落盘。诊断要看的是曲线形态，只有终值无法回答
+                                        // 「学习率该取多少、耐心该设多大、改善阈值该用绝对值还是
+                                        // 相对值」这三个问题（裁决书第三节）。
+                                        // Per-epoch rows: the ruling's three questions are answered
+                                        // from the curve shape, not from a final value.
+                                        perEpochWriter.printf("%s,%d,%d,%d,%s,%d,%.8f,%.8f,%.8f,%.1f%n",
+                                                fdev, fhs, fwin, cfg.batchSize, cfg.learningRate,
+                                                epoch, trainLoss, esLoss, fBaseline, epochSeconds);
+                                        perEpochWriter.flush();   // 立即落盘，中途中止也不丢已跑的轮
+                                    }
                                 }
                             });
                     if (trained.epochs < maxEpochs) {
@@ -255,30 +293,20 @@ public final class M3Grid {
                     r.trainSeconds = trained.seconds;
                     r.sanitized = sanitized;
                     r.batchSize = bs;
-                    // 分离比（裁决书第三节）：只作诊断。它接近 1 说明模型在无差别地抄写输入，
-                    // 该行的其余读数存疑。它**不是**选型判据——M2 标的是点异常，M3 管的是上下文
-                    // 异常，口径不同，不能用它替代 V-M3-4 的误报率与 V-M3-5 的注入召回。
-                    // Diagnostic only: a ratio near 1 means the model copies indiscriminately.
-                    double[][][] esClean = subset(split.earlyStop, split.earlyStopHasOutlier, false);
-                    double[][][] esDirty = subset(split.earlyStop, split.earlyStopHasOutlier, true);
-                    r.esLossClean = esClean.length > 0
-                            ? M3Training.evaluateLoss(trained.model, esClean, channelWeights) : Double.NaN;
-                    r.esLossOutlier = esDirty.length > 0
-                            ? M3Training.evaluateLoss(trained.model, esDirty, channelWeights) : Double.NaN;
-                    r.separationRatio = (esClean.length > 0 && esDirty.length > 0 && r.esLossClean > 0)
-                            ? r.esLossOutlier / r.esLossClean : Double.NaN;
-                    r.esCleanWindows = esClean.length;
-                    r.esOutlierWindows = esDirty.length;
-                    r.esLossBaseline = zeroBaselineLoss(split.earlyStop, channelWeights);
+                    r.esCleanWindows = countOutlierWindows(split.earlyStopHasOutlier, false);
+                    r.esOutlierWindows = countOutlierWindows(split.earlyStopHasOutlier, true);
+                    r.esLossBaseline = fBaseline;
+                    r.learningRate = lr;
+                    r.trainedOk = r.esLossBaseline > 0 && r.esLoss <= 0.7 * r.esLossBaseline;
                     r.ompThreads = ompThreads;
                     results.add(r);
                     done++;
                     System.out.printf("[grid] (%d/%d) %s hidden=%d window=%d batch=%d → 早停集误差 %.6f，"
-                                    + "训练 %d 个 epoch，用时 %.1fs（训练集 %d 窗，剔除 %d 窗，早停集 %d 窗；"
-                            + "分离比 %.2f = 含离群窗 %.6f ÷ 干净窗 %.6f）%n",
+                                    + "训练 %d 个 epoch，用时 %.1fs；平凡基线 %.6f，%s%n",
                             done, totalCombos, device, hs, win, bs, r.esLoss, r.epochs, r.trainSeconds,
-                            r.trainWindows, r.trainExcluded, r.esWindows,
-                            r.separationRatio, r.esLossOutlier, r.esLossClean);
+                            r.esLossBaseline,
+                            r.trainedOk ? "低于基线三成以上，视为训练成功"
+                                        : "**未比基线低三成，按裁决书第四节视为未训练成功，不参与选择**");
                     // 每完成一个组合就落盘一次。全量网格要连续跑十几个小时，若只在全部结束后才写
                     // CSV，中途任何中止都会让已完成的组合一并作废。
                     // Persist after every combination: the full grid runs for many hours, and writing
@@ -286,7 +314,12 @@ public final class M3Grid {
                     writeCsv(results, outCsv, false, referenceLoss);
                 }
                 }
+                }
             }
+        }
+        if (perEpochWriter != null) {
+            perEpochWriter.close();
+            System.out.println("[grid] 逐轮 CSV → " + perEpochPath);
         }
 
         writeCsv(results, outCsv, true, referenceLoss);
@@ -311,15 +344,15 @@ public final class M3Grid {
         return total / windows.length;
     }
 
-    /** 取出早停集中含（或不含）离群轮的那一部分窗口。 */
-    private static double[][][] subset(double[][][] windows, boolean[] hasOutlier, boolean wanted) {
-        List<double[][]> out = new ArrayList<>();
-        for (int i = 0; i < windows.length && i < hasOutlier.length; i++) {
-            if (hasOutlier[i] == wanted) {
-                out.add(windows[i]);
+    /** 数一数早停集里含（或不含）离群轮的窗口有多少个。 */
+    private static int countOutlierWindows(boolean[] hasOutlier, boolean wanted) {
+        int n = 0;
+        for (boolean b : hasOutlier) {
+            if (b == wanted) {
+                n++;
             }
         }
-        return out.toArray(new double[0][][]);
+        return n;
     }
 
     /** 训练集与早停集，以及被净化剔除的窗口数。 */
@@ -479,8 +512,7 @@ public final class M3Grid {
             pw.println("device,hiddenSize,windowLength,batchSize,ompThreads,"
                     + "trainWindows,trainExcluded,esWindows,"
                     + "epochs,esLoss,relDeltaVsRef,"
-                    + "esCleanWindows,esOutlierWindows,esLossBaseline,"
-                    + "esLossClean,esLossOutlier,separationRatio,"
+                    + "learningRate,esCleanWindows,esOutlierWindows,esLossBaseline,trainedOk,"
                     + "trainSeconds,secPerEpoch,sanitized");
             for (Result r : results) {
                 // secPerEpoch 由程序算出并写入，避免事后手算出错 / computed here, not by hand afterwards
@@ -490,12 +522,12 @@ public final class M3Grid {
                 // Computed here, never by hand; left empty when no reference was given.
                 String rel = referenceLoss > 0
                         ? String.format("%.6f", (r.esLoss - referenceLoss) / referenceLoss) : "";
-                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%s,%d,%d,%.8f,%.8f,%.8f,%.4f,%.1f,%.1f,%s%n",
+                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%s,%s,%d,%d,%.8f,%s,%.1f,%.1f,%s%n",
                         r.device, r.hiddenSize, r.windowLength, r.batchSize, r.ompThreads,
                         r.trainWindows, r.trainExcluded, r.esWindows,
                         r.epochs, r.esLoss, rel,
-                        r.esCleanWindows, r.esOutlierWindows, r.esLossBaseline,
-                        r.esLossClean, r.esLossOutlier, r.separationRatio,
+                        r.learningRate, r.esCleanWindows, r.esOutlierWindows,
+                        r.esLossBaseline, r.trainedOk,
                         r.trainSeconds, secPerEpoch, r.sanitized);
             }
         }
@@ -626,6 +658,15 @@ public final class M3Grid {
             }
         }
         return m;
+    }
+
+    private static double[] parseDoubles(String csv) {
+        String[] parts = csv.split(",");
+        double[] out = new double[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            out[i] = Double.parseDouble(parts[i].trim());
+        }
+        return out;
     }
 
     private static int[] parseInts(String csv) {
