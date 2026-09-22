@@ -105,9 +105,16 @@ public final class M3Grid {
         int esDays = Integer.parseInt(a.getOrDefault("early-stop-days", "2"));
         int maxEpochs = Integer.parseInt(a.getOrDefault("max-epochs", "200"));
         int patience = Integer.parseInt(a.getOrDefault("patience", "10"));
-        // 小批量大小。默认 1 即 2026-09-21 参照点的口径；步骤 A 正是要扫描它。
-        // Mini-batch size; 1 reproduces the reference reading, and step A sweeps it.
-        int batchSize = Integer.parseInt(a.getOrDefault("batch-size", "1"));
+        // 小批量大小，与隐藏层、窗口长度一样是可以成组扫描的一个维度。默认 "1" 即 2026-09-21
+        // 参照点的口径；步骤 A 传入 "1,16,32,64" 在一次运行里把整条扫描做完，好处是四个读数共用
+        // 同一份转储、同一次切窗、同一个进程，除小批量大小外没有任何其他差别。
+        // Mini-batch size is a sweepable dimension; step A passes "1,16,32,64" so all readings come
+        // from one process and differ in nothing but the batch size.
+        int[] batchGrid = parseInts(a.getOrDefault("batch-grid", "1"));
+        // 参照早停集误差。给出时 CSV 的 relDeltaVsRef 列写出相对偏差，并在解读段按补遗三 §2 的
+        // 5% 判据给出选型建议；不给则该列留空——没有参照就不该凭空算出一个相对值。
+        // The reference early-stopping loss; without it relDeltaVsRef is left empty.
+        double referenceLoss = Double.parseDouble(a.getOrDefault("reference-loss", "0"));
         // OpenMP 线程数**不由本程序设置**，它由容器的 OMP_NUM_THREADS 环境变量决定。此处只是把它
         // 读出来写进 CSV，使每一行自带它是在什么并行度下测出来的。ND4J 启动日志里的
         // "Number of threads used for OpenMP BLAS" 才是权威确认。
@@ -145,12 +152,11 @@ public final class M3Grid {
 
         long trainRounds = (long) trainDays * roundsPerDay;
         long esRounds = (long) esDays * roundsPerDay;
-        int totalCombos = byDevice.size() * hiddenGrid.length * windowGrid.length;
-        System.out.printf("[grid] 开始：%d 设备 × %d 隐藏层 × %d 窗口长度 = %d 种组合"
-                        + "（训练 %d 天 / 早停 %d 天，maxEpochs=%d，patience=%d，"
-                        + "小批量大小=%d，OpenMP 线程=%s）%n",
-                byDevice.size(), hiddenGrid.length, windowGrid.length, totalCombos,
-                trainDays, esDays, maxEpochs, patience, batchSize, ompThreads);
+        int totalCombos = byDevice.size() * hiddenGrid.length * windowGrid.length * batchGrid.length;
+        System.out.printf("[grid] 开始：%d 设备 × %d 隐藏层 × %d 窗口长度 × %d 小批量大小 = %d 种组合"
+                        + "（训练 %d 天 / 早停 %d 天，maxEpochs=%d，patience=%d，OpenMP 线程=%s）%n",
+                byDevice.size(), hiddenGrid.length, windowGrid.length, batchGrid.length, totalCombos,
+                trainDays, esDays, maxEpochs, patience, ompThreads);
 
         List<Result> results = new ArrayList<>();
         int done = 0;
@@ -163,7 +169,7 @@ public final class M3Grid {
                 if (split.train.length == 0 || split.earlyStop.length == 0) {
                     System.out.printf("[grid] %s 窗口长度 %d：训练集 %d 窗、早停集 %d 窗，样本不足，跳过。%n",
                             device, win, split.train.length, split.earlyStop.length);
-                    done += hiddenGrid.length;
+                    done += hiddenGrid.length * batchGrid.length;
                     continue;
                 }
                 // 切分结果在训练**之前**打印。训练一个 epoch 要一两分钟，若等到组合结束才输出，
@@ -175,6 +181,7 @@ public final class M3Grid {
                         device, win, split.train.length, split.trainExcluded,
                         split.earlyStop.length, hiddenGrid.length, memoryLine());
 
+                for (int bs : batchGrid) {
                 for (int hs : hiddenGrid) {
                     final int fhs = hs;
                     final int fwin = win;
@@ -182,7 +189,7 @@ public final class M3Grid {
                     // 与在线算子共用同一份训练实现（M3Training），这是补遗三 §6 等值核验的前提。
                     // The same training core the online operator uses — the basis of the parity check.
                     M3Training.Config cfg = new M3Training.Config(
-                            N_FEATURES, hs, batchSize, maxEpochs, patience, channelWeights);
+                            N_FEATURES, hs, bs, maxEpochs, patience, channelWeights);
                     M3Training.Result trained = M3Training.train(
                             cfg, split.train, split.trainMasks, split.earlyStop,
                             new M3Training.EpochListener() {
@@ -213,25 +220,26 @@ public final class M3Grid {
                     r.esLoss = trained.earlyStopLoss;
                     r.trainSeconds = trained.seconds;
                     r.sanitized = sanitized;
-                    r.batchSize = batchSize;
+                    r.batchSize = bs;
                     r.ompThreads = ompThreads;
                     results.add(r);
                     done++;
-                    System.out.printf("[grid] (%d/%d) %s hidden=%d window=%d → 早停集误差 %.6f，"
+                    System.out.printf("[grid] (%d/%d) %s hidden=%d window=%d batch=%d → 早停集误差 %.6f，"
                                     + "训练 %d 个 epoch，用时 %.1fs（训练集 %d 窗，剔除 %d 窗，早停集 %d 窗）%n",
-                            done, totalCombos, device, hs, win, r.esLoss, r.epochs, r.trainSeconds,
+                            done, totalCombos, device, hs, win, bs, r.esLoss, r.epochs, r.trainSeconds,
                             r.trainWindows, r.trainExcluded, r.esWindows);
                     // 每完成一个组合就落盘一次。全量网格要连续跑十几个小时，若只在全部结束后才写
                     // CSV，中途任何中止都会让已完成的组合一并作废。
                     // Persist after every combination: the full grid runs for many hours, and writing
                     // the CSV only at the very end would discard all completed work on any abort.
-                    writeCsv(results, outCsv, false);
+                    writeCsv(results, outCsv, false, referenceLoss);
+                }
                 }
             }
         }
 
-        writeCsv(results, outCsv, true);
-        interpret(results, outCsv);
+        writeCsv(results, outCsv, true, referenceLoss);
+        interpret(results, outCsv, referenceLoss);
     }
 
     /** 训练集与早停集，以及被净化剔除的窗口数。 */
@@ -377,18 +385,24 @@ public final class M3Grid {
      * 以免全量网格刷出几十行重复提示。
      * Write the CSV; announce=false is the quiet incremental save after each combination.
      */
-    private static void writeCsv(List<Result> results, String path, boolean announce) throws Exception {
+    private static void writeCsv(List<Result> results, String path, boolean announce,
+                                 double referenceLoss) throws Exception {
         try (PrintWriter pw = new PrintWriter(path, "UTF-8")) {
             pw.println("device,hiddenSize,windowLength,batchSize,ompThreads,"
                     + "trainWindows,trainExcluded,esWindows,"
-                    + "epochs,esLoss,trainSeconds,secPerEpoch,sanitized");
+                    + "epochs,esLoss,relDeltaVsRef,trainSeconds,secPerEpoch,sanitized");
             for (Result r : results) {
                 // secPerEpoch 由程序算出并写入，避免事后手算出错 / computed here, not by hand afterwards
                 double secPerEpoch = r.epochs > 0 ? r.trainSeconds / r.epochs : 0.0;
-                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%.1f,%.1f,%s%n",
+                // relDeltaVsRef 由程序算出而非事后手算，避免选型判据栽在一次心算上。
+                // 未给参照值时留空：没有参照就不该凭空写出一个相对值。
+                // Computed here, never by hand; left empty when no reference was given.
+                String rel = referenceLoss > 0
+                        ? String.format("%.6f", (r.esLoss - referenceLoss) / referenceLoss) : "";
+                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%s,%.1f,%.1f,%s%n",
                         r.device, r.hiddenSize, r.windowLength, r.batchSize, r.ompThreads,
                         r.trainWindows, r.trainExcluded, r.esWindows,
-                        r.epochs, r.esLoss, r.trainSeconds, secPerEpoch, r.sanitized);
+                        r.epochs, r.esLoss, rel, r.trainSeconds, secPerEpoch, r.sanitized);
             }
         }
         if (announce) {
@@ -397,7 +411,7 @@ public final class M3Grid {
     }
 
     /** 逐设备给出早停集误差最小的组合，并列出与它同一量级的其他组合，供设计会话裁决选型。 */
-    private static void interpret(List<Result> results, String outCsv) {
+    private static void interpret(List<Result> results, String outCsv, double referenceLoss) {
         System.out.println("==================== 网格结果解读 / interpretation ====================");
         if (results.isEmpty()) {
             System.out.println("无结果可解读。");
@@ -425,6 +439,9 @@ public final class M3Grid {
                             r.hiddenSize, r.windowLength, r.esLoss, r.trainSeconds);
                 }
             }
+        }
+        if (referenceLoss > 0) {
+            interpretBatchSweep(results, referenceLoss);
         }
         System.out.println("提醒：本阶段**不定终值**——上表交设计会话裁决 (hidden, window)。");
         System.out.println("完整结果见 " + outCsv);
@@ -476,6 +493,35 @@ public final class M3Grid {
             // 取不到进程驻留内存不影响训练，保持 n/a / failing to read RSS must not break training
         }
         return String.format("堆 %d/%d MB，进程驻留 %s", heapUsedMb, heapMaxMb, rss);
+    }
+
+    /**
+     * 小批量大小的选型判据（补遗三 §2）：取早停集误差不超过参照值 1.05 倍的**最大**小批量大小。
+     * 一个都不满足时如实报告并明说不得靠调高学习率或 epoch 数去凑——那会改变被比较的对象本身。
+     * Selection rule: the largest batch size whose loss stays within 5% relative of the reference.
+     */
+    private static void interpretBatchSweep(List<Result> results, double referenceLoss) {
+        double threshold = referenceLoss * 1.05;
+        System.out.printf("%n---------- 小批量大小选型（判据：早停集误差 ≤ 参照值 %.6f × 1.05 = %.6f）----------%n",
+                referenceLoss, threshold);
+        Result chosen = null;
+        for (Result r : results) {
+            String verdict = r.esLoss <= threshold ? "通过" : "超出判据";
+            System.out.printf("  小批量 %-3d  早停集误差 %.6f（相对参照 %+.2f%%）  %d 个 epoch  "
+                            + "每 epoch %.1fs  → %s%n",
+                    r.batchSize, r.esLoss, 100.0 * (r.esLoss - referenceLoss) / referenceLoss,
+                    r.epochs, r.epochs > 0 ? r.trainSeconds / r.epochs : 0.0, verdict);
+            if (r.esLoss <= threshold && (chosen == null || r.batchSize > chosen.batchSize)) {
+                chosen = r;
+            }
+        }
+        if (chosen == null) {
+            System.out.println("  **无一满足判据**。按补遗三 §2，此时应如实交出本表并停止，");
+            System.out.println("  不得通过调高学习率或 epoch 数去凑——那改变的是被比较的对象本身。");
+            return;
+        }
+        System.out.printf("  建议取小批量 %d（满足判据的最大值）。它须同时成为离线网格与在线算子的"
+                        + "默认值，否则补遗三 §6 的等值核验不成立。%n", chosen.batchSize);
     }
 
     private static Map<String, String> parseArgs(String[] args) {

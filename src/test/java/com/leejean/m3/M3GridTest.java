@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -151,6 +152,76 @@ class M3GridTest {
         String excluded = col(lines, "trainExcluded");
         assertEquals(2, Integer.parseInt(excluded),
                 "两条离群轮分属两个不同窗口，应剔除 2 个训练窗口，实测 " + excluded);
+    }
+
+    @Test
+    @DisplayName("小批量网格：每个小批量大小各出一行，给了参照值就算出相对偏差")
+    void batchGridProducesOneRowPerBatchSizeWithRelativeDelta(@TempDir Path dir) throws Exception {
+        List<DeviceRound> rounds = new ArrayList<>();
+        long base = 1_700_000_000L;
+        for (int i = 0; i < 200; i++) {
+            rounds.add(round("E", base + i * 10L, Math.sin(i * 0.2) * 0.3, false, false));
+        }
+        Path jsonl = writeRounds(dir, rounds);
+        Path out = dir.resolve("sweep.csv");
+
+        M3Grid.main(new String[]{
+                "--rounds-jsonl", jsonl.toString(), "--devices", "E",
+                "--hidden-grid", "8", "--window-grid", "10", "--batch-grid", "1,4",
+                "--rounds-per-day", "20", "--train-days", "3", "--early-stop-days", "2",
+                "--max-epochs", "2", "--patience", "1",
+                "--reference-loss", "0.5",
+                "--out", out.toString()});
+
+        List<String> lines = java.nio.file.Files.readAllLines(out);
+        assertEquals(3, lines.size(), "表头加两行结果，两个小批量大小各一行");
+
+        // 两行的 batchSize 应当恰为 1 与 4，且其余维度相同——这正是「只改一个变量」的形式化表达。
+        java.util.List<String> batches = new ArrayList<>();
+        for (int i = 1; i < lines.size(); i++) {
+            batches.add(valueAt(lines.get(0), lines.get(i), "batchSize"));
+        }
+        java.util.Collections.sort(batches);
+        assertEquals(java.util.Arrays.asList("1", "4"), batches, "两个小批量大小应各出一行");
+
+        // 给了参照值 0.5，相对偏差 = (误差 - 0.5) / 0.5，须由程序算出而不是留空。
+        String rel = valueAt(lines.get(0), lines.get(1), "relDeltaVsRef");
+        double esLoss = Double.parseDouble(valueAt(lines.get(0), lines.get(1), "esLoss"));
+        assertFalse(rel.isEmpty(), "给了 --reference-loss 就应算出 relDeltaVsRef");
+        assertEquals((esLoss - 0.5) / 0.5, Double.parseDouble(rel), 1e-5,
+                "relDeltaVsRef 应等于 (早停集误差 − 参照值) ÷ 参照值");
+    }
+
+    @Test
+    @DisplayName("未给参照值时 relDeltaVsRef 留空，不凭空算出一个相对值")
+    void relativeDeltaIsEmptyWithoutAReference(@TempDir Path dir) throws Exception {
+        List<DeviceRound> rounds = new ArrayList<>();
+        long base = 1_700_000_000L;
+        for (int i = 0; i < 200; i++) {
+            rounds.add(round("E", base + i * 10L, Math.sin(i * 0.2) * 0.3, false, false));
+        }
+        Path out = dir.resolve("noref.csv");
+        M3Grid.main(new String[]{
+                "--rounds-jsonl", writeRounds(dir, rounds).toString(), "--devices", "E",
+                "--hidden-grid", "8", "--window-grid", "10",
+                "--rounds-per-day", "20", "--train-days", "3", "--early-stop-days", "2",
+                "--max-epochs", "2", "--patience", "1", "--out", out.toString()});
+
+        List<String> lines = java.nio.file.Files.readAllLines(out);
+        assertEquals("", valueAt(lines.get(0), lines.get(1), "relDeltaVsRef"),
+                "没有参照值就不该写出相对偏差");
+    }
+
+    /** 按列名从给定的表头行与数据行里取值。 */
+    private static String valueAt(String headerLine, String row, String name) {
+        String[] header = headerLine.split(",", -1);
+        String[] values = row.split(",", -1);
+        for (int i = 0; i < header.length; i++) {
+            if (header[i].equals(name)) {
+                return values[i];
+            }
+        }
+        throw new IllegalArgumentException("CSV 表头里没有列 " + name + "：" + headerLine);
     }
 
     /**

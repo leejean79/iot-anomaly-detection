@@ -31,8 +31,16 @@
 #      --train-days <n>        训练段天数，默认 7
 #      --early-stop-days <n>   早停段天数，默认 2
 #      --max-epochs <n>        单次训练的上限轮数，默认 60（补遗三 §1 定的生产值）
-#      --batch-size <n>        小批量大小，即一次权重更新用到多少个窗口，默认 1。
-#                              默认 1 即 2026-09-21 参照点的口径；步骤 A 正是要扫描这个参数。
+#      --batch-grid <列表>     小批量大小网格，即一次权重更新用到多少个窗口，默认 "1"。
+#                              默认 1 即 2026-09-21 参照点的口径；步骤 A 传 "1,16,32,64" 一次跑完。
+#      --reference-loss <v>    参照早停集误差。给出后 CSV 的 relDeltaVsRef 列写出相对偏差，
+#                              并在解读段按 5% 判据给出选型建议。步骤 A 传 0.160610。
+#      --node <名称>           在哪台机器上跑：master（默认）、worker1、worker2。
+#                              **不做静默回落**：指定哪台就是哪台，不合格直接报错退出，
+#                              否则事后无法确认某一行读数究竟出自哪台机器。
+#      --container-mb <n>      容器内存上限（MB）。缺省时 master 取 1500、worker 取 2048。
+#                              JVM 的 -Xmx 取其三分之一，JavaCPP 堆外上限取其 45%。
+#      --probe-nodes           只探测三台节点是否具备跑网格的条件并打印结论，不跑任何训练。
 #      --omp-threads <n>       容器内 OpenMP 线程数，默认 1。经 OMP_NUM_THREADS 环境变量传入，
 #                              ND4J 启动日志里的 "Number of threads used for OpenMP BLAS" 是权威确认。
 #      --patience <n>          早停耐心，默认 10
@@ -77,7 +85,7 @@ set -a; source "$DEPLOY_DIR/.env"; set +a
 
 DEVICES="E,G,C"; HIDDEN_GRID="40,60,90"; WINDOW_GRID="30,60,120"
 TRAIN_DAYS=7; ES_DAYS=2; MAX_EPOCHS=60; PATIENCE=10
-BATCH_SIZE=1; OMP_THREADS=1
+BATCH_GRID="1"; OMP_THREADS=1; REFERENCE_LOSS=""; NODE="master"; CONTAINER_MB=""; PROBE_ONLY=0
 MAX_MESSAGES=3000000; OUT_NAME="m3_grid.csv"; USE_SCORES=1; REUSE=0; DETACH=0; COLLECT=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -87,8 +95,12 @@ while [[ $# -gt 0 ]]; do
         --train-days) TRAIN_DAYS="$2"; shift 2 ;;
         --early-stop-days) ES_DAYS="$2"; shift 2 ;;
         --max-epochs) MAX_EPOCHS="$2"; shift 2 ;;
-        --batch-size) BATCH_SIZE="$2"; shift 2 ;;
+        --batch-grid) BATCH_GRID="$2"; shift 2 ;;
         --omp-threads) OMP_THREADS="$2"; shift 2 ;;
+        --reference-loss) REFERENCE_LOSS="$2"; shift 2 ;;
+        --node) NODE="$2"; shift 2 ;;
+        --container-mb) CONTAINER_MB="$2"; shift 2 ;;
+        --probe-nodes) PROBE_ONLY=1; shift ;;
         --patience) PATIENCE="$2"; shift 2 ;;
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
         --out-name) OUT_NAME="$2"; shift 2 ;;
@@ -107,6 +119,74 @@ WORK="${RHOME}/m3grid"
 RUN_IMAGE="${FLINK_IMAGE_TAG:-fa-iforest/flink:1.13.6-java11}"
 
 CONTAINER_NAME="syn-m3grid"
+
+# 探测一台节点是否具备跑网格的条件，逐项打印。只读，不改动任何东西。
+# Probe one node for grid-readiness; read-only.
+probe_node() {
+    local host="$1"
+    echo "  ── ${host} ──"
+    if ! ssh -o ConnectTimeout=8 -o BatchMode=yes "$host" true 2>/dev/null; then
+        echo "     [FAIL] ssh 不可达"
+        return 1
+    fi
+    echo "     [OK]   ssh 可达"
+    local rc=0
+    if ssh "$host" "test -f ${RHOME}/jars/${JAR_NAME}" 2>/dev/null; then
+        echo "     [OK]   jar 已就位：${RHOME}/jars/${JAR_NAME}"
+    else
+        echo "     [FAIL] 缺少 jar：${RHOME}/jars/${JAR_NAME}（用 syn-upload-m1.sh 传过去）"
+        rc=1
+    fi
+    if ssh "$host" "docker image inspect ${RUN_IMAGE} >/dev/null 2>&1" 2>/dev/null; then
+        echo "     [OK]   镜像已就位：${RUN_IMAGE}"
+    else
+        echo "     [FAIL] 缺少镜像：${RUN_IMAGE}（用 syn-sync-flink-image.sh 同步）"
+        rc=1
+    fi
+    local avail
+    avail="$(ssh "$host" "free -m | awk '/^Mem:/{print \$7}'" 2>/dev/null | tr -d '[:space:]')"
+    if [ -n "${avail:-}" ] && [ "$avail" -ge 1600 ]; then
+        echo "     [OK]   可用内存 ${avail} MB"
+    else
+        echo "     [WARN] 可用内存仅 ${avail:-未知} MB，低于 1600 MB 的建议下限"
+    fi
+    # Flink 作业占着这台机器时不宜再压训练进去：两者会争抢仅有的两个核。
+    # A running Flink job and the grid would contend for the same two cores.
+    local slots
+    slots="$(ssh "$host" "docker ps --format '{{.Names}}' | grep -c taskmanager" 2>/dev/null | tr -d '[:space:]')"
+    echo "     [INFO] 本机 taskmanager 容器数 ${slots:-0}"
+    return $rc
+}
+
+if [ "$PROBE_ONLY" -eq 1 ]; then
+    echo "===================================================================="
+    echo "节点探测（只读）：检查各节点是否具备跑离线网格的条件"
+    echo "===================================================================="
+    probe_node fa-master || true
+    probe_node fa-worker1 || true
+    probe_node fa-worker2 || true
+    echo ""
+    echo "另需确认集群上没有正在运行的 Flink 作业（网格与作业会争抢 CPU）："
+    echo "  curl -s http://${NODE_MASTER_IP}:8081/jobs/overview | python3 -m json.tool | grep -c RUNNING"
+    echo ""
+    echo "选定之后用 --node <名称> 指定；本脚本**不做静默回落**，"
+    echo "指定的节点不合格即报错退出，以免事后分不清某行读数出自哪台机器。"
+    exit 0
+fi
+
+case "$NODE" in
+    master)  RUN_HOST="fa-master";  DEFAULT_MB=1500 ;;
+    worker1) RUN_HOST="fa-worker1"; DEFAULT_MB=2048 ;;
+    worker2) RUN_HOST="fa-worker2"; DEFAULT_MB=2048 ;;
+    *) echo "ERROR: --node 只能是 master、worker1 或 worker2，收到 ${NODE}" >&2; exit 1 ;;
+esac
+MEM_MB="${CONTAINER_MB:-$DEFAULT_MB}"
+# 三者都必须显式设死（补遗三 §5）。容器上限之外，JVM 堆与 JavaCPP 的堆外分配若不设上限，
+# 两者叠加越过容器上限时进程会被内核直接杀死，而且不留任何 Java 侧的痕迹。
+# All three must be pinned: heap plus JavaCPP off-heap can otherwise exceed the container cap and
+# the process is killed with nothing logged on the Java side.
+XMX_MB=$(( MEM_MB / 3 ))
+JAVACPP_MB=$(( MEM_MB * 45 / 100 ))
 LOCAL_CSV="${PROJECT_ROOT}/docs/${OUT_NAME}"
 
 if [ "$DETACH" -eq 1 ] && [ "$COLLECT" -eq 1 ]; then
@@ -117,19 +197,19 @@ fi
 # 把 master 上的 CSV 拉回本地。成功返回 0，失败删掉半截文件并返回 1。
 # Pull the CSV back from master; on failure remove the partial file.
 pull_csv() {
-    if ssh fa-master "cat ${WORK}/m3_grid.csv" > "$LOCAL_CSV" 2>/dev/null && [ -s "$LOCAL_CSV" ]; then
+    if ssh "$RUN_HOST" "cat ${WORK}/m3_grid.csv" > "$LOCAL_CSV" 2>/dev/null && [ -s "$LOCAL_CSV" ]; then
         echo "[grid] 已拉回本地：${LOCAL_CSV}"
         return 0
     fi
     rm -f "$LOCAL_CSV" 2>/dev/null || true
-    echo "[grid] 拉回失败，可手动：ssh fa-master \"cat ${WORK}/m3_grid.csv\" > docs/${OUT_NAME}" >&2
+    echo "[grid] 拉回失败，可手动：ssh ${RUN_HOST} 'cat ${WORK}/m3_grid.csv' > docs/${OUT_NAME}" >&2
     return 1
 }
 
 if [ "$COLLECT" -eq 1 ]; then
     # 一次 inspect 取齐判读所需的全部字段，避免多次往返导致读到不一致的快照。
     # One inspect for every field needed, so the snapshot is self-consistent.
-    STATE="$(ssh fa-master "docker inspect -f '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}|{{.State.StartedAt}}|{{.State.FinishedAt}}|{{.State.Error}}' ${CONTAINER_NAME} 2>/dev/null" || true)"
+    STATE="$(ssh "$RUN_HOST" "docker inspect -f '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}|{{.State.StartedAt}}|{{.State.FinishedAt}}|{{.State.Error}}' ${CONTAINER_NAME} 2>/dev/null" || true)"
     STATUS="$(echo "$STATE" | cut -d'|' -f1)"
     CODE="$(echo "$STATE" | cut -d'|' -f2)"
     OOM="$(echo "$STATE" | cut -d'|' -f3)"
@@ -146,15 +226,15 @@ if [ "$COLLECT" -eq 1 ]; then
         echo "===================== 后台任务仍在运行 ====================="
         echo "  启动时刻：${STARTED}"
         echo "  当前资源占用（CPU 接近 100% 属正常，单线程 BLAS 占满一个核）："
-        ssh fa-master "docker stats --no-stream --format '  CPU {{.CPUPerc}}   内存 {{.MemUsage}} ({{.MemPerc}})   进程数 {{.PIDs}}' ${CONTAINER_NAME}" || true
+        ssh "$RUN_HOST" "docker stats --no-stream --format '  CPU {{.CPUPerc}}   内存 {{.MemUsage}} ({{.MemPerc}})   进程数 {{.PIDs}}' ${CONTAINER_NAME}" || true
         echo "  master 节点内存余量："
-        ssh fa-master "free -h | sed -n '1,2p' | sed 's/^/    /'" || true
+        ssh "$RUN_HOST" "free -h | sed -n '1,2p' | sed 's/^/    /'" || true
         echo ""
         echo "  最近的训练进度（每个 epoch 一行）："
-        ssh fa-master "docker logs --tail 12 ${CONTAINER_NAME} 2>&1 | sed 's/^/    /'" || true
+        ssh "$RUN_HOST" "docker logs --tail 12 ${CONTAINER_NAME} 2>&1 | sed 's/^/    /'" || true
         echo ""
         echo "  稍后重新执行：bash deploy/scripts/syn-m3-grid.sh --collect --out-name ${OUT_NAME}"
-        echo "  实时跟随日志：ssh fa-master 'docker logs -f ${CONTAINER_NAME}'"
+        echo "  实时跟随日志：ssh ${RUN_HOST} 'docker logs -f ${CONTAINER_NAME}'"
         exit 0
     fi
     echo "===================== 后台任务已结束 ====================="
@@ -163,10 +243,10 @@ if [ "$COLLECT" -eq 1 ]; then
     echo "  启动 ${STARTED}   结束 ${FINISHED}"
     [ -n "${DERR:-}" ] && echo "  Docker 记录的错误：${DERR}"
     echo "  master 节点当前内存余量："
-    ssh fa-master "free -h | sed -n '1,2p' | sed 's/^/    /'" || true
+    ssh "$RUN_HOST" "free -h | sed -n '1,2p' | sed 's/^/    /'" || true
     echo ""
     echo "  完整日志如下："
-    ssh fa-master "docker logs ${CONTAINER_NAME} 2>&1" || true
+    ssh "$RUN_HOST" "docker logs ${CONTAINER_NAME} 2>&1" || true
     if [ "${CODE:-1}" -ne 0 ]; then
         echo "" >&2
         echo "ERROR: M3Grid 退出码 ${CODE}——网格未完成，**不拉回 CSV**（避免留下不完整的产物）。" >&2
@@ -176,12 +256,12 @@ if [ "$COLLECT" -eq 1 ]; then
         fi
         echo "       日志末尾若**没有**「进程正在退出」那一行，说明它是被直接杀死而非自行退出。" >&2
         echo "       容器 ${CONTAINER_NAME} 已保留供排查；排查完毕后手动清理：" >&2
-        echo "       ssh fa-master 'docker rm ${CONTAINER_NAME}'" >&2
+        echo "       ssh ${RUN_HOST} 'docker rm ${CONTAINER_NAME}'" >&2
         # M3Grid 每完成一个组合就落盘一次，因此中止时 master 上可能留有**部分**结果。
         # 它以 .partial 后缀单独拉回，绝不冒充完整产物。
         # M3Grid saves after each combination, so a partial CSV may exist; pull it under a .partial
         # name so it can never be mistaken for the complete artifact.
-        if ssh fa-master "cat ${WORK}/m3_grid.csv" > "${LOCAL_CSV}.partial" 2>/dev/null \
+        if ssh "$RUN_HOST" "cat ${WORK}/m3_grid.csv" > "${LOCAL_CSV}.partial" 2>/dev/null \
                 && [ "$(wc -l < "${LOCAL_CSV}.partial")" -gt 1 ]; then
             echo "       已完成的组合并未丢失：部分结果拉回到 ${LOCAL_CSV}.partial" >&2
             echo "       （共 $(($(wc -l < "${LOCAL_CSV}.partial") - 1)) 行，**不是**完整网格）" >&2
@@ -191,7 +271,7 @@ if [ "$COLLECT" -eq 1 ]; then
         exit "$CODE"
     fi
     pull_csv || exit 1
-    ssh fa-master "docker rm ${CONTAINER_NAME} >/dev/null 2>&1" || true
+    ssh "$RUN_HOST" "docker rm ${CONTAINER_NAME} >/dev/null 2>&1" || true
     echo "提醒：本阶段**不定终值**——网格表交设计会话裁决 (hidden, window)。"
     exit 0
 fi
@@ -200,7 +280,9 @@ echo "===================================================================="
 echo "syn-m3-grid.sh — V-M3-3 离线超参数网格"
 echo "  设备 ${DEVICES}   隐藏层 ${HIDDEN_GRID}   窗口长度 ${WINDOW_GRID}"
 echo "  训练 ${TRAIN_DAYS} 天 / 早停 ${ES_DAYS} 天   maxEpochs=${MAX_EPOCHS} patience=${PATIENCE}"
-echo "  小批量大小 ${BATCH_SIZE}   OpenMP 线程 ${OMP_THREADS}"
+echo "  小批量大小 ${BATCH_GRID}   OpenMP 线程 ${OMP_THREADS}"
+echo "  运行节点 ${RUN_HOST}   容器上限 ${MEM_MB} MB（-Xmx ${XMX_MB}m，JavaCPP ${JAVACPP_MB}m）"
+[ -n "$REFERENCE_LOSS" ] && echo "  参照早停集误差 ${REFERENCE_LOSS}（按 5% 判据给出小批量选型建议）"
 echo "  训练净化：$([ "$USE_SCORES" -eq 1 ] && echo '开启（转储 scores 还原离群标记）' || echo '关闭')"
 echo "===================================================================="
 
@@ -240,27 +322,53 @@ fi
 # 当成本次产物拉回来，造成一次静默的误判。删掉之后，CSV 存在即意味着本次确实写出了结果。
 # Remove any stale CSV first: otherwise a run that dies before writing one would let --collect pull
 # the PREVIOUS run's file back and pass it off as this run's result.
-ssh fa-master "rm -f ${WORK}/m3_grid.csv" || true
+# 转储是在 master 上产生的（Kafka 命令行工具在那台机器的容器里）。若训练要在 worker 上跑，
+# 先把转储搬过去。优先让 master 直接推给 worker；master 之间若没打通免密，再退回经本机中转。
+# The dump is produced on master; copy it to the worker, preferring a direct master→worker push.
+if [ "$RUN_HOST" != "fa-master" ]; then
+    DUMP_MB="$(ssh fa-master "du -m ${WORK}/m1out.jsonl | cut -f1" 2>/dev/null | tr -d '[:space:]')"
+    echo "[grid] 训练将在 ${RUN_HOST} 上进行，先搬运转储（m1out.jsonl 约 ${DUMP_MB:-未知} MB）…"
+    ssh "$RUN_HOST" "mkdir -p ${WORK} && chmod 777 ${WORK}"
+    for f in m1out.jsonl scores.jsonl; do
+        if ! ssh fa-master "test -f ${WORK}/${f}" 2>/dev/null; then
+            continue
+        fi
+        if ssh fa-master "scp -o BatchMode=yes -o StrictHostKeyChecking=no ${WORK}/${f} ${RUN_HOST}:${WORK}/" 2>/dev/null; then
+            echo "[grid]   ${f} 已由 master 直接推送到 ${RUN_HOST}"
+        else
+            echo "[grid]   master 无法直连 ${RUN_HOST}，改为经本机中转（较慢）…"
+            ssh fa-master "cat ${WORK}/${f}" | ssh "$RUN_HOST" "cat > ${WORK}/${f}"
+            echo "[grid]   ${f} 已中转完成"
+        fi
+    done
+fi
 
-RUN_MOUNTS="-v ${RHOME}/jars:/jars:ro -v ${WORK}:/work -e OMP_NUM_THREADS=${OMP_THREADS}"
-RUN_CMD="java -cp /jars/${JAR_NAME} com.leejean.m3.M3Grid \
+ssh "$RUN_HOST" "rm -f ${WORK}/m3_grid.csv" || true
+
+REF_ARG=""
+[ -n "$REFERENCE_LOSS" ] && REF_ARG="--reference-loss ${REFERENCE_LOSS}"
+
+RUN_MOUNTS="-m ${MEM_MB}m -v ${RHOME}/jars:/jars:ro -v ${WORK}:/work -e OMP_NUM_THREADS=${OMP_THREADS}"
+RUN_CMD="java -Xmx${XMX_MB}m -Dorg.bytedeco.javacpp.maxbytes=${JAVACPP_MB}m \
+        -Dorg.bytedeco.javacpp.maxphysicalbytes=${MEM_MB}m \
+        -cp /jars/${JAR_NAME} com.leejean.m3.M3Grid \
         --rounds-jsonl /work/m1out.jsonl ${SCORES_ARG} \
         --devices ${DEVICES} --hidden-grid ${HIDDEN_GRID} --window-grid ${WINDOW_GRID} \
         --train-days ${TRAIN_DAYS} --early-stop-days ${ES_DAYS} \
-        --max-epochs ${MAX_EPOCHS} --patience ${PATIENCE} --batch-size ${BATCH_SIZE} \
-        --out /work/m3_grid.csv"
+        --max-epochs ${MAX_EPOCHS} --patience ${PATIENCE} --batch-grid ${BATCH_GRID} \
+        ${REF_ARG} --out /work/m3_grid.csv"
 
 if [ "$DETACH" -eq 1 ]; then
     # 后台模式刻意不加 --rm：容器结束后要保留退出码与日志，供 --collect 判读，回收由 --collect 负责。
     # Deliberately no --rm here: the exit code and logs must survive for --collect to read.
-    EXIST="$(ssh fa-master "docker inspect -f '{{.State.Status}}' ${CONTAINER_NAME} 2>/dev/null" || true)"
+    EXIST="$(ssh "$RUN_HOST" "docker inspect -f '{{.State.Status}}' ${CONTAINER_NAME} 2>/dev/null" || true)"
     if [ -n "${EXIST:-}" ]; then
         echo "ERROR: master 上已存在容器 ${CONTAINER_NAME}（状态 ${EXIST}）。" >&2
         echo "       若上一次任务还在跑，请等它结束；若已结束，先执行 --collect 取回结果。" >&2
-        echo "       确认不再需要时可手动删除：ssh fa-master 'docker rm -f ${CONTAINER_NAME}'" >&2
+        echo "       确认不再需要时可手动删除：ssh ${RUN_HOST} 'docker rm -f ${CONTAINER_NAME}'" >&2
         exit 5
     fi
-    ssh fa-master "docker run -d --name ${CONTAINER_NAME} --user root ${RUN_MOUNTS} ${RUN_IMAGE} ${RUN_CMD}" >/dev/null
+    ssh "$RUN_HOST" "docker run -d --name ${CONTAINER_NAME} --user root ${RUN_MOUNTS} ${RUN_IMAGE} ${RUN_CMD}" >/dev/null
     RC=$?
     if [ "$RC" -ne 0 ]; then
         echo "ERROR: 后台容器启动失败，退出码 ${RC}。" >&2
@@ -271,14 +379,14 @@ if [ "$DETACH" -eq 1 ]; then
     echo "[grid] 训练由 master 的 Docker 守护进程托管，**与本地 ssh 连接无关**："
     echo "       本地 Mac 休眠、断网、关机都不会中断它。"
     echo ""
-    echo "  查看进度：ssh fa-master 'docker logs --tail 20 ${CONTAINER_NAME}'"
-    echo "  跟随日志：ssh fa-master 'docker logs -f ${CONTAINER_NAME}'"
+    echo "  查看进度：ssh ${RUN_HOST} 'docker logs --tail 20 ${CONTAINER_NAME}'"
+    echo "  跟随日志：ssh ${RUN_HOST} 'docker logs -f ${CONTAINER_NAME}'"
     echo "  取回结果：bash deploy/scripts/syn-m3-grid.sh --collect --out-name ${OUT_NAME}"
     echo ""
     exit 0
 fi
 
-ssh fa-master "docker run --rm --user root ${RUN_MOUNTS} ${RUN_IMAGE} ${RUN_CMD}"
+ssh "$RUN_HOST" "docker run --rm --user root ${RUN_MOUNTS} ${RUN_IMAGE} ${RUN_CMD}"
 RC=$?
 if [ "$RC" -ne 0 ]; then
     echo "" >&2
