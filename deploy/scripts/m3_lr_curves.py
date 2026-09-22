@@ -45,12 +45,28 @@ INK_MUTED = "#6b6a63"
 GRID = "#e4e3dd"
 
 
+REQUIRED = ["learningRate", "epoch", "trainLoss", "esLoss", "esLossBaseline"]
+
+
 def load(path):
     """按学习率分组读入，每组按轮次排序。"""
     groups = OrderedDict()
     baseline = None
     with open(path, newline="", encoding="utf-8") as fh:
-        for row in csv.DictReader(fh):
+        reader = csv.DictReader(fh)
+        missing = [c for c in REQUIRED if c not in (reader.fieldnames or [])]
+        if missing:
+            # 最常见的错误是把**汇总** CSV 当成逐轮 CSV 传进来：前者每个组合一行、列名是
+            # epochs（复数），后者每轮一行、列名是 epoch（单数）。直接说清楚，别让人对着
+            # KeyError 猜。
+            # The usual mistake is passing the summary CSV instead of the per-epoch one.
+            hint = ""
+            if "epochs" in (reader.fieldnames or []) and "epoch" in missing:
+                hint = ("\n       看起来你传的是**汇总** CSV（每个组合一行）。本脚本要的是**逐轮** CSV"
+                        "（每轮一行），由 syn-m3-grid.sh 的 --per-epoch-name 产出，"
+                        "默认文件名形如 docs/<汇总名去掉扩展名>_per_epoch.csv。")
+            raise SystemExit("ERROR: {} 缺少必需的列：{}{}".format(path, ", ".join(missing), hint))
+        for row in reader:
             lr = float(row["learningRate"])
             groups.setdefault(lr, []).append(
                 (int(row["epoch"]), float(row["trainLoss"]), float(row["esLoss"])))

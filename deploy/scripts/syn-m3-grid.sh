@@ -287,13 +287,18 @@ if [ "$COLLECT" -eq 1 ]; then
         exit "$CODE"
     fi
     pull_csv || exit 1
-    if [ -n "$PER_EPOCH_NAME" ]; then
-        if ssh "$RUN_HOST" "cat ${WORK}/m3_per_epoch.csv" > "${PROJECT_ROOT}/docs/${PER_EPOCH_NAME}" 2>/dev/null \
-                && [ -s "${PROJECT_ROOT}/docs/${PER_EPOCH_NAME}" ]; then
-            echo "[grid] 逐轮 CSV 已拉回本地：${PROJECT_ROOT}/docs/${PER_EPOCH_NAME}"
+    # 逐轮 CSV 一律尝试拉回，不要求 --collect 时再传一遍 --per-epoch-name——那个参数是启动时用的，
+    # 取结果时用户不会（也不该需要）记得重复它。远端没有该文件就静默跳过。
+    # Always try to pull the per-epoch CSV: --per-epoch-name is a launch-time flag and requiring it
+    # again at collect time is how the file gets silently left behind.
+    PER_EPOCH_LOCAL="${PER_EPOCH_NAME:-${OUT_NAME%.csv}_per_epoch.csv}"
+    if ssh "$RUN_HOST" "test -s ${WORK}/m3_per_epoch.csv" 2>/dev/null; then
+        if ssh "$RUN_HOST" "cat ${WORK}/m3_per_epoch.csv" > "${PROJECT_ROOT}/docs/${PER_EPOCH_LOCAL}" 2>/dev/null \
+                && [ -s "${PROJECT_ROOT}/docs/${PER_EPOCH_LOCAL}" ]; then
+            echo "[grid] 逐轮 CSV 已拉回本地：${PROJECT_ROOT}/docs/${PER_EPOCH_LOCAL}"
         else
-            rm -f "${PROJECT_ROOT}/docs/${PER_EPOCH_NAME}" 2>/dev/null || true
-            echo "[grid] 逐轮 CSV 拉回失败，可手动：ssh ${RUN_HOST} 'cat ${WORK}/m3_per_epoch.csv' > docs/${PER_EPOCH_NAME}" >&2
+            rm -f "${PROJECT_ROOT}/docs/${PER_EPOCH_LOCAL}" 2>/dev/null || true
+            echo "[grid] 逐轮 CSV 拉回失败，可手动：ssh ${RUN_HOST} 'cat ${WORK}/m3_per_epoch.csv' > docs/${PER_EPOCH_LOCAL}" >&2
         fi
     fi
     ssh "$RUN_HOST" "docker rm ${CONTAINER_NAME} >/dev/null 2>&1" || true

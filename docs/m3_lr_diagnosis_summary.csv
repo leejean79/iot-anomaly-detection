@@ -1,0 +1,4 @@
+device,hiddenSize,windowLength,batchSize,ompThreads,trainWindows,trainExcluded,esWindows,epochs,esLoss,relDeltaVsRef,learningRate,esCleanWindows,esOutlierWindows,esLossBaseline,trainedOk,trainSeconds,secPerEpoch,sanitized
+E,60,60,64,1,1001,7,288,60,0.32443620,,0.01,287,1,0.33073587,false,1378.7,23.0,true
+E,60,60,64,1,1001,7,288,60,0.02426155,,0.003,287,1,0.33073587,true,1368.7,22.8,true
+E,60,60,64,1,1001,7,288,60,0.02889754,,0.001,287,1,0.33073587,true,1368.4,22.8,true
