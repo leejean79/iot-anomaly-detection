@@ -4,35 +4,69 @@ import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
 import org.deeplearning4j.nn.conf.layers.LSTM;
 import org.deeplearning4j.nn.conf.layers.RnnOutputLayer;
+import org.deeplearning4j.nn.conf.layers.misc.RepeatVector;
+import org.deeplearning4j.nn.conf.layers.recurrent.LastTimeStep;
+import org.deeplearning4j.nn.conf.inputs.InputType;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.dataset.DataSet;
 import org.nd4j.linalg.factory.Nd4j;
+import org.nd4j.linalg.indexing.INDArrayIndex;
+import org.nd4j.linalg.indexing.NDArrayIndex;
 import org.nd4j.linalg.learning.config.Adam;
 import org.nd4j.linalg.lossfunctions.LossFunctions;
 
 import java.io.*;
 
 /**
- * 浅层 LSTM 自编码器（交接文档 §3 决策 4）：一层 LSTM 编码器 + 一层 LSTM 解码器。
- * Shallow LSTM autoencoder (handover §3 decision 4): one LSTM encoder layer + one LSTM decoder layer.
+ * 编码器—解码器式 LSTM 自编码器（裁决书《上下文异常检测模块的网络结构改正与步骤 A 重做》第二节）。
+ * Encoder–decoder LSTM autoencoder, per the 2026-09-22 architecture ruling.
  *
- * <p>架构 / architecture: input(nFeatures) → LSTM(hiddenSize, tanh) → RnnOutputLayer(nFeatures, MSE, IDENTITY)。
- * 自编码器训练目标：输入序列即标签（重建自身）。
- * Autoencoder objective: input sequence IS the label (reconstruct itself).
+ * <p><b>为什么是这个拓扑。</b>旧结构是「一层逐时间步的 LSTM 接一个逐时间步的输出层」，每一步的输出
+ * 都能直接看到当前时刻的输入，六十个隐单元足以把五个输入值原样传递过去，重构任务因而是**退化的**：
+ * 网络可以学成恒等映射。2026-09-22 的小批量扫描实测到这一点——批处理让训练稳定下来之后，早停集
+ * 误差比参照低了十二到三十倍，正是学成近乎恒等的表现。
+ * The former topology let every output step see its own input step, so the reconstruction task was
+ * degenerate and the network could learn the identity map.
  *
- * <p>序列化 / serialization: 整个 MultiLayerNetwork 通过 DL4J 的 ModelSerializer 存为字节数组，
- * 嵌入 Flink 的 checkpoint 状态（决策 7）。
- * The entire MultiLayerNetwork is serialized via DL4J's params + config into a byte array
- * embedded in Flink's checkpointed state (decision 7).
+ * <p>现在改为：编码器把**整段窗口**压成一个定长的摘要向量，解码器**只凭这个向量**重构整段窗口。
+ * 解码器在任何时间步都接触不到窗口的原始输入——这是本结构的全部意义所在。压缩比也因此是真实的：
+ * 一个窗口 L × 5 个数（窗长 60 时为 300 个）被压到 c 个数（隐单元数，网格 {40, 60, 90}）。
+ * The encoder now compresses the whole window into one fixed-size vector and the decoder reconstructs
+ * from that vector alone, never seeing the raw input. This is the point of the topology.
+ *
+ * <p>五层堆叠 / five stacked layers:
+ * <ol>
+ *   <li>编码器 LSTM：5 → c，沿时间正向处理整个窗口 / encoder LSTM over the whole window</li>
+ *   <li>取末态（LastTimeStep）：取最后一个时间步的隐状态作为摘要向量，输出降为二维 [批, c]
+ *       / take the final hidden state as the summary vector</li>
+ *   <li>重复向量（RepeatVector）：把摘要向量在 L 个时间步上重复，还原为三维 [批, c, L]
+ *       / repeat the summary across L steps</li>
+ *   <li>解码器 LSTM：c → c / decoder LSTM</li>
+ *   <li>输出层 RnnOutputLayer：c → 5，恒等激活，带掩码的均方误差 / identity activation, masked MSE</li>
+ * </ol>
+ *
+ * <p><b>窗口长度是结构参数。</b>第 3 层的重复次数等于窗口长度，因此窗长一变网络形状就变，
+ * 不能像旧结构那样只在喂数据时体现。构造函数据此多收一个 {@code windowLength}。
+ * The window length is now structural: it is the RepeatVector's repetition factor.
+ *
+ * <p>序列化 / serialization: 参数数组存为字节数组嵌入 Flink 的 checkpoint 状态（决策 7）。
  */
 public class LstmAutoEncoder implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private final int nFeatures;                       // 输入/输出维度（检测通道数，通常 5）/ input & output dims
-    private final int hiddenSize;                       // LSTM 隐藏层宽度（网格 {40,60,90} 之一）/ LSTM hidden width
+    private final int hiddenSize;                       // 摘要向量维度 c（网格 {40,60,90} 之一）/ summary vector width
+    /** 窗口长度 L。它是结构参数：第 3 层要把摘要向量在 L 个时间步上重复。/ structural: RepeatVector factor. */
+    private final int windowLength;
+    /**
+     * 重构目标是否取逆序（把窗口倒过来作为解码目标）。裁决书第二节按参考文献定为默认开启，
+     * 并要求做成可关闭的参数以便将来做消融实验。
+     * Whether the reconstruction target is the reversed window; default on, switchable for ablation.
+     */
+    private final boolean reverseTarget;
     private static final long SEED = 42L;               // 固定随机种子，保证可复现 / fixed seed for reproducibility
     private static final double LEARNING_RATE = 0.01;   // Adam 学习率 / Adam learning rate
 
@@ -40,32 +74,59 @@ public class LstmAutoEncoder implements Serializable {
     // model is transient (excluded from Java serialization); moved across checkpoints via (de)serializeModel.
     private transient MultiLayerNetwork model;
 
-    public LstmAutoEncoder(int nFeatures, int hiddenSize) {
-        this.nFeatures = nFeatures;
-        this.hiddenSize = hiddenSize;
-        this.model = buildModel(nFeatures, hiddenSize);   // 构造即建网并初始化 / build & init the network on construction
+    public LstmAutoEncoder(int nFeatures, int hiddenSize, int windowLength) {
+        this(nFeatures, hiddenSize, windowLength, true);
     }
 
-    private static MultiLayerNetwork buildModel(int nFeatures, int hiddenSize) {
+    public LstmAutoEncoder(int nFeatures, int hiddenSize, int windowLength, boolean reverseTarget) {
+        if (windowLength < 1) {
+            throw new IllegalArgumentException("窗口长度须为正，收到 " + windowLength);
+        }
+        this.nFeatures = nFeatures;
+        this.hiddenSize = hiddenSize;
+        this.windowLength = windowLength;
+        this.reverseTarget = reverseTarget;
+        this.model = buildModel(nFeatures, hiddenSize, windowLength);   // 构造即建网并初始化 / build & init
+    }
+
+    private static MultiLayerNetwork buildModel(int nFeatures, int hiddenSize, int windowLength) {
         MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
                 .seed(SEED)                                // 可复现 / reproducible
                 .updater(new Adam(LEARNING_RATE))          // Adam 优化器 / Adam optimizer
                 .weightInit(WeightInit.XAVIER)             // Xavier 初始化 / Xavier weight init
                 .list()
-                // 第 0 层：LSTM 编码器，tanh 激活，把 nFeatures 维序列压到 hiddenSize 维隐状态
-                // Layer 0: LSTM encoder (tanh), compresses the nFeatures-dim sequence to a hiddenSize state
+                // 第 0 层：编码器 LSTM，沿时间正向读完整个窗口 / encoder LSTM over the whole window
                 .layer(0, new LSTM.Builder()
                         .nIn(nFeatures)
                         .nOut(hiddenSize)
                         .activation(Activation.TANH)
                         .build())
-                // 第 1 层：RnnOutputLayer 解码器，MSE 损失 + 恒等激活，把隐状态重建回 nFeatures 维
-                // Layer 1: RnnOutputLayer decoder (MSE loss, identity activation), reconstructs nFeatures dims
-                .layer(1, new RnnOutputLayer.Builder(LossFunctions.LossFunction.MSE)
+                // 第 1 层：取末态。包装层输出最后一个时间步的隐状态，形状由 [批, c, L] 降为 [批, c]，
+                // 这个 c 维向量就是整段窗口的摘要——压缩在此发生。
+                // LastTimeStep: the summary vector; this is where the compression happens.
+                .layer(1, new LastTimeStep(new LSTM.Builder()
+                        .nIn(hiddenSize)
+                        .nOut(hiddenSize)
+                        .activation(Activation.TANH)
+                        .build()))
+                // 第 2 层：重复向量，把摘要在 L 个时间步上复制，形状回到 [批, c, L]，
+                // 供解码器逐步展开。解码器此后看到的每一步输入都相同，与原始窗口无关。
+                // RepeatVector: every decoder step sees the same summary, never the raw input.
+                .layer(2, new RepeatVector.Builder().repetitionFactor(windowLength).build())
+                // 第 3 层：解码器 LSTM / decoder LSTM
+                .layer(3, new LSTM.Builder()
+                        .nIn(hiddenSize)
+                        .nOut(hiddenSize)
+                        .activation(Activation.TANH)
+                        .build())
+                // 第 4 层：逐时间步的输出层，恒等激活，带掩码的均方误差
+                // Per-step output layer, identity activation, masked MSE
+                .layer(4, new RnnOutputLayer.Builder(LossFunctions.LossFunction.MSE)
                         .nIn(hiddenSize)
                         .nOut(nFeatures)
                         .activation(Activation.IDENTITY)
                         .build())
+                .setInputType(InputType.recurrent(nFeatures, windowLength))
                 .build();
         MultiLayerNetwork net = new MultiLayerNetwork(conf);
         net.init();                                        // 分配参数并初始化权重 / allocate & init weights
@@ -119,12 +180,19 @@ public class LstmAutoEncoder implements Serializable {
             int actual = Math.min(batchSize, windows.length - start);
             int seqLen = windows[start].length;
             INDArray input = toRnnInput(windows, start, actual, seqLen);
-            INDArray labels = input.dup();                 // 自编码器：标签即输入的副本 / label is a copy of the input
+            // 标签即输入本身；reverseTarget 为真时取时间逆序（裁决书第二节，按参考文献）。
+            // 掩码必须跟着一起逆序，否则某个时间步的删失标记会落到别的时间步上。
+            // The label is the input itself, time-reversed when reverseTarget is on; the mask must be
+            // reversed with it, or a censored step's flag would land on a different step.
+            INDArray labels = reverseTarget ? reverseTime(input) : input.dup();
 
             if (weightMasks != null) {
                 // 有掩码：用标签掩码把删失/缺失元素的损失权重置零（决策 3/6）
                 // With a mask: a label mask zeroes the loss weight of censored/missing elements
                 INDArray mask = toMaskArray(weightMasks, start, actual, seqLen);
+                if (reverseTarget) {
+                    mask = reverseTime(mask);
+                }
                 model.fit(new DataSet(input, labels, null, mask));
             } else {
                 model.fit(new DataSet(input, labels));     // 无掩码：全元素参与 / no mask: all elements count
@@ -143,6 +211,12 @@ public class LstmAutoEncoder implements Serializable {
         int seqLen = window.length;
         INDArray input = toRnnInput(window, seqLen);       // 转 RNN 张量 / to RNN tensor
         INDArray output = model.output(input);             // 前向推理得到重建序列 / forward pass → reconstruction
+        // 训练目标是逆序时，输出也是逆序的，必须转回正序才能与原窗口逐步对齐比较。
+        // 漏掉这一步会让重建误差凭空变大，且不会有任何报错。
+        // When the target is reversed so is the output; it must be un-reversed before comparison.
+        if (reverseTarget) {
+            output = reverseTime(output);
+        }
         return fromRnnOutput(output, seqLen);              // 转回二维数组 / back to 2-D array
     }
 
@@ -159,6 +233,22 @@ public class LstmAutoEncoder implements Serializable {
             }
         }
         return arr;
+    }
+
+    /**
+     * 把 [批, 通道, 时间步] 张量在**时间维**上倒转。用于按参考文献把重构目标取逆序，
+     * 以及把逆序的输出转回正序。
+     * Reverse a [batch, channels, time] tensor along the time axis.
+     */
+    private static INDArray reverseTime(INDArray arr) {
+        long seqLen = arr.size(2);
+        INDArray out = Nd4j.createUninitialized(arr.shape());
+        for (long t = 0; t < seqLen; t++) {
+            out.put(new INDArrayIndex[]{NDArrayIndex.all(), NDArrayIndex.all(), NDArrayIndex.point(t)},
+                    arr.get(NDArrayIndex.all(), NDArrayIndex.all(),
+                            NDArrayIndex.point(seqLen - 1 - t)));
+        }
+        return out;
     }
 
     /**
@@ -283,5 +373,9 @@ public class LstmAutoEncoder implements Serializable {
 
     public int getNFeatures() { return nFeatures; }
     public int getHiddenSize() { return hiddenSize; }
+    public int getWindowLength() { return windowLength; }
+    /** 参数总数。裁决书第二节要求把参数量写入设计活文档。/ total parameter count, required by the ruling. */
+    public long paramCount() { return model.numParams(); }
+    public boolean isReverseTarget() { return reverseTarget; }
     public MultiLayerNetwork getModel() { return model; }
 }

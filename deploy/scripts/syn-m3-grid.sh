@@ -33,6 +33,8 @@
 #      --max-epochs <n>        单次训练的上限轮数，默认 60（补遗三 §1 定的生产值）
 #      --batch-grid <列表>     小批量大小网格，即一次权重更新用到多少个窗口，默认 "1"。
 #                              默认 1 即 2026-09-21 参照点的口径；步骤 A 传 "1,16,32,64" 一次跑完。
+#      --no-reverse-target     关闭逆序重构目标（默认开启）。仅供消融实验；关闭后与在线算子的
+#                              默认值不一致，等值核验会失效，不可用于正式网格。
 #      --reference-loss <v>    参照早停集误差。给出后 CSV 的 relDeltaVsRef 列写出相对偏差，
 #                              并在解读段按 5% 判据给出选型建议。步骤 A 传 0.160610。
 #      --node <名称>           在哪台机器上跑：master（默认）、worker1、worker2。
@@ -63,8 +65,11 @@
 # 3. 前置条件 / Preconditions: synergia-m1-out 与 synergia-scores 已含目标月份的数据
 #      （即 M2 联合作业已跑过该段重放），且 topic 尚未被清理。
 # 4. 期望产出 / Expected output: stdout 逐组合打印进度与解读；本地 docs/<out-name>；
-#      每一行含 device,hiddenSize,windowLength,trainWindows,trainExcluded,esWindows,
-#      epochs,esLoss,trainSeconds,sanitized。
+#      每一行含 device,hiddenSize,windowLength,batchSize,ompThreads,trainWindows,trainExcluded,
+#      esWindows,epochs,esLoss,relDeltaVsRef,esLossClean,esLossOutlier,separationRatio,
+#      trainSeconds,secPerEpoch,sanitized。
+#      其中 separationRatio 是诊断列：早停集中含离群轮的窗口平均误差 ÷ 不含离群轮的窗口平均误差。
+#      **只作诊断、不作判据**；接近 1 说明模型在无差别抄写输入，该行其余读数存疑。
 #      使用 --detach 时，本次调用只打印容器名与后续命令，CSV 要等 --collect 成功之后才出现在本地。
 # 5. 常见失败兜底 / Failure fallback:
 #      「转储里没有任何一台目标设备的可用轮」→ 多半是 --max-messages 不足以覆盖标定期
@@ -86,6 +91,7 @@ set -a; source "$DEPLOY_DIR/.env"; set +a
 DEVICES="E,G,C"; HIDDEN_GRID="40,60,90"; WINDOW_GRID="30,60,120"
 TRAIN_DAYS=7; ES_DAYS=2; MAX_EPOCHS=60; PATIENCE=10
 BATCH_GRID="1"; OMP_THREADS=1; REFERENCE_LOSS=""; NODE="master"; CONTAINER_MB=""; PROBE_ONLY=0
+REVERSE_TARGET=1
 MAX_MESSAGES=3000000; OUT_NAME="m3_grid.csv"; USE_SCORES=1; REUSE=0; DETACH=0; COLLECT=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -98,6 +104,7 @@ while [[ $# -gt 0 ]]; do
         --batch-grid) BATCH_GRID="$2"; shift 2 ;;
         --omp-threads) OMP_THREADS="$2"; shift 2 ;;
         --reference-loss) REFERENCE_LOSS="$2"; shift 2 ;;
+        --no-reverse-target) REVERSE_TARGET=0; shift ;;
         --node) NODE="$2"; shift 2 ;;
         --container-mb) CONTAINER_MB="$2"; shift 2 ;;
         --probe-nodes) PROBE_ONLY=1; shift ;;
@@ -347,6 +354,9 @@ ssh "$RUN_HOST" "rm -f ${WORK}/m3_grid.csv" || true
 
 REF_ARG=""
 [ -n "$REFERENCE_LOSS" ] && REF_ARG="--reference-loss ${REFERENCE_LOSS}"
+# 逆序重构目标默认开启，须与在线算子的默认值一致；两边不一致会让等值核验失效。
+REV_ARG=""
+[ "$REVERSE_TARGET" -eq 0 ] && REV_ARG="--reverse-target false"
 
 RUN_MOUNTS="-m ${MEM_MB}m -v ${RHOME}/jars:/jars:ro -v ${WORK}:/work -e OMP_NUM_THREADS=${OMP_THREADS}"
 RUN_CMD="java -Xmx${XMX_MB}m -Dorg.bytedeco.javacpp.maxbytes=${JAVACPP_MB}m \
@@ -356,7 +366,7 @@ RUN_CMD="java -Xmx${XMX_MB}m -Dorg.bytedeco.javacpp.maxbytes=${JAVACPP_MB}m \
         --devices ${DEVICES} --hidden-grid ${HIDDEN_GRID} --window-grid ${WINDOW_GRID} \
         --train-days ${TRAIN_DAYS} --early-stop-days ${ES_DAYS} \
         --max-epochs ${MAX_EPOCHS} --patience ${PATIENCE} --batch-grid ${BATCH_GRID} \
-        ${REF_ARG} --out /work/m3_grid.csv"
+        ${REF_ARG} ${REV_ARG} --out /work/m3_grid.csv"
 
 if [ "$DETACH" -eq 1 ]; then
     # 后台模式刻意不加 --rm：容器结束后要保留退出码与日志，供 --collect 判读，回收由 --collect 负责。

@@ -161,7 +161,7 @@ public class M3ClusterSmoke {
         boolean nd4jOk = false;
         String nd4jErr = null;
         try {
-            LstmAutoEncoder ae = new LstmAutoEncoder(5, 20);
+            LstmAutoEncoder ae = new LstmAutoEncoder(5, 20, 10);   // 窗口长度现为结构参数 / window length is structural
             double[][][] windows = new double[3][10][5];
             for (int w = 0; w < 3; w++) {
                 for (int t = 0; t < 10; t++) {

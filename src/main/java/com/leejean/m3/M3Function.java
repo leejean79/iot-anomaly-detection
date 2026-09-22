@@ -84,6 +84,8 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
      * Must match the offline grid's value, or the parity check of addendum 3 §6 cannot hold.
      */
     private final int batchSize;
+    /** 重构目标是否取逆序，须与离线网格一致，否则等值核验不成立。/ must match the offline grid. */
+    private final boolean reverseTarget;
     private final OutputTag<MonitoringSnapshot> m3MonitoringTag;
 
     // ---- Flink 状态 / Flink state ----
@@ -146,9 +148,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     public M3Function(int trainDays, int earlyStopDays, int threshDays,
                       int windowLength, double zThreshold, double[] channelWeights,
                       int maxEpochs, int earlyStopPatience, int hiddenSize, int batchSize,
-                      OutputTag<MonitoringSnapshot> m3MonitoringTag) {
+                      boolean reverseTarget, OutputTag<MonitoringSnapshot> m3MonitoringTag) {
         this(trainDays, earlyStopDays, threshDays, windowLength, zThreshold, channelWeights,
-                maxEpochs, earlyStopPatience, hiddenSize, batchSize,
+                maxEpochs, earlyStopPatience, hiddenSize, batchSize, reverseTarget,
                 m3MonitoringTag, DEFAULT_ROUNDS_PER_DAY);
     }
 
@@ -160,6 +162,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     M3Function(int trainDays, int earlyStopDays, int threshDays,
                int windowLength, double zThreshold, double[] channelWeights,
                int maxEpochs, int earlyStopPatience, int hiddenSize, int batchSize,
+               boolean reverseTarget,
                OutputTag<MonitoringSnapshot> m3MonitoringTag, int roundsPerDay) {
         this.roundsPerDay = roundsPerDay;
         this.trainDays = trainDays;
@@ -172,6 +175,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         this.earlyStopPatience = earlyStopPatience;
         this.hiddenSize = hiddenSize;
         this.batchSize = batchSize;
+        this.reverseTarget = reverseTarget;
         this.m3MonitoringTag = m3MonitoringTag;
     }
 
@@ -341,7 +345,8 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         // Train a single model via the shared pure function, so the online path and the offline grid
         // cannot diverge — which is what makes the parity check of addendum 3 §6 meaningful.
         M3Training.Config cfg = new M3Training.Config(
-                N_FEATURES, hiddenSize, batchSize, maxEpochs, earlyStopPatience, channelWeights);
+                N_FEATURES, hiddenSize, windowLength, batchSize, maxEpochs,
+                earlyStopPatience, channelWeights, reverseTarget);
         final String dev = device;
         M3Training.Result trained = M3Training.train(cfg, trainData, trainMaskData, esData,
                 new M3Training.EpochListener() {
@@ -469,7 +474,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                     + "若确需更换参数，请清除该作业的状态后重新冷启动。");
         }
 
-        LstmAutoEncoder ae = new LstmAutoEncoder(N_FEATURES, hs);
+        LstmAutoEncoder ae = new LstmAutoEncoder(N_FEATURES, hs, tw, reverseTarget);
         ae.deserializeModel(mBytes);                   // 按训练时的宽度复原模型 / restore at the trained width
 
         M3Scorer scorer;

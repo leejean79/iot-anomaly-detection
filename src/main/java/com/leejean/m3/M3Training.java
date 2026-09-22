@@ -31,6 +31,10 @@ public final class M3Training {
 
         public final int nFeatures;
         public final int hiddenSize;
+        /** 窗口长度。结构改正后它是网络的结构参数，不再只是喂数据的形状。/ now structural. */
+        public final int windowLength;
+        /** 重构目标是否取逆序，默认开启（裁决书第二节）。/ reversed reconstruction target, on by default. */
+        public final boolean reverseTarget;
         /** 小批量大小。1 表示逐窗更新，即 2026-09-21 参照点所用的口径 / 1 = per-window updates. */
         public final int batchSize;
         public final int maxEpochs;
@@ -38,10 +42,18 @@ public final class M3Training {
         public final int patience;
         public final double[] channelWeights;
 
-        public Config(int nFeatures, int hiddenSize, int batchSize,
+        public Config(int nFeatures, int hiddenSize, int windowLength, int batchSize,
                       int maxEpochs, int patience, double[] channelWeights) {
+            this(nFeatures, hiddenSize, windowLength, batchSize, maxEpochs, patience,
+                    channelWeights, true);
+        }
+
+        public Config(int nFeatures, int hiddenSize, int windowLength, int batchSize,
+                      int maxEpochs, int patience, double[] channelWeights, boolean reverseTarget) {
             this.nFeatures = nFeatures;
             this.hiddenSize = hiddenSize;
+            this.windowLength = windowLength;
+            this.reverseTarget = reverseTarget;
             this.batchSize = batchSize;
             this.maxEpochs = maxEpochs;
             this.patience = patience;
@@ -97,7 +109,8 @@ public final class M3Training {
                                double[][][] earlyStopWindows,
                                EpochListener listener) {
         long t0 = System.currentTimeMillis();
-        LstmAutoEncoder ae = new LstmAutoEncoder(cfg.nFeatures, cfg.hiddenSize);
+        LstmAutoEncoder ae = new LstmAutoEncoder(
+                cfg.nFeatures, cfg.hiddenSize, cfg.windowLength, cfg.reverseTarget);
 
         double prevLoss = Double.MAX_VALUE;
         int noImprove = 0;                                 // 连续无改善的 epoch 计数 / consecutive no-improvement epochs

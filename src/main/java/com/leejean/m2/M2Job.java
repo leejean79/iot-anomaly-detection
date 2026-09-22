@@ -125,6 +125,10 @@ public class M2Job {
         // 默认 1 即 2026-09-21 参照点的口径；待步骤 A 的扫描选定后改此默认值。
         // Must match the offline grid's value; default 1 reproduces the reference reading.
         int m3BatchSize = params.getInt("m3-batch-size", 1);
+        // 重构目标是否取逆序（把窗口倒过来作为解码目标），按参考文献默认开启；
+        // 做成参数是为了将来能做消融实验（裁决书第二节）。
+        // Reversed reconstruction target, on by default, switchable for ablation.
+        boolean m3ReverseTarget = params.getBoolean("m3-reverse-target", true);
         // 通道权重表（决策 5）：设备 G 的 Light 权重为零（临时；M6 级-0 重估修复尺度后恢复）
         // Channel weights: device G's Light weight is zero (temporary; restore once M6 level-0 re-estimation)
         // 此处为全局默认全 1；逐设备权重在 M3Function 内按配置覆盖
@@ -157,6 +161,7 @@ public class M2Job {
             System.out.println("M3 max epochs:   " + m3MaxEpochs + " (patience=" + m3EarlyStopPatience + ")");
             System.out.println("M3 hidden size:  " + m3HiddenSize + "  (fleet-wide, fixed from the offline grid)");
             System.out.println("M3 batch size:   " + m3BatchSize + "   (must match the offline grid)");
+            System.out.println("M3 reverse tgt:  " + m3ReverseTarget + " (reversed reconstruction target)");
         }
         System.out.println("========================================");
 
@@ -296,7 +301,7 @@ public class M2Job {
                             m3TrainDays, m3EarlyStopDays, m3ThreshDays,
                             m3WindowLength, m3ZThreshold, m3ChannelWeights,
                             m3MaxEpochs, m3EarlyStopPatience,
-                            m3HiddenSize, m3BatchSize, m3MonTag))
+                            m3HiddenSize, m3BatchSize, m3ReverseTarget, m3MonTag))
                     .name("M3-LSTM-AE");
 
             // M3 上下文评分 → synergia-scores

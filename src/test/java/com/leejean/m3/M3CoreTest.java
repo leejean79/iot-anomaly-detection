@@ -1,5 +1,6 @@
 package com.leejean.m3;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -111,7 +112,7 @@ class M3CoreTest {
 
     @Test
     void autoEncoderTrainReducesLoss() {
-        LstmAutoEncoder ae = new LstmAutoEncoder(3, 10);
+        LstmAutoEncoder ae = new LstmAutoEncoder(3, 10, 10);
         double[][][] windows = new double[5][10][3];
         for (int w = 0; w < 5; w++) {
             for (int t = 0; t < 10; t++) {
@@ -130,7 +131,7 @@ class M3CoreTest {
 
     @Test
     void autoEncoderReconstructOutputShape() {
-        LstmAutoEncoder ae = new LstmAutoEncoder(5, 20);
+        LstmAutoEncoder ae = new LstmAutoEncoder(5, 20, 60);
         double[][] window = new double[60][5];
         for (int t = 0; t < 60; t++) {
             for (int f = 0; f < 5; f++) window[t][f] = Math.random();
@@ -163,8 +164,76 @@ class M3CoreTest {
     }
 
     @Test
+    @DisplayName("结构：解码器路径上不存在从时刻 t 的输入到时刻 t 的输出的直接连接")
+    void decoderHasNoDirectPerTimestepPathFromInput() {
+        // 裁决书第四节第 1 条要求的断言。做法：只扰动输入的某一个时间步，测量输出在**各个**时间步
+        // 上的变化量。旧结构里每一步的输出直接看得到同一步的输入，被扰动那一步的输出变化会远大于
+        // 其余各步；新结构里输入只经由一个摘要向量影响输出，因此变化应当摊到所有时间步上。
+        // Perturb one input step and measure the change at every output step: a per-timestep shortcut
+        // would concentrate the change at the perturbed step.
+        //
+        // 判别力已验证：2026-09-22 用旧拓扑（一层逐时间步 LSTM 接一个逐时间步输出层）跑同一个实验，
+        // 被扰动步的输出变化为 3.173、其余各步最大 2.025，比值 1.6，下面的断言在旧结构下会失败。
+        // 一条在新旧结构下都通过的断言是没有意义的，故此处记录该验证。
+        // Discriminating power verified: on the former topology the same probe gave 3.173 vs 2.025,
+        // so the assertion below would have failed there.
+        final int L = 16, F = 5, C = 8, tPerturb = 7;
+        LstmAutoEncoder ae = new LstmAutoEncoder(F, C, L);
+        double[][][] windows = new double[8][L][F];
+        java.util.Random rnd = new java.util.Random(5);
+        for (int w = 0; w < 8; w++) {
+            for (int t = 0; t < L; t++) {
+                for (int f = 0; f < F; f++) {
+                    windows[w][t][f] = Math.sin(0.4 * t + f) + 0.05 * rnd.nextGaussian();
+                }
+            }
+        }
+        for (int e = 0; e < 5; e++) {
+            ae.trainEpoch(windows, null, 4);           // 训几轮，避免在纯随机初值上做判断
+        }
+
+        double[][] base = copy(windows[0]);
+        double[][] perturbed = copy(windows[0]);
+        for (int f = 0; f < F; f++) {
+            perturbed[tPerturb][f] += 3.0;             // 只动一个时间步 / a single step is moved
+        }
+
+        double[][] reconBase = ae.reconstruct(base);
+        double[][] reconPert = ae.reconstruct(perturbed);
+
+        double[] delta = new double[L];                // 各时间步的输出变化量 / per-step output change
+        for (int t = 0; t < L; t++) {
+            for (int f = 0; f < F; f++) {
+                delta[t] += Math.abs(reconPert[t][f] - reconBase[t][f]);
+            }
+        }
+        double atPerturbed = delta[tPerturb];
+        double maxElsewhere = 0.0;
+        for (int t = 0; t < L; t++) {
+            if (t != tPerturb) {
+                maxElsewhere = Math.max(maxElsewhere, delta[t]);
+            }
+        }
+
+        assertTrue(maxElsewhere > 0.0,
+                "扰动应当影响到被扰动步之外的输出；若其余各步纹丝不动，说明存在逐步直连");
+        assertTrue(atPerturbed <= maxElsewhere,
+                "被扰动那一步的输出变化 " + atPerturbed + " 不得高于其余各步的最大变化 "
+                        + maxElsewhere + "——高出即说明解码器能直接看到同一步的输入");
+    }
+
+    /** 深拷贝一个窗口，避免扰动实验改到原数组。 */
+    private static double[][] copy(double[][] window) {
+        double[][] out = new double[window.length][];
+        for (int t = 0; t < window.length; t++) {
+            out[t] = window[t].clone();
+        }
+        return out;
+    }
+
+    @Test
     void autoEncoderSerializeDeserialize() throws Exception {
-        LstmAutoEncoder ae = new LstmAutoEncoder(5, 20);
+        LstmAutoEncoder ae = new LstmAutoEncoder(5, 20, 10);
         // 训几轮使参数非初始化 / train a few epochs so params are non-trivial
         double[][][] windows = new double[3][10][5];
         for (int w = 0; w < 3; w++)
@@ -184,7 +253,7 @@ class M3CoreTest {
         byte[] bytes = ae.serializeModel();
         assertTrue(bytes.length > 0, "Serialized model should be non-empty");
 
-        LstmAutoEncoder ae2 = new LstmAutoEncoder(5, 20);
+        LstmAutoEncoder ae2 = new LstmAutoEncoder(5, 20, 10);
         ae2.deserializeModel(bytes);
         double[][] afterRecon = ae2.reconstruct(testWindow);
 
