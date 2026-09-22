@@ -92,6 +92,13 @@ public final class M3Grid {
         double esLossOutlier;
         /** 两者之比。**只作诊断，不作判据**（裁决书第三节）。/ diagnostic only, never a criterion. */
         double separationRatio;
+        /**
+         * 上面两个平均值各自是由多少个窗口算出来的。没有这两个数，分离比无法判读：若含离群轮的窗口
+         * 只有个位数，这个比值就由一两个窗口的个性决定，其波动不说明任何模型性质。
+         * The window counts behind the two means; without them the ratio cannot be interpreted.
+         */
+        int esCleanWindows;
+        int esOutlierWindows;
         int batchSize;
         String ompThreads;
         boolean sanitized;   // 是否做了训练净化 / whether sanitization was applied
@@ -185,10 +192,18 @@ public final class M3Grid {
                 // 运行中的日志会长时间毫无动静，无法区分「正在训练」与「已经死掉」。
                 // Print the split BEFORE training: otherwise the log is silent for minutes on end
                 // and a live run is indistinguishable from a dead one.
-                System.out.printf("[grid] %s 窗口长度 %d：训练集 %d 窗（剔除 %d 窗）、早停集 %d 窗，"
+                int esOutlierCount = 0;
+                for (boolean b : split.earlyStopHasOutlier) {
+                    if (b) {
+                        esOutlierCount++;
+                    }
+                }
+                System.out.printf("[grid] %s 窗口长度 %d：训练集 %d 窗（剔除 %d 窗）、早停集 %d 窗"
+                                + "（其中含离群轮的 %d 窗，分离比即由这 %d 窗与其余 %d 窗相比而来），"
                                 + "本窗口长度下将依次训练 %d 个隐藏层宽度。%s%n",
                         device, win, split.train.length, split.trainExcluded,
-                        split.earlyStop.length, hiddenGrid.length, memoryLine());
+                        split.earlyStop.length, esOutlierCount, esOutlierCount,
+                        split.earlyStop.length - esOutlierCount, hiddenGrid.length, memoryLine());
 
                 for (int bs : batchGrid) {
                 for (int hs : hiddenGrid) {
@@ -243,6 +258,8 @@ public final class M3Grid {
                             ? M3Training.evaluateLoss(trained.model, esDirty, channelWeights) : Double.NaN;
                     r.separationRatio = (esClean.length > 0 && esDirty.length > 0 && r.esLossClean > 0)
                             ? r.esLossOutlier / r.esLossClean : Double.NaN;
+                    r.esCleanWindows = esClean.length;
+                    r.esOutlierWindows = esDirty.length;
                     r.ompThreads = ompThreads;
                     results.add(r);
                     done++;
@@ -433,7 +450,8 @@ public final class M3Grid {
         try (PrintWriter pw = new PrintWriter(path, "UTF-8")) {
             pw.println("device,hiddenSize,windowLength,batchSize,ompThreads,"
                     + "trainWindows,trainExcluded,esWindows,"
-                    + "epochs,esLoss,relDeltaVsRef,esLossClean,esLossOutlier,separationRatio,"
+                    + "epochs,esLoss,relDeltaVsRef,"
+                    + "esCleanWindows,esOutlierWindows,esLossClean,esLossOutlier,separationRatio,"
                     + "trainSeconds,secPerEpoch,sanitized");
             for (Result r : results) {
                 // secPerEpoch 由程序算出并写入，避免事后手算出错 / computed here, not by hand afterwards
@@ -443,10 +461,11 @@ public final class M3Grid {
                 // Computed here, never by hand; left empty when no reference was given.
                 String rel = referenceLoss > 0
                         ? String.format("%.6f", (r.esLoss - referenceLoss) / referenceLoss) : "";
-                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%s,%.8f,%.8f,%.4f,%.1f,%.1f,%s%n",
+                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%s,%d,%d,%.8f,%.8f,%.4f,%.1f,%.1f,%s%n",
                         r.device, r.hiddenSize, r.windowLength, r.batchSize, r.ompThreads,
                         r.trainWindows, r.trainExcluded, r.esWindows,
                         r.epochs, r.esLoss, rel,
+                        r.esCleanWindows, r.esOutlierWindows,
                         r.esLossClean, r.esLossOutlier, r.separationRatio,
                         r.trainSeconds, secPerEpoch, r.sanitized);
             }
