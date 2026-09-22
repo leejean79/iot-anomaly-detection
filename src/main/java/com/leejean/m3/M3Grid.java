@@ -99,6 +99,15 @@ public final class M3Grid {
          */
         int esCleanWindows;
         int esOutlierWindows;
+        /**
+         * 平凡基线：在早停集上「一律输出 0」的加权均方误差。M1 的 RobustScaler 把每个通道减去中位数
+         * 再除以四分位距，因此归一化之后 0 就是该通道的中位数——输出 0 等于「什么都不学，一律猜中位数」。
+         * 没有这个标尺，一个 0.37 的误差究竟算好算坏无从判断。模型误差若不明显低于它，说明模型没有
+         * 学到任何有用的东西。
+         * Trivial baseline: predicting all zeros, which after the robust scaling is the per-channel
+         * median. Without it there is no way to tell whether a given loss is good.
+         */
+        double esLossBaseline;
         int batchSize;
         String ompThreads;
         boolean sanitized;   // 是否做了训练净化 / whether sanitization was applied
@@ -260,6 +269,7 @@ public final class M3Grid {
                             ? r.esLossOutlier / r.esLossClean : Double.NaN;
                     r.esCleanWindows = esClean.length;
                     r.esOutlierWindows = esDirty.length;
+                    r.esLossBaseline = zeroBaselineLoss(split.earlyStop, channelWeights);
                     r.ompThreads = ompThreads;
                     results.add(r);
                     done++;
@@ -281,6 +291,24 @@ public final class M3Grid {
 
         writeCsv(results, outCsv, true, referenceLoss);
         interpret(results, outCsv, referenceLoss);
+    }
+
+    /**
+     * 平凡基线的误差：把重构结果取为全 0，与真实窗口比较。归一化之后 0 即每通道的中位数，
+     * 所以这相当于「一律猜中位数」这个不学习的模型。它只取决于数据，与训练无关。
+     * The all-zeros (per-channel median) baseline loss; it depends on the data alone.
+     */
+    private static double zeroBaselineLoss(double[][][] windows, double[] channelWeights) {
+        if (windows.length == 0) {
+            return Double.NaN;
+        }
+        WeightedMseLoss lossCalc = new WeightedMseLoss(N_FEATURES, channelWeights);
+        double total = 0.0;
+        for (double[][] window : windows) {
+            double[][] zeros = new double[window.length][N_FEATURES];
+            total += lossCalc.compute(window, zeros, null, window.length).wmse;
+        }
+        return total / windows.length;
     }
 
     /** 取出早停集中含（或不含）离群轮的那一部分窗口。 */
@@ -451,7 +479,8 @@ public final class M3Grid {
             pw.println("device,hiddenSize,windowLength,batchSize,ompThreads,"
                     + "trainWindows,trainExcluded,esWindows,"
                     + "epochs,esLoss,relDeltaVsRef,"
-                    + "esCleanWindows,esOutlierWindows,esLossClean,esLossOutlier,separationRatio,"
+                    + "esCleanWindows,esOutlierWindows,esLossBaseline,"
+                    + "esLossClean,esLossOutlier,separationRatio,"
                     + "trainSeconds,secPerEpoch,sanitized");
             for (Result r : results) {
                 // secPerEpoch 由程序算出并写入，避免事后手算出错 / computed here, not by hand afterwards
@@ -461,11 +490,11 @@ public final class M3Grid {
                 // Computed here, never by hand; left empty when no reference was given.
                 String rel = referenceLoss > 0
                         ? String.format("%.6f", (r.esLoss - referenceLoss) / referenceLoss) : "";
-                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%s,%d,%d,%.8f,%.8f,%.4f,%.1f,%.1f,%s%n",
+                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%s,%d,%d,%.8f,%.8f,%.8f,%.4f,%.1f,%.1f,%s%n",
                         r.device, r.hiddenSize, r.windowLength, r.batchSize, r.ompThreads,
                         r.trainWindows, r.trainExcluded, r.esWindows,
                         r.epochs, r.esLoss, rel,
-                        r.esCleanWindows, r.esOutlierWindows,
+                        r.esCleanWindows, r.esOutlierWindows, r.esLossBaseline,
                         r.esLossClean, r.esLossOutlier, r.separationRatio,
                         r.trainSeconds, secPerEpoch, r.sanitized);
             }
