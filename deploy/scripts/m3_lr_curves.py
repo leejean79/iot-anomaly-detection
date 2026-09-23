@@ -93,12 +93,22 @@ def summarize(lr, rows, baseline):
     # 典型每轮改善幅度：相邻两轮之差的绝对值的中位数，用来判断改善阈值该用绝对值还是相对值。
     deltas = sorted(abs(es[i] - es[i - 1]) for i in range(1, len(es)))
     median_delta = deltas[len(deltas) // 2] if deltas else float("nan")
+    # 末段统计：取最后十轮的均值与标准差。全程的波动幅度被前期陡降段主导，用它去比较两档收敛
+    # 之后的高下会失真；真正该比较的是末段的水平，而标准差给出「两档之差是否大于自身抖动」的尺子。
+    # Late-phase stats: the whole-run spread is dominated by the early descent and cannot tell whether
+    # two converged runs actually differ; the last-10-epoch mean and sd can.
+    tail = es[-10:] if len(es) >= 10 else es
+    tail_mean = sum(tail) / len(tail)
+    tail_sd = (sum((v - tail_mean) ** 2 for v in tail) / len(tail)) ** 0.5
+    tail_deltas = sorted(abs(tail[i] - tail[i - 1]) for i in range(1, len(tail)))
+    tail_median_delta = tail_deltas[len(tail_deltas) // 2] if tail_deltas else float("nan")
     ok = es[-1] <= 0.7 * baseline
-    print("  学习率 {:<8g} 末轮误差 {:.6f}  最好在第 {} 轮（{:.6f}）  "
-          "最长平台期 {} 轮  典型每轮变动 {:.8f}  {}".format(
-              lr, es[-1], rows[best_i][0], es[best_i], longest_plateau, median_delta,
-              "低于基线七成，视为训练成功" if ok else "**未低于基线七成，视为未训练成功**"))
-    return median_delta
+    print("  学习率 {:<8g} 末轮误差 {:.6f}  最好在第 {} 轮（{:.6f}）  最长平台期 {} 轮".format(
+        lr, es[-1], rows[best_i][0], es[best_i], longest_plateau))
+    print("           末十轮 均值 {:.6f} ± 标准差 {:.6f}；典型每轮变动 全程 {:.8f} / 末段 {:.8f}；{}".format(
+        tail_mean, tail_sd, median_delta, tail_median_delta,
+        "低于基线七成，视为训练成功" if ok else "**未低于基线七成，视为未训练成功**"))
+    return tail_mean, tail_sd
 
 
 def main():
@@ -122,9 +132,22 @@ def main():
     out = args.out or os.path.splitext(args.csv)[0] + ".png"
 
     print("逐档读数（供裁决书第三节的三个问题使用）：")
+    stats = OrderedDict()
     for lr, rows in groups.items():
-        summarize(lr, rows, baseline)
+        stats[lr] = summarize(lr, rows, baseline)
     print("平凡基线 {:.6f}；训练成功判据线（基线的七成）{:.6f}".format(baseline, 0.7 * baseline))
+    # 两档之差若小于各自末段抖动之和，就说明这次实验分不开它们，不能假装分得开。
+    # If two runs differ by less than their own late-phase jitter, the experiment cannot separate them.
+    ok_lrs = [lr for lr in stats if stats[lr][0] <= 0.7 * baseline]
+    if len(ok_lrs) >= 2:
+        ok_lrs.sort(key=lambda x: stats[x][0])
+        a, b = ok_lrs[0], ok_lrs[1]
+        gap = abs(stats[a][0] - stats[b][0])
+        jitter = stats[a][1] + stats[b][1]
+        print("最好两档 {:g} 与 {:g}：末十轮均值相差 {:.6f}，两者抖动之和 {:.6f} —— {}".format(
+            a, b, gap, jitter,
+            "差距大于抖动，可以区分" if gap > jitter
+            else "**差距小于抖动，本次实验分不开这两档**"))
 
     fig, (ax_es, ax_tr) = plt.subplots(1, 2, figsize=(13, 5.2), sharex=True)
     fig.patch.set_facecolor("#fcfcfb")
@@ -141,7 +164,15 @@ def main():
         for side in ("left", "bottom"):
             ax.spines[side].set_color(GRID)
         ax.tick_params(colors=INK_MUTED, labelsize=9)
-    ax_es.set_ylabel("weighted MSE", color=INK_MUTED, fontsize=10)
+    # 左联用对数纵轴：0.01 那一档的尖峰高达 0.86，线性轴会把已收敛的两档压成贴地的一条线，
+    # 平台期与末段抖动都看不出来——而那正是要从曲线上读的东西。
+    # Log y-axis: the spikes of the unstable run flatten the converged ones on a linear axis.
+    ax_es.set_yscale("log")
+    ax_es.set_ylabel("weighted MSE per element (log scale)", color=INK_MUTED, fontsize=10)
+    # 右联是 DL4J 的内部 score，它在时间步上聚合，量级实测约为左联的四五十倍。
+    # 两联只可比较**形状**，不可比较数值——否则会被误读成严重过拟合。
+    # The right panel is DL4J's internal score on a different scale; compare shapes, not values.
+    ax_tr.set_ylabel("DL4J internal score (different scale)", color=INK_MUTED, fontsize=10)
 
     # 两条水平参考线画成中性灰虚线：它们是参照，不是数据系列，不占分类色。
     # Reference lines are neutral, not series: they must not consume a categorical hue.
