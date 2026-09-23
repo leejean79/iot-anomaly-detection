@@ -78,15 +78,22 @@ public class LstmAutoEncoder implements Serializable {
     private final double learningRate;
     /** 梯度裁剪阈值，0 表示不裁剪 / L2 clipping threshold; 0 disables. */
     private final double gradClip;
+    /** 梯度范数记录器，null 表示不记录。只读，不影响训练结果 / read-only norm recorder. */
+    private transient GradientNormRecorder normRecorder;
     private static final double DEFAULT_LEARNING_RATE = 0.001;
     /**
-     * 梯度裁剪阈值（按二范数逐层裁剪）。2026-09-23 裁决书第三节定为生产默认值 1.0。
-     * 此前为未启用，而学习率 0.01 的诊断曲线显示了无约束下的持续梯度爆发——60 轮里从头震荡到尾。
-     * 取 0 表示不裁剪，仅供日后做对照实验时使用。
+     * 梯度裁剪阈值（按二范数逐层裁剪），0 表示不裁剪。
+     *
+     * <p>默认值的沿革：起初未启用；2026-09-23 前一份裁决书定为 1.0；同日实测表明 1.0 明确拖慢学习
+     * （同轮次区间对照，未裁剪 0.024296 对裁剪 0.040633，差距为抖动带的 1.46 倍），遂按当日后一份
+     * 裁决书**改回 0**——把一个已知有害的值留作默认比不设默认更糟。正式阈值待梯度范数分布实测后，
+     * 取选定批量那次运行第 99.9 百分位的三倍。
+     * Default history: absent → 1.0 → back to 0, because 1.0 measurably slowed learning. The real
+     * threshold will be three times the p99.9 of the measured gradient-norm distribution.
      * L2-norm gradient clipping threshold; 0 disables it. Formerly absent, which is what let the
      * 0.01 learning rate diverge for all 60 epochs.
      */
-    private static final double DEFAULT_GRAD_CLIP = 1.0;
+    private static final double DEFAULT_GRAD_CLIP = 0.0;
 
     // model 不参与 Java 序列化（transient）；跨 checkpoint 用 serializeModel/deserializeModel 手工搬运。
     // model is transient (excluded from Java serialization); moved across checkpoints via (de)serializeModel.
@@ -419,5 +426,15 @@ public class LstmAutoEncoder implements Serializable {
     public boolean isReverseTarget() { return reverseTarget; }
     public double getLearningRate() { return learningRate; }
     public double getGradClip() { return gradClip; }
+
+    /**
+     * 开启梯度范数记录。挂的是 onGradientCalculation，即更新器作用之前——那才是裁剪所作用的量。
+     * Attach the recorder; it observes the raw gradient, which is what clipping acts on.
+     */
+    public GradientNormRecorder recordGradientNorms() {
+        normRecorder = new GradientNormRecorder();
+        model.addListeners(normRecorder);
+        return normRecorder;
+    }
     public MultiLayerNetwork getModel() { return model; }
 }

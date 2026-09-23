@@ -113,6 +113,19 @@ public final class M3Grid {
         double esLossLast10;
         /** 同一段的标准差 / the sd over the same window. */
         double esSdLast10;
+        /** 梯度二范数的分布读数（裁决书第二节第 2 条）/ gradient-norm distribution readings. */
+        int gradNormCount;
+        double gradNormMedian;
+        double gradNormP99;
+        double gradNormP999;
+        double gradNormMax;
+        /** 逐层范数最大值的分布——定裁剪阈值须用它 / per-layer maxima; the clipping-relevant stat. */
+        double layerNormMedian;
+        double layerNormP99;
+        double layerNormP999;
+        double layerNormMax;
+        /** 总训练时间 = 实际轮数 × 每轮秒数，即新选择规则的并列判据 / the tie-break statistic. */
+        double totalTrainSeconds;
         int batchSize;
         double learningRate;
         String ompThreads;
@@ -150,7 +163,10 @@ public final class M3Grid {
         // Learning-rate grid; the 2026-09-22 ruling authorizes changing it for this diagnosis.
         double[] lrGrid = parseDoubles(a.getOrDefault("lr-grid", "0.001"));
         // 梯度裁剪阈值，须与在线算子一致，否则等值核验不成立。0 表示不裁剪。
-        double gradClip = Double.parseDouble(a.getOrDefault("grad-clip", "1.0"));
+        // 默认 0（不裁剪）：阈值 1.0 已实测会拖慢学习，正式阈值待范数分布测出后再定。
+        double gradClip = Double.parseDouble(a.getOrDefault("grad-clip", "0"));
+        // 梯度范数的逐次记录输出路径；给出即开启记录。只读观测，不影响训练结果。
+        String gradNormPath = a.getOrDefault("grad-norm-csv", "");
         // 关闭早停：每档跑满 maxEpochs 轮。诊断要看完整曲线，早停会把曲线截断在不同位置上，
         // 三档之间就不可比了（裁决书第三节「关闭早停，每档跑满六十轮」）。
         // Disable early stopping so all rows run the full length and remain comparable.
@@ -209,6 +225,15 @@ public final class M3Grid {
         }
         final PrintWriter perEpochWriter = perEpochCsv;
 
+        PrintWriter gradNormCsv = null;
+        if (!gradNormPath.isEmpty()) {
+            gradNormCsv = new PrintWriter(gradNormPath, "UTF-8");
+            gradNormCsv.println("device,hiddenSize,windowLength,batchSize,learningRate,update,"
+                    + "gradNormTotal,gradNormMaxLayer");
+            gradNormCsv.flush();
+        }
+        final PrintWriter gradNormWriter = gradNormCsv;
+
         List<Result> results = new ArrayList<>();
         int done = 0;
         for (Map.Entry<String, List<Row>> e : byDevice.entrySet()) {
@@ -253,7 +278,7 @@ public final class M3Grid {
                     M3Training.Config cfg = new M3Training.Config(
                             N_FEATURES, hs, win, bs, maxEpochs,
                             noEarlyStop ? Integer.MAX_VALUE : patience,
-                            channelWeights, reverseTarget, lr, gradClip);
+                            channelWeights, reverseTarget, lr, gradClip, !gradNormPath.isEmpty());
                     M3Training.Result trained = M3Training.train(
                             cfg, split.train, split.trainMasks, split.earlyStop,
                             new M3Training.EpochListener() {
@@ -303,6 +328,28 @@ public final class M3Grid {
                     r.esOutlierWindows = countOutlierWindows(split.earlyStopHasOutlier, true);
                     r.esLossBaseline = fBaseline;
                     r.learningRate = lr;
+                    if (trained.gradientNorms != null) {
+                        r.gradNormCount = trained.gradientNorms.count();
+                        r.gradNormMedian = trained.gradientNorms.median();
+                        r.gradNormP99 = trained.gradientNorms.percentile(99.0);
+                        r.gradNormP999 = trained.gradientNorms.percentile(99.9);
+                        r.gradNormMax = trained.gradientNorms.max();
+                        r.layerNormMedian = trained.gradientNorms.layerMedian();
+                        r.layerNormP99 = trained.gradientNorms.layerPercentile(99.0);
+                        r.layerNormP999 = trained.gradientNorms.layerPercentile(99.9);
+                        r.layerNormMax = trained.gradientNorms.layerMax();
+                        if (gradNormWriter != null) {
+                            java.util.List<Double> tot = trained.gradientNorms.norms();
+                            java.util.List<Double> lay = trained.gradientNorms.maxLayerNorms();
+                            for (int i = 0; i < tot.size(); i++) {
+                                gradNormWriter.printf("%s,%d,%d,%d,%s,%d,%.8f,%.8f%n",
+                                        fdev, fhs, fwin, cfg.batchSize, cfg.learningRate, i + 1,
+                                        tot.get(i), i < lay.size() ? lay.get(i) : Double.NaN);
+                            }
+                            gradNormWriter.flush();
+                        }
+                    }
+                    r.totalTrainSeconds = trained.seconds;
                     r.esLossLast10 = trained.earlyStopLossLast10;
                     r.esSdLast10 = trained.earlyStopSdLast10;
                     // 判据改用末十轮均值：末轮值是一次抽样，用它判定「训练成功」与否会随机翻转。
@@ -331,6 +378,10 @@ public final class M3Grid {
         if (perEpochWriter != null) {
             perEpochWriter.close();
             System.out.println("[grid] 逐轮 CSV → " + perEpochPath);
+        }
+        if (gradNormWriter != null) {
+            gradNormWriter.close();
+            System.out.println("[grid] 梯度范数 CSV → " + gradNormPath);
         }
 
         writeCsv(results, outCsv, true, referenceLoss);
@@ -523,7 +574,9 @@ public final class M3Grid {
             pw.println("device,hiddenSize,windowLength,batchSize,ompThreads,"
                     + "trainWindows,trainExcluded,esWindows,"
                     + "epochs,esLoss,relDeltaVsRef,"
-                    + "esLossLast10,esSdLast10,"
+                    + "esLossLast10,esSdLast10,totalTrainSeconds,"
+                    + "gradNormCount,gradNormMedian,gradNormP99,gradNormP999,gradNormMax,"
+                    + "layerNormMedian,layerNormP99,layerNormP999,layerNormMax,"
                     + "learningRate,esCleanWindows,esOutlierWindows,esLossBaseline,trainedOk,"
                     + "trainSeconds,secPerEpoch,sanitized");
             for (Result r : results) {
@@ -534,11 +587,16 @@ public final class M3Grid {
                 // Computed here, never by hand; left empty when no reference was given.
                 String rel = referenceLoss > 0
                         ? String.format("%.6f", (r.esLoss - referenceLoss) / referenceLoss) : "";
-                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%s,%.8f,%.8f,%s,%d,%d,%.8f,%s,%.1f,%.1f,%s%n",
+                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%s,%.8f,%.8f,%.1f,"
+                                + "%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
+                                + "%s,%d,%d,%.8f,%s,%.1f,%.1f,%s%n",
                         r.device, r.hiddenSize, r.windowLength, r.batchSize, r.ompThreads,
                         r.trainWindows, r.trainExcluded, r.esWindows,
                         r.epochs, r.esLoss, rel,
-                        r.esLossLast10, r.esSdLast10,
+                        r.esLossLast10, r.esSdLast10, r.totalTrainSeconds,
+                        r.gradNormCount, r.gradNormMedian, r.gradNormP99,
+                        r.gradNormP999, r.gradNormMax,
+                        r.layerNormMedian, r.layerNormP99, r.layerNormP999, r.layerNormMax,
                         r.learningRate, r.esCleanWindows, r.esOutlierWindows,
                         r.esLossBaseline, r.trainedOk,
                         r.trainSeconds, secPerEpoch, r.sanitized);
@@ -623,8 +681,13 @@ public final class M3Grid {
             System.out.printf("         → 按简单优先取 hidden=%d、window=%d。%n",
                     pick.hiddenSize, pick.windowLength);
         }
-        if (referenceLoss > 0) {
-            interpretBatchSweep(results, referenceLoss);
+        // 小批量维度只要出现两个以上取值，就按第三节的规则给出选型。
+        java.util.Set<Integer> batches = new java.util.TreeSet<>();
+        for (Result r : results) {
+            batches.add(r.batchSize);
+        }
+        if (batches.size() > 1) {
+            interpretBatchSweep(results);
         }
         System.out.println("提醒：以上是**有依据的默认值，不是最优值**——种子间方差未测，"
                 + "最终裁决权在 V-M3-4（误报率）与 V-M3-5（注入召回）。");
@@ -633,37 +696,81 @@ public final class M3Grid {
     }
 
     /**
-     * 小批量大小的选型判据（补遗三 §2）：取早停集误差不超过参照值 1.05 倍的**最大**小批量大小。
-     * 一个都不满足时如实报告并明说不得靠调高学习率或 epoch 数去凑——那会改变被比较的对象本身。
-     * Selection rule: the largest batch size whose loss stays within 5% relative of the reference.
+     * 小批量大小的选型规则（2026-09-23《梯度裁剪阈值的定法与步骤 A 选择规则的改写》第三节）。
+     *
+     * <p>规则：在通过「训练成功」判据的行里，以停止前末十轮均值为统计量；与最优值相差不超过
+     * 百分之十的行视为并列；并列时取**总训练时间最短**者。
+     *
+     * <p><b>为什么不再用相对偏差规则。</b>原规则以小批量为一那一行作参考值，而 2026-09-23 实测中
+     * 该行自己未通过训练成功判据（末十轮均值 0.288531，高于判据线 0.231515）——参考的是一个没训
+     * 起来的模型，于是其余三行全被判为「优于参考超过 50%、视为可疑」，规则失去意义。裁决书据此
+     * 认定逐窗更新为不可用配置，并作废该规则。护栏思想保留给将来以训练成功的模型作参照的比较。
+     * The reference-based rule is void: its reference row itself failed to train.
      */
-    private static void interpretBatchSweep(List<Result> results, double referenceLoss) {
-        double threshold = referenceLoss * 1.05;
-        System.out.printf("%n---------- 小批量大小选型（判据：末十轮均值 ≤ 参照值 %.6f × 1.05 = %.6f）----------%n",
-                referenceLoss, threshold);
-        Result chosen = null;
+    private static void interpretBatchSweep(List<Result> results) {
+        System.out.println("\n---------- 小批量大小选型 ----------");
+        List<Result> eligible = new ArrayList<>();
         for (Result r : results) {
-            // 一律改用末十轮均值：末轮值是一次抽样，会让同一实验排出相反的名次（2026-09-23 实测）。
-            // The last-ten mean throughout; the final value reversed the ranking in the measurement.
-            String verdict = !r.trainedOk ? "**未训练成功，不参与选择**"
-                    : r.esLossLast10 <= threshold ? "通过" : "超出判据";
-            System.out.printf("  小批量 %-3d  末十轮均值 %.6f ± %.6f（相对参照 %+.2f%%）  %d 个 epoch  "
-                            + "每 epoch %.1fs  → %s%n",
-                    r.batchSize, r.esLossLast10, r.esSdLast10,
-                    100.0 * (r.esLossLast10 - referenceLoss) / referenceLoss,
-                    r.epochs, r.epochs > 0 ? r.trainSeconds / r.epochs : 0.0, verdict);
-            if (r.trainedOk && r.esLossLast10 <= threshold
-                    && (chosen == null || r.batchSize > chosen.batchSize)) {
-                chosen = r;
+            if (r.trainedOk) {
+                eligible.add(r);
+            } else {
+                System.out.printf("  小批量 %-3d  末十轮均值 %.6f 未比基线 %.6f 低三成，"
+                                + "**未训练成功，不参与选择**%n",
+                        r.batchSize, r.esLossLast10, r.esLossBaseline);
             }
         }
-        if (chosen == null) {
-            System.out.println("  **无一满足判据**。按补遗三 §2，此时应如实交出本表并停止，");
-            System.out.println("  不得通过调高学习率或 epoch 数去凑——那改变的是被比较的对象本身。");
+        if (eligible.isEmpty()) {
+            System.out.println("  没有任何小批量通过训练成功判据，无法选型。");
             return;
         }
-        System.out.printf("  建议取小批量 %d（满足判据的最大值）。它须同时成为离线网格与在线算子的"
-                        + "默认值，否则补遗三 §6 的等值核验不成立。%n", chosen.batchSize);
+        Result best = eligible.get(0);
+        for (Result r : eligible) {
+            if (r.esLossLast10 < best.esLossLast10) {
+                best = r;
+            }
+        }
+        double band = best.esLossLast10 * 1.10;
+        List<Result> tied = new ArrayList<>();
+        for (Result r : eligible) {
+            if (r.esLossLast10 <= band) {
+                tied.add(r);
+            }
+        }
+        System.out.printf("  最优为小批量 %d（末十轮均值 %.6f ± %.6f）；并列带 ≤ %.6f，带内 %d 行。%n",
+                best.batchSize, best.esLossLast10, best.esSdLast10, band, tied.size());
+        for (Result r : eligible) {
+            System.out.printf("    小批量 %-3d  末十轮均值 %.6f ± %.6f  %d 轮  总训练时间 %.1fs  %s%n",
+                    r.batchSize, r.esLossLast10, r.esSdLast10, r.epochs, r.totalTrainSeconds,
+                    tied.contains(r) ? "并列带内" : "带外");
+        }
+        // 并列时取总训练时间最短者。只有最优一行在带内时，这条自然退化为「取最优」。
+        // Shortest total training time among the tied rows; degenerates to "take the best" when alone.
+        Result pick = tied.get(0);
+        for (Result r : tied) {
+            if (r.totalTrainSeconds < pick.totalTrainSeconds) {
+                pick = r;
+            }
+        }
+        System.out.printf("  → 选定小批量 %d（并列带内总训练时间最短，%.1fs）。%n",
+                pick.batchSize, pick.totalTrainSeconds);
+        if (pick.gradNormCount > 0) {
+            // 裁决书第二节第 3 条：生产阈值取该行第 99.9 百分位的三倍，并报告被裁占比。
+            // 阈值必须由**逐层**范数定：DL4J 的 ClipL2PerLayer 比较的是单层范数，
+            // 而整模型范数是各层的平方和开方，必然更大。用后者定阈值会系统性偏大。
+            // The threshold must come from the per-layer distribution, which is what clipping compares.
+            double threshold = 3.0 * pick.layerNormP999;
+            System.out.printf("  梯度范数分布（%d 次更新）%n", pick.gradNormCount);
+            System.out.printf("    整模型：中位数 %.6f，p99 %.6f，p99.9 %.6f，最大 %.6f%n",
+                    pick.gradNormMedian, pick.gradNormP99, pick.gradNormP999, pick.gradNormMax);
+            System.out.printf("    逐层最大（裁剪实际比较的量）：中位数 %.6f，p99 %.6f，"
+                            + "p99.9 %.6f，最大 %.6f%n",
+                    pick.layerNormMedian, pick.layerNormP99, pick.layerNormP999, pick.layerNormMax);
+            System.out.printf("  → 生产裁剪阈值 = 3 × 逐层 p99.9 = %.6f；本次最大逐层范数为 %.6f，"
+                            + "%s%n", threshold, pick.layerNormMax,
+                    pick.layerNormMax <= threshold
+                            ? "该阈值下本次无一更新被裁（占比 0）"
+                            : "该阈值下仍有更新被裁，须查逐次 CSV 精确计算占比");
+        }
     }
 
     /**

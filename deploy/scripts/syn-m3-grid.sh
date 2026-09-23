@@ -32,8 +32,11 @@
 #      --early-stop-days <n>   早停段天数，默认 2
 #      --max-epochs <n>        单次训练的上限轮数，默认 100（2026-09-23 裁决书第三节；学习率
 #                              0.001 的最低点在第 54 轮，上限 60 会把它截断）
-#      --grad-clip <v>         梯度裁剪阈值（按二范数逐层裁剪），默认 1.0，0 表示不裁剪。
-#                              2026-09-23 裁决书第三节定为生产默认值。
+#      --grad-clip <v>         梯度裁剪阈值（按二范数逐层裁剪），默认 0 即不裁剪。
+#                              阈值 1.0 已实测会拖慢学习（同轮次区间对照，差距为抖动带的 1.46 倍），
+#                              正式阈值待梯度范数分布测出后取逐层第 99.9 百分位的三倍。
+#      --grad-norm-name <文件名> 额外产出逐次梯度范数 CSV（每次参数更新一行，含整模型范数与
+#                              逐层范数最大值），拉回到本地 docs/<文件名>。分布图由它绘制。
 #      --batch-grid <列表>     小批量大小网格，即一次权重更新用到多少个窗口，默认 "1"。
 #                              默认 1 即 2026-09-21 参照点的口径；步骤 A 传 "1,16,32,64" 一次跑完。
 #      --lr-grid <列表>        学习率网格，默认 "0.001"（2026-09-23 裁决书第二节定值）。2026-09-22 裁决书第三节授权改动学习率，
@@ -100,7 +103,7 @@ set -a; source "$DEPLOY_DIR/.env"; set +a
 DEVICES="E,G,C"; HIDDEN_GRID="40,60,90"; WINDOW_GRID="30,60,120"
 TRAIN_DAYS=7; ES_DAYS=2; MAX_EPOCHS=100; PATIENCE=20
 BATCH_GRID="1"; OMP_THREADS=1; REFERENCE_LOSS=""; NODE="master"; CONTAINER_MB=""; PROBE_ONLY=0
-REVERSE_TARGET=1; LR_GRID="0.001"; GRAD_CLIP="1.0"; NO_EARLY_STOP=0; PER_EPOCH_NAME=""
+REVERSE_TARGET=1; LR_GRID="0.001"; GRAD_CLIP="0"; GRAD_NORM_NAME=""; NO_EARLY_STOP=0; PER_EPOCH_NAME=""
 MAX_MESSAGES=3000000; OUT_NAME="m3_grid.csv"; USE_SCORES=1; REUSE=0; DETACH=0; COLLECT=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -116,6 +119,7 @@ while [[ $# -gt 0 ]]; do
         --no-reverse-target) REVERSE_TARGET=0; shift ;;
         --lr-grid) LR_GRID="$2"; shift 2 ;;
         --grad-clip) GRAD_CLIP="$2"; shift 2 ;;
+        --grad-norm-name) GRAD_NORM_NAME="$2"; shift 2 ;;
         --no-early-stop) NO_EARLY_STOP=1; shift ;;
         --per-epoch-name) PER_EPOCH_NAME="$2"; shift 2 ;;
         --node) NODE="$2"; shift 2 ;;
@@ -296,6 +300,17 @@ if [ "$COLLECT" -eq 1 ]; then
     # Always try to pull the per-epoch CSV: --per-epoch-name is a launch-time flag and requiring it
     # again at collect time is how the file gets silently left behind.
     PER_EPOCH_LOCAL="${PER_EPOCH_NAME:-${OUT_NAME%.csv}_per_epoch.csv}"
+    # 逐次梯度范数 CSV 同理，一律尝试拉回。
+    GRAD_NORM_LOCAL="${GRAD_NORM_NAME:-${OUT_NAME%.csv}_grad_norms.csv}"
+    if ssh "$RUN_HOST" "test -s ${WORK}/m3_grad_norms.csv" 2>/dev/null; then
+        if ssh "$RUN_HOST" "cat ${WORK}/m3_grad_norms.csv" > "${PROJECT_ROOT}/docs/${GRAD_NORM_LOCAL}" 2>/dev/null \
+                && [ -s "${PROJECT_ROOT}/docs/${GRAD_NORM_LOCAL}" ]; then
+            echo "[grid] 梯度范数 CSV 已拉回本地：${PROJECT_ROOT}/docs/${GRAD_NORM_LOCAL}"
+        else
+            rm -f "${PROJECT_ROOT}/docs/${GRAD_NORM_LOCAL}" 2>/dev/null || true
+            echo "[grid] 梯度范数 CSV 拉回失败，可手动：ssh ${RUN_HOST} 'cat ${WORK}/m3_grad_norms.csv' > docs/${GRAD_NORM_LOCAL}" >&2
+        fi
+    fi
     if ssh "$RUN_HOST" "test -s ${WORK}/m3_per_epoch.csv" 2>/dev/null; then
         if ssh "$RUN_HOST" "cat ${WORK}/m3_per_epoch.csv" > "${PROJECT_ROOT}/docs/${PER_EPOCH_LOCAL}" 2>/dev/null \
                 && [ -s "${PROJECT_ROOT}/docs/${PER_EPOCH_LOCAL}" ]; then
@@ -314,7 +329,8 @@ echo "===================================================================="
 echo "syn-m3-grid.sh — V-M3-3 离线超参数网格"
 echo "  设备 ${DEVICES}   隐藏层 ${HIDDEN_GRID}   窗口长度 ${WINDOW_GRID}"
 echo "  训练 ${TRAIN_DAYS} 天 / 早停 ${ES_DAYS} 天   maxEpochs=${MAX_EPOCHS} patience=${PATIENCE}"
-echo "  小批量大小 ${BATCH_GRID}   学习率 ${LR_GRID}   梯度裁剪 ${GRAD_CLIP}   OpenMP 线程 ${OMP_THREADS}"
+echo "  小批量大小 ${BATCH_GRID}   学习率 ${LR_GRID}   OpenMP 线程 ${OMP_THREADS}"
+echo "  梯度裁剪 $([ "$GRAD_CLIP" = "0" ] && echo '关闭' || echo "${GRAD_CLIP}")   $([ -n "$GRAD_NORM_NAME" ] && echo '记录逐次梯度范数' || true)"
 echo "  epoch 上限 ${MAX_EPOCHS}   耐心 ${PATIENCE}"
 [ "$NO_EARLY_STOP" -eq 1 ] && echo "  **早停已关闭**：每一行跑满 ${MAX_EPOCHS} 轮"
 echo "  运行节点 ${RUN_HOST}   容器上限 ${MEM_MB} MB（-Xmx ${XMX_MB}m，JavaCPP ${JAVACPP_MB}m）"
@@ -379,7 +395,7 @@ if [ "$RUN_HOST" != "fa-master" ]; then
     done
 fi
 
-ssh "$RUN_HOST" "rm -f ${WORK}/m3_grid.csv ${WORK}/m3_per_epoch.csv" || true
+ssh "$RUN_HOST" "rm -f ${WORK}/m3_grid.csv ${WORK}/m3_per_epoch.csv ${WORK}/m3_grad_norms.csv" || true
 
 REF_ARG=""
 [ -n "$REFERENCE_LOSS" ] && REF_ARG="--reference-loss ${REFERENCE_LOSS}"
@@ -390,6 +406,8 @@ ES_ARG=""
 [ "$NO_EARLY_STOP" -eq 1 ] && ES_ARG="--no-early-stop true"
 PER_EPOCH_ARG=""
 [ -n "$PER_EPOCH_NAME" ] && PER_EPOCH_ARG="--per-epoch-csv /work/m3_per_epoch.csv"
+GRAD_NORM_ARG=""
+[ -n "$GRAD_NORM_NAME" ] && GRAD_NORM_ARG="--grad-norm-csv /work/m3_grad_norms.csv"
 
 RUN_MOUNTS="-m ${MEM_MB}m -v ${RHOME}/jars:/jars:ro -v ${WORK}:/work -e OMP_NUM_THREADS=${OMP_THREADS}"
 RUN_CMD="java -Xmx${XMX_MB}m -Dorg.bytedeco.javacpp.maxbytes=${JAVACPP_MB}m \
@@ -399,7 +417,7 @@ RUN_CMD="java -Xmx${XMX_MB}m -Dorg.bytedeco.javacpp.maxbytes=${JAVACPP_MB}m \
         --devices ${DEVICES} --hidden-grid ${HIDDEN_GRID} --window-grid ${WINDOW_GRID} \
         --train-days ${TRAIN_DAYS} --early-stop-days ${ES_DAYS} \
         --max-epochs ${MAX_EPOCHS} --patience ${PATIENCE} --batch-grid ${BATCH_GRID} \
-        --lr-grid ${LR_GRID} --grad-clip ${GRAD_CLIP} ${ES_ARG} ${PER_EPOCH_ARG} \
+        --lr-grid ${LR_GRID} --grad-clip ${GRAD_CLIP} ${ES_ARG} ${PER_EPOCH_ARG} ${GRAD_NORM_ARG} \
         ${REF_ARG} ${REV_ARG} --out /work/m3_grid.csv"
 
 if [ "$DETACH" -eq 1 ]; then

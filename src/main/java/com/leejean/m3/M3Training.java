@@ -39,6 +39,8 @@ public final class M3Training {
         public final double learningRate;
         /** 梯度裁剪阈值，0 表示不裁剪 / L2 clipping threshold; 0 disables. */
         public final double gradClip;
+        /** 是否记录每次更新的梯度二范数。只读观测，不影响训练结果 / read-only observation. */
+        public final boolean recordGradientNorms;
         /** 小批量大小。1 表示逐窗更新，即 2026-09-21 参照点所用的口径 / 1 = per-window updates. */
         public final int batchSize;
         public final int maxEpochs;
@@ -68,8 +70,17 @@ public final class M3Training {
         public Config(int nFeatures, int hiddenSize, int windowLength, int batchSize,
                       int maxEpochs, int patience, double[] channelWeights,
                       boolean reverseTarget, double learningRate, double gradClip) {
+            this(nFeatures, hiddenSize, windowLength, batchSize, maxEpochs, patience,
+                    channelWeights, reverseTarget, learningRate, gradClip, false);
+        }
+
+        public Config(int nFeatures, int hiddenSize, int windowLength, int batchSize,
+                      int maxEpochs, int patience, double[] channelWeights,
+                      boolean reverseTarget, double learningRate, double gradClip,
+                      boolean recordGradientNorms) {
             this.learningRate = learningRate;
             this.gradClip = gradClip;
+            this.recordGradientNorms = recordGradientNorms;
             this.nFeatures = nFeatures;
             this.hiddenSize = hiddenSize;
             this.windowLength = windowLength;
@@ -99,9 +110,13 @@ public final class M3Training {
         /** 同一段的标准差，用于判断两个配置的差距是否大于各自的抖动 / the sd of that same window. */
         public final double earlyStopSdLast10;
         public final double seconds;
+        /** 梯度范数记录器；未开启记录时为 null / the recorder, or null when not recording. */
+        public final GradientNormRecorder gradientNorms;
 
         Result(LstmAutoEncoder model, int epochs, double earlyStopLoss,
-               double earlyStopLossLast10, double earlyStopSdLast10, double seconds) {
+               double earlyStopLossLast10, double earlyStopSdLast10, double seconds,
+               GradientNormRecorder gradientNorms) {
+            this.gradientNorms = gradientNorms;
             this.model = model;
             this.epochs = epochs;
             this.earlyStopLoss = earlyStopLoss;
@@ -150,6 +165,7 @@ public final class M3Training {
         LstmAutoEncoder ae = new LstmAutoEncoder(
                 cfg.nFeatures, cfg.hiddenSize, cfg.windowLength, cfg.reverseTarget,
                 cfg.learningRate, cfg.gradClip);
+        GradientNormRecorder recorder = cfg.recordGradientNorms ? ae.recordGradientNorms() : null;
 
         double prevLoss = Double.MAX_VALUE;
         int noImprove = 0;                                 // 连续无改善的 epoch 计数 / consecutive no-improvement epochs
@@ -195,7 +211,7 @@ public final class M3Training {
         }
         double sd = tail.isEmpty() ? Double.NaN : Math.sqrt(var / tail.size());
         return new Result(ae, epochsRun, finalEsLoss, mean, sd,
-                (System.currentTimeMillis() - t0) / 1000.0);
+                (System.currentTimeMillis() - t0) / 1000.0, recorder);
     }
 
     /**
