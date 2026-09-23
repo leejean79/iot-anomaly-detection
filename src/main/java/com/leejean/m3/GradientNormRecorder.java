@@ -2,6 +2,9 @@ package com.leejean.m3;
 
 import org.deeplearning4j.nn.api.Model;
 import org.deeplearning4j.optimize.api.BaseTrainingListener;
+import org.nd4j.linalg.api.memory.MemoryWorkspace;
+import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.factory.Nd4j;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,26 +44,57 @@ public class GradientNormRecorder extends BaseTrainingListener {
         if (model.gradient() == null || model.gradient().gradient() == null) {
             return;
         }
-        norms.add(model.gradient().gradient().norm2Number().doubleValue());
+        // **必须跳出当前的内存工作区（workspace）再做运算。**回调触发时，梯度数组是工作区里的视图，
+        // 而归约运算要在「当前工作区」里分配临时张量；在工作区内对这些视图做归约会破坏工作区的
+        // 内存布局，表现为原生层的段错误（SIGSEGV，栈顶在 TadDescriptor）。2026-09-23 的集群运行
+        // 正是这样崩的，而本机用小模型（隐单元 8、窗长 12、40 个窗口）跑同样的代码没有复现——
+        // 小张量没有触发那条路径，本机验证的规模不足以覆盖生产形状。
+        // 跳出工作区之后先 dup 出一份脱离工作区的副本，再在副本上做归约：读的是有效内存，
+        // 分配的临时张量落在普通堆外内存里，两边都安全。
+        // The gradient arrays are workspace views; reductions must be done outside the workspace,
+        // on detached copies, or the native layer segfaults.
+        try (MemoryWorkspace ignored = Nd4j.getWorkspaceManager().scopeOutOfWorkspaces()) {
+            // 副本用完即显式释放。容器给 JavaCPP 的堆外额度只有几百兆，而每次更新都要复制一份
+            // 七万多个双精度数；靠垃圾回收顺带释放的话，堆外内存会攒到回收不及时而耗尽——原生层
+            // 堆外耗尽同样表现为段错误，与工作区问题难以区分。显式释放把这条可能性一并排除。
+            // Release each copy explicitly: relying on GC would let off-heap memory accumulate, and
+            // exhausting it segfaults in the same way, which would be indistinguishable.
+            INDArray flatCopy = model.gradient().gradient().dup();
+            norms.add(flatCopy.norm2Number().doubleValue());
+            closeQuietly(flatCopy);
 
-        // 参数名形如 "0_W"、"0_RW"、"0_b"，下划线之前是层号；按层号归组后逐层求二范数。
-        // Parameter keys look like "0_W"; the prefix before the underscore is the layer index.
-        java.util.Map<String, Double> perLayerSq = new java.util.TreeMap<>();
-        for (java.util.Map.Entry<String, org.nd4j.linalg.api.ndarray.INDArray> e
-                : model.gradient().gradientForVariable().entrySet()) {
-            if (e.getValue() == null) {
-                continue;
+            // 参数名形如 "0_W"、"0_RW"、"0_b"，下划线之前是层号；按层号归组后逐层求二范数。
+            // Parameter keys look like "0_W"; the prefix before the underscore is the layer index.
+            java.util.Map<String, Double> perLayerSq = new java.util.TreeMap<>();
+            for (java.util.Map.Entry<String, INDArray> e
+                    : model.gradient().gradientForVariable().entrySet()) {
+                if (e.getValue() == null) {
+                    continue;
+                }
+                String layer = e.getKey().contains("_")
+                        ? e.getKey().substring(0, e.getKey().indexOf('_')) : e.getKey();
+                INDArray copy = e.getValue().dup();
+                double n = copy.norm2Number().doubleValue();
+                closeQuietly(copy);
+                perLayerSq.merge(layer, n * n, Double::sum);
             }
-            String layer = e.getKey().contains("_")
-                    ? e.getKey().substring(0, e.getKey().indexOf('_')) : e.getKey();
-            double n = e.getValue().norm2Number().doubleValue();
-            perLayerSq.merge(layer, n * n, Double::sum);
+            double worst = 0.0;
+            for (double sq : perLayerSq.values()) {
+                worst = Math.max(worst, Math.sqrt(sq));
+            }
+            maxLayerNorms.add(worst);
         }
-        double worst = 0.0;
-        for (double sq : perLayerSq.values()) {
-            worst = Math.max(worst, Math.sqrt(sq));
+    }
+
+    /** 释放一份自有的副本。不可释放时静默跳过——记录器不得因内存细节而中断训练。 */
+    private static void closeQuietly(INDArray arr) {
+        try {
+            if (arr != null && arr.closeable()) {
+                arr.close();
+            }
+        } catch (RuntimeException ignored) {
+            // 释放失败不影响正确性，交给垃圾回收 / falling back to GC is harmless here
         }
-        maxLayerNorms.add(worst);
     }
 
     /** 逐次的「逐层范数最大值」，即裁剪实际比较的那个量 / the quantity clipping actually compares. */
