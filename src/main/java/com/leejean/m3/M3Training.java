@@ -37,6 +37,8 @@ public final class M3Training {
         public final boolean reverseTarget;
         /** Adam 学习率。2026-09-22 裁决书第三节起成为可选参数 / the Adam learning rate. */
         public final double learningRate;
+        /** 梯度裁剪阈值，0 表示不裁剪 / L2 clipping threshold; 0 disables. */
+        public final double gradClip;
         /** 小批量大小。1 表示逐窗更新，即 2026-09-21 参照点所用的口径 / 1 = per-window updates. */
         public final int batchSize;
         public final int maxEpochs;
@@ -47,19 +49,27 @@ public final class M3Training {
         public Config(int nFeatures, int hiddenSize, int windowLength, int batchSize,
                       int maxEpochs, int patience, double[] channelWeights) {
             this(nFeatures, hiddenSize, windowLength, batchSize, maxEpochs, patience,
-                    channelWeights, true, 0.01);
+                    channelWeights, true, 0.001, 1.0);
         }
 
         public Config(int nFeatures, int hiddenSize, int windowLength, int batchSize,
                       int maxEpochs, int patience, double[] channelWeights, boolean reverseTarget) {
             this(nFeatures, hiddenSize, windowLength, batchSize, maxEpochs, patience,
-                    channelWeights, reverseTarget, 0.01);
+                    channelWeights, reverseTarget, 0.001, 1.0);
         }
 
         public Config(int nFeatures, int hiddenSize, int windowLength, int batchSize,
                       int maxEpochs, int patience, double[] channelWeights,
                       boolean reverseTarget, double learningRate) {
+            this(nFeatures, hiddenSize, windowLength, batchSize, maxEpochs, patience,
+                    channelWeights, reverseTarget, learningRate, 1.0);
+        }
+
+        public Config(int nFeatures, int hiddenSize, int windowLength, int batchSize,
+                      int maxEpochs, int patience, double[] channelWeights,
+                      boolean reverseTarget, double learningRate, double gradClip) {
             this.learningRate = learningRate;
+            this.gradClip = gradClip;
             this.nFeatures = nFeatures;
             this.hiddenSize = hiddenSize;
             this.windowLength = windowLength;
@@ -76,14 +86,27 @@ public final class M3Training {
         public final LstmAutoEncoder model;
         /** 实际跑完的 epoch 数（早停可能使其小于上限）/ epochs actually run. */
         public final int epochs;
-        /** 训练结束后在早停集上的误差，即选型判据 / the early-stopping loss, the selection criterion. */
+        /** 训练结束后在早停集上的误差。**不再是选型判据**，见下 / no longer the selection statistic. */
         public final double earlyStopLoss;
+        /**
+         * 停止前末十轮早停集误差的均值。2026-09-23 裁决书第四节把选型统计量由末轮值改为它。
+         * 理由是实测：末轮值是一次抽样，两档学习率按末轮值与按末十轮均值排出的名次相反，
+         * 而它们的差距只占各自抖动的三分之一。均值把抖动压低约三倍（按根号十计）。
+         * Mean of the last ten epochs' early-stopping loss — the selection statistic since the
+         * 2026-09-23 ruling, because the final-epoch value is one sample and reversed the ranking.
+         */
+        public final double earlyStopLossLast10;
+        /** 同一段的标准差，用于判断两个配置的差距是否大于各自的抖动 / the sd of that same window. */
+        public final double earlyStopSdLast10;
         public final double seconds;
 
-        Result(LstmAutoEncoder model, int epochs, double earlyStopLoss, double seconds) {
+        Result(LstmAutoEncoder model, int epochs, double earlyStopLoss,
+               double earlyStopLossLast10, double earlyStopSdLast10, double seconds) {
             this.model = model;
             this.epochs = epochs;
             this.earlyStopLoss = earlyStopLoss;
+            this.earlyStopLossLast10 = earlyStopLossLast10;
+            this.earlyStopSdLast10 = earlyStopSdLast10;
             this.seconds = seconds;
         }
     }
@@ -125,11 +148,13 @@ public final class M3Training {
                                EpochListener listener) {
         long t0 = System.currentTimeMillis();
         LstmAutoEncoder ae = new LstmAutoEncoder(
-                cfg.nFeatures, cfg.hiddenSize, cfg.windowLength, cfg.reverseTarget, cfg.learningRate);
+                cfg.nFeatures, cfg.hiddenSize, cfg.windowLength, cfg.reverseTarget,
+                cfg.learningRate, cfg.gradClip);
 
         double prevLoss = Double.MAX_VALUE;
         int noImprove = 0;                                 // 连续无改善的 epoch 计数 / consecutive no-improvement epochs
         int epochsRun = 0;
+        java.util.List<Double> esHistory = new java.util.ArrayList<>();
 
         for (int epoch = 0; epoch < cfg.maxEpochs; epoch++) {
             long epochStart = System.currentTimeMillis();
@@ -137,6 +162,7 @@ public final class M3Training {
             epochsRun = epoch + 1;
 
             double esLoss = evaluateLoss(ae, earlyStopWindows, cfg.channelWeights);
+            esHistory.add(esLoss);
             if (listener != null) {
                 listener.onEpoch(epochsRun, trainLoss, esLoss,
                         (System.currentTimeMillis() - epochStart) / 1000.0);
@@ -154,7 +180,22 @@ public final class M3Training {
         }
 
         double finalEsLoss = evaluateLoss(ae, earlyStopWindows, cfg.channelWeights);
-        return new Result(ae, epochsRun, finalEsLoss, (System.currentTimeMillis() - t0) / 1000.0);
+        // 停止前末十轮；不足十轮时取全部，并在报告里注明该行的样本数不足。
+        // The last ten epochs before stopping; fewer if the run was shorter.
+        java.util.List<Double> tail = esHistory.subList(
+                Math.max(0, esHistory.size() - 10), esHistory.size());
+        double mean = 0.0;
+        for (double v : tail) {
+            mean += v;
+        }
+        mean = tail.isEmpty() ? Double.NaN : mean / tail.size();
+        double var = 0.0;
+        for (double v : tail) {
+            var += (v - mean) * (v - mean);
+        }
+        double sd = tail.isEmpty() ? Double.NaN : Math.sqrt(var / tail.size());
+        return new Result(ae, epochsRun, finalEsLoss, mean, sd,
+                (System.currentTimeMillis() - t0) / 1000.0);
     }
 
     /**

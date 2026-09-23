@@ -112,11 +112,13 @@ public class M2Job {
         int m3ThreshDays = params.getInt("m3-thresh-days", 2);
         int m3WindowLength = params.getInt("m3-window-length", 60);
         double m3ZThreshold = params.getDouble("m3-z-threshold", 2.22);
-        // 上限 60：2026-09-21 的实测中早停在第 26 个 epoch 自然触发，60 已留有充分余量，
-        // 再高只会在某个组合迟迟不收敛时白白拉长冷启动（补遗三 §1）。
-        // Cap 60: early stopping fired at epoch 26 in the 2026-09-21 probe.
-        int m3MaxEpochs = params.getInt("m3-max-epochs", 60);
-        int m3EarlyStopPatience = params.getInt("m3-earlystop-patience", 10);
+        // 上限 100：2026-09-23 裁决书第三节。学习率 0.001 的最低点出现在第 54 轮，上限 60 会把它截断。
+        // Cap 100: the chosen learning rate reached its minimum at epoch 54, which a cap of 60 truncates.
+        int m3MaxEpochs = params.getInt("m3-max-epochs", 100);
+        // 耐心 20：实测最长平台期为 12 轮，此前用的 10 短于它，训练因而在平台中途被掐断，
+        // 而平台之后本来还有改善——这解释了 2026-09-22 四行扫描停在第 20、11、27、16 轮的全部反常。
+        // Patience 20: the measured longest plateau is 12; the former 10 cut training off mid-plateau.
+        int m3EarlyStopPatience = params.getInt("m3-earlystop-patience", 20);
         // 隐藏层宽度：全机队统一，由设计会话依离线网格 V-M3-3 定死（补遗三 §3）。
         // 默认 60 为网格中点，待 V-M3-3 出结果后由设计会话裁定并改此默认值。
         // Fleet-wide hidden size, to be fixed by the design session from the offline grid.
@@ -132,7 +134,14 @@ public class M2Job {
         // 学习率。原为写死的 0.01；2026-09-22 裁决书第三节授权改动，范围限于诊断及其后的选值。
         // 默认仍是 0.01，待学习率诊断出结论后由设计会话裁定并改此默认值。
         // The learning rate, authorized to change by the 2026-09-22 ruling; default unchanged for now.
-        double m3LearningRate = params.getDouble("m3-learning-rate", 0.01);
+        // 学习率 0.001：2026-09-23 裁决书第二节。两档（0.003 与 0.001）按损失不可区分，
+        // 按稳定性与离发散边界的安全余量选定——0.001 的末段抖动更小，且离已证明发散的 0.01
+        // 有十倍余量（0.003 只有三倍）。附加条件（收敛速度）实测不触发：0.001 反而更快。
+        // Chosen for stability and headroom, the two being indistinguishable by loss.
+        double m3LearningRate = params.getDouble("m3-learning-rate", 0.001);
+        // 梯度裁剪阈值（按二范数逐层裁剪），0 表示不裁剪。2026-09-23 裁决书第三节定为生产默认值。
+        // L2 gradient clipping threshold; 0 disables it.
+        double m3GradClip = params.getDouble("m3-grad-clip", 1.0);
         // 通道权重表（决策 5）：设备 G 的 Light 权重为零（临时；M6 级-0 重估修复尺度后恢复）
         // Channel weights: device G's Light weight is zero (temporary; restore once M6 level-0 re-estimation)
         // 此处为全局默认全 1；逐设备权重在 M3Function 内按配置覆盖
@@ -166,7 +175,8 @@ public class M2Job {
             System.out.println("M3 hidden size:  " + m3HiddenSize + "  (fleet-wide, fixed from the offline grid)");
             System.out.println("M3 batch size:   " + m3BatchSize + "   (must match the offline grid)");
             System.out.println("M3 reverse tgt:  " + m3ReverseTarget + " (reversed reconstruction target)");
-            System.out.println("M3 learning rate:" + m3LearningRate + " (Adam; no gradient clipping)");
+            System.out.println("M3 learning rate:" + m3LearningRate + " (Adam)");
+            System.out.println("M3 grad clip:    " + m3GradClip + " (L2 per layer; 0 = disabled)");
         }
         System.out.println("========================================");
 
@@ -306,7 +316,8 @@ public class M2Job {
                             m3TrainDays, m3EarlyStopDays, m3ThreshDays,
                             m3WindowLength, m3ZThreshold, m3ChannelWeights,
                             m3MaxEpochs, m3EarlyStopPatience,
-                            m3HiddenSize, m3BatchSize, m3ReverseTarget, m3LearningRate, m3MonTag))
+                            m3HiddenSize, m3BatchSize, m3ReverseTarget,
+                            m3LearningRate, m3GradClip, m3MonTag))
                     .name("M3-LSTM-AE");
 
             // M3 上下文评分 → synergia-scores

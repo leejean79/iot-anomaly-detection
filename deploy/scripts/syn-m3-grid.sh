@@ -30,10 +30,13 @@
 #      --window-grid <列表>    窗口长度网格，默认 30,60,120
 #      --train-days <n>        训练段天数，默认 7
 #      --early-stop-days <n>   早停段天数，默认 2
-#      --max-epochs <n>        单次训练的上限轮数，默认 60（补遗三 §1 定的生产值）
+#      --max-epochs <n>        单次训练的上限轮数，默认 100（2026-09-23 裁决书第三节；学习率
+#                              0.001 的最低点在第 54 轮，上限 60 会把它截断）
+#      --grad-clip <v>         梯度裁剪阈值（按二范数逐层裁剪），默认 1.0，0 表示不裁剪。
+#                              2026-09-23 裁决书第三节定为生产默认值。
 #      --batch-grid <列表>     小批量大小网格，即一次权重更新用到多少个窗口，默认 "1"。
 #                              默认 1 即 2026-09-21 参照点的口径；步骤 A 传 "1,16,32,64" 一次跑完。
-#      --lr-grid <列表>        学习率网格，默认 "0.01"。2026-09-22 裁决书第三节授权改动学习率，
+#      --lr-grid <列表>        学习率网格，默认 "0.001"（2026-09-23 裁决书第二节定值）。2026-09-22 裁决书第三节授权改动学习率，
 #                              范围限于诊断及其后的选值。
 #      --no-early-stop         关闭早停，每一行跑满 --max-epochs 轮。诊断要看完整曲线，
 #                              早停会把三档曲线截断在不同位置上，彼此就不可比了。
@@ -95,9 +98,9 @@ PROJECT_ROOT="$(dirname "$DEPLOY_DIR")"
 set -a; source "$DEPLOY_DIR/.env"; set +a
 
 DEVICES="E,G,C"; HIDDEN_GRID="40,60,90"; WINDOW_GRID="30,60,120"
-TRAIN_DAYS=7; ES_DAYS=2; MAX_EPOCHS=60; PATIENCE=10
+TRAIN_DAYS=7; ES_DAYS=2; MAX_EPOCHS=100; PATIENCE=20
 BATCH_GRID="1"; OMP_THREADS=1; REFERENCE_LOSS=""; NODE="master"; CONTAINER_MB=""; PROBE_ONLY=0
-REVERSE_TARGET=1; LR_GRID="0.01"; NO_EARLY_STOP=0; PER_EPOCH_NAME=""
+REVERSE_TARGET=1; LR_GRID="0.001"; GRAD_CLIP="1.0"; NO_EARLY_STOP=0; PER_EPOCH_NAME=""
 MAX_MESSAGES=3000000; OUT_NAME="m3_grid.csv"; USE_SCORES=1; REUSE=0; DETACH=0; COLLECT=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -112,6 +115,7 @@ while [[ $# -gt 0 ]]; do
         --reference-loss) REFERENCE_LOSS="$2"; shift 2 ;;
         --no-reverse-target) REVERSE_TARGET=0; shift ;;
         --lr-grid) LR_GRID="$2"; shift 2 ;;
+        --grad-clip) GRAD_CLIP="$2"; shift 2 ;;
         --no-early-stop) NO_EARLY_STOP=1; shift ;;
         --per-epoch-name) PER_EPOCH_NAME="$2"; shift 2 ;;
         --node) NODE="$2"; shift 2 ;;
@@ -310,7 +314,8 @@ echo "===================================================================="
 echo "syn-m3-grid.sh — V-M3-3 离线超参数网格"
 echo "  设备 ${DEVICES}   隐藏层 ${HIDDEN_GRID}   窗口长度 ${WINDOW_GRID}"
 echo "  训练 ${TRAIN_DAYS} 天 / 早停 ${ES_DAYS} 天   maxEpochs=${MAX_EPOCHS} patience=${PATIENCE}"
-echo "  小批量大小 ${BATCH_GRID}   学习率 ${LR_GRID}   OpenMP 线程 ${OMP_THREADS}"
+echo "  小批量大小 ${BATCH_GRID}   学习率 ${LR_GRID}   梯度裁剪 ${GRAD_CLIP}   OpenMP 线程 ${OMP_THREADS}"
+echo "  epoch 上限 ${MAX_EPOCHS}   耐心 ${PATIENCE}"
 [ "$NO_EARLY_STOP" -eq 1 ] && echo "  **早停已关闭**：每一行跑满 ${MAX_EPOCHS} 轮"
 echo "  运行节点 ${RUN_HOST}   容器上限 ${MEM_MB} MB（-Xmx ${XMX_MB}m，JavaCPP ${JAVACPP_MB}m）"
 [ -n "$REFERENCE_LOSS" ] && echo "  参照早停集误差 ${REFERENCE_LOSS}（按 5% 判据给出小批量选型建议）"
@@ -394,7 +399,7 @@ RUN_CMD="java -Xmx${XMX_MB}m -Dorg.bytedeco.javacpp.maxbytes=${JAVACPP_MB}m \
         --devices ${DEVICES} --hidden-grid ${HIDDEN_GRID} --window-grid ${WINDOW_GRID} \
         --train-days ${TRAIN_DAYS} --early-stop-days ${ES_DAYS} \
         --max-epochs ${MAX_EPOCHS} --patience ${PATIENCE} --batch-grid ${BATCH_GRID} \
-        --lr-grid ${LR_GRID} ${ES_ARG} ${PER_EPOCH_ARG} \
+        --lr-grid ${LR_GRID} --grad-clip ${GRAD_CLIP} ${ES_ARG} ${PER_EPOCH_ARG} \
         ${REF_ARG} ${REV_ARG} --out /work/m3_grid.csv"
 
 if [ "$DETACH" -eq 1 ]; then

@@ -1,5 +1,6 @@
 package com.leejean.m3;
 
+import org.deeplearning4j.nn.conf.GradientNormalization;
 import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
 import org.deeplearning4j.nn.conf.layers.LSTM;
@@ -75,22 +76,38 @@ public class LstmAutoEncoder implements Serializable {
      * The Adam learning rate, formerly hard-coded at 0.01 for the two-layer architecture.
      */
     private final double learningRate;
-    private static final double DEFAULT_LEARNING_RATE = 0.01;
+    /** 梯度裁剪阈值，0 表示不裁剪 / L2 clipping threshold; 0 disables. */
+    private final double gradClip;
+    private static final double DEFAULT_LEARNING_RATE = 0.001;
+    /**
+     * 梯度裁剪阈值（按二范数逐层裁剪）。2026-09-23 裁决书第三节定为生产默认值 1.0。
+     * 此前为未启用，而学习率 0.01 的诊断曲线显示了无约束下的持续梯度爆发——60 轮里从头震荡到尾。
+     * 取 0 表示不裁剪，仅供日后做对照实验时使用。
+     * L2-norm gradient clipping threshold; 0 disables it. Formerly absent, which is what let the
+     * 0.01 learning rate diverge for all 60 epochs.
+     */
+    private static final double DEFAULT_GRAD_CLIP = 1.0;
 
     // model 不参与 Java 序列化（transient）；跨 checkpoint 用 serializeModel/deserializeModel 手工搬运。
     // model is transient (excluded from Java serialization); moved across checkpoints via (de)serializeModel.
     private transient MultiLayerNetwork model;
 
     public LstmAutoEncoder(int nFeatures, int hiddenSize, int windowLength) {
-        this(nFeatures, hiddenSize, windowLength, true, DEFAULT_LEARNING_RATE);
+        this(nFeatures, hiddenSize, windowLength, true, DEFAULT_LEARNING_RATE, DEFAULT_GRAD_CLIP);
     }
 
     public LstmAutoEncoder(int nFeatures, int hiddenSize, int windowLength, boolean reverseTarget) {
-        this(nFeatures, hiddenSize, windowLength, reverseTarget, DEFAULT_LEARNING_RATE);
+        this(nFeatures, hiddenSize, windowLength, reverseTarget,
+                DEFAULT_LEARNING_RATE, DEFAULT_GRAD_CLIP);
     }
 
     public LstmAutoEncoder(int nFeatures, int hiddenSize, int windowLength,
                            boolean reverseTarget, double learningRate) {
+        this(nFeatures, hiddenSize, windowLength, reverseTarget, learningRate, DEFAULT_GRAD_CLIP);
+    }
+
+    public LstmAutoEncoder(int nFeatures, int hiddenSize, int windowLength,
+                           boolean reverseTarget, double learningRate, double gradClip) {
         if (windowLength < 1) {
             throw new IllegalArgumentException("窗口长度须为正，收到 " + windowLength);
         }
@@ -99,18 +116,24 @@ public class LstmAutoEncoder implements Serializable {
         this.windowLength = windowLength;
         this.reverseTarget = reverseTarget;
         this.learningRate = learningRate;
-        this.model = buildModel(nFeatures, hiddenSize, windowLength, learningRate);
+        this.gradClip = gradClip;
+        this.model = buildModel(nFeatures, hiddenSize, windowLength, learningRate, gradClip);
     }
 
     private static MultiLayerNetwork buildModel(int nFeatures, int hiddenSize, int windowLength,
-                                               double learningRate) {
-        MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
+                                               double learningRate, double gradClip) {
+        NeuralNetConfiguration.Builder builder = new NeuralNetConfiguration.Builder()
                 .seed(SEED)                                // 可复现 / reproducible
                 .updater(new Adam(learningRate))           // Adam 优化器 / Adam optimizer
-                // 梯度裁剪：当前未启用（gradientNormalization 为 None，2026-09-22 实测确认）。
-                // 裁决书第五节要求核实并报告此项；本次诊断不改动它。
-                // Gradient clipping is NOT enabled; verified 2026-09-22, unchanged by this ruling.
-                .weightInit(WeightInit.XAVIER)             // Xavier 初始化 / Xavier weight init
+                .weightInit(WeightInit.XAVIER);            // Xavier 初始化 / Xavier weight init
+        if (gradClip > 0) {
+            // 按二范数逐层裁剪：某一层的梯度范数超过阈值时整体按比例缩小，不超过则原样通过。
+            // 它约束的是更新的步长上界，不改变梯度方向，因此不属于优化器形式的改动。
+            // Per-layer L2 clipping: rescale only when the norm exceeds the threshold.
+            builder = builder.gradientNormalization(GradientNormalization.ClipL2PerLayer)
+                    .gradientNormalizationThreshold(gradClip);
+        }
+        MultiLayerConfiguration conf = builder
                 .list()
                 // 第 0 层：编码器 LSTM，沿时间正向读完整个窗口 / encoder LSTM over the whole window
                 .layer(0, new LSTM.Builder()
@@ -395,5 +418,6 @@ public class LstmAutoEncoder implements Serializable {
     public long paramCount() { return model.numParams(); }
     public boolean isReverseTarget() { return reverseTarget; }
     public double getLearningRate() { return learningRate; }
+    public double getGradClip() { return gradClip; }
     public MultiLayerNetwork getModel() { return model; }
 }

@@ -61,7 +61,7 @@ class M3StateMachineTest {
         double[] weights = new double[Channels.N_DET];
         java.util.Arrays.fill(weights, 1.0);
         return new M3Function(TRAIN_DAYS, ES_DAYS, THRESH_DAYS, WINDOW_LENGTH, Z_THRESHOLD,
-                weights, MAX_EPOCHS, PATIENCE, HIDDEN_SIZE, BATCH_SIZE, true, 0.01, null, ROUNDS_PER_DAY);
+                weights, MAX_EPOCHS, PATIENCE, HIDDEN_SIZE, BATCH_SIZE, true, 0.001, 1.0, null, ROUNDS_PER_DAY);
     }
 
     private static OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> newHarness()
@@ -153,7 +153,7 @@ class M3StateMachineTest {
         java.util.Arrays.fill(weights, 1.0);
         final int maxEpochs = 2000;
         M3Function fn = new M3Function(TRAIN_DAYS, ES_DAYS, THRESH_DAYS, WINDOW_LENGTH, Z_THRESHOLD,
-                weights, maxEpochs, 1, HIDDEN_SIZE, BATCH_SIZE, true, 0.01, null, ROUNDS_PER_DAY);
+                weights, maxEpochs, 1, HIDDEN_SIZE, BATCH_SIZE, true, 0.001, 1.0, null, ROUNDS_PER_DAY);
         KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h =
                 new KeyedOneInputStreamOperatorTestHarness<>(
                         new KeyedProcessOperator<>(fn), AnnotatedRound::getDevice,
@@ -224,7 +224,7 @@ class M3StateMachineTest {
         // 模型就会按 40、60、90 训练三次，下面两条断言都会失败。
         // 12 is deliberately outside the removed hard-coded grid, so a reintroduced search fails here.
         M3Function fn = new M3Function(TRAIN_DAYS, ES_DAYS, THRESH_DAYS, WINDOW_LENGTH, Z_THRESHOLD,
-                weights, MAX_EPOCHS, PATIENCE, HIDDEN_SIZE, BATCH_SIZE, true, 0.01, null, ROUNDS_PER_DAY);
+                weights, MAX_EPOCHS, PATIENCE, HIDDEN_SIZE, BATCH_SIZE, true, 0.001, 1.0, null, ROUNDS_PER_DAY);
         try (KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h =
                      new KeyedOneInputStreamOperatorTestHarness<>(
                              new KeyedProcessOperator<>(fn), AnnotatedRound::getDevice,
@@ -257,7 +257,7 @@ class M3StateMachineTest {
         java.util.Arrays.fill(weights, 1.0);
         M3Function mismatched = new M3Function(TRAIN_DAYS, ES_DAYS, THRESH_DAYS, WINDOW_LENGTH,
                 Z_THRESHOLD, weights, MAX_EPOCHS, PATIENCE, HIDDEN_SIZE + 4, BATCH_SIZE,
-                true, 0.01, null, ROUNDS_PER_DAY);
+                true, 0.001, 1.0, null, ROUNDS_PER_DAY);
         try (KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h2 =
                      new KeyedOneInputStreamOperatorTestHarness<>(
                              new KeyedProcessOperator<>(mismatched), AnnotatedRound::getDevice,

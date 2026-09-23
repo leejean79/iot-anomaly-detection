@@ -109,6 +109,10 @@ public final class M3Grid {
          * Trained successfully only if the loss is at least 30% below the trivial baseline.
          */
         boolean trainedOk;
+        /** 停止前末十轮早停集误差的均值——2026-09-23 裁决书第四节起的**选型统计量**。 */
+        double esLossLast10;
+        /** 同一段的标准差 / the sd over the same window. */
+        double esSdLast10;
         int batchSize;
         double learningRate;
         String ompThreads;
@@ -127,8 +131,8 @@ public final class M3Grid {
         int[] windowGrid = parseInts(a.getOrDefault("window-grid", "30,60,120"));
         int trainDays = Integer.parseInt(a.getOrDefault("train-days", "7"));
         int esDays = Integer.parseInt(a.getOrDefault("early-stop-days", "2"));
-        int maxEpochs = Integer.parseInt(a.getOrDefault("max-epochs", "200"));
-        int patience = Integer.parseInt(a.getOrDefault("patience", "10"));
+        int maxEpochs = Integer.parseInt(a.getOrDefault("max-epochs", "100"));
+        int patience = Integer.parseInt(a.getOrDefault("patience", "20"));
         // 小批量大小，与隐藏层、窗口长度一样是可以成组扫描的一个维度。默认 "1" 即 2026-09-21
         // 参照点的口径；步骤 A 传入 "1,16,32,64" 在一次运行里把整条扫描做完，好处是四个读数共用
         // 同一份转储、同一次切窗、同一个进程，除小批量大小外没有任何其他差别。
@@ -144,7 +148,9 @@ public final class M3Grid {
         boolean reverseTarget = !"false".equalsIgnoreCase(a.getOrDefault("reverse-target", "true"));
         // 学习率网格。2026-09-22 裁决书第三节授权改动学习率，范围限于诊断及其后的选值。
         // Learning-rate grid; the 2026-09-22 ruling authorizes changing it for this diagnosis.
-        double[] lrGrid = parseDoubles(a.getOrDefault("lr-grid", "0.01"));
+        double[] lrGrid = parseDoubles(a.getOrDefault("lr-grid", "0.001"));
+        // 梯度裁剪阈值，须与在线算子一致，否则等值核验不成立。0 表示不裁剪。
+        double gradClip = Double.parseDouble(a.getOrDefault("grad-clip", "1.0"));
         // 关闭早停：每档跑满 maxEpochs 轮。诊断要看完整曲线，早停会把曲线截断在不同位置上，
         // 三档之间就不可比了（裁决书第三节「关闭早停，每档跑满六十轮」）。
         // Disable early stopping so all rows run the full length and remain comparable.
@@ -247,7 +253,7 @@ public final class M3Grid {
                     M3Training.Config cfg = new M3Training.Config(
                             N_FEATURES, hs, win, bs, maxEpochs,
                             noEarlyStop ? Integer.MAX_VALUE : patience,
-                            channelWeights, reverseTarget, lr);
+                            channelWeights, reverseTarget, lr, gradClip);
                     M3Training.Result trained = M3Training.train(
                             cfg, split.train, split.trainMasks, split.earlyStop,
                             new M3Training.EpochListener() {
@@ -297,13 +303,18 @@ public final class M3Grid {
                     r.esOutlierWindows = countOutlierWindows(split.earlyStopHasOutlier, true);
                     r.esLossBaseline = fBaseline;
                     r.learningRate = lr;
-                    r.trainedOk = r.esLossBaseline > 0 && r.esLoss <= 0.7 * r.esLossBaseline;
+                    r.esLossLast10 = trained.earlyStopLossLast10;
+                    r.esSdLast10 = trained.earlyStopSdLast10;
+                    // 判据改用末十轮均值：末轮值是一次抽样，用它判定「训练成功」与否会随机翻转。
+                    // The criterion uses the last-ten mean; the final value is a single sample.
+                    r.trainedOk = r.esLossBaseline > 0 && r.esLossLast10 <= 0.7 * r.esLossBaseline;
                     r.ompThreads = ompThreads;
                     results.add(r);
                     done++;
                     System.out.printf("[grid] (%d/%d) %s hidden=%d window=%d batch=%d → 早停集误差 %.6f，"
-                                    + "训练 %d 个 epoch，用时 %.1fs；平凡基线 %.6f，%s%n",
-                            done, totalCombos, device, hs, win, bs, r.esLoss, r.epochs, r.trainSeconds,
+                                    + "末十轮均值 %.6f ± %.6f，训练 %d 个 epoch，用时 %.1fs；平凡基线 %.6f，%s%n",
+                            done, totalCombos, device, hs, win, bs, r.esLoss,
+                            r.esLossLast10, r.esSdLast10, r.epochs, r.trainSeconds,
                             r.esLossBaseline,
                             r.trainedOk ? "低于基线三成以上，视为训练成功"
                                         : "**未比基线低三成，按裁决书第四节视为未训练成功，不参与选择**");
@@ -512,6 +523,7 @@ public final class M3Grid {
             pw.println("device,hiddenSize,windowLength,batchSize,ompThreads,"
                     + "trainWindows,trainExcluded,esWindows,"
                     + "epochs,esLoss,relDeltaVsRef,"
+                    + "esLossLast10,esSdLast10,"
                     + "learningRate,esCleanWindows,esOutlierWindows,esLossBaseline,trainedOk,"
                     + "trainSeconds,secPerEpoch,sanitized");
             for (Result r : results) {
@@ -522,10 +534,11 @@ public final class M3Grid {
                 // Computed here, never by hand; left empty when no reference was given.
                 String rel = referenceLoss > 0
                         ? String.format("%.6f", (r.esLoss - referenceLoss) / referenceLoss) : "";
-                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%s,%s,%d,%d,%.8f,%s,%.1f,%.1f,%s%n",
+                pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%s,%.8f,%.8f,%s,%d,%d,%.8f,%s,%.1f,%.1f,%s%n",
                         r.device, r.hiddenSize, r.windowLength, r.batchSize, r.ompThreads,
                         r.trainWindows, r.trainExcluded, r.esWindows,
                         r.epochs, r.esLoss, rel,
+                        r.esLossLast10, r.esSdLast10,
                         r.learningRate, r.esCleanWindows, r.esOutlierWindows,
                         r.esLossBaseline, r.trainedOk,
                         r.trainSeconds, secPerEpoch, r.sanitized);
@@ -536,41 +549,121 @@ public final class M3Grid {
         }
     }
 
-    /** 逐设备给出早停集误差最小的组合，并列出与它同一量级的其他组合，供设计会话裁决选型。 */
+    /**
+     * 逐设备给出选型结论，按 2026-09-23 裁决书第四节的规则：
+     * 统计量取停止前末十轮的早停集误差均值；与最优组合相差不超过百分之十者视为**并列**；
+     * 并列时按简单优先——先取参数更少的隐单元数，再取默认窗长 60。
+     * 结论是「有依据的默认值」，**不宣称最优**：种子间方差未测，最终裁决权在 V-M3-4 与 V-M3-5。
+     * Per-device selection per the 2026-09-23 ruling: last-ten-epoch mean, a 10% tie band, and
+     * simplicity-first tie-breaking. The outcome is a justified default, never a claim of optimality.
+     */
     private static void interpret(List<Result> results, String outCsv, double referenceLoss) {
         System.out.println("==================== 网格结果解读 / interpretation ====================");
         if (results.isEmpty()) {
             System.out.println("无结果可解读。");
             return;
         }
-        Map<String, Result> best = new HashMap<>();
+        Map<String, List<Result>> byDevice = new TreeMap<>();
         for (Result r : results) {
-            Result b = best.get(r.device);
-            if (b == null || r.esLoss < b.esLoss) {
-                best.put(r.device, r);
-            }
+            byDevice.computeIfAbsent(r.device, k -> new ArrayList<>()).add(r);
         }
-        for (Map.Entry<String, Result> e : new TreeMap<>(best).entrySet()) {
-            Result b = e.getValue();
-            System.out.printf("设备 %s：早停集误差最小的是 hidden=%d、window=%d，误差 %.6f，"
-                            + "训练 %d 个 epoch、用时 %.1fs%n",
-                    e.getKey(), b.hiddenSize, b.windowLength, b.esLoss, b.epochs, b.trainSeconds);
-            for (Result r : results) {
-                if (!r.device.equals(e.getKey()) || r == b) {
-                    continue;
-                }
-                if (r.esLoss <= b.esLoss * 1.05) {
-                    System.out.printf("         与之相差不到 5%% 的还有 hidden=%d、window=%d（误差 %.6f，"
-                                    + "用时 %.1fs）——若两者统计上难分高下，宜取更小的模型与更短的窗口%n",
-                            r.hiddenSize, r.windowLength, r.esLoss, r.trainSeconds);
+        for (Map.Entry<String, List<Result>> e : byDevice.entrySet()) {
+            String device = e.getKey();
+            List<Result> eligible = new ArrayList<>();
+            for (Result r : e.getValue()) {
+                if (r.trainedOk) {
+                    eligible.add(r);
+                } else {
+                    System.out.printf("设备 %s：hidden=%d、window=%d 的末十轮均值 %.6f 未比基线 %.6f "
+                                    + "低三成，**视为未训练成功，不参与选择**%n",
+                            device, r.hiddenSize, r.windowLength, r.esLossLast10, r.esLossBaseline);
                 }
             }
+            if (eligible.isEmpty()) {
+                System.out.printf("设备 %s：没有任何组合通过「训练成功」判据，无法选型。%n", device);
+                continue;
+            }
+            Result best = eligible.get(0);
+            for (Result r : eligible) {
+                if (r.esLossLast10 < best.esLossLast10) {
+                    best = r;
+                }
+            }
+            double band = best.esLossLast10 * 1.10;
+            List<Result> tied = new ArrayList<>();
+            for (Result r : eligible) {
+                if (r.esLossLast10 <= band) {
+                    tied.add(r);
+                }
+            }
+            // 简单优先：隐单元数小者胜；仍并列则取默认窗长 60；再并列则取窗长小者，使结果可复现。
+            // Simplicity first: fewer parameters, then the default window, then the shorter window.
+            Result pick = tied.get(0);
+            for (Result r : tied) {
+                boolean better = r.hiddenSize < pick.hiddenSize
+                        || (r.hiddenSize == pick.hiddenSize
+                            && (r.windowLength == 60 && pick.windowLength != 60))
+                        || (r.hiddenSize == pick.hiddenSize
+                            && (r.windowLength == 60) == (pick.windowLength == 60)
+                            && r.windowLength < pick.windowLength);
+                if (better) {
+                    pick = r;
+                }
+            }
+            System.out.printf("设备 %s：末十轮均值最小的是 hidden=%d、window=%d（%.6f ± %.6f）；"
+                            + "并列带为 ≤ %.6f（最优值的 1.10 倍），带内共 %d 个组合。%n",
+                    device, best.hiddenSize, best.windowLength, best.esLossLast10, best.esSdLast10,
+                    band, tied.size());
+            for (Result r : tied) {
+                System.out.printf("         并列：hidden=%-3d window=%-4d 末十轮均值 %.6f ± %.6f，"
+                                + "%d 个 epoch，用时 %.1fs%n",
+                        r.hiddenSize, r.windowLength, r.esLossLast10, r.esSdLast10,
+                        r.epochs, r.trainSeconds);
+            }
+            System.out.printf("         → 按简单优先取 hidden=%d、window=%d。%n",
+                    pick.hiddenSize, pick.windowLength);
         }
         if (referenceLoss > 0) {
             interpretBatchSweep(results, referenceLoss);
         }
+        System.out.println("提醒：以上是**有依据的默认值，不是最优值**——种子间方差未测，"
+                + "最终裁决权在 V-M3-4（误报率）与 V-M3-5（注入召回）。");
         System.out.println("提醒：本阶段**不定终值**——上表交设计会话裁决 (hidden, window)。");
         System.out.println("完整结果见 " + outCsv);
+    }
+
+    /**
+     * 小批量大小的选型判据（补遗三 §2）：取早停集误差不超过参照值 1.05 倍的**最大**小批量大小。
+     * 一个都不满足时如实报告并明说不得靠调高学习率或 epoch 数去凑——那会改变被比较的对象本身。
+     * Selection rule: the largest batch size whose loss stays within 5% relative of the reference.
+     */
+    private static void interpretBatchSweep(List<Result> results, double referenceLoss) {
+        double threshold = referenceLoss * 1.05;
+        System.out.printf("%n---------- 小批量大小选型（判据：末十轮均值 ≤ 参照值 %.6f × 1.05 = %.6f）----------%n",
+                referenceLoss, threshold);
+        Result chosen = null;
+        for (Result r : results) {
+            // 一律改用末十轮均值：末轮值是一次抽样，会让同一实验排出相反的名次（2026-09-23 实测）。
+            // The last-ten mean throughout; the final value reversed the ranking in the measurement.
+            String verdict = !r.trainedOk ? "**未训练成功，不参与选择**"
+                    : r.esLossLast10 <= threshold ? "通过" : "超出判据";
+            System.out.printf("  小批量 %-3d  末十轮均值 %.6f ± %.6f（相对参照 %+.2f%%）  %d 个 epoch  "
+                            + "每 epoch %.1fs  → %s%n",
+                    r.batchSize, r.esLossLast10, r.esSdLast10,
+                    100.0 * (r.esLossLast10 - referenceLoss) / referenceLoss,
+                    r.epochs, r.epochs > 0 ? r.trainSeconds / r.epochs : 0.0, verdict);
+            if (r.trainedOk && r.esLossLast10 <= threshold
+                    && (chosen == null || r.batchSize > chosen.batchSize)) {
+                chosen = r;
+            }
+        }
+        if (chosen == null) {
+            System.out.println("  **无一满足判据**。按补遗三 §2，此时应如实交出本表并停止，");
+            System.out.println("  不得通过调高学习率或 epoch 数去凑——那改变的是被比较的对象本身。");
+            return;
+        }
+        System.out.printf("  建议取小批量 %d（满足判据的最大值）。它须同时成为离线网格与在线算子的"
+                        + "默认值，否则补遗三 §6 的等值核验不成立。%n", chosen.batchSize);
     }
 
     /**
@@ -619,35 +712,6 @@ public final class M3Grid {
             // 取不到进程驻留内存不影响训练，保持 n/a / failing to read RSS must not break training
         }
         return String.format("堆 %d/%d MB，进程驻留 %s", heapUsedMb, heapMaxMb, rss);
-    }
-
-    /**
-     * 小批量大小的选型判据（补遗三 §2）：取早停集误差不超过参照值 1.05 倍的**最大**小批量大小。
-     * 一个都不满足时如实报告并明说不得靠调高学习率或 epoch 数去凑——那会改变被比较的对象本身。
-     * Selection rule: the largest batch size whose loss stays within 5% relative of the reference.
-     */
-    private static void interpretBatchSweep(List<Result> results, double referenceLoss) {
-        double threshold = referenceLoss * 1.05;
-        System.out.printf("%n---------- 小批量大小选型（判据：早停集误差 ≤ 参照值 %.6f × 1.05 = %.6f）----------%n",
-                referenceLoss, threshold);
-        Result chosen = null;
-        for (Result r : results) {
-            String verdict = r.esLoss <= threshold ? "通过" : "超出判据";
-            System.out.printf("  小批量 %-3d  早停集误差 %.6f（相对参照 %+.2f%%）  %d 个 epoch  "
-                            + "每 epoch %.1fs  → %s%n",
-                    r.batchSize, r.esLoss, 100.0 * (r.esLoss - referenceLoss) / referenceLoss,
-                    r.epochs, r.epochs > 0 ? r.trainSeconds / r.epochs : 0.0, verdict);
-            if (r.esLoss <= threshold && (chosen == null || r.batchSize > chosen.batchSize)) {
-                chosen = r;
-            }
-        }
-        if (chosen == null) {
-            System.out.println("  **无一满足判据**。按补遗三 §2，此时应如实交出本表并停止，");
-            System.out.println("  不得通过调高学习率或 epoch 数去凑——那改变的是被比较的对象本身。");
-            return;
-        }
-        System.out.printf("  建议取小批量 %d（满足判据的最大值）。它须同时成为离线网格与在线算子的"
-                        + "默认值，否则补遗三 §6 的等值核验不成立。%n", chosen.batchSize);
     }
 
     private static Map<String, String> parseArgs(String[] args) {

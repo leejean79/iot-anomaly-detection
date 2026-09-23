@@ -102,13 +102,18 @@ def summarize(lr, rows, baseline):
     tail_sd = (sum((v - tail_mean) ** 2 for v in tail) / len(tail)) ** 0.5
     tail_deltas = sorted(abs(tail[i] - tail[i - 1]) for i in range(1, len(tail)))
     tail_median_delta = tail_deltas[len(tail_deltas) // 2] if tail_deltas else float("nan")
-    ok = es[-1] <= 0.7 * baseline
+    # 收敛速度：首次进入「本档末十轮均值的 110% 以内」的轮数（2026-09-23 裁决书第二节附加条件）。
+    # 用各档自己的末段水平作参照，而不是用彼此的——否则收敛得更好的一档会显得「更慢到达」。
+    # Convergence speed: first epoch within 110% of this run's own late-phase mean.
+    reach = next((rows[i][0] for i in range(len(es)) if es[i] <= tail_mean * 1.10), None)
+    ok = tail_mean <= 0.7 * baseline
     print("  学习率 {:<8g} 末轮误差 {:.6f}  最好在第 {} 轮（{:.6f}）  最长平台期 {} 轮".format(
         lr, es[-1], rows[best_i][0], es[best_i], longest_plateau))
-    print("           末十轮 均值 {:.6f} ± 标准差 {:.6f}；典型每轮变动 全程 {:.8f} / 末段 {:.8f}；{}".format(
-        tail_mean, tail_sd, median_delta, tail_median_delta,
-        "低于基线七成，视为训练成功" if ok else "**未低于基线七成，视为未训练成功**"))
-    return tail_mean, tail_sd
+    print("           末十轮 均值 {:.6f} ± 标准差 {:.6f}；首次进入末段水平 110% 以内 第 {} 轮；"
+          "典型每轮变动 全程 {:.8f} / 末段 {:.8f}；{}".format(
+              tail_mean, tail_sd, reach, median_delta, tail_median_delta,
+              "低于基线七成，视为训练成功" if ok else "**未低于基线七成，视为未训练成功**"))
+    return tail_mean, tail_sd, reach
 
 
 def main():
@@ -148,6 +153,22 @@ def main():
             a, b, gap, jitter,
             "差距大于抖动，可以区分" if gap > jitter
             else "**差距小于抖动，本次实验分不开这两档**"))
+        # 不可区分时改按稳定性选定，再用收敛速度做一道附加条件（2026-09-23 裁决书第二节）。
+        # 该条件是**不对称**的：先按末段抖动小者定为选中档，再问「另一档是否快得足够多」——
+        # 快到不足选中档七成的轮数，才值得用稳定性去换速度。写成对称形式会得出不同的判定。
+        # The condition is asymmetric by design: stability picks the winner, and only a decisively
+        # faster challenger overturns it.
+        chosen, challenger = (a, b) if stats[a][1] <= stats[b][1] else (b, a)
+        rc, rch = stats[chosen][2], stats[challenger][2]
+        if gap <= jitter and rc is not None and rch is not None:
+            print("  按稳定性选定 {:g}（末段标准差 {:.6f}，小于 {:g} 的 {:.6f}）".format(
+                chosen, stats[chosen][1], challenger, stats[challenger][1]))
+            faster = rch < 0.7 * rc
+            print("  附加条件（收敛速度）：{:g} 于第 {} 轮到达、{:g} 于第 {} 轮到达；"
+                  "挑战者 {:g} 是否快于选中档的七成（{:.1f} 轮）？→ {}".format(
+                      chosen, rc, challenger, rch, challenger, 0.7 * rc,
+                      "是，改取 {:g}".format(challenger) if faster
+                      else "否，维持 {:g}".format(chosen)))
 
     fig, (ax_es, ax_tr) = plt.subplots(1, 2, figsize=(13, 5.2), sharex=True)
     fig.patch.set_facecolor("#fcfcfb")
