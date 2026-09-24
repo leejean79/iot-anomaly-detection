@@ -106,47 +106,60 @@ def main():
               % (clipped_at_one, 100.0 * clipped_at_one / len(lay)))
 
     out = args.out or os.path.splitext(args.csv)[0] + ".png"
-    fig, ax = plt.subplots(figsize=(11, 5.2))
-    fig.patch.set_facecolor("#fcfcfb")
-    ax.set_facecolor("#fcfcfb")
-    ax.set_xscale("log")
-    ax.grid(True, color=GRID, linewidth=0.8)
-    ax.set_axisbelow(True)
-    for side in ("top", "right"):
-        ax.spines[side].set_visible(False)
-    for side in ("left", "bottom"):
-        ax.spines[side].set_color(GRID)
-    ax.tick_params(colors=INK_MUTED, labelsize=9)
-    ax.set_xlabel("gradient L2 norm (log scale)", color=INK_MUTED, fontsize=10)
-    ax.set_ylabel("updates", color=INK_MUTED, fontsize=10)
 
+    # 每个小批量一个面板（小多图），不把六组直方图叠在同一张里。
+    # 叠加时颜色只够区分「逐层／整模型」两类，三个小批量便只能靠透明度区分——
+    # 那等于让三条不同的数据共用一个颜色，图例与图形对不上，而且三条阈值线会叠在一起看不清。
+    # One panel per batch: overlaying six histograms would force three batches to share one hue.
     import math
-    allv = [v for d in groups.values() for v in d["layer"] + d["total"] if v > 0]
-    lo, hi = min(allv + [1.0]), max(allv)
-    bins = [10 ** x for x in
-            [math.log10(lo) + i * (math.log10(hi * 1.2) - math.log10(lo)) / 40 for i in range(41)]]
+    keys = list(groups.keys())
+    fig, axes = plt.subplots(1, len(keys), figsize=(5.2 * len(keys), 5.0), sharex=True, sharey=True)
+    if len(keys) == 1:
+        axes = [axes]
+    fig.patch.set_facecolor("#fcfcfb")
 
-    for i, (bs, d) in enumerate(groups.items()):
-        ax.hist(d["layer"], bins=bins, color=SERIES_COLORS[0], alpha=0.75 if i == 0 else 0.45,
-                label="batch %d — per-layer max" % bs)
-        ax.hist(d["total"], bins=bins, color=SERIES_COLORS[1], alpha=0.45,
-                label="batch %d — whole model" % bs)
+    allv = [v for d in groups.values() for v in d["layer"] + d["total"] if v > 0]
+    lo, hi = min(allv + [1.0]), max(allv + list(thresholds.values()))
+    bins = [10 ** x for x in
+            [math.log10(lo) + i * (math.log10(hi * 1.3) - math.log10(lo)) / 36 for i in range(37)]]
 
     halo = dict(facecolor="#fcfcfb", edgecolor="none", pad=1.5)
-    for bs, th in thresholds.items():
-        ax.axvline(th, color=INK_MUTED, linewidth=1.6, linestyle="--")
-        ax.annotate("threshold = 3 x p99.9 = %.2f" % th, xy=(th, ax.get_ylim()[1] * 0.92),
-                    color=INK_MUTED, fontsize=9, ha="right", va="top", bbox=halo,
-                    xytext=(-5, 0), textcoords="offset points")
-    ax.axvline(1.0, color=INK_MUTED, linewidth=1.6, linestyle=":")
-    ax.annotate("rejected threshold 1.0", xy=(1.0, ax.get_ylim()[1] * 0.62), color=INK_MUTED,
-                fontsize=9, ha="left", va="top", bbox=halo,
-                xytext=(5, 0), textcoords="offset points")
+    for ax, bs in zip(axes, keys):
+        d = groups[bs]
+        ax.set_facecolor("#fcfcfb")
+        ax.set_xscale("log")
+        ax.grid(True, color=GRID, linewidth=0.8)
+        ax.set_axisbelow(True)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+        for side in ("left", "bottom"):
+            ax.spines[side].set_color(GRID)
+        ax.tick_params(colors=INK_MUTED, labelsize=9)
+        ax.set_xlabel("gradient L2 norm (log scale)", color=INK_MUTED, fontsize=10)
+        ax.set_title("batch %d  (%d updates)" % (bs, len(d["layer"])),
+                     color=INK_PRIMARY, fontsize=11, loc="left", pad=10)
 
-    ax.legend(frameon=False, fontsize=10, labelcolor=INK_PRIMARY, loc="upper left")
+        ax.hist(d["layer"], bins=bins, color=SERIES_COLORS[0], alpha=0.8,
+                label="per-layer max (clipped quantity)")
+        ax.hist(d["total"], bins=bins, color=SERIES_COLORS[1], alpha=0.5,
+                label="whole model (reference)")
+
+        th = thresholds[bs]
+        ax.axvline(th, color=INK_MUTED, linewidth=1.6, linestyle="--")
+        ax.axvline(1.0, color=INK_MUTED, linewidth=1.6, linestyle=":")
+        top = ax.get_ylim()[1]
+        # 标注放在面板中段：上方留给图例，下方是直方图主体，中段在参考线处恰好是空的。
+        ax.annotate("threshold %.0f" % th, xy=(th, top * 0.58), color=INK_MUTED, fontsize=9,
+                    ha="right", va="center", bbox=halo, xytext=(-4, 0), textcoords="offset points")
+        ax.annotate("rejected 1.0", xy=(1.0, top * 0.44), color=INK_MUTED, fontsize=9,
+                    ha="left", va="center", bbox=halo, xytext=(4, 0), textcoords="offset points")
+
+    axes[0].set_ylabel("updates", color=INK_MUTED, fontsize=10)
+    # 图例只在第一个面板出现一次：三个面板的两类含义相同，重复三遍是噪声。
+    axes[0].legend(frameon=False, fontsize=9, labelcolor=INK_PRIMARY, loc="upper left")
     fig.suptitle("M3 gradient-norm distribution — device E, hidden 60, window 60, lr 0.001, no clipping",
-                 color=INK_PRIMARY, fontsize=12, x=0.02, ha="left")
-    fig.tight_layout(rect=(0, 0, 1, 0.94))
+                 color=INK_PRIMARY, fontsize=12, x=0.01, ha="left")
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
     fig.savefig(out, dpi=160, facecolor=fig.get_facecolor())
     print("图已写出：%s" % out)
     return 0
