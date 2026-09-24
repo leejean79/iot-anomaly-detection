@@ -85,15 +85,24 @@ public class LstmAutoEncoder implements Serializable {
      * 梯度裁剪阈值（按二范数逐层裁剪），0 表示不裁剪。
      *
      * <p>默认值的沿革：起初未启用；2026-09-23 前一份裁决书定为 1.0；同日实测表明 1.0 明确拖慢学习
-     * （同轮次区间对照，未裁剪 0.024296 对裁剪 0.040633，差距为抖动带的 1.46 倍），遂按当日后一份
-     * 裁决书**改回 0**——把一个已知有害的值留作默认比不设默认更糟。正式阈值待梯度范数分布实测后，
-     * 取选定批量那次运行第 99.9 百分位的三倍。
-     * Default history: absent → 1.0 → back to 0, because 1.0 measurably slowed learning. The real
-     * threshold will be three times the p99.9 of the measured gradient-norm distribution.
+     * （同轮次区间对照，未裁剪 0.024296 对裁剪 0.040633，差距为抖动带的 1.46 倍），遂改回 0。
+     * 2026-09-24 按实测的梯度范数分布定为 **39072.0**：选定批量 64 那次运行的**逐层**第 99.9
+     * 百分位为 13024.016204，三倍即 39072.048612，取整为 39072.0。
+     *
+     * <p><b>必须知情的一点：这个阈值在本次数据上从不触发。</b>该运行的逐层范数最大值为 35636.97，
+     * 低于阈值，1184 次更新无一被裁。它是防备日后出现本次未见过的异常大梯度的**保险**，
+     * 而不是一个起作用的约束。且余量并不宽裕——该分布尾巴很重，最大值本身就是第 99.9 百分位的
+     * 2.74 倍，阈值只比观测到的最大值高一成。
+     * This threshold never fires on the measured data: it is insurance against future excursions,
+     * not an active constraint, and its margin over the observed maximum is only 10%.
+     *
+     * <p>阈值与小批量大小绑定：范数随小批量增大而系统性升高（逐层中位数 296.9 / 793.5 / 1107.8
+     * 对应小批量 16 / 32 / 64），换批量须重测。
+     * The threshold is tied to the batch size; norms grow systematically with it.
      * L2-norm gradient clipping threshold; 0 disables it. Formerly absent, which is what let the
      * 0.01 learning rate diverge for all 60 epochs.
      */
-    private static final double DEFAULT_GRAD_CLIP = 0.0;
+    private static final double DEFAULT_GRAD_CLIP = 39072.0;
 
     // model 不参与 Java 序列化（transient）；跨 checkpoint 用 serializeModel/deserializeModel 手工搬运。
     // model is transient (excluded from Java serialization); moved across checkpoints via (de)serializeModel.

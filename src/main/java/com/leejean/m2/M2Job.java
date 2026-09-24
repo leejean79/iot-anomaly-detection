@@ -126,7 +126,10 @@ public class M2Job {
         // 小批量大小：**必须与离线网格所用的值一致**，否则补遗三 §6 的等值核验不成立。
         // 默认 1 即 2026-09-21 参照点的口径；待步骤 A 的扫描选定后改此默认值。
         // Must match the offline grid's value; default 1 reproduces the reference reading.
-        int m3BatchSize = params.getInt("m3-batch-size", 1);
+        // 小批量大小 64：2026-09-24 按「末十轮均值最优、10% 并列带」选定，且只有它落在带内。
+        // 逐窗更新（小批量 1）已被认定为不可用配置，不再作为候选。
+        // Batch 64, selected by the last-ten mean with a 10% tie band; batch 1 is an unusable config.
+        int m3BatchSize = params.getInt("m3-batch-size", 64);
         // 重构目标是否取逆序（把窗口倒过来作为解码目标），按参考文献默认开启；
         // 做成参数是为了将来能做消融实验（裁决书第二节）。
         // Reversed reconstruction target, on by default, switchable for ablation.
@@ -139,9 +142,12 @@ public class M2Job {
         // 有十倍余量（0.003 只有三倍）。附加条件（收敛速度）实测不触发：0.001 反而更快。
         // Chosen for stability and headroom, the two being indistinguishable by loss.
         double m3LearningRate = params.getDouble("m3-learning-rate", 0.001);
-        // 梯度裁剪阈值（按二范数逐层裁剪），0 表示不裁剪。2026-09-23 裁决书第三节定为生产默认值。
-        // L2 gradient clipping threshold; 0 disables it.
-        double m3GradClip = params.getDouble("m3-grad-clip", 1.0);
+        // 梯度裁剪阈值（按二范数**逐层**裁剪），0 表示不裁剪。2026-09-24 按实测的梯度范数分布定值：
+        // 选定批量 64 那次运行的逐层第 99.9 百分位为 13024.016204，三倍即 39072.05，取整 39072.0。
+        // 注意：该阈值在实测数据上从不触发（逐层最大 35636.97 低于它），是保险而非起作用的约束。
+        // L2 per-layer clipping threshold, three times the measured p99.9; it never fires on the
+        // measured data and is insurance against future excursions.
+        double m3GradClip = params.getDouble("m3-grad-clip", 39072.0);
         // 通道权重表（决策 5）：设备 G 的 Light 权重为零（临时；M6 级-0 重估修复尺度后恢复）
         // Channel weights: device G's Light weight is zero (temporary; restore once M6 level-0 re-estimation)
         // 此处为全局默认全 1；逐设备权重在 M3Function 内按配置覆盖

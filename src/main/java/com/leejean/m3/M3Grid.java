@@ -151,7 +151,7 @@ public final class M3Grid {
         // 同一份转储、同一次切窗、同一个进程，除小批量大小外没有任何其他差别。
         // Mini-batch size is a sweepable dimension; step A passes "1,16,32,64" so all readings come
         // from one process and differ in nothing but the batch size.
-        int[] batchGrid = parseInts(a.getOrDefault("batch-grid", "1"));
+        int[] batchGrid = parseInts(a.getOrDefault("batch-grid", "64"));
         // 参照早停集误差。给出时 CSV 的 relDeltaVsRef 列写出相对偏差，并在解读段按补遗三 §2 的
         // 5% 判据给出选型建议；不给则该列留空——没有参照就不该凭空算出一个相对值。
         // The reference early-stopping loss; without it relDeltaVsRef is left empty.
@@ -163,8 +163,8 @@ public final class M3Grid {
         // Learning-rate grid; the 2026-09-22 ruling authorizes changing it for this diagnosis.
         double[] lrGrid = parseDoubles(a.getOrDefault("lr-grid", "0.001"));
         // 梯度裁剪阈值，须与在线算子一致，否则等值核验不成立。0 表示不裁剪。
-        // 默认 0（不裁剪）：阈值 1.0 已实测会拖慢学习，正式阈值待范数分布测出后再定。
-        double gradClip = Double.parseDouble(a.getOrDefault("grad-clip", "0"));
+        // 生产默认 39072.0：选定批量 64 的逐层第 99.9 百分位（13024.016204）的三倍。
+        double gradClip = Double.parseDouble(a.getOrDefault("grad-clip", "39072.0"));
         // 梯度范数的逐次记录输出路径；给出即开启记录。只读观测，不影响训练结果。
         String gradNormPath = a.getOrDefault("grad-norm-csv", "");
         // 关闭早停：每档跑满 maxEpochs 轮。诊断要看完整曲线，早停会把曲线截断在不同位置上，
