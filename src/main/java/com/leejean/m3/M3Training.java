@@ -215,24 +215,45 @@ public final class M3Training {
     }
 
     /**
-     * 早停集误差：逐窗重建，按通道权重算加权均方误差（WMSE），再对窗口取平均。
-     *
-     * <p><b>本方法刻意保持逐窗推理，不组小批量</b>（补遗三经设计会话确认的步骤 A 口径）。把它也改成
-     * 小批量在数值上是等价的（只改变求和顺序），但属于步骤 A 之后才授权的改动，且必须附带一致性测试。
-     * Deliberately per-window, not batched: batching it is numerically equivalent but is authorized
-     * only after step A and must ship with an equality test.
+     * 评估时每次前向传播送入的窗口数。推理不改权重，它只影响速度与内存，不影响结果。
+     * Windows per forward pass during evaluation; affects speed and memory only, not the result.
+     */
+    static final int EVAL_BATCH = 64;
+
+    /**
+     * 早停集误差：各窗口的加权均方误差（WMSE）对窗口取平均。
+     * Early-stopping loss: mean over windows of each window's weighted MSE.
      */
     public static double evaluateLoss(LstmAutoEncoder ae, double[][][] data, double[] channelWeights) {
         if (data.length == 0) {
             return Double.MAX_VALUE;                       // 空集视为最差损失 / empty set → worst possible loss
         }
-        WeightedMseLoss lossCalc = new WeightedMseLoss(ae.getNFeatures(), channelWeights);
         double total = 0.0;
-        for (double[][] window : data) {
-            double[][] recon = ae.reconstruct(window);
-            WeightedMseLoss.LossResult lr = lossCalc.compute(window, recon, null, window.length);
-            total += lr.wmse;
+        for (double wmse : perWindowLosses(ae, data, channelWeights)) {
+            total += wmse;
         }
         return total / data.length;
+    }
+
+    /**
+     * 每个窗口的 WMSE，按 {@link #EVAL_BATCH} 个窗口一组成批推理（2026-09-26 起；此前逐窗推理）。
+     * 损失本身仍逐窗计算，因此与逐窗推理的差别只在前向传播的浮点求和顺序，单元测试要求逐窗相差
+     * 不超过 1e-6。
+     * Per-window WMSE with batched inference (per-window inference before 2026-09-26). The loss is
+     * still computed per window; a unit test requires each value to match per-window inference
+     * within 1e-6.
+     */
+    static double[] perWindowLosses(LstmAutoEncoder ae, double[][][] data, double[] channelWeights) {
+        WeightedMseLoss lossCalc = new WeightedMseLoss(ae.getNFeatures(), channelWeights);
+        double[] losses = new double[data.length];
+        for (int start = 0; start < data.length; start += EVAL_BATCH) {
+            int count = Math.min(EVAL_BATCH, data.length - start);   // 末尾不足一组照常处理 / short tail kept
+            double[][][] recon = ae.reconstructBatch(data, start, count);
+            for (int b = 0; b < count; b++) {
+                double[][] window = data[start + b];
+                losses[start + b] = lossCalc.compute(window, recon[b], null, window.length).wmse;
+            }
+        }
+        return losses;
     }
 }

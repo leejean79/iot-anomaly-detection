@@ -277,6 +277,30 @@ public class LstmAutoEncoder implements Serializable {
     }
 
     /**
+     * 成批推理：取 windows 中从 from 起的 count 个窗口，一次前向传播得到各自的重建
+     * {@code [count][windowLen][nFeatures]}。推理不改权重，结果与逐个调用 {@link #reconstruct}
+     * 在数学上相同，只差浮点求和顺序；一致性由单元测试把关。
+     * Batched inference over `count` windows starting at `from`, one forward pass. Mathematically the
+     * same as calling reconstruct per window; equality is guarded by a unit test.
+     */
+    public double[][][] reconstructBatch(double[][][] windows, int from, int count) {
+        int seqLen = windows[from].length;
+        INDArray output = model.output(toRnnInput(windows, from, count, seqLen));
+        if (reverseTarget) {
+            output = reverseTime(output);                  // 与逐窗版本一样转回正序 / un-reverse, as per window
+        }
+        double[][][] result = new double[count][seqLen][nFeatures];
+        for (int b = 0; b < count; b++) {
+            for (int t = 0; t < seqLen; t++) {
+                for (int f = 0; f < nFeatures; f++) {
+                    result[b][t][f] = output.getDouble(b, f, t);   // [b,f,t] → result[b][t][f]
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
      * 转换为 RNN 输入张量 [1, nFeatures, seqLen]（DL4J 的 RNN 输入格式）。
      * Convert to RNN input tensor [1, nFeatures, seqLen] (DL4J's RNN input format).
      */
