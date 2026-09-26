@@ -1,0 +1,2 @@
+device,hiddenSize,windowLength,batchSize,ompThreads,trainWindows,trainExcluded,esWindows,epochs,esLoss,relDeltaVsRef,esLossLast10,esSdLast10,totalTrainSeconds,gradNormCount,gradNormMedian,gradNormP99,gradNormP999,gradNormMax,layerNormMedian,layerNormP99,layerNormP999,layerNormMax,learningRate,esCleanWindows,esOutlierWindows,esLossBaseline,trainedOk,trainSeconds,secPerEpoch,sanitized
+E,60,60,64,1,1001,7,288,74,0.02274606,,0.02448797,0.00496381,633.4,0,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.001,287,1,0.33073587,true,633.4,8.6,true
