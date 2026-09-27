@@ -340,16 +340,31 @@ echo "  运行节点 ${RUN_HOST}   容器上限 ${MEM_MB} MB（-Xmx ${XMX_MB}m�
 echo "  训练净化：$([ "$USE_SCORES" -eq 1 ] && echo '开启（转储 scores 还原离群标记）' || echo '关闭')"
 echo "===================================================================="
 
+# 先转储到临时文件，非空才替换正式文件。此前直接重定向到正式文件，Kafka 读不到时会把上一次的
+# 好转储清空，且错误输出被丢弃、看不出原因（2026-09-27 实际发生过一次）。
+# Dump to a temp file and replace the real one only if non-empty; a failed read used to wipe the
+# previous good dump while discarding the consumer's error output.
+dump_topic() {   # $1 = topic, $2 = 目标文件名 / target file name
+    ssh fa-master "mkdir -p ${WORK} && chmod 777 ${WORK} && docker exec kafka-1 kafka-console-consumer.sh \
+        --bootstrap-server ${BROKERS} --topic $1 \
+        --from-beginning --max-messages ${MAX_MESSAGES} --timeout-ms 60000 \
+        > ${WORK}/$2.tmp 2> ${WORK}/$2.err || true"
+    local n
+    n="$(ssh fa-master "wc -l < ${WORK}/$2.tmp 2>/dev/null || echo 0" | tr -d '[:space:]')"
+    if [ "${n:-0}" -gt 0 ]; then
+        ssh fa-master "mv -f ${WORK}/$2.tmp ${WORK}/$2"
+    else
+        echo "[grid] ⚠ $1 这次读到 0 条，保留原有的 ${WORK}/$2 不动。消费者的错误输出（末 15 行）：" >&2
+        ssh fa-master "tail -n 15 ${WORK}/$2.err 2>/dev/null | sed 's/^/    /'; docker ps --format '    容器 {{.Names}}：{{.Status}}' | grep -i kafka || echo '    master 上没有正在运行的 kafka 容器'" >&2
+    fi
+}
+
 if [ "$REUSE" -eq 0 ]; then
     echo "[grid] 转储 synergia-m1-out（最多 ${MAX_MESSAGES} 条）…"
-    ssh fa-master "mkdir -p ${WORK} && chmod 777 ${WORK} && docker exec kafka-1 kafka-console-consumer.sh \
-        --bootstrap-server ${BROKERS} --topic ${SYN_TOPIC_M1_OUT:-synergia-m1-out} \
-        --from-beginning --max-messages ${MAX_MESSAGES} --timeout-ms 60000 > ${WORK}/m1out.jsonl 2>/dev/null || true"
+    dump_topic "${SYN_TOPIC_M1_OUT:-synergia-m1-out}" m1out.jsonl
     if [ "$USE_SCORES" -eq 1 ]; then
         echo "[grid] 转储 synergia-scores（用于还原离群标记）…"
-        ssh fa-master "docker exec kafka-1 kafka-console-consumer.sh \
-            --bootstrap-server ${BROKERS} --topic ${SYN_TOPIC_SCORES:-synergia-scores} \
-            --from-beginning --max-messages ${MAX_MESSAGES} --timeout-ms 60000 > ${WORK}/scores.jsonl 2>/dev/null || true"
+        dump_topic "${SYN_TOPIC_SCORES:-synergia-scores}" scores.jsonl
     fi
 fi
 
