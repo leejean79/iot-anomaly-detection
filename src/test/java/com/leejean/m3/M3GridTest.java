@@ -212,6 +212,50 @@ class M3GridTest {
                 "没有参照值就不该写出相对偏差");
     }
 
+    @Test
+    @DisplayName("切分报告：跨停机的窗口与因恢复浪涌离群轮被剔除的窗口都被数出，且不训练")
+    void splitReportCountsOutageAndSurgeWindows(@TempDir Path dir) throws Exception {
+        List<DeviceRound> rounds = new ArrayList<>();
+        long base = 1_700_000_000L;
+        long ts = base;
+        for (int i = 0; i < 150; i++) {
+            // 第 34 与第 35 轮之间插入 7 小时停机：窗口长度 10 时它落在第 4 个窗口（第 30 至 39 轮）里。
+            ts += (i == 35) ? 7 * 3600L : 10L;
+            rounds.add(round("E", ts, Math.sin(i * 0.2) * 0.3, false, false));
+        }
+        Path jsonl = writeRounds(dir, rounds);
+        long recovery = rounds.get(35).getTs();
+        ObjectMapper mapper = new ObjectMapper();
+        Path scores = dir.resolve("scores.jsonl");
+        try (PrintWriter pw = new PrintWriter(scores.toFile(), "UTF-8")) {
+            // 第 5 轮在停机之前，不算浪涌；第 42 轮在恢复后 70 秒，算浪涌。两者分属第 1 与第 5 个窗口。
+            long t5 = rounds.get(5).getTs();
+            long t42 = rounds.get(42).getTs();
+            pw.println(mapper.writeValueAsString(new ScoreEvent("E", t5, t5)));
+            pw.println(mapper.writeValueAsString(new ScoreEvent("E", t42, t42)));
+        }
+        assertEquals(70L, rounds.get(42).getTs() - recovery, "测试数据自检：第 42 轮在恢复后 70 秒");
+        Path out = dir.resolve("grid.csv");
+
+        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+        java.io.PrintStream old = System.out;
+        System.setOut(new java.io.PrintStream(buf, true, "UTF-8"));
+        try {
+            M3Grid.main(new String[]{
+                    "--rounds-jsonl", jsonl.toString(), "--scores-jsonl", scores.toString(),
+                    "--devices", "E", "--hidden-grid", "8", "--window-grid", "10",
+                    "--rounds-per-day", "20", "--train-days", "5", "--early-stop-days", "2",
+                    "--split-report", "true", "--out", out.toString()});
+        } finally {
+            System.setOut(old);
+        }
+        String log = buf.toString("UTF-8");
+        assertTrue(log.contains("[split] E 窗口长度 10：跨停机窗口 训练集 1、早停集 0；"
+                        + "因含恢复浪涌离群轮而被剔除的训练窗 1（共剔除 2）"),
+                "切分报告应数出 1 个跨停机训练窗、1 个浪涌剔除窗、共 2 个剔除窗，实际输出：\n" + log);
+        assertFalse(java.nio.file.Files.exists(out), "--split-report 不训练，不应写出结果 CSV");
+    }
+
     /** 按列名从给定的表头行与数据行里取值。 */
     private static String valueAt(String headerLine, String row, String name) {
         String[] header = headerLine.split(",", -1);

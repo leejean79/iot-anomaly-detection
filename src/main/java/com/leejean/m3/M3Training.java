@@ -112,11 +112,22 @@ public final class M3Training {
         public final double seconds;
         /** 梯度范数记录器；未开启记录时为 null / the recorder, or null when not recording. */
         public final GradientNormRecorder gradientNorms;
+        /** 最后一次改善发生的轮次（从 1 计）/ epoch of the last improvement, 1-based. */
+        public final int bestEpoch;
+        /**
+         * 被后续改善打断的最长无改善段长度（轮）。它接近耐心时，说明训练差一点就在平台中途被停掉。
+         * 2026-09-27 裁决书第二节要求在线冷启动逐台上报这一情形。
+         * Longest no-improvement run that a later improvement ended; close to the patience means
+         * training nearly stopped mid-plateau.
+         */
+        public final int longestPlateau;
 
         Result(LstmAutoEncoder model, int epochs, double earlyStopLoss,
                double earlyStopLossLast10, double earlyStopSdLast10, double seconds,
-               GradientNormRecorder gradientNorms) {
+               GradientNormRecorder gradientNorms, int bestEpoch, int longestPlateau) {
             this.gradientNorms = gradientNorms;
+            this.bestEpoch = bestEpoch;
+            this.longestPlateau = longestPlateau;
             this.model = model;
             this.epochs = epochs;
             this.earlyStopLoss = earlyStopLoss;
@@ -170,6 +181,8 @@ public final class M3Training {
         double prevLoss = Double.MAX_VALUE;
         int noImprove = 0;                                 // 连续无改善的 epoch 计数 / consecutive no-improvement epochs
         int epochsRun = 0;
+        int bestEpoch = 0;
+        int longestPlateau = 0;
         java.util.List<Double> esHistory = new java.util.ArrayList<>();
 
         for (int epoch = 0; epoch < cfg.maxEpochs; epoch++) {
@@ -186,6 +199,8 @@ public final class M3Training {
 
             if (esLoss < prevLoss - 1e-6) {
                 prevLoss = esLoss;
+                longestPlateau = Math.max(longestPlateau, noImprove);   // 这段平台被改善打断 / plateau ended
+                bestEpoch = epochsRun;
                 noImprove = 0;                             // 有改善则重置耐心 / improvement resets patience
             } else {
                 noImprove++;
@@ -211,7 +226,7 @@ public final class M3Training {
         }
         double sd = tail.isEmpty() ? Double.NaN : Math.sqrt(var / tail.size());
         return new Result(ae, epochsRun, finalEsLoss, mean, sd,
-                (System.currentTimeMillis() - t0) / 1000.0, recorder);
+                (System.currentTimeMillis() - t0) / 1000.0, recorder, bestEpoch, longestPlateau);
     }
 
     /**

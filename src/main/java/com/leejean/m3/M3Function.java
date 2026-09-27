@@ -372,10 +372,22 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         lastTrainModels++;
         LstmAutoEncoder bestModel = trained.model;
 
-        LOG.info("[M3] Device {} trained: hidden={}, window={}, batch={}, {} epochs, "
-                 + "early-stop loss={}, {}s",
+        LOG.info("[M3] Device {} trained: hidden={}, window={}, batch={}, {} epochs "
+                 + "(last improvement at epoch {}, longest plateau {}), early-stop loss={}, {}s",
                  device, hiddenSize, windowLength, batchSize, trained.epochs,
-                 trained.earlyStopLoss, trained.seconds);
+                 trained.bestEpoch, trained.longestPlateau, trained.earlyStopLoss, trained.seconds);
+        // 2026-09-27 裁决书第二节：触到上限，或曾有接近耐心的平台（差不足五轮就会被停在平台中途），
+        // 都须上报设计会话——耐心 20 只在 E、G 的曲线上推出过。
+        // Ruling of 2026-09-27 §2: hitting the cap, or a plateau within five epochs of the patience,
+        // must be reported; the patience was derived from devices E and G only.
+        if (trained.epochs >= maxEpochs) {
+            LOG.warn("[M3] Device {} REPORT: training hit the epoch cap {} without early stopping",
+                     device, maxEpochs);
+        }
+        if (trained.longestPlateau >= earlyStopPatience - 5) {
+            LOG.warn("[M3] Device {} REPORT: longest plateau {} epochs is within 5 of the patience {}",
+                     device, trained.longestPlateau, earlyStopPatience);
+        }
 
         selectedHidden.update(hiddenSize);             // 记住训练时的隐藏层宽度供在线复原 / hidden size used
         trainedWindow.update(windowLength);            // 一并记住窗口长度，防止参数变更后静默错配 / and the window length

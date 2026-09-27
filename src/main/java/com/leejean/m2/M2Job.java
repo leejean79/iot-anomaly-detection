@@ -112,16 +112,17 @@ public class M2Job {
         int m3ThreshDays = params.getInt("m3-thresh-days", 2);
         int m3WindowLength = params.getInt("m3-window-length", 60);
         double m3ZThreshold = params.getDouble("m3-z-threshold", 2.22);
-        // 上限 100：2026-09-23 裁决书第三节。学习率 0.001 的最低点出现在第 54 轮，上限 60 会把它截断。
-        // Cap 100: the chosen learning rate reached its minimum at epoch 54, which a cap of 60 truncates.
-        int m3MaxEpochs = params.getInt("m3-max-epochs", 100);
+        // 上限 300（4800 次更新）：2026-09-27 裁决书第二节。设备 C 在选定配置下第 111 轮才早停，
+        // 原上限 100 会把它截断；停止仍由耐心决定，上限只是保险。
+        // Cap 300 (4800 updates), ruling of 2026-09-27 §2: device C early-stops only at epoch 111,
+        // which the former cap of 100 cut off. Patience still decides when training stops.
+        int m3MaxEpochs = params.getInt("m3-max-epochs", 300);
         // 耐心 20：实测最长平台期为 12 轮，此前用的 10 短于它，训练因而在平台中途被掐断，
         // 而平台之后本来还有改善——这解释了 2026-09-22 四行扫描停在第 20、11、27、16 轮的全部反常。
         // Patience 20: the measured longest plateau is 12; the former 10 cut training off mid-plateau.
         int m3EarlyStopPatience = params.getInt("m3-earlystop-patience", 20);
-        // 隐藏层宽度：全机队统一，由设计会话依离线网格 V-M3-3 定死（补遗三 §3）。
-        // 默认 60 为网格中点，待 V-M3-3 出结果后由设计会话裁定并改此默认值。
-        // Fleet-wide hidden size, to be fixed by the design session from the offline grid.
+        // 隐藏层宽度：全机队统一。2026-09-27 裁决书第一节依离线网格 V-M3-3 定为 60。
+        // Fleet-wide hidden size, fixed at 60 by the ruling of 2026-09-27 from the offline grid.
         int m3HiddenSize = params.getInt("m3-hidden-size", 60);
         // 小批量大小：**必须与离线网格所用的值一致**，否则补遗三 §6 的等值核验不成立。
         // 默认 1 即 2026-09-21 参照点的口径；待步骤 A 的扫描选定后改此默认值。

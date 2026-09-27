@@ -30,8 +30,8 @@
 #      --window-grid <列表>    窗口长度网格，默认 30,60,120
 #      --train-days <n>        训练段天数，默认 7
 #      --early-stop-days <n>   早停段天数，默认 2
-#      --max-epochs <n>        单次训练的上限轮数，默认 100（2026-09-23 裁决书第三节；学习率
-#                              0.001 的最低点在第 54 轮，上限 60 会把它截断）
+#      --max-epochs <n>        单次训练的上限轮数，默认 300（2026-09-27 裁决书第二节；设备 C
+#                              在选定配置下第 111 轮才早停，原上限 100 会把它截断）
 #      --grad-clip <v>         梯度裁剪阈值（按二范数逐层裁剪），默认 0 即不裁剪。
 #                              阈值 1.0 已实测会拖慢学习（同轮次区间对照，差距为抖动带的 1.46 倍），
 #                              正式阈值待梯度范数分布测出后取逐层第 99.9 百分位的三倍。
@@ -43,6 +43,9 @@
 #                              不得再作为候选；扫描新的候选值时显式传入，不要依赖默认值。
 #      --lr-grid <列表>        学习率网格，默认 "0.001"（2026-09-23 裁决书第二节定值）。2026-09-22 裁决书第三节授权改动学习率，
 #                              范围限于诊断及其后的选值。
+#      --split-report          只打印切分报告后退出，不训练：每台设备、每个窗口长度下跨停机的窗口数，
+#                              以及因含恢复浪涌离群轮而被净化剔除的训练窗数（2026-09-27 裁决书第三节）。
+#                              几分钟内结束，不必配 --detach。
 #      --no-early-stop         关闭早停，每一行跑满 --max-epochs 轮。诊断要看完整曲线，
 #                              早停会把三档曲线截断在不同位置上，彼此就不可比了。
 #      --per-epoch-name <文件名> 额外产出逐轮 CSV（每档每轮一行，含训练集误差与早停集误差），
@@ -103,9 +106,9 @@ PROJECT_ROOT="$(dirname "$DEPLOY_DIR")"
 set -a; source "$DEPLOY_DIR/.env"; set +a
 
 DEVICES="E,G,C"; HIDDEN_GRID="40,60,90"; WINDOW_GRID="30,60,120"
-TRAIN_DAYS=7; ES_DAYS=2; MAX_EPOCHS=100; PATIENCE=20
+TRAIN_DAYS=7; ES_DAYS=2; MAX_EPOCHS=300; PATIENCE=20
 BATCH_GRID="64"; OMP_THREADS=1; REFERENCE_LOSS=""; NODE="master"; CONTAINER_MB=""; PROBE_ONLY=0
-REVERSE_TARGET=1; LR_GRID="0.001"; GRAD_CLIP="39072.0"; GRAD_NORM_NAME=""; NO_EARLY_STOP=0; PER_EPOCH_NAME=""
+REVERSE_TARGET=1; LR_GRID="0.001"; GRAD_CLIP="39072.0"; GRAD_NORM_NAME=""; NO_EARLY_STOP=0; PER_EPOCH_NAME=""; SPLIT_REPORT=0
 MAX_MESSAGES=3000000; OUT_NAME="m3_grid.csv"; USE_SCORES=1; REUSE=0; DETACH=0; COLLECT=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -123,6 +126,7 @@ while [[ $# -gt 0 ]]; do
         --grad-clip) GRAD_CLIP="$2"; shift 2 ;;
         --grad-norm-name) GRAD_NORM_NAME="$2"; shift 2 ;;
         --no-early-stop) NO_EARLY_STOP=1; shift ;;
+        --split-report) SPLIT_REPORT=1; shift ;;
         --per-epoch-name) PER_EPOCH_NAME="$2"; shift 2 ;;
         --node) NODE="$2"; shift 2 ;;
         --container-mb) CONTAINER_MB="$2"; shift 2 ;;
@@ -421,6 +425,7 @@ REV_ARG=""
 [ "$REVERSE_TARGET" -eq 0 ] && REV_ARG="--reverse-target false"
 ES_ARG=""
 [ "$NO_EARLY_STOP" -eq 1 ] && ES_ARG="--no-early-stop true"
+[ "$SPLIT_REPORT" -eq 1 ] && ES_ARG="${ES_ARG} --split-report true"
 PER_EPOCH_ARG=""
 [ -n "$PER_EPOCH_NAME" ] && PER_EPOCH_ARG="--per-epoch-csv /work/m3_per_epoch.csv"
 GRAD_NORM_ARG=""
@@ -477,5 +482,8 @@ if [ "$RC" -ne 0 ]; then
     exit "$RC"
 fi
 
+if [ "$SPLIT_REPORT" -eq 1 ]; then
+    exit 0                                         # 切分报告不产出 CSV / the split report writes no CSV
+fi
 pull_csv || exit 1
 echo "提醒：本阶段**不定终值**——网格表交设计会话裁决 (hidden, window)。"

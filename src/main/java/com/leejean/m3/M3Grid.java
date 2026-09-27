@@ -67,11 +67,13 @@ public final class M3Grid {
         final double[] xNorm;
         final boolean[] mask;      // true = 该通道参与损失 / true = channel counts toward the loss
         final boolean outlier;
+        final long ts;             // 轮时间戳（epoch 秒），仅供切分报告 / round timestamp, split report only
 
-        Row(double[] xNorm, boolean[] mask, boolean outlier) {
+        Row(double[] xNorm, boolean[] mask, boolean outlier, long ts) {
             this.xNorm = xNorm;
             this.mask = mask;
             this.outlier = outlier;
+            this.ts = ts;
         }
     }
 
@@ -144,7 +146,7 @@ public final class M3Grid {
         int[] windowGrid = parseInts(a.getOrDefault("window-grid", "30,60,120"));
         int trainDays = Integer.parseInt(a.getOrDefault("train-days", "7"));
         int esDays = Integer.parseInt(a.getOrDefault("early-stop-days", "2"));
-        int maxEpochs = Integer.parseInt(a.getOrDefault("max-epochs", "100"));
+        int maxEpochs = Integer.parseInt(a.getOrDefault("max-epochs", "300"));
         int patience = Integer.parseInt(a.getOrDefault("patience", "20"));
         // 小批量大小，与隐藏层、窗口长度一样是可以成组扫描的一个维度。默认 "1" 即 2026-09-21
         // 参照点的口径；步骤 A 传入 "1,16,32,64" 在一次运行里把整条扫描做完，好处是四个读数共用
@@ -171,6 +173,9 @@ public final class M3Grid {
         // 三档之间就不可比了（裁决书第三节「关闭早停，每档跑满六十轮」）。
         // Disable early stopping so all rows run the full length and remain comparable.
         boolean noEarlyStop = a.containsKey("no-early-stop");
+        // 只打印切分报告（跨停机窗口数、浪涌剔除窗口数）后退出，不训练。
+        // Print the split report (outage-spanning and surge-excluded windows) and exit without training.
+        boolean splitReportOnly = a.containsKey("split-report");
         String perEpochPath = a.getOrDefault("per-epoch-csv", "");
         // OpenMP 线程数**不由本程序设置**，它由容器的 OMP_NUM_THREADS 环境变量决定。此处只是把它
         // 读出来写进 CSV，使每一行自带它是在什么并行度下测出来的。ND4J 启动日志里的
@@ -264,6 +269,14 @@ public final class M3Grid {
                         device, win, split.train.length, split.trainExcluded,
                         split.earlyStop.length, esOutlierCount, esOutlierCount,
                         split.earlyStop.length - esOutlierCount, hiddenGrid.length, memoryLine());
+                System.out.printf("[split] %s 窗口长度 %d：跨停机窗口 训练集 %d、早停集 %d；"
+                                + "因含恢复浪涌离群轮而被剔除的训练窗 %d（共剔除 %d）%n",
+                        device, win, split.trainSpanningOutage, split.esSpanningOutage,
+                        split.trainExcludedSurge, split.trainExcluded);
+                if (splitReportOnly) {
+                    done += hiddenGrid.length * batchGrid.length * lrGrid.length;
+                    continue;                              // 只报告切分，不训练 / report only, no training
+                }
 
                 // 基线只取决于数据，训练前算一次即可，逐轮行与结果行共用。
                 final double fBaseline = zeroBaselineLoss(split.earlyStop, channelWeights);
@@ -384,6 +397,10 @@ public final class M3Grid {
             System.out.println("[grid] 梯度范数 CSV → " + gradNormPath);
         }
 
+        if (splitReportOnly) {
+            System.out.println("[split] 切分报告完成（--split-report），未训练，不写结果 CSV。");
+            return;
+        }
         writeCsv(results, outCsv, true, referenceLoss);
         interpret(results, outCsv, referenceLoss);
     }
@@ -425,7 +442,20 @@ public final class M3Grid {
         /** 早停集每个窗口是否含 M2 离群轮。早停集不做净化，因此两类窗口都在里面。/ per-window outlier flag. */
         boolean[] earlyStopHasOutlier;
         int trainExcluded;
+        /** 跨停机的窗口数：窗口内相邻两轮相隔至少 OUTAGE_GAP_SEC / windows spanning an outage. */
+        int trainSpanningOutage;
+        int esSpanningOutage;
+        /** 被净化剔除、且所含离群轮落在停机恢复后 SURGE_SEC 内的训练窗数 / excluded for surge rounds. */
+        int trainExcludedSurge;
     }
+
+    /**
+     * 停机判据与恢复浪涌时长，只用于切分报告，不影响训练。6 小时与 DF-12 浪涌分析的
+     * {@code --min-outage-gap-hours} 一致；3600 秒为一个 M2 窗长，浪涌分析实测窗口重填约 0.90 个窗长。
+     * Outage gap and surge span for the split report only; they do not affect training.
+     */
+    private static final long OUTAGE_GAP_SEC = 6 * 3600;
+    private static final long SURGE_SEC = 3600;
 
     /**
      * 按在线算子的口径切分窗口：窗口不重叠（攒满即结算并清空缓冲）；按**已见轮数**把窗口分到训练段
@@ -440,8 +470,17 @@ public final class M3Grid {
 
         List<Row> buf = new ArrayList<>(windowLength);
         long count = 0;
+        int spanTrain = 0;
+        int spanEs = 0;
+        int excludedSurge = 0;
+        long recoveryTs = Long.MIN_VALUE;                  // 最近一次停机后的第一轮 / first round after the last outage
+        Row prev = null;
         for (Row row : rows) {
             count++;
+            if (prev != null && row.ts - prev.ts >= OUTAGE_GAP_SEC) {
+                recoveryTs = row.ts;
+            }
+            prev = row;
             buf.add(row);
             if (buf.size() < windowLength) {
                 continue;
@@ -449,21 +488,36 @@ public final class M3Grid {
             double[][] window = new double[windowLength][];
             boolean[][] mask = new boolean[windowLength][];
             boolean hasOutlier = false;
+            boolean spansOutage = false;
+            boolean hasSurgeOutlier = false;
             for (int i = 0; i < windowLength; i++) {
-                window[i] = buf.get(i).xNorm;
-                mask[i] = buf.get(i).mask;
-                hasOutlier |= buf.get(i).outlier;
+                Row w = buf.get(i);
+                window[i] = w.xNorm;
+                mask[i] = w.mask;
+                hasOutlier |= w.outlier;
+                spansOutage |= i > 0 && w.ts - buf.get(i - 1).ts >= OUTAGE_GAP_SEC;
+                hasSurgeOutlier |= w.outlier && recoveryTs != Long.MIN_VALUE
+                        && w.ts >= recoveryTs && w.ts - recoveryTs < SURGE_SEC;
             }
             buf.clear();                                   // 窗口不重叠 / windows do not overlap
 
             if (count <= trainRounds) {
+                if (spansOutage) {
+                    spanTrain++;
+                }
                 if (hasOutlier) {
                     excluded++;                            // 训练净化：整窗剔除 / sanitization drops the window
+                    if (hasSurgeOutlier) {
+                        excludedSurge++;
+                    }
                 } else {
                     train.add(window);
                     trainMasks.add(mask);
                 }
             } else if (count <= trainRounds + esRounds) {
+                if (spansOutage) {
+                    spanEs++;
+                }
                 es.add(window);                            // 早停集不做净化 / no sanitization here
                 esHasOutlier.add(hasOutlier);              // 但记下它含不含离群轮，供分离比 / recorded for the ratio
             } else {
@@ -480,6 +534,9 @@ public final class M3Grid {
             s.earlyStopHasOutlier[i] = esHasOutlier.get(i);
         }
         s.trainExcluded = excluded;
+        s.trainSpanningOutage = spanTrain;
+        s.esSpanningOutage = spanEs;
+        s.trainExcludedSurge = excludedSurge;
         return s;
     }
 
@@ -551,7 +608,7 @@ public final class M3Grid {
                 M3Function.zeroDeviceGLight(x, r.getDevice());   // 与在线算子同一份实现
                 byDevice.computeIfAbsent(r.getDevice(), k -> new ArrayList<>())
                         .add(new Row(x, WeightedMseLoss.buildMask(r.getCensoredMask()),
-                                outlierKeys.contains(r.getDevice() + "@" + r.getTs())));
+                                outlierKeys.contains(r.getDevice() + "@" + r.getTs()), r.getTs()));
             }
         }
         System.out.printf("[grid] 读入完成：%d 行；跳过预热 %d 行、缺失通道 %d 行、解析失败 %d 行；"
