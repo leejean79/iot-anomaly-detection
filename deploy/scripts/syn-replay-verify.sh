@@ -59,14 +59,14 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-SSH_OPTS="-i ${SSH_KEY:-} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-MASTER_SSH="${NODE_MASTER_PUBLIC_IP:-$NODE_MASTER_IP}"
 BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
 JAR_NAME="${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}"
 WORK="${REMOTE_HOME}/m2probe"
 JSONL="$WORK/m1out.jsonl"
 
-on_master() { ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "$@"; }
+# 经 ~/.ssh/config 里的 fa-master 别名登录，与其余脚本一致，不再直接用密钥与公网 IP。
+# Log in via the fa-master alias in ~/.ssh/config, like the other scripts.
+on_master() { ssh fa-master "$@"; }
 
 echo "===================================="
 echo "[verify] 转储 synergia-m1-out（最多 ${MAX_MESSAGES} 条）→ $JSONL"
