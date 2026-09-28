@@ -1,0 +1,2 @@
+copied_devices,copy,key_pct,rows,same_pct,shift_days,source_end,source_start,target_end,target_start,corr_Gas,corr_Humidity,corr_Light,corr_Pressure,corr_RSSI,corr_Temperature,maxabsdiff_Gas,maxabsdiff_Humidity,maxabsdiff_Light,maxabsdiff_Pressure,maxabsdiff_RSSI,maxabsdiff_Temperature
+A;B;C;D;E;F;G;H,True,100.0,2974032,52.194,14,2022-06-05,2022-05-30,2022-06-19,2022-06-13,1.0,1.0,1.0,0.9999,0.9932,0.9999,3.0,0.02,2.0,3.0,1.0,0.02
