@@ -21,8 +21,9 @@
 #    --a-start 为较早一段的起始日，--b-start 为较晚一段的起始日（均为 UTC 日期零点），--days 为比较的
 #    天数；平移量 = b-start − a-start。
 # 3. 前置条件：原始 CSV 目录可读（与 count_rounds.py 相同的目录）。
-# 4. 期望产出：逐设备打印较晚一段的行数、平移后时间戳能对上的比例、数值完全相同的比例，以及一行结论。
-#    两个比例都接近 100% 即为逐行拷贝；时间戳对不上则不是平移拷贝。
+# 4. 期望产出：逐设备打印较晚一段的行数、平移后时间戳能对上的比例、数值完全相同的比例；再逐传感器
+#    打印数值相同的比例、两段数值的相关系数与不同取值数。两个比例都接近 100% 即为逐行拷贝；时间戳
+#    对不上则不是平移拷贝；时间戳全对上而数值部分相同时，须与一段不怀疑拷贝的对照平移比较。
 # 5. 失败兜底：目录下没有可识别的数据文件时退出码 2；任一段没有数据时退出码 3。
 # ============================================================================
 import argparse
@@ -110,12 +111,27 @@ def main() -> int:
         print(f"{d:<6}{n:>12}{g['key_ok'].mean():>12.2%}{g['same'].mean():>12.2%}")
     key, same = m["key_ok"].mean(), m["same"].mean()
     print(f"合计：{len(m)} 行，时间戳对上 {key:.2%}，数值相同 {same:.2%}")
-    if same > 0.99:
-        print("结论：较晚一段是较早一段平移后的逐行拷贝。")
+
+    # 逐传感器：数值相同的比例与两段数值的相关系数。准常数或粗量化的通道天然容易相同，
+    # 连续通道若也大比例相同或相关系数接近 1，才说明数值被拷贝。
+    # Per sensor: near-constant or coarse channels repeat naturally; copied values show up as
+    # high equality or near-1 correlation on the continuous channels.
+    both = m[m["key_ok"]]
+    print(f"\n{'传感器':<16}{'行数':>10}{'数值相同':>10}{'相关系数':>10}{'不同取值数':>10}")
+    for sen, g in both.groupby("sensor"):
+        ok = g["value"].notna() & g["value_a"].notna()
+        corr = g.loc[ok, "value"].corr(g.loc[ok, "value_a"]) if ok.sum() > 2 else float("nan")
+        print(f"{sen:<18}{len(g):>10}{g['same'].mean():>10.2%}{corr:>10.3f}{g['value'].nunique():>10}")
+
+    # 不自动下结论：时间戳全对上而数值部分相同时，需与一段不怀疑拷贝的对照平移比较才能判断。
+    # No automatic verdict: when timestamps all align but values only partly match, the numbers must
+    # be compared against a control shift between two periods not suspected of copying.
+    if key > 0.99 and same > 0.99:
+        print("\n结论：逐行拷贝（时间戳与数值都相同）。")
     elif key > 0.99:
-        print("结论：时间戳平移后对得上，但数值不同——采样时刻重合，内容不是拷贝。")
+        print("\n时间戳全部对上而数值部分相同：须与对照平移的结果比较后再判断，本脚本不下结论。")
     else:
-        print("结论：不是平移拷贝。")
+        print("\n时间戳没有全部对上：不是整段平移拷贝。")
     return 0
 
 
