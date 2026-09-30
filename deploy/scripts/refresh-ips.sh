@@ -156,14 +156,19 @@ echo "  done."
 
 # ---------- 6. 更新 ~/.ssh/config 中的 fa-master / fa-worker1 / fa-worker2 ----------
 update_ssh_block() {
-    local alias=$1 newip=$2
-    # 找到 "Host $alias" 段下面的 HostName 行, 替换
-    # 用 awk: 进入 alias 段 → 直到下一个 Host 块为止, 替换 HostName
-    python3 - "$SSH_CONFIG" "$alias" "$newip" <<'PYEOF'
+    local alias=$1 newip=$2 privip=$3
+    # 找到 "Host $alias" 段下面的 HostName 行, 替换。
+    # 若该段含 ProxyJump（经 master 跳转、走内网），写内网 IP 而不是公网 IP：跳转后是从 master 发起
+    # 连接，公网 IP 反而可能不通（2026-09-30 worker 公网 22 端口从本机超时、内网正常）。
+    # If the block has ProxyJump (reach the node through master over the VPC), write the private IP.
+    python3 - "$SSH_CONFIG" "$alias" "$newip" "$privip" <<'PYEOF'
 import sys, re
-path, alias, newip = sys.argv[1], sys.argv[2], sys.argv[3]
+path, alias, newip, privip = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 with open(path) as f:
     content = f.read()
+block = re.search(r'^Host\s+' + re.escape(alias) + r'\b[^\n]*\n(?:(?!^Host\s).*\n?)*', content, re.MULTILINE)
+if block and re.search(r'^\s*ProxyJump\s', block.group(0), re.MULTILINE) and privip:
+    newip = privip
 
 # 匹配 "Host fa-master\n ... HostName x.x.x.x" 这种 block 内的 HostName 行
 pattern = re.compile(
@@ -181,9 +186,9 @@ PYEOF
 }
 
 echo "Updating $SSH_CONFIG ..."
-update_ssh_block "fa-master"  "$MASTER_PUB"
-update_ssh_block "fa-worker1" "$WORKER1_PUB"
-update_ssh_block "fa-worker2" "$WORKER2_PUB"
+update_ssh_block "fa-master"  "$MASTER_PUB"  ""
+update_ssh_block "fa-worker1" "$WORKER1_PUB" "$WORKER1_PRI"
+update_ssh_block "fa-worker2" "$WORKER2_PUB" "$WORKER2_PRI"
 
 # ---------- 7. 验证连通 / Verify ----------
 echo ""
