@@ -32,19 +32,18 @@ M3 的分段按「轮数」而不是日历：各设备的训练在攒满 (7 + 2 
 
 ## 零、开跑前须确认的事项
 
-### 0.1 冷启动训练期间的检查点配置（2026-09-30 已裁决）
+### 0.1 冷启动训练期间的检查点配置（2026-09-30 已裁决，超时 120 分钟）
 
-M3 训练在任务线程内同步执行，其间该子任务无法响应检查点。裁决维持同步训练，靶向放宽超时，不再用
-「容忍一百次失败」：**检查点间隔 30 秒、超时 60 分钟、容忍连续失败 3 次**。超时的六十分钟是估算值，
-应由步骤 C 的结果替换（取最慢子任务外推时长的两倍）；第四步的提交命令里用 `<超时分钟数>` 表示这个值，
-设计会话确认前按 60 填写。
+M3 训练在任务线程内同步执行，其间该子任务无法响应检查点。裁决维持同步训练，靶向放宽超时：
+**检查点间隔 30 秒、超时 120 分钟、容忍连续失败 3 次**。
 
-需要知道的两点（详见 `docs/reports/m3_coldstart_probe_notes_for_decision.md`）：
-
-- 设备按键哈希分到子任务，B、C、E 三台在同一个子任务上依次训练，D、G 在另一个子任务上依次训练。
-  决定检查点挂起多久的是这两个子任务的训练时长之和。
-- 容忍 3 次、超时 60 分钟时，被训练阻塞的作业要连续 4 次超时，也就是约 4 小时，才会重启。
-  训练超过 60 分钟只会留下一次可见的超时失败，作业不会重启。
+- **120 分钟的来历。** 最慢的是子任务 1，B、C、E 三台在它上面串行冷启动，步骤 C 外推约 51 分钟；
+  取两倍为 103 分钟，再为三月轮数可能多于六月留出余量。详见
+  `docs/reports/m3_coldstart_probe_results_for_decision.md`。
+- **容忍 3 次是第二层余量。** 即使超时定短了，后果也只是一次可见的超时失败，而不是训练反复重来。
+  被训练阻塞的作业要连续 4 次超时（约 8 小时）才会重启。
+- **必须上报的情形。** 子任务 1 的实际跨度（从第一台设备进入训练到最后一台进入在线）若超过 60 分钟，
+  即超时的一半，要上报设计会话，因为这说明外推偏乐观。第十步的报告脚本会自动判定。
 
 冷启动期间作业事实上不可检查点，其间任何故障都会让训练从头再来。在重放数据上，这只是重跑的代价。
 
@@ -119,7 +118,7 @@ bash deploy/scripts/syn-submit-m2.sh --extra '--m3-enabled true --window-sec 360
     --m3-train-days 7 --m3-earlystop-days 2 --m3-thresh-days 2 --m3-window-length 60
     --m3-hidden-size 60 --m3-batch-size 64 --m3-learning-rate 0.001 --m3-grad-clip 39072.0
     --m3-max-epochs 300 --m3-earlystop-patience 20 --m3-reverse-target true
-    --checkpoint-ms 30000 --checkpoint-timeout-min <超时分钟数> --checkpoint-tolerable-failures 3' \
+    --checkpoint-ms 30000 --checkpoint-timeout-min 120 --checkpoint-tolerable-failures 3' \
     2>&1 | tee /tmp/submit_m3.log
 grep -E 'W=|Window W/S|M3 |Ckpt' /tmp/submit_m3.log
 JID=$(grep -oE 'JobID [a-f0-9]{32}' /tmp/submit_m3.log | awk '{print $2}' | head -1); echo "JID=$JID"
@@ -127,7 +126,7 @@ JID=$(grep -oE 'JobID [a-f0-9]{32}' /tmp/submit_m3.log | awk '{print $2}' | head
 
 期望：`W=3600s`、`M3 enabled: true`、`M3 train/es/th: 7d/2d/2d`、`M3 window: 60 rounds`、
 `M3 max epochs: 300 (patience=20)`、`M3 hidden size: 60`、`M3 batch size: 64`、
-`Ckpt interval/timeout: 30000 ms / <超时分钟数> min`、`Ckpt tolerable failures: 3`、
+`Ckpt interval/timeout: 30000 ms / 120 min`、`Ckpt tolerable failures: 3`、
 `M3 rounds/day:   8640`（**不得**出现 `COLD-START PROBE MODE`）。然后确认恰好一个本项目作业在运行：
 
 ```bash
@@ -146,6 +145,17 @@ bash deploy/scripts/syn-m3-coldstart-watch.sh --jid <第四步的 JID> --out doc
 `SYN_AKKA_FRAMESIZE=67108864b` 一致。第二条每 15 秒记录一行检查点时间线：训练期间「进行中=1」且挂起秒数
 持续增长；训练全部结束后「完成」计数加一；「重启」始终为 0。第二条回答裁决第三节的「训练期间被挂起的
 检查点在训练结束后是否正常完成」。
+
+如果第二条显示「挂起=编号 N」长时间不消失，而「最近完成」的编号已经大于 N，这就是步骤 C 里第 22 号检查点
+那样的统计悬挂。按 2026-09-30 裁决，要在作业还在运行时查询它的明细，把推断变成证据（`N` 换成实际编号）：
+
+```bash
+set -a; source deploy/.env; set +a
+ssh fa-master "curl -s http://$NODE_MASTER_IP:8081/jobs/$JID/checkpoints/details/N" > docs/m3_march/ckpt_stale_N.json
+cat docs/m3_march/ckpt_stale_N.json
+```
+
+期望得到一段 JSON，其中 `status` 与各算子的确认数说明它的真实状态。把这个文件一并入库。
 
 ## 六、启动重放（本地 Mac）
 
@@ -216,7 +226,7 @@ bash deploy/scripts/syn-m3-grid.sh --collect --node master \
 
 ```bash
 python3 deploy/scripts/m3_coldstart_report.py --dir docs/m3_march \
-    --offline-csv docs/m3_march_reference.csv --timeout-min <超时分钟数>
+    --offline-csv docs/m3_march_reference.csv --timeout-min 120
 ```
 
 期望：`docs/m3_march/coldstart_report.md` 给出 2026-09-30 裁决第三节要求记录的三项。第一节是逐台设备的
@@ -291,7 +301,7 @@ bash deploy/scripts/syn-submit-m2.sh --extra '--m3-enabled true --window-sec 360
     --m3-train-days 7 --m3-earlystop-days 2 --m3-thresh-days 2 --m3-window-length 60
     --m3-hidden-size 60 --m3-batch-size 64 --m3-learning-rate 0.001 --m3-grad-clip 39072.0
     --m3-max-epochs 300 --m3-earlystop-patience 20 --m3-reverse-target true
-    --checkpoint-ms 30000 --checkpoint-timeout-min <超时分钟数> --checkpoint-tolerable-failures 3' \
+    --checkpoint-ms 30000 --checkpoint-timeout-min 120 --checkpoint-tolerable-failures 3' \
     2>&1 | tee /tmp/submit_m3_inject.log
 grep -E 'W=|Window W/S|M3 |Ckpt' /tmp/submit_m3_inject.log
 JID=$(grep -oE 'JobID [a-f0-9]{32}' /tmp/submit_m3_inject.log | awk '{print $2}' | head -1); echo "JID=$JID"
@@ -358,7 +368,7 @@ bash deploy/scripts/syn-m2-metrics.sh > /tmp/m3i_t2.txt
 diff /tmp/m3i_t1.txt /tmp/m3i_t2.txt && echo "已排空"
 
 bash deploy/scripts/syn-m3-march-collect.sh --out-dir docs/m3_march_inject --since $SINCE
-python3 deploy/scripts/m3_coldstart_report.py --dir docs/m3_march_inject --timeout-min <超时分钟数>
+python3 deploy/scripts/m3_coldstart_report.py --dir docs/m3_march_inject --timeout-min 120
 ```
 
 然后在 B4 的终端里按 Ctrl+C，并执行 B6 的比较。期望：`docs/m3_march_inject/` 下有 `m3_scores.jsonl`、

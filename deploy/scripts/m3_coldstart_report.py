@@ -143,6 +143,13 @@ def main():
         spans[s] = span
         p("| %d | %s | %s | %.1f | %s |" % (s, dev[ds[0]]["tm"], "、".join(ds), tot,
                                             "未完成" if math.isnan(span) else "%.0f" % span))
+    # 2026-09-30 裁决：任一子任务的线程占用跨度超过检查点超时的一半，说明外推偏乐观，须上报设计会话。
+    # Ruling of 2026-09-30: a subtask span above half the checkpoint timeout must be reported.
+    half = a.timeout_min * 60 / 2
+    over = [s for s, v in spans.items() if not math.isnan(v) and v > half]
+    p("\n%s" % ("**须上报设计会话**：子任务 %s 的跨度超过检查点超时的一半（%.0f 分钟），外推偏乐观。"
+                 % ("、".join("%d（%.0f 分钟）" % (s, spans[s] / 60) for s in over), half / 60)
+                 if over else "各子任务的跨度都不超过检查点超时的一半（%.0f 分钟）。" % (half / 60)))
     # 同时在训练的设备数：用「进入训练」到「训练完成」的区间求最大重叠。
     ev = []
     for d in dev.values():
