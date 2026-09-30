@@ -35,9 +35,11 @@ Kafka 与 ZooKeeper 的数据存放在各自容器的匿名卷里（wurstmeister
    bash deploy/scripts/syn-reset-env.sh              # 交互确认后清理
    bash deploy/scripts/syn-reset-env.sh --dry-run    # 只看当前状态，不改动
    ```
-   它会停止重放器并清掉续跑位点、只取消本项目的作业、重启 Flink 容器、清空并重建 `synergia-*`
-   主题（`retention.ms` 按 `.env` 原参数重建，仍为 −1）、删除远端工作目录 `m2probe`、`m2baseline`、
-   `m2surge`、`m3grid`，最后给出核对表。
+   它会停止重放器并清掉续跑位点、只取消本项目的作业、重启 Flink 容器、**删除并重建** `synergia-*`
+   主题、删除远端工作目录 `m2probe`、`m2baseline`、`m2surge`、`m3grid`，最后给出核对表。
+   **Kafka 里的数据不是靠重启清掉的**（脚本只重启 Flink 容器，不重启 Kafka），而是靠删除主题：
+   Kafka 删除主题时先把分区目录改名为 `*-delete`，约 60 秒后（`file.delete.delay.ms` 默认值）从磁盘上
+   删除。核对表中「topic 已清零」一项核对重建后末端偏移为 0，「retention.ms=-1」一项核对重建后的保留期。
 5. **下一阶段开始前再执行一次 `syn-reset-env.sh`**，把它的核对表当作开跑门槛（全部 PASS 时退出码为 0）。
 6. **万一容器被意外重建**：本阶段写进 Kafka 的数据已经没有了，需要从重放开始重做本阶段；旧的匿名卷
    成为孤儿卷，`syn-reset-env.sh` 会报告它们的个数和大小，确认不再需要后加 `--prune-volumes` 回收

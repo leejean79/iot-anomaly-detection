@@ -42,8 +42,6 @@ set -a; source "$DEPLOY_DIR/.env"; set +a
 # 前缀护栏 / prefix guard: 本脚本只创建 synergia- 前缀 topic。
 SYN_PREFIX="synergia-"
 
-SSH_OPTS="-i ${SSH_KEY:-} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-MASTER_SSH="${NODE_MASTER_PUBLIC_IP:-$NODE_MASTER_IP}"
 BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
 RF="${SYN_TOPIC_REPLICATION:-2}"
 RETENTION="${SYN_RETENTION_MS:-86400000}"
@@ -56,15 +54,17 @@ RETENTION="${SYN_RETENTION_MS:-86400000}"
 # stall RoundAssembler's close timers (nothing gets emitted).
 
 # 在 master 的 kafka-1 容器内调用 Kafka CLI / run the Kafka CLI inside kafka-1 on master
-kcmd() { ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "docker exec kafka-1 $*"; }
+# 经 ~/.ssh/config 的 fa-master 别名登录，与其余脚本一致，不直接用密钥与公网 IP。
+# Log in via the fa-master alias in ~/.ssh/config, like the other scripts.
+kcmd() { ssh fa-master "docker exec kafka-1 $*"; }
 
 # 连通性预检 / connectivity preflight: ssh 不通时立即给出可操作的报错，而非逐条超时。
 # Fail fast with an actionable message instead of per-command timeouts.
 if [[ "$NODE_MASTER_IP" == "172.16.0.11" ]]; then
     echo "警告 / WARNING: NODE_MASTER_IP=172.16.0.11 是 env.example 的占位值——.env 可能未填真实 IP。"
 fi
-if ! ssh $SSH_OPTS -o BatchMode=yes "$SSH_USER@$MASTER_SSH" true 2>/dev/null; then
-    echo "FATAL: 无法 ssh 到 master（$SSH_USER@${MASTER_SSH}）。/ cannot ssh to master." >&2
+if ! ssh -o BatchMode=yes fa-master true 2>/dev/null; then
+    echo "FATAL: 无法 ssh 到 master（fa-master 别名）。/ cannot ssh to master." >&2
     echo "  检查 deploy/.env 的 NODE_*IP / SSH_KEY 是否为真实值（env.example 的 172.16.0.11/12/13" >&2
     echo "  为占位符），公网 IP 过期可跑 bash deploy/scripts/refresh-ips.sh 刷新。" >&2
     exit 2

@@ -252,6 +252,24 @@ else
         else
             record "topic 已清零" PASS "四个 topic 末端偏移均为 0"
         fi
+        # 重建后的保留期必须仍为 -1（永久保留、只靠本流程手动清理）。清理与建主题脚本在 .env 缺
+        # SYN_RETENTION_MS 时会退回一天，那样阶段进行中数据就会被 Kafka 自动删掉。主题不存在时
+        # 这里也读不到值，因此本项同时兜住「末端偏移为 0 其实是主题根本没建出来」的情形。
+        # Recreated topics must keep retention.ms=-1: the scripts fall back to one day when .env
+        # lacks SYN_RETENTION_MS. A missing topic also fails here, which the offset check cannot see.
+        BADRET=""
+        for t in "${SYN_TOPIC_SOURCE:-synergia-source}" synergia-m1-out synergia-monitoring synergia-scores; do
+            ret="$(ssh fa-master "docker exec kafka-1 kafka-configs.sh --bootstrap-server $BROKERS \
+                --entity-type topics --entity-name $t --describe" 2>/dev/null \
+                | grep -oE '^ *retention\.ms=[-0-9]+' | head -1 | cut -d= -f2)"   # 行首锚定，避开 delete.retention.ms
+            echo "    $t retention.ms: ${ret:-读不到}"
+            [ "${ret:-}" != "-1" ] && BADRET="$BADRET $t(${ret:-读不到})"
+        done
+        if [ -n "$BADRET" ]; then
+            record "retention.ms=-1" FAIL "不符:$BADRET —— 检查 .env 的 SYN_RETENTION_MS=-1 后重跑本脚本"
+        else
+            record "retention.ms=-1" PASS "四个 topic 均为 -1"
+        fi
     fi
 fi
 

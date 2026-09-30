@@ -42,13 +42,13 @@ SYN_PREFIX="synergia-"
 ASSUME_YES=false
 [[ "${1:-}" == "--yes" ]] && ASSUME_YES=true
 
-SSH_OPTS="-i ${SSH_KEY:-} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-MASTER_SSH="${NODE_MASTER_PUBLIC_IP:-$NODE_MASTER_IP}"
 BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
 RF="${SYN_TOPIC_REPLICATION:-2}"
 RETENTION="${SYN_RETENTION_MS:-86400000}"
 
-kcmd() { ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "docker exec kafka-1 $*"; }
+# 经 ~/.ssh/config 的 fa-master 别名登录，与其余脚本一致，不直接用密钥与公网 IP。
+# Log in via the fa-master alias in ~/.ssh/config, like the other scripts.
+kcmd() { ssh fa-master "docker exec kafka-1 $*"; }
 
 # 待清理清单 / target list。基础清单**始终包含管线的四个 synergia topic**——source、smoke、
 # m1-out、monitoring——不依赖 .env 是否设了 SYN_EXTRA_TOPICS。这是补充指令五那轮"重放干净但仍有
