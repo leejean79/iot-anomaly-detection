@@ -108,6 +108,8 @@ bash deploy/scripts/syn-reset-env.sh
 SINCE=$(ssh fa-master date -u +%Y-%m-%dT%H:%M:%SZ); echo "SINCE=$SINCE"
 ```
 
+如果提交后又取消、重新提交，要在重新提交之前再执行一次这条命令，让 `SINCE` 取重新提交前的时刻。
+
 参与等值核验的参数一律显式传入，不依赖默认值。`--extra` 可以分行书写：`syn-submit-m2.sh` 自
 2026-09-30 起会把其中的换行压成空格（此前换行会让远端命令提前结束，之后的参数全部丢失、作业带着默认值
 悄悄运行）。

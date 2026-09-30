@@ -140,6 +140,8 @@ bash deploy/scripts/syn-reset-env.sh
 SINCE=$(ssh fa-master date -u +%Y-%m-%dT%H:%M:%SZ); echo "SINCE=$SINCE"
 ```
 
+如果提交后又取消、重新提交，要在重新提交之前再执行一次这条命令，让 `SINCE` 取重新提交前的时刻。
+
 然后提交：
 
 ```bash
