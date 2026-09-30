@@ -23,6 +23,8 @@
 # 2. 调用命令 / Invocation:
 #      bash deploy/scripts/syn-replay.sh --speedup 600 --start 2022-05-21 --end 2022-05-22  # 启动（默认，tmux 后台常驻）
 #      bash deploy/scripts/syn-replay.sh --speedup 3600                                       # 全量压力（约一小时）
+#      bash deploy/scripts/syn-replay.sh --speedup 3600 --start 2022-03-01 --end 2022-04-01 \
+#           --inject-file docs/m3_march_inject_spec.txt    # 带注入；地面真值写到 master 的 replay-state/inject-truth.csv
 #      bash deploy/scripts/syn-replay.sh attach     # 附着到运行中的会话观看（Ctrl+B D 脱离）
 #      bash deploy/scripts/syn-replay.sh status     # 查看是否在跑 + 最近日志
 #      bash deploy/scripts/syn-replay.sh logs       # 持续跟踪日志（Ctrl+C 只停跟踪，不停重放）
@@ -44,8 +46,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(dirname "$SCRIPT_DIR")"
 set -a; source "$DEPLOY_DIR/.env"; set +a
 
-SSH_OPTS="-i ${SSH_KEY:-} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-MASTER_SSH="${NODE_MASTER_PUBLIC_IP:-$NODE_MASTER_IP}"
 BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
 JAR_NAME="${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}"
 MAIN="${SYN_REPLAYER_MAIN:-com.leejean.source.CsvKafkaReplayer}"
@@ -64,8 +64,9 @@ CONTAINER="syn-replay"                     # 容器名 / container name
 LOG="${REMOTE_HOME}/syn-replay.log"        # master 上的日志文件 / log file on master
 LAUNCH="${REMOTE_HOME}/.syn-replay-launch.sh"
 
-on_master() { ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "$@"; }
-on_master_tty() { ssh -t $SSH_OPTS "$SSH_USER@$MASTER_SSH" "$@"; }
+# 经 ~/.ssh/config 的 fa-master 别名登录，与其余脚本一致。/ via the fa-master alias, like the other scripts.
+on_master() { ssh fa-master "$@"; }
+on_master_tty() { ssh -t fa-master "$@"; }
 
 # 子命令分派：首参为 attach/status/stop/logs/fg/start 则消费之，否则默认 start（其余全作重放器参数）。
 # Sub-command dispatch: consume a leading attach/status/stop/logs/fg/start; otherwise default to start.
@@ -73,7 +74,29 @@ CMD="start"
 case "${1:-}" in
     attach|status|stop|logs|fg|start) CMD="$1"; shift ;;
 esac
-REPLAY_ARGS="$*"
+# 注入规格必须经 --inject-file 从文件传入。重放器参数最终被原样写进 master 上的启动脚本、由 bash
+# 执行，规格里用来分隔多条注入的分号会在那里被当成命令分隔符：重放器只会收到第一条注入，其余被当成
+# 命令执行而报错，整轮注入实验静默失效。这里把规格读出后加上单引号再传，并把地面真值日志固定写到
+# 挂载的 /state 下（容器以 --rm 运行，写在容器内的文件会随容器消失）。
+# Injection specs must come from --inject-file: the args are written verbatim into a launcher script run by
+# bash, where the semicolons separating specs would split the command and silently drop all but the first
+# injection. The spec is single-quoted here, and the ground-truth log is pinned under the mounted /state.
+REPLAY_ARGS=""
+INJECT_TRUTH="$REPLAY_STATE_DIR/inject-truth.csv"
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --inject-file)
+            if [ ! -f "${2:-}" ]; then echo "ERROR: 注入规格文件不存在：${2:-<未给出>}" >&2; exit 2; fi
+            SPEC="$(tr -d '\r\n' < "$2")"
+            case "$SPEC" in *"'"*) echo "ERROR: 注入规格中不得含单引号" >&2; exit 2 ;; esac
+            REPLAY_ARGS="$REPLAY_ARGS --inject '$SPEC' --inject-log /state/inject-truth.csv"
+            shift 2 ;;
+        --inject)
+            echo "ERROR: 请改用 --inject-file <规格文件>：直接传 --inject 时，规格里的分号会被启动脚本截断。" >&2
+            exit 2 ;;
+        *) REPLAY_ARGS="$REPLAY_ARGS $1"; shift ;;
+    esac
+done
 
 # 运行本项目 jar 的临时容器必须用 Java 11 镜像 FLINK_IMAGE_TAG。本项目 jar 自 Addendum 2 起是 Java 11
 # 字节码（class file major 55），而旧的 fa-iforest/flink:$FLINK_VERSION 自带 JDK 8、只认到 major 52，
@@ -125,7 +148,7 @@ case "$CMD" in
 
         # 准备 offset 状态目录并置为全可写（容器 uid 9999 需能写 /state）。
         # Prepare the offset state dir and make it world-writable (the uid-9999 container must write /state).
-        on_master "mkdir -p $REPLAY_STATE_DIR && chmod 777 $REPLAY_STATE_DIR"
+        on_master "mkdir -p $REPLAY_STATE_DIR && chmod 777 $REPLAY_STATE_DIR && rm -f $INJECT_TRUTH"
 
         # 把启动命令写成 master 上的 launcher 脚本，launcher 自身把输出 tee 到日志文件。
         # 这样 tmux 命令只是 `bash LAUNCH`，没有管道/多层引号，杜绝一类引号解析问题。
@@ -195,7 +218,7 @@ EOF
         # 前台阻塞运行（供快速 dry-run/交互）；断连即止，不用于长跑。
         # Foreground blocking run (for quick dry-run/interactive); dies on disconnect, not for long runs.
         echo "[replay:fg] 前台运行（断连即止；长跑请用默认 start）/ foreground (dies on disconnect)"
-        on_master "mkdir -p $REPLAY_STATE_DIR && chmod 777 $REPLAY_STATE_DIR"
+        on_master "mkdir -p $REPLAY_STATE_DIR && chmod 777 $REPLAY_STATE_DIR && rm -f $INJECT_TRUTH"
         on_master_tty "$(replayer_docker_cmd "")"
         ;;
 esac

@@ -37,8 +37,11 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-SSH_OPTS="-i ${SSH_KEY:-} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-MASTER_SSH="${NODE_MASTER_PUBLIC_IP:-$NODE_MASTER_IP}"
+# --extra 里的换行必须压成空格：它被原样拼进下面那条多行远端命令，换行会在远端被当作命令结束，
+# 之后的参数不再传给 flink run，作业就会带着默认值悄悄运行。
+# Newlines in --extra must become spaces: the string is spliced into the multi-line remote command below,
+# where a newline would end the flink run command and silently drop every later parameter.
+EXTRA_ARGS="$(printf '%s' "$EXTRA_ARGS" | tr '\n' ' ')"
 BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
 JAR_NAME="${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}"
 MAIN="${SYN_M2_JOB_MAIN:-com.leejean.m2.M2Job}"
@@ -52,7 +55,7 @@ MCOD_K="${SYN_M2_K:-10}"
 MCOD_R_PER_DEVICE="${SYN_M2_R_PER_DEVICE:-}"
 
 # 分区数预检：synergia-source 必须已是 8 分区（否则 Flink 消费者触发 broker 自动建 1 分区，重放静默丢失）。
-SRC_DESC=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" \
+SRC_DESC=$(ssh fa-master \
     "docker exec kafka-1 kafka-topics.sh --bootstrap-server $BROKERS --describe --topic $SRC_TOPIC" 2>/dev/null || true)
 ACTUAL_PARTS=$(echo "$SRC_DESC" | grep -oE 'PartitionCount: *[0-9]+' | grep -oE '[0-9]+' | head -1)
 if [ -z "$ACTUAL_PARTS" ]; then
@@ -77,7 +80,7 @@ echo "===================================="
 # two double-write synergia-m1-out and synergia-monitoring. The duplicates only surface when integrity
 # assertion (b) fails after the whole replay, costing the entire run.
 if [ "$FORCE" -ne 1 ]; then
-    RUNNING=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "docker exec jobmanager flink list 2>/dev/null" \
+    RUNNING=$(ssh fa-master "docker exec jobmanager flink list 2>/dev/null" \
         | grep -E '\(RUNNING\)' | grep -Ei 'M1Job|M2Job' || true)
     if [ -n "$RUNNING" ]; then
         echo "ERROR: 已有 M1/M2 作业在运行。M2Job 本身包含完整 M1 管线，二者并行会双写" >&2
@@ -92,7 +95,7 @@ if [ "$FORCE" -ne 1 ]; then
     echo "[preflight] 无并行的 M1/M2 作业 OK / no competing M1/M2 job"
 fi
 echo "===================================="
-submit_output=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "
+submit_output=$(ssh fa-master "
     docker exec jobmanager flink run -d \
         -c $MAIN \
         -p $PARALLELISM \
@@ -121,7 +124,7 @@ fi
 
 echo "[wait] M2Job ($jobid) to be RUNNING ..."
 for _ in $(seq 1 12); do
-    status=$(ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "docker exec jobmanager flink list 2>&1" \
+    status=$(ssh fa-master "docker exec jobmanager flink list 2>&1" \
         | grep -F "$jobid" | grep -oE '\(RUNNING\)|\(FAILED\)|\(FINISHED\)|\(SCHEDULED\)' | head -1 || true)
     if [[ "$status" == "(RUNNING)" ]]; then
         echo "  M2Job is RUNNING (JobID $jobid)"
