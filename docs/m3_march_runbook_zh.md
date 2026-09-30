@@ -241,14 +241,32 @@ python3 deploy/scripts/m3_coldstart_report.py --dir docs/m3_march \
 E、G、C 在线每轮秒数与离线参照之比（即减速比），以及早停集误差的相对偏差。离线参照 CSV 的实际路径
 以第十步 `--collect` 打印的为准。
 
-## 十一、收尾（结果已取回并提交入库之后）
+## 十一、入库与收尾
+
+先把结果入库（csv、txt、jsonl 被 `.gitignore` 忽略，须加 `-f`）：
 
 ```bash
-bash deploy/scripts/syn-reset-env.sh
+git add -f docs/m3_march/m3_scores.jsonl docs/m3_march/m3_tm_log.txt docs/m3_march/ckpt_timeline.csv \
+    docs/m3_march/coldstart_report.md docs/m3_march/collect_summary.txt docs/m3_march/ckpt_stale_*.json \
+    docs/reports/ckpt_sizes_march_m3.csv docs/m3_march_reference.csv docs/m3_march_reference_per_epoch.csv \
+    docs/reports/m2_java11_march-m3_*
+git commit -m "data(m3): 三月第一次运行（类型 A）结果" && git push origin dev-claude
 ```
 
-它会清空本次写进 Kafka 的数据与远端工作目录 `m3grid`、`m2probe` 等；`m3march/` 下的 monitoring 转储
-若不再需要，另行删除：`ssh fa-master 'rm -rf /opt/fa-iforest/m3march'`。
+`ckpt_stale_*.json` 只有在第五步查询过统计悬挂的检查点时才存在；不存在时 git 会报「did not match any
+files」，删掉这一项重新执行即可。
+
+然后取消本次作业、复位并清理：
+
+```bash
+ssh fa-master "docker exec jobmanager flink cancel $JID"
+bash deploy/scripts/syn-reset-env.sh
+ssh fa-master 'rm -rf /opt/fa-iforest/m3march'
+rm -f docs/m3_march/scores.jsonl docs/m2_monitoring_march-m3.jsonl
+```
+
+`flink cancel` 只取消第四步提交的作业。复位会清空本次写进 Kafka 的数据与远端工作目录 `m3grid`、`m2probe`
+等。本地删掉的两个文件体积较大，其中需要的内容已经分别抽取或汇总入库。
 
 ---
 
