@@ -56,6 +56,7 @@ def parse_log(path):
         m = RE_ENTER.search(line)
         if m:
             d = dev.setdefault(m.group(2), {"reports": []})
+            d.setdefault("enters", []).append(m.group(1))
             d.update(tm=tm, enter=ts(m.group(1)), subtask=int(m.group(3)), train=int(m.group(4)),
                      excluded=int(m.group(5)), es=int(m.group(6)))
             continue
@@ -118,6 +119,14 @@ def main():
             d.get("plateau", "-"), ("%.6f" % d["esloss"]) if done else "-", ("%.1f" % d["sec"]) if done else "-",
             ("%.2f" % (d["sec"] / d["epochs"])) if done and d["epochs"] else "-", "；".join(d["reports"]) or "无"))
 
+    # 同一设备多次进入训练：要么作业重启过（状态回滚后再次触发训练），要么 --since 早于本次提交、混入了
+    # 之前作业的记录。表中一律取最后一次。/ Multiple TRAINING entries: a restart, or --since too early.
+    multi = {k: d["enters"] for k, d in dev.items() if len(d.get("enters", [])) > 1}
+    if multi:
+        p("\n**注意**：以下设备多次进入训练，表中取最后一次：%s。这说明作业重启过，或者收集时的 --since 早于"
+          "本次提交、混入了之前作业的记录，须核对。" % "；".join(
+              "%s（%s）" % (k, "、".join(v)) for k, v in sorted(multi.items())))
+
     # 逐子任务：同一子任务上的设备只能依次训练，任务线程被占住的时长是从第一台进入训练到最后一台完成。
     p("\n## 二、逐子任务（同一子任务上的设备依次训练）\n")
     p("| 子任务 | TaskManager | 设备 | 训练秒数之和 | 线程被占住的墙钟跨度（秒） |")
@@ -150,7 +159,17 @@ def main():
     if os.path.exists(tl):
         rows = list(csv.DictReader(open(tl, encoding="utf-8")))
         p("\n## 三、检查点与重启\n")
-        pend = [float(r["pending_sec"]) for r in rows if r["pending_sec"]]
+        # 挂起时长按检查点编号分别取最大值。若某个编号一直显示「进行中」，而更大编号的检查点已经完成，
+        # 那么它在协调器里已不再挂起（最大并发为 1），只是统计接口没有把它结掉，单独列出，不计入挂起时长。
+        # A pending id seen while a larger id has completed is a statistics leftover (max concurrency is 1).
+        pend_by, stale = {}, set()
+        for r in rows:
+            if r["pending_id"] and r["pending_sec"]:
+                pid = int(r["pending_id"])
+                pend_by[pid] = max(pend_by.get(pid, 0.0), float(r["pending_sec"]))
+                if r["last_completed_id"] and int(r["last_completed_id"]) > pid:
+                    stale.add(pid)
+        pend = [v for k, v in pend_by.items() if k not in stale]
         rst = [int(r["num_restarts"]) for r in rows if r["num_restarts"].isdigit()]
         failed = [int(r["failed"]) for r in rows if r["failed"].isdigit()]
         long_done = {}
@@ -160,6 +179,10 @@ def main():
         p("- 记录 %d 行，从 %s 到 %s。" % (len(rows), rows[0]["wall_clock"], rows[-1]["wall_clock"]) if rows else "- 时间线为空。")
         p("- 观察到的最长挂起时间：%s 秒（检查点超时为 %.0f 分钟，即 %.0f 秒）。"
           % ("%.0f" % max(pend) if pend else "无挂起", a.timeout_min, a.timeout_min * 60))
+        if stale:
+            p("- 统计上悬挂的检查点：编号 %s。它们一直显示「进行中」，而更大编号的检查点已经陆续完成；最大并发为 1，"
+              "所以它们在协调器里已不再挂起，只是统计接口没有结掉。「进行中」计数因此一直停在 1，"
+              "上面的最长挂起时间不含它们。" % "、".join(str(i) for i in sorted(stale)))
         p("- 端到端耗时超过 60 秒、最终完成的检查点：%s。" % ("；".join(
             "编号 %s，%.0f 秒，完成于 %s" % (i, v[0], v[1]) for i, v in sorted(long_done.items())) or "无"))
         p("- 失败的检查点累计：%s 次；重启次数：%s。" % (max(failed) if failed else "?",
