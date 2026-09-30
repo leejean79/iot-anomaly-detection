@@ -62,7 +62,7 @@ print(js[0] if len(js)==1 else "")')"
 fi
 mkdir -p "$(dirname "$OUT")"
 [ -f "$OUT" ] || echo "wall_clock,job_state,num_restarts,in_progress,completed,failed,pending_id,pending_sec,last_completed_id,last_completed_e2e_sec,last_completed_at,last_failed_id,last_failed_at,last_failed_reason" > "$OUT"
-echo "[watch] 作业 $JID，每 ${INTERVAL}s 记录一次 → $OUT（Ctrl+C 结束）"
+echo "[watch] 作业 ${JID}，每 ${INTERVAL}s 记录一次 → ${OUT}（Ctrl+C 结束）"
 
 PARSER="$(mktemp)"
 trap 'rm -f "$PARSER"' EXIT

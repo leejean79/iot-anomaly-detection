@@ -331,7 +331,7 @@ for pair in "fa-worker1 taskmanager-2" "fa-worker2 taskmanager-3"; do
     set -- $pair
     OMP_SEEN="$OMP_SEEN $2=$(ssh "$1" "docker exec $2 printenv OMP_NUM_THREADS" 2>/dev/null | tr -d '[:space:]')"
 done
-echo "  TaskManager OMP_NUM_THREADS:$OMP_SEEN（期望都为 1）"
+echo "  TaskManager OMP_NUM_THREADS:${OMP_SEEN}（期望都为 1）"
 if [ "$(echo "$OMP_SEEN" | grep -o '=1\b' | wc -l | tr -d ' ')" = "2" ]; then
     record "TM 单线程" PASS "$OMP_SEEN"
 else
