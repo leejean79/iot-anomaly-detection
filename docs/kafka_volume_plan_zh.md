@@ -1,92 +1,57 @@
-# Kafka 与 ZooKeeper 数据卷改造方案（执行时机：第二批在线验收开始之前的清理点）
+# Kafka 数据的存放与清理：不加数据卷，按阶段清理（2026-09-30 用户决定）
 
-依据：2026-09-27 裁决书《网格定稿、训练上限、六月段核验与 Kafka 数据卷》第四节。
-用户已同意在上述清理点执行，并要求：**数据写入本地磁盘后，实验不再需要时及时清理**。
+依据：2026-09-27 裁决书第四节提出为三个 Kafka 代理加命名数据卷；2026-09-28 裁决书第六节将此事交由
+用户决定。**2026-09-30 用户决定：不加数据卷。** 阶段进行中不做任何删除或重建容器的操作；阶段实验
+完成后调用 `deploy/scripts/syn-reset-env.sh` 清理数据。
 
-本文件只是方案。compose 文件在清理点之前**不改动**：一旦改动并提交，任何一次 `docker compose up`
-都会立即重建容器，而此时六月段数据还没有登记成文件。
+本文件原为加卷的改造方案，现改为记录该决定及其操作规则。compose 文件不改动。
 
-## 一、现状（2026-09-27 核实）
+## 一、这个决定为什么可行
 
-1. **三个代理都没有命名数据卷。** master 的 `kafka-1` 与 worker 模板里的 `kafka` 服务都没有
-   `volumes` 一节。
-2. **更正一处我此前的说法。** 我在六月段核验报告里写过「数据存在容器的可写层里」，这不准确。
-   wurstmeister/kafka 镜像在 Dockerfile 里声明了 `VOLUME`，所以每个容器新建时会自动得到一个
-   **匿名卷**，日志目录是 `/kafka/kafka-logs-<容器主机名>`（`syn-disk-report.sh` 第 83 行就是这样
-   查找它的）。后果与原先所说的相同：重建容器会换成一个新的空匿名卷，代理从零开始；区别是旧数据
-   并未被删除，而是留在一个不再挂载的匿名卷里，继续占用磁盘。
-3. **ZooKeeper 同样没有命名数据卷，这一点裁决书没有提到，但必须一并处理。** 主题的元数据（主题
-   列表、分区分配、主题配置，包括 `retention.ms=-1`）存在 ZooKeeper 里。如果只给代理加卷而
-   ZooKeeper 被重建，新的 ZooKeeper 会生成新的集群编号，而代理数据目录里记着旧编号，代理会拒绝
-   启动。
-4. **日志目录名随主机名变化。** 默认目录名里带容器主机名，而主机名在每次新建容器时都会变。即使
-   加了命名卷，重建后代理也会在卷里另开一个新目录，旧数据依然用不上。因此必须把
-   `KAFKA_LOG_DIRS` 固定下来。
+Kafka 与 ZooKeeper 的数据存放在各自容器的匿名卷里（wurstmeister 镜像在 Dockerfile 中声明了
+`VOLUME`）。这决定了：
 
-## 二、执行前提
+- **服务器关机、重启、容器重启**：容器还是原来那个，数据都在。自 2026-09-19 创建以来的情况印证了
+  这一点。
+- **容器被删除或重建**（例如 `docker compose down` 再 `up`，或者 `.env` 改动后执行 `2-up-all.sh`、
+  compose 认为配置变了而重建）：新容器会换一个空的新匿名卷，全部主题从零开始；旧卷不会自动删除，
+  继续占磁盘。
 
-1. 六月段转储已登记成文件：起止时刻、行数、校验和、存放路径写入 `docs/datasets_zh.md`，
-   文件放在 `/opt/fa-iforest/datasets/` 下（见裁决书第三节）。
-2. 没有正在运行的本项目作业，也没有别人正在使用这个集群。
-3. 用户在执行当时再确认一次。重建会清空全部主题，包括旧项目遗留的主题（旧项目已退役）。
+所以只要阶段进行中不删除、不重建容器，数据就不会丢；阶段之间的清理由脚本统一完成。
 
-## 三、执行步骤（在清理点执行）
+## 二、操作规则
 
-**第 1 步：在运行中的容器里核实两个路径（只读）**
+1. **阶段进行中不删除、不重建 Kafka 与 ZooKeeper 容器。** 不执行 `docker compose down`、
+   `docker rm`，也不执行会重建容器的 `2-up-all.sh`。
+2. **服务器每天正常关机、开机不受限制。** 开机后容器会按 `restart: unless-stopped` 自动拉起原容器。
+   但要**等三台代理都起来之后**再读写 Kafka：2026-09-27 那次转储读到 0 条，就是因为两台 worker 上的
+   代理还没起来。
+3. **公网 IP 变了用 `refresh-ips.sh` 更新 `.env` 与 ssh 配置之后，不要随即执行 `2-up-all.sh`。**
+   Kafka 对外通告的是内网 IP（`KAFKA_ADVERTISED_LISTENERS` 的 INTERNAL 一项），集群内部读写不依赖
+   公网 IP；而 compose 看到 `.env` 中公网 IP 变了，会重建 `kafka-1`（它的 EXTERNAL 通告地址引用了
+   公网 IP）。
+4. **阶段实验完成、结果已取回并入库后**，执行 `syn-reset-env.sh` 清理：
+   ```bash
+   bash deploy/scripts/syn-reset-env.sh              # 交互确认后清理
+   bash deploy/scripts/syn-reset-env.sh --dry-run    # 只看当前状态，不改动
+   ```
+   它会停止重放器并清掉续跑位点、只取消本项目的作业、重启 Flink 容器、清空并重建 `synergia-*`
+   主题（`retention.ms` 按 `.env` 原参数重建，仍为 −1）、删除远端工作目录 `m2probe`、`m2baseline`、
+   `m2surge`、`m3grid`，最后给出核对表。
+5. **下一阶段开始前再执行一次 `syn-reset-env.sh`**，把它的核对表当作开跑门槛（全部 PASS 时退出码为 0）。
+6. **万一容器被意外重建**：本阶段写进 Kafka 的数据已经没有了，需要从重放开始重做本阶段；旧的匿名卷
+   成为孤儿卷，`syn-reset-env.sh` 会报告它们的个数和大小，确认不再需要后加 `--prune-volumes` 回收
+   （不可撤销）。
 
-```bash
-ssh fa-master "docker exec kafka-1 sh -c 'ls -d /kafka/kafka-logs-*; env | grep KAFKA_LOG_DIRS'"
-ssh fa-master "docker exec zookeeper sh -c 'grep -E \"^dataDir|^dataLogDir\" /opt/zookeeper-*/conf/zoo.cfg'"
-```
+## 三、清理不到、也不应清理的东西
 
-第二条命令打印的 `dataDir` 就是 ZooKeeper 的数据卷挂载点。下面的改动以实际打印的路径为准。
+- **登记过的数据集**：`/opt/fa-iforest/datasets/` 下，见 `docs/datasets_zh.md`。`syn-reset-env.sh` 从不
+  触碰这个目录；重放用的原始数据也在这里。数据集只有在登记表中标注「退役」后才能删除。
+- **旧项目的主题**：`syn-clean-topics.sh` 只接受 `synergia-` 前缀，在设计上删不到其他主题。
 
-**第 2 步：修改 compose 文件**
+## 四、2026-09-27 核查中得到、仍然有效的两点事实
 
-master（`deploy/compose/docker-compose.master.yml`）：
-
-```yaml
-  zookeeper:
-    volumes:
-      - zk-data:<第 1 步打印的 dataDir>
-  kafka-1:
-    environment:
-      KAFKA_LOG_DIRS: /kafka/kafka-logs
-    volumes:
-      - kafka-data:/kafka
-volumes:
-  zk-data:
-  kafka-data:
-```
-
-worker（`deploy/compose/docker-compose.worker.yml`），同样的两处加在 `kafka` 服务上，
-并在文件末尾声明 `kafka-data` 卷。
-
-**第 3 步：重建并恢复主题**
-
-按 `2-up-all.sh` 的顺序重建三台的 ZooKeeper 与代理，再执行 `syn-create-topics.sh` 按 `.env`
-原参数重建本项目主题。最后核对每个主题的 `retention.ms` 仍为 -1。
-
-**第 4 步：验证数据确实落在命名卷里**
-
-写入少量消息后，只重建 `kafka-1`（`docker compose up -d --force-recreate kafka-1`）。之后主题
-偏移量应当保持不变。这一步证明重建容器不再丢数据。
-
-**第 5 步：回收旧匿名卷**
-
-旧容器留下的匿名卷此时已经不再挂载。先用 `syn-disk-report.sh` 量出它们的大小，再逐个确认后
-删除。
-
-## 四、数据清理规则（用户要求：实验不再需要时及时清理）
-
-加了数据卷以后，主题数据会一直留在磁盘上，除非主动删除（`retention.ms=-1`，不会自动过期）。
-因此每次实验结束都要做下面三件事：
-
-1. **主题**：实验结束、结果已经取回并入库后，用 `syn-clean-topics.sh` 清空本项目的 `synergia-*`
-   主题。这个脚本只能删除带 `synergia-` 前缀的主题。
-2. **转储工作副本**：`/opt/fa-iforest/m3grid/`、`/opt/fa-iforest/m2probe/` 下的 `*.jsonl` 是临时
-   工作副本，实验结束即删除。需要长期复用的数据只保留 `/opt/fa-iforest/datasets/` 下登记过的
-   那一份。
-3. **核对**：清理后执行 `syn-disk-report.sh`，确认磁盘空间确实已经释放。
-
-登记过的数据集不随单次实验清理。只有在 `docs/datasets_zh.md` 里标注「退役」之后才能删除。
+1. **ZooKeeper 同样没有命名数据卷。** 若将来改为加卷，ZooKeeper 必须一起加，否则 ZooKeeper 重建后
+   新的集群编号与代理数据目录里记录的旧编号不一致，代理会拒绝启动。
+2. **代理的日志目录名带容器主机名**（`/kafka/kafka-logs-<主机名>`），每次新建容器都会变。若将来加卷，
+   须同时固定 `KAFKA_LOG_DIRS`。

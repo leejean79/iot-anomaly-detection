@@ -15,6 +15,12 @@
 # 【本脚本不做什么】不提交作业、不启动重放、不改任何算法参数（半径 R、k、窗口 W/S、标定天数
 # 一概不碰）。它只负责把环境恢复到可以开跑的状态，并如实报告哪一项没达标。
 #
+# 【两个用法时机】阶段实验**开始前**用它复位并核对；阶段实验**结束后**（结果已取回并入库）也用它
+# 清掉该阶段写进 Kafka 与远端工作目录的数据，释放磁盘。本项目不给 Kafka 挂数据卷：阶段进行中
+# 不重建任何容器，阶段结束后由本脚本清理（2026-09-30 用户决定，见 docs/kafka_volume_plan_zh.md）。
+# Two moments: before a phase, to reset and verify; after a phase, once results are retrieved and
+# committed, to clear that phase's Kafka and scratch data. Kafka has no data volumes by decision.
+#
 # ---------------------------- 脚本交付五要素 -------------------------------
 # 1. 执行环境 / Environment: 本地 Mac（bash + python3），仓库根目录；ssh 主机别名
 #    fa-master / fa-worker1 / fa-worker2 可用（由 deploy/scripts/refresh-ips.sh 维护）。
@@ -251,7 +257,12 @@ fi
 
 # ---------- 7. 清理中间产物 / 报告孤儿卷 ----------
 step "7/8 清理远端中间产物、盘点孤儿卷 / clear scratch dirs, report orphan volumes"
-run "ssh fa-master \"rm -rf $RHOME/m2probe $RHOME/m2baseline $RHOME/m2surge\" >/dev/null 2>&1 || true"
+# m3grid 是 M3 离线网格的工作目录（转储副本每份约 580 MB），2026-09-30 起一并清理。
+# 登记过的数据集在 $RHOME/datasets 下，重放源数据也在那里，本步骤**从不触碰**。
+# m3grid is the M3 grid working directory (each dump copy is about 580 MB), cleared since
+# 2026-09-30. Registered datasets and the replay source data live under $RHOME/datasets and are
+# never touched here.
+run "ssh fa-master \"rm -rf $RHOME/m2probe $RHOME/m2baseline $RHOME/m2surge $RHOME/m3grid\" >/dev/null 2>&1 || true"
 TOTAL_DANG=0
 for h in "${NODES[@]}"; do
     # 一次远端调用同时取「个数」与「合计 MB」，并且**必须**在列表为空时短路：
