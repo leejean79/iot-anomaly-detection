@@ -95,6 +95,13 @@ public class M2Job {
         // keeps the job running past an akka.framesize breach so per-operator checkpoint sizes can be read live
         // in the Flink UI. The default of 0 keeps today's behaviour byte-for-byte unchanged.
         int ckptTolerableFailures = params.getInt("checkpoint-tolerable-failures", 0);
+        // checkpoint 超时（分钟），默认 10 即 Flink 默认值，保持现有行为。M3 验收阶段按 2026-09-30 裁决
+        // 传 60：冷启动训练同步占住任务线程，超时须覆盖训练时长，使训练期间挂起的那次 checkpoint 在
+        // 训练结束后正常完成，而不是失败；容忍次数同时保持很小（3），让真正的失败仍然可见。
+        // Checkpoint timeout in minutes; default 10 is Flink's own default. The M3 acceptance runs pass 60
+        // (ruling of 2026-09-30) so the checkpoint pending during the synchronous cold-start training
+        // completes afterwards instead of failing, while the tolerated failures stay small (3).
+        int ckptTimeoutMin = params.getInt("checkpoint-timeout-min", 10);
         // M2 窗口与算法参数（占位默认；(R,k) 终值由探针交回设计会话裁决）
         int windowSec = params.getInt("window-sec", 3600);       // W
         int slideSec = params.getInt("slide-sec", 60);           // S
@@ -153,6 +160,11 @@ public class M2Job {
         // Channel weights: device G's Light weight is zero (temporary; restore once M6 level-0 re-estimation)
         // 此处为全局默认全 1；逐设备权重在 M3Function 内按配置覆盖
         double[] m3ChannelWeights = parseChannelWeights(params.get("m3-channel-weights", ""));
+        // 每天折合多少轮，**仅供冷启动短重放验证**（补遗三步骤 C）调小，使训练在几分钟的重放里触发。
+        // 生产与验收运行一律不传，保持 8,640；它只改 M3 的分段换算，不改 M1 标定（那由 --warmup-rounds 控制）。
+        // Rounds per day, shrunk ONLY for the short cold-start probe (addendum 3 step C); never passed in
+        // production or acceptance runs. It changes M3's segmentation only, not M1's calibration.
+        int m3RoundsPerDay = params.getInt("m3-rounds-per-day", M3Function.DEFAULT_ROUNDS_PER_DAY);
 
         System.out.println("========================================");
         System.out.println("M2Job (M1+pMCOD joint)");
@@ -167,8 +179,9 @@ public class M2Job {
                 + (params.has("warmup-rounds") ? " (explicit --warmup-rounds)" : " (from --calib-days)"));
         System.out.println("Relative guard:  " + (relativeGuard ? "ON" : "OFF (default)"));
         com.leejean.m1.CheckpointCeiling.print(ckptMaxStateMb);   // 打印两个上限与生效值 / both ceilings
+        System.out.println("Ckpt interval/timeout: " + checkpointMs + " ms / " + ckptTimeoutMin + " min");
         System.out.println("Ckpt tolerable failures: " + ckptTolerableFailures
-                + (ckptTolerableFailures > 0 ? "  [DIAGNOSTIC MODE: job will not restart on failed checkpoints]" : ""));
+                + (ckptTolerableFailures > 0 ? "  (job restarts on consecutive failure no. " + (ckptTolerableFailures + 1) + ")" : ""));
         System.out.println("Window W/S:      " + windowSec + "s / " + slideSec + "s");
         System.out.println("MCOD R/k:        " + r + " / " + k
                 + (rPerDevice.isEmpty() ? " (global R for all devices)"
@@ -184,6 +197,9 @@ public class M2Job {
             System.out.println("M3 reverse tgt:  " + m3ReverseTarget + " (reversed reconstruction target)");
             System.out.println("M3 learning rate:" + m3LearningRate + " (Adam)");
             System.out.println("M3 grad clip:    " + m3GradClip + " (L2 per layer; 0 = disabled)");
+            System.out.println("M3 rounds/day:   " + m3RoundsPerDay
+                    + (m3RoundsPerDay != M3Function.DEFAULT_ROUNDS_PER_DAY
+                        ? "  [COLD-START PROBE MODE: segments are NOT real days; never use for acceptance]" : ""));
         }
         System.out.println("========================================");
 
@@ -197,6 +213,7 @@ public class M2Job {
         // 诊断开关：容忍若干次 checkpoint 失败而不重启作业（见 ckptTolerableFailures 注释）。
         // Diagnostics: tolerate N failed checkpoints without restarting the job.
         env.getCheckpointConfig().setTolerableCheckpointFailureNumber(ckptTolerableFailures);
+        env.getCheckpointConfig().setCheckpointTimeout(ckptTimeoutMin * 60_000L);
 
         Properties consumerProps = new Properties();
         consumerProps.setProperty("bootstrap.servers", brokers);
@@ -324,7 +341,7 @@ public class M2Job {
                             m3WindowLength, m3ZThreshold, m3ChannelWeights,
                             m3MaxEpochs, m3EarlyStopPatience,
                             m3HiddenSize, m3BatchSize, m3ReverseTarget,
-                            m3LearningRate, m3GradClip, m3MonTag))
+                            m3LearningRate, m3GradClip, m3MonTag, m3RoundsPerDay))
                     .name("M3-LSTM-AE");
 
             // M3 上下文评分 → synergia-scores

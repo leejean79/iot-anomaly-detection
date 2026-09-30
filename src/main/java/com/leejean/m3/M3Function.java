@@ -48,16 +48,16 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
 
     private static final int N_FEATURES = Channels.N_DET;    // 5
     /** 生产取值：10 秒一轮 × 86,400 秒/天 = 8,640 轮/天。/ production value. */
-    static final int DEFAULT_ROUNDS_PER_DAY = 8640;
+    public static final int DEFAULT_ROUNDS_PER_DAY = 8640;
 
     /**
-     * 每天折合多少轮。生产上恒为 {@link #DEFAULT_ROUNDS_PER_DAY}；**仅测试**可经包级私有的构造函数
-     * （package-private constructor，即不带 public 修饰符、只对同一个 Java 包内的类可见）调小，
-     * 否则验证一次相位跃迁就要喂 8,640 条以上的轮，单元测试无法承受。调小它不改变任何算法语义——
-     * 它只决定「几轮算一天」这个换算，相位跃迁的判据、训练、标定逻辑一概不变。
-     * Rounds per day; production is always the default. Only tests shrink it via the package-private
-     * constructor, since otherwise a single phase transition needs more than 8,640 rounds. Shrinking
-     * it changes no algorithmic semantics — only how many rounds count as a day.
+     * 每天折合多少轮。生产上恒为 {@link #DEFAULT_ROUNDS_PER_DAY}；只有单元测试与集群冷启动短重放验证
+     * （补遗三步骤 C，经 M2Job 的 --m3-rounds-per-day）才调小它，否则验证一次相位跃迁就要喂 8,640 条
+     * 以上的轮。调小它不改变任何算法语义——它只决定「几轮算一天」这个换算，相位跃迁的判据、训练、
+     * 标定逻辑一概不变。
+     * Rounds per day; production is always the default. Only unit tests and the cluster cold-start probe
+     * (addendum 3 step C, via M2Job's --m3-rounds-per-day) shrink it. Shrinking it changes no algorithmic
+     * semantics — only how many rounds count as a day.
      */
     private final int roundsPerDay;
     private static final String DEVICE_G = "G";              // 设备 G Light 通道需特殊处理 / device G Light needs special handling
@@ -160,11 +160,13 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     }
 
     /**
-     * 包级私有的构造函数（package-private constructor）：不带 public 修饰符，只对同一个 Java 包内的
-     * 类可见，因此同包下的测试类可以调用，包外的生产代码调用不到。仅供测试调小 {@code roundsPerDay}。
-     * Package-private constructor, visible only within this package; tests only.
+     * 可以指定 {@code roundsPerDay} 的构造函数。原为包级私有、仅供测试；冷启动短重放验证（补遗三步骤 C）
+     * 要在集群作业里调小它，而 M2Job 在另一个包，因此改为 public。生产与验收运行不传
+     * --m3-rounds-per-day，M2Job 传入的就是 {@link #DEFAULT_ROUNDS_PER_DAY}。
+     * Constructor taking {@code roundsPerDay}. Formerly package-private for tests; made public because the
+     * cold-start probe (addendum 3 step C) shrinks it from M2Job, which lives in another package.
      */
-    M3Function(int trainDays, int earlyStopDays, int threshDays,
+    public M3Function(int trainDays, int earlyStopDays, int threshDays,
                int windowLength, double zThreshold, double[] channelWeights,
                int maxEpochs, int earlyStopPatience, int hiddenSize, int batchSize,
                boolean reverseTarget, double learningRate, double gradClip,
@@ -342,9 +344,12 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         double[][][] esData = unflattenWindows(esFlats);   // 早停集只需输入，掩码不参与选型 / early-stop needs inputs only
 
         Long excluded = trainExcluded.value();
-        LOG.info("[M3] Device {} entering TRAINING: {} train windows ({} excluded by outlier sanitization), "
-                 + "{} early-stop windows",
-                 device, trainFlats.size(), excluded != null ? excluded : 0, esFlats.size());
+        // 记下子任务编号：同一子任务上的设备只能依次训练，任务线程被占住的总时长是它们之和。
+        // The subtask index matters: devices sharing a subtask train one after another on its thread.
+        LOG.info("[M3] Device {} (subtask {}) entering TRAINING: {} train windows ({} excluded by outlier "
+                 + "sanitization), {} early-stop windows",
+                 device, getRuntimeContext().getIndexOfThisSubtask(), trainFlats.size(),
+                 excluded != null ? excluded : 0, esFlats.size());
 
         // 训练单个模型（补遗三 §3：隐藏层宽度是全机队统一参数，冷启动不再自行搜索）。
         // 训练本身交给 M3Training 这个纯函数，与离线网格 M3Grid 调用同一份实现，使补遗三 §6 的

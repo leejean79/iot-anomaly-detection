@@ -323,6 +323,21 @@ else
     record "JavaCPP 上限" FAIL "实测 ${TM_PHYS:-?} 与 .env 不一致"
 fi
 
+# ND4J 单线程（2026-09-30 用户确认）：两台 TaskManager 都必须带 OMP_NUM_THREADS=1，否则 M3 训练耗时与离线
+# 网格不可比，任务线程被占住的时间也更长。环境变量只在重建容器时生效，重启不会带上新值。
+# Single-threaded ND4J on both TaskManagers; the variable only takes effect when the container is recreated.
+OMP_SEEN=""
+for pair in "fa-worker1 taskmanager-2" "fa-worker2 taskmanager-3"; do
+    set -- $pair
+    OMP_SEEN="$OMP_SEEN $2=$(ssh "$1" "docker exec $2 printenv OMP_NUM_THREADS" 2>/dev/null | tr -d '[:space:]')"
+done
+echo "  TaskManager OMP_NUM_THREADS:$OMP_SEEN（期望都为 1）"
+if [ "$(echo "$OMP_SEEN" | grep -o '=1\b' | wc -l | tr -d ' ')" = "2" ]; then
+    record "TM 单线程" PASS "$OMP_SEEN"
+else
+    record "TM 单线程" FAIL "实测$OMP_SEEN —— 按 docs/m3_coldstart_probe_runbook_zh.md 第一步只重建 taskmanager"
+fi
+
 # 本地预检：SYN_AKKA_FRAMESIZE 的单位写法必须是 Typesafe Config 能解析的。
 # 【为何要这一条】akka.framesize 的值被**原样透传给 Akka**，由 Typesafe Config 解析，而不是 Flink 的
 # MemorySize。Typesafe Config 接受 b/B/kB/K/k/KiB/MB/M/m/MiB/GB/G/g/GiB，**不接受小写 mb/kb/gb**；

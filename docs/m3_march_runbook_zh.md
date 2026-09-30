@@ -13,52 +13,37 @@
 | 03-19 至 03-26 | 在线；**留出正常周**，供 V-M3-4 |
 | 03-26 至 03-31 | 在线；**注入实验窗口**，设备 E，供 V-M3-5 |
 
+**前置要求（2026-09-30 裁决第二节）**：先完成冷启动短重放验证（补遗三步骤 C，
+`docs/m3_coldstart_probe_runbook_zh.md`），再提交三月重放。步骤 C 同时是 M3 的第一次在线打分，即实验手册
+`docs/m3_experiment_runbook.md` 阶段二的「类型 A：联合作业 + 重放」。
+
 M3 的分段按「轮数」而不是日历：各设备的训练在攒满 (7 + 2 + 2) × 8,640 = 95,040 个可用轮后触发，
 缺轮较多的设备（例如 B）会比日历晚一些进入在线。
 
 ---
 
-## 零、开跑前须确认的四件事
+## 零、开跑前须确认的事项
 
-以下四项在开跑前必须确认；其中第一项与第三项需要设计会话的答复，第二项需要用户同意，第四项关系到
-验收的判读方式。
+### 0.1 冷启动训练期间的检查点配置（2026-09-30 已裁决）
 
-### 0.1 冷启动训练期间的 checkpoint 容忍（需设计会话确认）
+M3 训练在任务线程内同步执行，其间该子任务无法响应检查点。裁决维持同步训练，靶向放宽超时，不再用
+「容忍一百次失败」：**检查点间隔 30 秒、超时 60 分钟、容忍连续失败 3 次**。超时的六十分钟是估算值，
+应由步骤 C 的结果替换（取最慢子任务外推时长的两倍）；第四步的提交命令里用 `<超时分钟数>` 表示这个值，
+设计会话确认前按 60 填写。
 
-2026-09-21 起报告过、至今没有裁决的问题：M3 训练在任务线程内同步执行，每台设备约 10 至 15 分钟
-（离线网格实测；在集群上多台同时训练会更慢）。其间该子任务无法响应 checkpoint；checkpoint 超时是
-Flink 默认的 10 分钟，作业默认容忍失败 0 次，因此**按默认参数，作业会在训练约 10 分钟后重启，
-恢复后再次触发训练，永远训练不完**（`docs/reports/m3_online_coldstart_blocking_for_decision.md`）。
+需要知道的两点（详见 `docs/reports/m3_coldstart_probe_notes_for_decision.md`）：
 
-本手册的提交命令带上 `--checkpoint-tolerable-failures 100`，即当时报告中的「选项二」。它不改代码，
-只让超时的 checkpoint 不导致重启；代价是训练期间作业无法完成 checkpoint，其间若发生任何故障，
-会丢掉训练开始以来的全部状态。DF-12 浪涌分析那一轮也用过这个参数。**若设计会话不同意，本次重放无法
-完成在线验收。**
+- 设备按键哈希分到子任务，B、C、E 三台在同一个子任务上依次训练，D、G 在另一个子任务上依次训练。
+  决定检查点挂起多久的是这两个子任务的训练时长之和。
+- 容忍 3 次、超时 60 分钟时，被训练阻塞的作业要连续 4 次超时，也就是约 4 小时，才会重启。
+  训练超过 60 分钟只会留下一次可见的超时失败，作业不会重启。
 
-### 0.2 TaskManager 的 OpenMP 线程数（需用户同意，会重建两个 TaskManager 容器）
+冷启动期间作业事实上不可检查点，其间任何故障都会让训练从头再来。在重放数据上，这只是重跑的代价。
 
-TaskManager 容器没有设置 `OMP_NUM_THREADS`，ND4J 会按全部核心开线程。离线实测表明这在小矩阵上反而
-大幅变慢（本地一次小批量 64 的前向传播，默认线程 3,804 毫秒，单线程 157 毫秒；集群两线程比单线程慢
-2.42 倍）。而本作业每台 TaskManager 最多有 4 个子任务同时训练。
+### 0.2 TaskManager 单线程（2026-09-30 用户已确认）
 
-建议在两台 worker 的 `taskmanager` 服务环境变量里加 `OMP_NUM_THREADS=1`，然后**只重建 taskmanager
-服务**。它不触碰 Kafka 容器，Kafka 数据不受影响；此时处在阶段之间，也符合「阶段进行中不重建容器」
-的约定。具体做法：
-
-```bash
-# 在 deploy/compose/docker-compose.worker.yml 的 taskmanager 服务 environment 下加一行：
-#     - OMP_NUM_THREADS=1
-# 然后同步到两台 worker 并只重建 taskmanager（BROKER_ID 与 NODE_SELF_IP 按 compose 文件头的说明）：
-bash deploy/scripts/1-sync-to-nodes.sh
-ssh fa-worker1 "cd /opt/fa-iforest/compose && BROKER_ID=2 NODE_SELF_IP=<worker1 内网 IP> \
-    docker compose -f docker-compose.worker.yml --env-file ../.env up -d --no-deps taskmanager"
-ssh fa-worker2 "cd /opt/fa-iforest/compose && BROKER_ID=3 NODE_SELF_IP=<worker2 内网 IP> \
-    docker compose -f docker-compose.worker.yml --env-file ../.env up -d --no-deps taskmanager"
-ssh fa-worker1 "docker exec taskmanager-2 printenv OMP_NUM_THREADS"   # 应输出 1
-ssh fa-worker2 "docker exec taskmanager-3 printenv OMP_NUM_THREADS"   # 应输出 1
-```
-
-若不改，训练仍能完成，但 V-M3-6 量出的训练耗时会偏大，训练阻塞任务线程的时间也会更长。
+在步骤 C 的第一步完成：worker 的 compose 文件给 taskmanager 加了 `OMP_NUM_THREADS=1`，并且只重建了
+taskmanager 容器。第三步的复位核对表中「TM 单线程」一项核对它仍然生效。
 
 ### 0.3 注入方案（需设计会话确认）
 
@@ -101,7 +86,7 @@ bash deploy/scripts/check-jar.sh
 python3 eda/make_injection_specs.py \
     --data-dir /Users/lijing/Downloads/fwlmb11wni392kodtyljkw4n2/files_csv \
     --out docs/m3_march_injection_plan.csv
-git add docs/m3_march_injection_plan.csv docs/m3_march_inject_spec.txt
+git add -f docs/m3_march_injection_plan.csv docs/m3_march_inject_spec.txt   # csv 与 txt 被 .gitignore 忽略，须加 -f
 git commit -m "docs(m3): 三月注入计划" && git push origin dev-claude
 ```
 
@@ -120,6 +105,13 @@ bash deploy/scripts/syn-reset-env.sh
 
 ## 四、先提交作业（本地 Mac）
 
+先记下提交前的时刻，第九步收集 TaskManager 日志时要用。容器重启不会清空 `docker logs`，不加时刻
+过滤会混入步骤 C 的记录：
+
+```bash
+SINCE=$(ssh fa-master date -u +%Y-%m-%dT%H:%M:%SZ); echo "SINCE=$SINCE"
+```
+
 参与等值核验的参数一律显式传入，不依赖默认值。`--extra` 可以分行书写：`syn-submit-m2.sh` 自
 2026-09-30 起会把其中的换行压成空格（此前换行会让远端命令提前结束，之后的参数全部丢失、作业带着默认值
 悄悄运行）。
@@ -129,27 +121,33 @@ bash deploy/scripts/syn-submit-m2.sh --extra '--m3-enabled true --window-sec 360
     --m3-train-days 7 --m3-earlystop-days 2 --m3-thresh-days 2 --m3-window-length 60
     --m3-hidden-size 60 --m3-batch-size 64 --m3-learning-rate 0.001 --m3-grad-clip 39072.0
     --m3-max-epochs 300 --m3-earlystop-patience 20 --m3-reverse-target true
-    --checkpoint-tolerable-failures 100' 2>&1 | tee /tmp/submit_m3.log
-grep -E 'W=|Window W/S|M3 |Ckpt tolerable' /tmp/submit_m3.log
+    --checkpoint-ms 30000 --checkpoint-timeout-min <超时分钟数> --checkpoint-tolerable-failures 3' \
+    2>&1 | tee /tmp/submit_m3.log
+grep -E 'W=|Window W/S|M3 |Ckpt' /tmp/submit_m3.log
+JID=$(grep -oE 'JobID [a-f0-9]{32}' /tmp/submit_m3.log | awk '{print $2}' | head -1); echo "JID=$JID"
 ```
 
 期望：`W=3600s`、`M3 enabled: true`、`M3 train/es/th: 7d/2d/2d`、`M3 window: 60 rounds`、
 `M3 max epochs: 300 (patience=20)`、`M3 hidden size: 60`、`M3 batch size: 64`、
-`Ckpt tolerable failures: 100`。然后确认恰好一个本项目作业在运行：
+`Ckpt interval/timeout: 30000 ms / <超时分钟数> min`、`Ckpt tolerable failures: 3`、
+`M3 rounds/day:   8640`（**不得**出现 `COLD-START PROBE MODE`）。然后确认恰好一个本项目作业在运行：
 
 ```bash
 ssh fa-master "docker exec jobmanager flink list" | grep -E 'M1Job|M2Job'
 ```
 
-## 五、启动检查点监测（本地 Mac，另开一个终端，一直开着）
+## 五、启动检查点监测（本地 Mac，另开两个终端，一直开着）
 
 ```bash
-bash deploy/scripts/syn-ckpt-watch.sh --interval 20 --framesize-mb 64 \
+bash deploy/scripts/syn-ckpt-watch.sh --jid <第四步的 JID> --interval 20 --framesize-mb 64 \
     --out docs/reports/ckpt_sizes_march_m3.csv
+bash deploy/scripts/syn-m3-coldstart-watch.sh --jid <第四步的 JID> --out docs/m3_march/ckpt_timeline.csv
 ```
 
-期望：每 20 秒记录一次逐算子与逐子任务的 checkpoint 大小；训练期间 checkpoint 超时属预期。
-`--framesize-mb 64` 与 `.env` 的 `SYN_AKKA_FRAMESIZE=67108864b` 一致。
+期望：第一条每 20 秒记录一次逐算子与逐子任务的检查点大小，`--framesize-mb 64` 与 `.env` 的
+`SYN_AKKA_FRAMESIZE=67108864b` 一致。第二条每 15 秒记录一行检查点时间线：训练期间「进行中=1」且挂起秒数
+持续增长；训练全部结束后「完成」计数加一；「重启」始终为 0。第二条回答裁决第三节的「训练期间被挂起的
+检查点在训练结束后是否正常完成」。
 
 ## 六、启动重放（本地 Mac）
 
@@ -168,13 +166,14 @@ bash deploy/scripts/syn-replay.sh logs      # 观察进度，Ctrl+C 只停跟踪
 ## 七、观察 M3 冷启动（本地 Mac，重放开始约 8 分钟后）
 
 ```bash
-ssh fa-worker1 "docker logs -f taskmanager-2 2>&1 | grep --line-buffered -E '\[M3\]|OpenMP BLAS'"
-ssh fa-worker2 "docker logs -f taskmanager-3 2>&1 | grep --line-buffered -E '\[M3\]|OpenMP BLAS'"
+ssh fa-worker1 "docker logs -f --since $SINCE taskmanager-2 2>&1 | grep --line-buffered -E '\[M3\]|OpenMP BLAS'"
+ssh fa-worker2 "docker logs -f --since $SINCE taskmanager-3 2>&1 | grep --line-buffered -E '\[M3\]|OpenMP BLAS'"
 ```
 
-期望：每台设备依次出现 `entering TRAINING`、逐轮 `training epoch`、`trained: … epochs (last improvement
+期望：每台设备依次出现 `entering TRAINING`（带子任务编号；B、C、E 在子任务 1 上依次训练，D、G 在子任务 7
+上依次训练）、逐轮 `training epoch`、`trained: … epochs (last improvement
 at epoch …, longest plateau …), early-stop loss=…`、`calibrated`、`entering ONLINE`。
-ND4J 初始化时打印的 `OpenMP BLAS` 线程数应为 1（若做了 0.2）。出现 `REPORT` 行的设备须上报设计会话。
+ND4J 初始化时打印的 `OpenMP BLAS` 线程数应为 1。出现 `REPORT` 行的设备须上报设计会话。
 
 训练期间重放器会继续把数据写进 Kafka，作业因反压暂停消费；训练结束后作业会全速追赶积压。追赶期间
 检查点大小的峰值正是第五步要测的量。
@@ -195,7 +194,7 @@ sleep 120
 bash deploy/scripts/syn-m2-metrics.sh | tee /tmp/m3m_t2.txt
 diff /tmp/m3m_t1.txt /tmp/m3m_t2.txt && echo "已排空"
 
-bash deploy/scripts/syn-m3-march-collect.sh
+bash deploy/scripts/syn-m3-march-collect.sh --since $SINCE
 bash deploy/scripts/syn-m2-baseline.sh --tag march-m3      # 点异常通道 ±1% 等值核验（E 见 0.4）
 ```
 
@@ -220,6 +219,18 @@ bash deploy/scripts/syn-m3-grid.sh --collect --node master \
 不加 `--reuse-dump`，脚本会从刚跑完的三月 m1-out 重新转储。期望：三行结果；每台设备的 `esLoss` 与
 第七步日志中同一设备的 `early-stop loss` 相差不超过 5%（裁决书第三节）。
 
+然后生成冷启动报告，并在第五步的两个终端里按 Ctrl+C 停止监测：
+
+```bash
+python3 deploy/scripts/m3_coldstart_report.py --dir docs/m3_march \
+    --offline-csv docs/m3_march_reference.csv --timeout-min <超时分钟数>
+```
+
+期望：`docs/m3_march/coldstart_report.md` 给出 2026-09-30 裁决第三节要求记录的三项。第一节是逐台设备的
+冷启动墙钟时长与实际轮数；第三节是训练期间挂起的检查点是否在训练结束后完成，以及重启次数；第四节是
+E、G、C 在线每轮秒数与离线参照之比（即减速比），以及早停集误差的相对偏差。离线参照 CSV 的实际路径
+以第十步 `--collect` 打印的为准。
+
 ## 十一、收尾（结果已取回并提交入库之后）
 
 ```bash
@@ -236,7 +247,7 @@ bash deploy/scripts/syn-reset-env.sh
 | 步骤 | 墙钟 |
 | --- | --- |
 | 重放本身（3600 倍） | 约 20 至 60 分钟 |
-| M3 冷启动训练 | 每台 10 至 30 分钟，8 个子任务并行；同一子任务上的设备依次训练 |
+| M3 冷启动训练 | 最慢的是子任务 1（B、C、E 依次训练），按六月离线值估算约 40 分钟以上；以步骤 C 的外推为准 |
 | 追赶积压 | 取决于训练时长，预计半小时以内 |
 | 收集与离线参照 | 约 1 小时 |
 

@@ -80,10 +80,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-SSH_OPTS="-i ${SSH_KEY:-} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-MASTER_SSH="${NODE_MASTER_PUBLIC_IP:-$NODE_MASTER_IP}"
 REST="http://$NODE_MASTER_IP:8081"
-mcurl() { ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "curl -s --max-time 20 '$1'"; }
+# 经 ssh 别名 fa-master 连接（用户规定不再用 ssh -i 密钥加公网 IP 的方式）。
+mcurl() { ssh fa-master "curl -s --max-time 20 '$1'"; }
 
 # ---------- 选定作业 / resolve the job ----------
 JOBS_JSON="$(mcurl "$REST/jobs")"

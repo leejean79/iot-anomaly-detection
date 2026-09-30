@@ -73,6 +73,9 @@ checks=(
     "com/leejean/source/Injector.class|stuck|M3 注入模式四类型之一（M3 阶段 §4 Deliverable B）"
     "com/leejean/m3/M3ClusterSmoke.class|M3-CLUSTER-SMOKE|M3 集群冒烟作业（M3 阶段 §2 决策 1 第三部分）"
     "com/leejean/m3/M3Grid.class|hidden-grid|M3 离线超参数网格（V-M3-3）"
+    "com/leejean/m2/M2Job.class|checkpoint-timeout-min|checkpoint 超时参数（2026-09-30 冷启动检查点裁决）"
+    "com/leejean/m2/M2Job.class|m3-rounds-per-day|冷启动短重放验证用的每天折合轮数（补遗三步骤 C）"
+    "com/leejean/m3/M3Function.class|(subtask {}) entering TRAINING|冷启动日志带子任务编号（2026-09-30）"
 )
 
 fail=0

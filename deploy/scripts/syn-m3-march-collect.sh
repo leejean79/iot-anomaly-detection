@@ -13,8 +13,11 @@
 # 2. 调用命令 / Invocation:
 #      bash deploy/scripts/syn-m3-march-collect.sh
 #      bash deploy/scripts/syn-m3-march-collect.sh --out-dir docs/m3_march --max-messages 5000000
+#      bash deploy/scripts/syn-m3-march-collect.sh --out-dir docs/m3_coldstart --since 2026-10-01T02:00:00Z
+#    --since：只取该时刻（UTC）之后的 TaskManager 日志。容器重启不会清空 docker logs，不给时会混入
+#    此前各次运行的 M3 记录；取提交作业前记下的时刻即可。
 # 3. 前置条件 / Preconditions: 重放已结束且作业已排空（两次 syn-m2-metrics.sh 读数相同）；三台 Kafka
-#    代理都在运行；**在 syn-reset-env.sh 清理之前执行**（清理会删掉主题与 TaskManager 重启前的日志）。
+#    代理都在运行；**在 syn-reset-env.sh 清理之前执行**（清理会删掉主题里的评分与监测数据）。
 # 4. 期望产出 / Expected output: master 上 ${REMOTE_HOME}/m3march/ 下的两份转储（monitoring 较大，留在
 #    master）；本地 --out-dir 下 scores.jsonl、m3_scores.jsonl（仅上下文通道记录）、inject-truth.csv、
 #    m3_tm_log.txt（M3 训练与上报行）与 collect_summary.txt。
@@ -30,10 +33,12 @@ set -a; source "$DEPLOY_DIR/.env"; set +a
 
 OUT_DIR="$PROJECT_ROOT/docs/m3_march"
 MAX_MESSAGES=5000000
+SINCE=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --out-dir) OUT_DIR="$2"; shift 2 ;;
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
+        --since) SINCE="$2"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 2 ;;
     esac
 done
@@ -81,7 +86,7 @@ fi
 for pair in "fa-worker1 taskmanager-2" "fa-worker2 taskmanager-3"; do
     set -- $pair
     echo "===== $1 / $2 =====" >> "$OUT_DIR/m3_tm_log.txt"
-    ssh "$1" "docker logs $2 2>&1 | grep -E '\[M3\] Device .* (entering|trained|REPORT|calibrated)|OpenMP BLAS|threads used for'" \
+    ssh "$1" "docker logs ${SINCE:+--since $SINCE} $2 2>&1 | grep -E '\[M3\] Device .* (entering|trained|REPORT|calibrated)|OpenMP BLAS|threads used for'" \
         >> "$OUT_DIR/m3_tm_log.txt" 2>/dev/null || true
 done
 

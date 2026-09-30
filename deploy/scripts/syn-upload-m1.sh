@@ -36,8 +36,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-SSH_OPTS="-i ${SSH_KEY:-} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-MASTER_SSH="${NODE_MASTER_PUBLIC_IP:-$NODE_MASTER_IP}"
+# 经 ssh 别名 fa-master 连接（用户规定不再用 ssh -i 密钥加公网 IP 的方式）。
+# Connect through the fa-master ssh alias, as the user requires.
+MASTER_SSH="fa-master"
 JAR_NAME="${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}"
 DATASET_DIR="${SYN_DATASET_DIR:-/opt/fa-iforest/datasets/synergia/files_csv}"
 
@@ -49,8 +50,8 @@ fi
 
 echo "== upload jar =="
 echo "  $LOCAL_JAR  ->  $MASTER_SSH:${REMOTE_HOME}/jars/$JAR_NAME"
-ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "mkdir -p ${REMOTE_HOME}/jars"
-scp $SSH_OPTS "$LOCAL_JAR" "$SSH_USER@$MASTER_SSH:${REMOTE_HOME}/jars/$JAR_NAME"
+ssh "$MASTER_SSH" "mkdir -p ${REMOTE_HOME}/jars"
+scp "$LOCAL_JAR" "$MASTER_SSH:${REMOTE_HOME}/jars/$JAR_NAME"
 
 if ! $JAR_ONLY; then
     if [[ -z "$LOCAL_DATA_DIR" ]]; then
@@ -63,8 +64,8 @@ if ! $JAR_ONLY; then
     fi
     echo "== upload dataset (~2.3GB, resumable) =="
     echo "  $LOCAL_DATA_DIR/  ->  $MASTER_SSH:$DATASET_DIR/"
-    ssh $SSH_OPTS "$SSH_USER@$MASTER_SSH" "mkdir -p $DATASET_DIR"
-    rsync -aP -e "ssh $SSH_OPTS" "$LOCAL_DATA_DIR"/ "$SSH_USER@$MASTER_SSH:$DATASET_DIR"/
+    ssh "$MASTER_SSH" "mkdir -p $DATASET_DIR"
+    rsync -aP "$LOCAL_DATA_DIR"/ "$MASTER_SSH:$DATASET_DIR"/
 fi
 
 echo "DONE."
