@@ -135,10 +135,17 @@ ssh fa-master "docker exec jobmanager flink list" | grep -E 'M1Job|M2Job'
 
 ## 五、启动检查点监测（本地 Mac，另开两个终端，一直开着）
 
+第五、七步都在新开的终端里执行，新终端里没有第四步的变量。每个新终端先 `cd` 到仓库根目录，再把第四步打印的
+两个值抄进去：
+
 ```bash
-bash deploy/scripts/syn-ckpt-watch.sh --jid <第四步的 JID> --interval 20 --framesize-mb 64 \
+JID=<第四步打印的 JID>; SINCE=<第四步打印的 SINCE>
+```
+
+```bash
+bash deploy/scripts/syn-ckpt-watch.sh --jid $JID --interval 20 --framesize-mb 64 \
     --out docs/reports/ckpt_sizes_march_m3.csv
-bash deploy/scripts/syn-m3-coldstart-watch.sh --jid <第四步的 JID> --out docs/m3_march/ckpt_timeline.csv
+bash deploy/scripts/syn-m3-coldstart-watch.sh --jid $JID --out docs/m3_march/ckpt_timeline.csv
 ```
 
 期望：第一条每 20 秒记录一次逐算子与逐子任务的检查点大小，`--framesize-mb 64` 与 `.env` 的
