@@ -45,13 +45,16 @@ BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
 mkdir -p docs/infra
 ssh fa-master "docker ps -a --format '{{.Names}}|{{.CreatedAt}}|{{.Status}}'; \
     docker inspect -f '{{.Name}} 卷={{range .Mounts}}{{if .Name}}{{.Name}} {{end}}{{end}}' kafka-1 zookeeper; \
-    docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list $BROKERS --time -1 \
-      | awk -F: '{s+=\$3; n++} END{print \"全部主题分区数\", n, \"末端偏移合计\", s}'" \
+    for t in \$(docker exec kafka-1 kafka-topics.sh --bootstrap-server $BROKERS --list); do \
+      docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list $BROKERS --topic \$t --time -1; \
+    done | awk -F: '{s+=\$3; n++} END{print \"全部主题分区数\", n, \"末端偏移合计\", s}'" \
     | tee docs/infra/master_before_resize.txt
 ```
 
 期望：文件里有 kafka-1、zookeeper 的创建时间与卷名（每个卷名是一串 64 位十六进制字符），最后一行是分区数与
-偏移合计。
+偏移合计，两个数都不能为空。Kafka 2.6 的 `GetOffsetShell` 必须指定 `--topic`，所以这里逐个主题查询。
+2026-10-01 的第一次执行用的是不带 `--topic` 的写法，偏移一行为空，那次的偏移核对实际没有生效；数据完好的
+依据是容器创建时间与卷名前后一致。
 
 ### 第一步：有序停止主节点上的 Kafka 与 ZooKeeper
 
@@ -102,8 +105,9 @@ ssh fa-master 'nproc; free -g | head -2; docker ps -a --format "{{.Names}} {{.St
 ssh fa-master "docker start zookeeper && sleep 15 && docker start kafka-1 && sleep 45"
 ssh fa-master "docker ps -a --format '{{.Names}}|{{.CreatedAt}}|{{.Status}}'; \
     docker inspect -f '{{.Name}} 卷={{range .Mounts}}{{if .Name}}{{.Name}} {{end}}{{end}}' kafka-1 zookeeper; \
-    docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list $BROKERS --time -1 \
-      | awk -F: '{s+=\$3; n++} END{print \"全部主题分区数\", n, \"末端偏移合计\", s}'" \
+    for t in \$(docker exec kafka-1 kafka-topics.sh --bootstrap-server $BROKERS --list); do \
+      docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list $BROKERS --topic \$t --time -1; \
+    done | awk -F: '{s+=\$3; n++} END{print \"全部主题分区数\", n, \"末端偏移合计\", s}'" \
     | tee docs/infra/master_after_resize.txt
 diff <(grep -E '^(kafka-1|zookeeper)\||卷=|偏移合计' docs/infra/master_before_resize.txt | sed -E 's/\|(Up|Exited|Created|Restarting).*$//') \
      <(grep -E '^(kafka-1|zookeeper)\||卷=|偏移合计' docs/infra/master_after_resize.txt  | sed -E 's/\|(Up|Exited|Created|Restarting).*$//') \
