@@ -276,11 +276,12 @@ fi
 # ---------- 7. 清理中间产物 / 报告孤儿卷 ----------
 step "7/8 清理远端中间产物、盘点孤儿卷 / clear scratch dirs, report orphan volumes"
 # m3grid 是 M3 离线网格的工作目录（转储副本每份约 580 MB），2026-09-30 起一并清理。
+# m3watch 是 syn-m3-watch.sh 在 master 上的监测目录，结果由它的 stop 子命令取回，此处一并清理。
 # 登记过的数据集在 $RHOME/datasets 下，重放源数据也在那里，本步骤**从不触碰**。
 # m3grid is the M3 grid working directory (each dump copy is about 580 MB), cleared since
 # 2026-09-30. Registered datasets and the replay source data live under $RHOME/datasets and are
 # never touched here.
-run "ssh fa-master \"rm -rf $RHOME/m2probe $RHOME/m2baseline $RHOME/m2surge $RHOME/m3grid\" >/dev/null 2>&1 || true"
+run "ssh fa-master \"rm -rf $RHOME/m2probe $RHOME/m2baseline $RHOME/m2surge $RHOME/m3grid $RHOME/m3watch\" >/dev/null 2>&1 || true"
 TOTAL_DANG=0
 for h in "${NODES[@]}"; do
     # 一次远端调用同时取「个数」与「合计 MB」，并且**必须**在列表为空时短路：

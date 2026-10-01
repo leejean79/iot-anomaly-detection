@@ -14,7 +14,8 @@
 # stays IN_PROGRESS there. The ruling asks whether that checkpoint completes after training.
 #
 # ---------------------------- 脚本交付五要素 -------------------------------
-# 1. 执行环境 / Environment: 本地 Mac（bash + python3），仓库根目录；ssh 别名 fa-master 可用。
+# 1. 执行环境 / Environment: 通常由 syn-m3-watch.sh 放到 master 的 tmux 里运行（SYN_ON_MASTER=1，需 python3）；
+#    也可在本地 Mac 仓库根目录直接运行（经 ssh 别名 fa-master），但那样 Mac 必须全程保持开机联网。
 # 2. 调用命令 / Invocation:
 #      bash deploy/scripts/syn-m3-coldstart-watch.sh --out docs/m3_coldstart/ckpt_timeline.csv
 #      bash deploy/scripts/syn-m3-coldstart-watch.sh --jid <JobID> --interval 15 --out <CSV 路径>
@@ -23,7 +24,8 @@
 # 3. 前置条件 / Preconditions: M2Job 已提交并处于 RUNNING。
 # 4. 期望产出 / Expected output: 终端每次打印一行；--out 处逐行追加 CSV。训练期间应看到「进行中 1」
 #    且挂起秒数持续增长、已完成计数不变；训练结束后已完成计数加一，最近完成的那次检查点端到端耗时
-#    接近训练时长；重启次数始终为 0。
+#    接近训练时长；重启次数始终为 0。若某个检查点在统计里悬挂（挂起编号小于最近完成编号），自动取回它的
+#    明细存为 CSV 旁边的 ckpt_stale_<编号>.json。作业取消、结束或失败后自动退出。
 # 5. 失败兜底 / Failure fallback: 读不到 /jobs 时退出码 2（检查 jobmanager 容器）；找不到唯一的 M2Job
 #    时退出码 2，用 --jid 指定；作业从 RUNNING 变为其他状态时照常记录一行后继续，以便看到重启过程。
 # ============================================================================
@@ -49,7 +51,14 @@ done
 [ -z "$OUT" ] && { echo "ERROR: 必须给出 --out <CSV 路径>" >&2; exit 2; }
 
 REST="http://$NODE_MASTER_IP:8081"
-mcurl() { ssh fa-master "curl -s --max-time 20 '$1'"; }
+# SYN_ON_MASTER=1 时脚本运行在 master 本机（由 syn-m3-watch.sh 放进 tmux），直接执行，不经 ssh。
+# With SYN_ON_MASTER=1 the script runs on master itself (launched by syn-m3-watch.sh) and skips ssh.
+if [ "${SYN_ON_MASTER:-0}" = "1" ]; then
+    onm() { bash -c "$1"; }
+else
+    onm() { ssh fa-master "$1"; }
+fi
+mcurl() { onm "curl -s --max-time 20 '$1'"; }
 
 if [ -z "$JID" ]; then
     JOBS="$(mcurl "$REST/jobs/overview")"
@@ -100,10 +109,17 @@ row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), state, str(restart
        str(lf.get("id", "")), fmt(lf.get("failure_timestamp")), reason]
 with open(out, "a", encoding="utf-8") as f:
     f.write(",".join(row) + "\n")
+# 统计悬挂：挂起编号小于最近完成编号（最大并发为 1，它在协调器里已不再挂起）。交给外层脚本在作业运行时
+# 取回明细，按 2026-09-30 裁决把推断变成证据。/ Stale pending id: let the caller fetch its details now.
+stale = pend_id and lc.get("id") is not None and int(lc["id"]) > int(pend_id)
 print("[%s] %s 重启=%s 进行中=%s 完成=%s 失败=%s 挂起=%s%s 最近完成=%s（端到端 %ss）%s"
       % (row[0][11:], state, restarts or "?", row[3], row[4], row[5],
          pend_id or "无", (" 已 %ss" % pend_sec) if pend_id else "", row[8] or "无", lc_e2e or "-",
          ("  最近失败=%s：%s" % (row[11], reason[:60])) if row[11] else ""))
+if stale:
+    print("@@STALE %s" % pend_id)
+if state in ("CANCELED", "FINISHED", "FAILED"):
+    print("@@END %s" % state)
 PY
 
 START=$(date +%s)
@@ -112,9 +128,22 @@ while true; do
         echo "[watch] 达到 --duration ${DURATION}s，结束。"; exit 0
     fi
     # 三份 JSON 用单独一行 @@ 分隔，一次 ssh 取回，减少往返。/ three documents in one ssh round trip
-    ssh fa-master "curl -s --max-time 20 '$REST/jobs/$JID'; printf '\n@@\n'; \
+    RES="$(onm "curl -s --max-time 20 '$REST/jobs/$JID'; printf '\n@@\n'; \
         curl -s --max-time 20 '$REST/jobs/$JID/checkpoints'; printf '\n@@\n'; \
         curl -s --max-time 20 '$REST/jobs/$JID/metrics?get=numRestarts,fullRestarts'" 2>/dev/null \
-        | python3 "$PARSER" "$OUT"
+        | python3 "$PARSER" "$OUT")"
+    printf '%s\n' "$RES" | grep -v '^@@'
+    # 统计悬挂的检查点：每个编号只取一次明细，存到 CSV 旁边。/ fetch each stale checkpoint's details once
+    for SID in $(printf '%s\n' "$RES" | sed -n 's/^@@STALE //p'); do
+        SF="$(dirname "$OUT")/ckpt_stale_${SID}.json"
+        if [ ! -s "$SF" ]; then
+            mcurl "$REST/jobs/$JID/checkpoints/details/$SID" > "$SF"
+            echo "[watch] 检查点 ${SID} 在统计里悬挂，已取回明细 → ${SF}"
+        fi
+    done
+    # 作业已取消、结束或失败时退出，无人值守也不会一直空转。/ exit once the job is no longer running
+    if printf '%s\n' "$RES" | grep -q '^@@END'; then
+        echo "[watch] 作业状态为 $(printf '%s\n' "$RES" | sed -n 's/^@@END //p')，结束记录。"; exit 0
+    fi
     sleep "$INTERVAL"
 done

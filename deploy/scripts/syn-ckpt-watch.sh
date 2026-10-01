@@ -81,8 +81,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 REST="http://$NODE_MASTER_IP:8081"
-# 经 ssh 别名 fa-master 连接（用户规定不再用 ssh -i 密钥加公网 IP 的方式）。
-mcurl() { ssh fa-master "curl -s --max-time 20 '$1'"; }
+# 经 ssh 别名 fa-master 连接（用户规定不再用 ssh -i 密钥加公网 IP 的方式）。SYN_ON_MASTER=1 时脚本运行在
+# master 本机（由 syn-m3-watch.sh 放进 tmux），直接 curl，不经 ssh。
+if [ "${SYN_ON_MASTER:-0}" = "1" ]; then
+    mcurl() { curl -s --max-time 20 "$1"; }
+else
+    mcurl() { ssh fa-master "curl -s --max-time 20 '$1'"; }
+fi
 
 # ---------- 选定作业 / resolve the job ----------
 JOBS_JSON="$(mcurl "$REST/jobs")"

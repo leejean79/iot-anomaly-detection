@@ -133,36 +133,33 @@ JID=$(grep -oE 'JobID [a-f0-9]{32}' /tmp/submit_m3.log | awk '{print $2}' | head
 ssh fa-master "docker exec jobmanager flink list" | grep -E 'M1Job|M2Job'
 ```
 
-## 五、启动检查点监测（本地 Mac，另开两个终端，一直开着）
-
-第五、七步都在新开的终端里执行，新终端里没有第四步的变量。每个新终端先 `cd` 到仓库根目录，再把第四步打印的
-两个值抄进去：
+## 五、在 master 上启动无人值守的监测（本地 Mac，主终端）
 
 ```bash
-JID=<第四步打印的 JID>; SINCE=<第四步打印的 SINCE>
+bash deploy/scripts/syn-m3-watch.sh start --jid $JID --since $SINCE
 ```
+
+它把两个监测脚本放到 master 的 tmux 会话 `syn-m3-watch` 里运行，与本地 Mac 无关，**不需要有人值守，本地
+终端也可以关掉**：
+
+- `syn-m3-coldstart-watch.sh` 每 15 秒记录一行检查点时间线（挂起时长、完成与失败计数、重启次数）。
+  如果某个检查点在统计里悬挂（挂起编号小于最近完成编号，即步骤 C 里第 22 号检查点那种情况），它会在作业
+  运行时自动取回明细，存为 `ckpt_stale_<编号>.json`，按 2026-09-30 裁决把推断变成证据。
+- `syn-ckpt-watch.sh` 每 20 秒记录逐算子与逐子任务的检查点大小，`--framesize-mb 64` 与 `.env` 的
+  `SYN_AKKA_FRAMESIZE=67108864b` 一致。
+
+两个监测在作业取消或结束后会自行退出。期望输出「监测已在 master 的 tmux 会话 syn-m3-watch 中启动」。
+master 上缺少 python3 或 tmux 时脚本退出码 2，并打印在本地 Mac 上用 `caffeinate` 后台运行的替代命令
+（那样 Mac 须接电源、全程不睡眠、不断网）。
+
+之后任何时候想看进度，执行一次：
 
 ```bash
-bash deploy/scripts/syn-ckpt-watch.sh --jid $JID --interval 20 --framesize-mb 64 \
-    --out docs/reports/ckpt_sizes_march_m3.csv
-bash deploy/scripts/syn-m3-coldstart-watch.sh --jid $JID --out docs/m3_march/ckpt_timeline.csv
+bash deploy/scripts/syn-m3-watch.sh status
 ```
 
-期望：第一条每 20 秒记录一次逐算子与逐子任务的检查点大小，`--framesize-mb 64` 与 `.env` 的
-`SYN_AKKA_FRAMESIZE=67108864b` 一致。第二条每 15 秒记录一行检查点时间线：训练期间「进行中=1」且挂起秒数
-持续增长；训练全部结束后「完成」计数加一；「重启」始终为 0。第二条回答裁决第三节的「训练期间被挂起的
-检查点在训练结束后是否正常完成」。
-
-如果第二条显示「挂起=编号 N」长时间不消失，而「最近完成」的编号已经大于 N，这就是步骤 C 里第 22 号检查点
-那样的统计悬挂。按 2026-09-30 裁决，要在作业还在运行时查询它的明细，把推断变成证据（`N` 换成实际编号）：
-
-```bash
-set -a; source deploy/.env; set +a
-ssh fa-master "curl -s http://$NODE_MASTER_IP:8081/jobs/$JID/checkpoints/details/N" > docs/m3_march/ckpt_stale_N.json
-cat docs/m3_march/ckpt_stale_N.json
-```
-
-期望得到一段 JSON，其中 `status` 与各算子的确认数说明它的真实状态。把这个文件一并入库。
+它打印两个监测是否仍在运行、检查点时间线与大小记录的最后几行、已进入训练与在线的设备数、REPORT 警告条数，
+以及重放器状态。这条命令随用随查，不需要一直开着。
 
 ## 六、启动重放（本地 Mac）
 
@@ -173,20 +170,24 @@ bash deploy/scripts/syn-replay.sh logs      # 观察进度，Ctrl+C 只停跟踪
 
 第一次运行不带任何注入参数。期望：重放器结束时打印 `Finished.` 汇总块与 `rc=0`。
 
-## 七、观察 M3 冷启动（本地 Mac，重放开始约 8 分钟后）
+## 七、（可选）实时观察 M3 冷启动
+
+这一步只用于实时观看，**不是必需的**：训练记录会在第九步由收集脚本按 `SINCE` 从 TaskManager 日志里取回，
+进度也可以随时用 `syn-m3-watch.sh status` 查看。想实时观看时，在新终端里执行（先设置 `SINCE`）：
 
 ```bash
+SINCE=<第四步打印的 SINCE>
 ssh fa-worker1 "docker logs -f --since $SINCE taskmanager-2 2>&1 | grep --line-buffered -E '\[M3\]|OpenMP BLAS'"
 ssh fa-worker2 "docker logs -f --since $SINCE taskmanager-3 2>&1 | grep --line-buffered -E '\[M3\]|OpenMP BLAS'"
 ```
 
 期望：每台设备依次出现 `entering TRAINING`（带子任务编号；B、C、E 在子任务 1 上依次训练，D、G 在子任务 7
-上依次训练）、逐轮 `training epoch`、`trained: … epochs (last improvement
-at epoch …, longest plateau …), early-stop loss=…`、`calibrated`、`entering ONLINE`。
-ND4J 初始化时打印的 `OpenMP BLAS` 线程数应为 1。出现 `REPORT` 行的设备须上报设计会话。
+上依次训练）、`trained: … epochs (last improvement at epoch …, longest plateau …), early-stop loss=…`、
+`calibrated`、`entering ONLINE`。ND4J 初始化时打印的 `OpenMP BLAS` 线程数应为 1。按 Ctrl+C 只停止观看，
+不影响作业。
 
-训练期间重放器会继续把数据写进 Kafka，作业因反压暂停消费；训练结束后作业会全速追赶积压。追赶期间
-检查点大小的峰值正是第五步要测的量。
+**何时进入第八步**：`syn-m3-watch.sh status` 显示「已进入在线 8 台」，并且重放器已结束。重放（3600 倍）约
+12 分钟，冷启动约 1 小时，之后作业追赶积压。中间不需要人在场，回来时执行一次 `status` 即可。
 
 ## 八、完整性门槛（本地 Mac，重放结束后）
 
@@ -204,11 +205,13 @@ sleep 120
 bash deploy/scripts/syn-m2-metrics.sh | tee /tmp/m3m_t2.txt
 diff /tmp/m3m_t1.txt /tmp/m3m_t2.txt && echo "已排空"
 
+bash deploy/scripts/syn-m3-watch.sh stop --out-dir docs/m3_march
 bash deploy/scripts/syn-m3-march-collect.sh --since $SINCE
 bash deploy/scripts/syn-m2-baseline.sh --tag march-m3      # 点异常通道 ±1% 等值核验，八台设备都参与
 ```
 
-期望：`docs/m3_march/` 下有 `scores.jsonl`、`m3_scores.jsonl`、`m3_tm_log.txt`、`collect_summary.txt`。
+期望：`docs/m3_march/` 下有 `ckpt_timeline.csv`、`ckpt_sizes.csv`、两份监测日志（`timeline.log`、`sizes.log`）、
+`scores.jsonl`、`m3_scores.jsonl`、`m3_tm_log.txt`、`collect_summary.txt`，以及可能有的 `ckpt_stale_*.json`。
 「注入真值缺失」的提示属于正常现象，因为第一次运行没有注入。摘要中「M3 训练完成的设备数」为 8（H 若可用轮不足会少一台，须核对）。
 
 ## 十、离线参照：三次训练（本地 Mac，收集之后、清理之前）
@@ -229,7 +232,7 @@ bash deploy/scripts/syn-m3-grid.sh --collect --node master \
 不加 `--reuse-dump`，脚本会从刚跑完的三月 m1-out 重新转储。期望：三行结果；每台设备的 `esLoss` 与
 第七步日志中同一设备的 `early-stop loss` 相差不超过 5%（裁决书第三节）。
 
-然后生成冷启动报告，并在第五步的两个终端里按 Ctrl+C 停止监测：
+然后生成冷启动报告：
 
 ```bash
 python3 deploy/scripts/m3_coldstart_report.py --dir docs/m3_march \
@@ -248,12 +251,12 @@ E、G、C 在线每轮秒数与离线参照之比（即减速比），以及早�
 ```bash
 git add -f docs/m3_march/m3_scores.jsonl docs/m3_march/m3_tm_log.txt docs/m3_march/ckpt_timeline.csv \
     docs/m3_march/coldstart_report.md docs/m3_march/collect_summary.txt docs/m3_march/ckpt_stale_*.json \
-    docs/reports/ckpt_sizes_march_m3.csv docs/m3_march_reference.csv docs/m3_march_reference_per_epoch.csv \
+    docs/m3_march/ckpt_sizes.csv docs/m3_march_reference.csv docs/m3_march_reference_per_epoch.csv \
     docs/reports/m2_java11_march-m3_*
 git commit -m "data(m3): 三月第一次运行（类型 A）结果" && git push origin dev-claude
 ```
 
-`ckpt_stale_*.json` 只有在第五步查询过统计悬挂的检查点时才存在；不存在时 git 会报「did not match any
+`ckpt_stale_*.json` 只有在监测发现统计悬挂的检查点时才存在；不存在时 git 会报「did not match any
 files」，删掉这一项重新执行即可。
 
 然后取消本次作业、复位并清理：
@@ -334,13 +337,13 @@ JID=$(grep -oE 'JobID [a-f0-9]{32}' /tmp/submit_m3_inject.log | awk '{print $2}'
 
 期望与第四步相同，`M3 rounds/day:   8640`，不得出现 `COLD-START PROBE MODE`。
 
-## B4、启动检查点时间线（另开一个终端，一直开着）
+## B4、在 master 上启动无人值守的监测
 
 ```bash
-bash deploy/scripts/syn-m3-coldstart-watch.sh --jid <B3 的 JID> --out docs/m3_march_inject/ckpt_timeline.csv
+bash deploy/scripts/syn-m3-watch.sh start --jid $JID --since $SINCE
 ```
 
-检查点大小的峰值已在第一次运行中测过，这次不再运行 `syn-ckpt-watch.sh`。
+与第五步相同，不需要有人值守；随时用 `bash deploy/scripts/syn-m3-watch.sh status` 查看进度。
 
 ## B5、带注入启动重放
 
@@ -356,14 +359,9 @@ bash deploy/scripts/syn-replay.sh logs      # 观察进度，Ctrl+C 只停跟踪
 期望：重放器启动时打印 `Injection: 12 spec(s)` 与 12 行注入规格；结束时打印 `Finished.` 汇总块、
 `Injection applied: … modifications (12 spec(s))`（大于 0）与 `rc=0`。
 
-## B6、观察冷启动，并核对训练结果与第一次相同
+## B6、核对训练结果与第一次相同
 
-观察命令与第七步相同：
-
-```bash
-ssh fa-worker1 "docker logs -f --since $SINCE taskmanager-2 2>&1 | grep --line-buffered -E '\[M3\]|OpenMP BLAS'"
-ssh fa-worker2 "docker logs -f --since $SINCE taskmanager-3 2>&1 | grep --line-buffered -E '\[M3\]|OpenMP BLAS'"
-```
+可选的实时观看与第七步相同。何时进入 B7：`syn-m3-watch.sh status` 显示「已进入在线 8 台」，并且重放器已结束。
 
 八台设备都进入在线后，在 B8 收集完成时执行下面的比较（去掉每行末尾的训练秒数，其余部分应逐字相同）：
 
@@ -392,11 +390,12 @@ sleep 120
 bash deploy/scripts/syn-m2-metrics.sh > /tmp/m3i_t2.txt
 diff /tmp/m3i_t1.txt /tmp/m3i_t2.txt && echo "已排空"
 
+bash deploy/scripts/syn-m3-watch.sh stop --out-dir docs/m3_march_inject
 bash deploy/scripts/syn-m3-march-collect.sh --out-dir docs/m3_march_inject --since $SINCE
 python3 deploy/scripts/m3_coldstart_report.py --dir docs/m3_march_inject --timeout-min 120
 ```
 
-然后在 B4 的终端里按 Ctrl+C，并执行 B6 的比较。期望：`docs/m3_march_inject/` 下有 `m3_scores.jsonl`、
+然后执行 B6 的比较。期望：`docs/m3_march_inject/` 下有 `m3_scores.jsonl`、
 `inject-truth.csv`（12 条注入的地面真值）、`m3_tm_log.txt`、`ckpt_timeline.csv`、`coldstart_report.md`、
 `collect_summary.txt`。「注入真值缺失」的提示在这一次**不正常**，说明重放没有带上 `--inject-file`。
 
