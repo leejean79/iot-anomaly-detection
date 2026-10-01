@@ -1,0 +1,10 @@
+jobmanager|2026-09-19 15:45:58 +0800 CST|Up 2 minutes
+kafka-1|2026-09-19 15:30:59 +0800 CST|Up About a minute
+node-exporter|2026-09-19 10:48:46 +0800 CST|Up 2 minutes
+zookeeper|2026-09-19 10:48:46 +0800 CST|Up 2 minutes
+dumper-insects_abrupt_imbalanced_BACKLOG_THEN_NEW_FOREST_default_p4_r1_iksWindowSize-2000_iksPValue-0.001_aggK-2|2026-06-12 14:54:42 +0800 CST|Exited (0) 3 months ago
+prometheus|2026-05-16 20:42:47 +0800 CST|Up 2 minutes
+grafana|2026-05-16 20:42:47 +0800 CST|Up 2 minutes
+/kafka-1 卷=d2887f29430f04bf85e245b4c993cbb935e666465af21c8c41e7eecf812f4671 
+/zookeeper 卷=3e192c781b214e52e15c83ad044cdaa03414f2c4a89cadba9b3d2e0f39e0a652 02930f0002782a8d325c3d0a42cde03514f14daea3b63b231017794094c22adb 
+全部主题分区数  末端偏移合计 
