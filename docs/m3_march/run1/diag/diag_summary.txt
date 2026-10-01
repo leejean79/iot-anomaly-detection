@@ -1,0 +1,312 @@
+诊断时间：2026-10-01 11:52:57 CST，日志起点：2026-10-01T02:40:39Z
+
+== 容器状态 ==
+/jobmanager 状态=running 启动于=2026-10-01T03:21:17.448084287Z 重启次数=1 内存被杀=false 退出码=0
+/kafka-1 状态=running 启动于=2026-10-01T02:37:59.014148626Z 重启次数=2 内存被杀=false 退出码=0
+/zookeeper 状态=running 启动于=2026-10-01T02:37:30.972439058Z 重启次数=0 内存被杀=false 退出码=0
+/taskmanager-2 状态=running 启动于=2026-10-01T02:38:48.467223544Z 重启次数=0 内存被杀=false 退出码=0
+/kafka-2 状态=running 启动于=2026-10-01T02:37:28.436534926Z 重启次数=0 内存被杀=false 退出码=0
+/taskmanager-3 状态=running 启动于=2026-10-01T03:24:27.882801855Z 重启次数=1 内存被杀=false 退出码=0
+/kafka-3 状态=running 启动于=2026-10-01T02:37:58.527292862Z 重启次数=3 内存被杀=false 退出码=0
+
+== JobManager 进程启动记录（出现多次说明 JobManager 重启过）==
+345:2026-10-01 03:21:17,161 INFO  akka.remote.RemoteActorRefProvider$RemotingTerminator        [] - Shutting down remote daemon.
+347:2026-10-01 03:21:17,162 INFO  akka.remote.RemoteActorRefProvider$RemotingTerminator        [] - Shutting down remote daemon.
+631:2026-10-01 03:21:20,407 INFO  org.apache.flink.runtime.entrypoint.ClusterEntrypoint        [] -  Starting StandaloneSessionClusterEntrypoint (Version: 1.13.6, Scala: 2.12, Rev:b2ca390, Date:2022-02-03T14:54:22+01:00)
+923:2026-10-01 03:21:20,557 INFO  org.apache.flink.runtime.entrypoint.ClusterEntrypoint        [] - Starting StandaloneSessionClusterEntrypoint.
+
+== 作业状态变化 ==
+15:2026-10-01 02:41:08,381 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Job M2Job - M1 ingestion/normalization + pMCOD + LSTM-AE contextual anomaly detection (6905b0331435ca57a7b1b0b7790a30e1) switched from state CREATED to RUNNING.
+16:2026-10-01 02:41:08,392 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (1/8) (d843b05d1ce0ab2a17e210b13703930c) switched from CREATED to SCHEDULED.
+17:2026-10-01 02:41:08,393 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (2/8) (c72b7d942c9797bc330e9fe194c79fc5) switched from CREATED to SCHEDULED.
+18:2026-10-01 02:41:08,393 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (3/8) (67128aa4be111a0e7bd31edf9fe47a18) switched from CREATED to SCHEDULED.
+19:2026-10-01 02:41:08,393 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (4/8) (e297e91b718e8b17b768a2c6acc6af5e) switched from CREATED to SCHEDULED.
+20:2026-10-01 02:41:08,393 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (5/8) (35efe4aa977ce3b4aebaccf2b2d68a85) switched from CREATED to SCHEDULED.
+21:2026-10-01 02:41:08,393 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (6/8) (82fcb2a78389a914fee2498e26c8f114) switched from CREATED to SCHEDULED.
+22:2026-10-01 02:41:08,393 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (7/8) (e3fe24baf1efbb55f3b0236954b28c6b) switched from CREATED to SCHEDULED.
+23:2026-10-01 02:41:08,393 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (8/8) (ff7d52d2026fea6fb37a010f2b4dc34f) switched from CREATED to SCHEDULED.
+24:2026-10-01 02:41:08,393 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (1/8) (f0f47057b5437551bdc49f16f1e847a6) switched from CREATED to SCHEDULED.
+25:2026-10-01 02:41:08,394 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (2/8) (d50240a6ca94d749aa6b1bb9fe753c7e) switched from CREATED to SCHEDULED.
+26:2026-10-01 02:41:08,394 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (3/8) (20fbdeba36ed87a839b6e7a3ed8d3853) switched from CREATED to SCHEDULED.
+27:2026-10-01 02:41:08,394 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (4/8) (8ba6cc26c4cd8fa538c5700e5af5a791) switched from CREATED to SCHEDULED.
+28:2026-10-01 02:41:08,394 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (5/8) (8b107b4acf8c1a81edd5d60baadd5357) switched from CREATED to SCHEDULED.
+29:2026-10-01 02:41:08,394 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (6/8) (9917c8c583ee63ecaeea47232294107d) switched from CREATED to SCHEDULED.
+30:2026-10-01 02:41:08,394 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (7/8) (90901828a1d4a8a7c7cdcb1da75fdad8) switched from CREATED to SCHEDULED.
+31:2026-10-01 02:41:08,394 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (8/8) (7f2d07ee1e32fd69d4489b20cb71e0bc) switched from CREATED to SCHEDULED.
+32:2026-10-01 02:41:08,394 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (1/8) (67e0f0a8278630066d5a55fdf02242c1) switched from CREATED to SCHEDULED.
+33:2026-10-01 02:41:08,394 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (2/8) (4547a37b3f5316ce4df2a5c6c9c18bca) switched from CREATED to SCHEDULED.
+34:2026-10-01 02:41:08,395 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (3/8) (775a1bcd4b40f2338a162aa358bb2543) switched from CREATED to SCHEDULED.
+35:2026-10-01 02:41:08,395 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (4/8) (f23f183c8645c4aed3e6bee4d5b44ba9) switched from CREATED to SCHEDULED.
+36:2026-10-01 02:41:08,395 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (5/8) (78d7ced31065c4e221e3685a3f07474f) switched from CREATED to SCHEDULED.
+37:2026-10-01 02:41:08,395 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (6/8) (dbe73078dff54e00fa258ae255b2ed5e) switched from CREATED to SCHEDULED.
+38:2026-10-01 02:41:08,395 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (7/8) (41a56faa0c5ef26da4a6304152d2ad1c) switched from CREATED to SCHEDULED.
+39:2026-10-01 02:41:08,395 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (8/8) (7878be67b66594a21bef79366533ad71) switched from CREATED to SCHEDULED.
+40:2026-10-01 02:41:08,395 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (1/8) (15a777733ef4aa549d4b8bccccdfbea7) switched from CREATED to SCHEDULED.
+41:2026-10-01 02:41:08,395 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (2/8) (dd6726b77a0f0dd4a8c392f0e8bf2471) switched from CREATED to SCHEDULED.
+42:2026-10-01 02:41:08,395 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (3/8) (9fef2505298f01b75b56a344bcfe7c2e) switched from CREATED to SCHEDULED.
+43:2026-10-01 02:41:08,396 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (4/8) (3e6cbb0641704ab9abf99932dff6436e) switched from CREATED to SCHEDULED.
+44:2026-10-01 02:41:08,396 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (5/8) (0621ff6c5f8783dee36e44439b25c2b4) switched from CREATED to SCHEDULED.
+45:2026-10-01 02:41:08,396 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (6/8) (8ed7e468f91810dae91173b1aeab607d) switched from CREATED to SCHEDULED.
+46:2026-10-01 02:41:08,396 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (7/8) (0f5f28642bec52b2c8a4b83b13c0a081) switched from CREATED to SCHEDULED.
+47:2026-10-01 02:41:08,396 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (8/8) (de631de9e4aa02a25011ef3766605338) switched from CREATED to SCHEDULED.
+48:2026-10-01 02:41:08,396 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (1/8) (028c7ee25356d7414d73eaec1ba1b99f) switched from CREATED to SCHEDULED.
+49:2026-10-01 02:41:08,396 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (2/8) (2a21bf03ff9fd7e2de90cc2131bba13b) switched from CREATED to SCHEDULED.
+50:2026-10-01 02:41:08,396 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (3/8) (b335918c6ab8023d50a7e0efb44ebc5e) switched from CREATED to SCHEDULED.
+51:2026-10-01 02:41:08,396 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (4/8) (214b962a22c9264f3b3e1cdfe3c6baa8) switched from CREATED to SCHEDULED.
+52:2026-10-01 02:41:08,397 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (5/8) (2f66613ab63c1c7e17b17e326d95e5d0) switched from CREATED to SCHEDULED.
+53:2026-10-01 02:41:08,397 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (6/8) (ccf1533db1cbb9ff7b0cf47b550746a4) switched from CREATED to SCHEDULED.
+54:2026-10-01 02:41:08,397 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (7/8) (a42bf38005a8277cfd1b9c719d9f964e) switched from CREATED to SCHEDULED.
+55:2026-10-01 02:41:08,397 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (8/8) (20e3c219fa267df08853650aa8c57fd8) switched from CREATED to SCHEDULED.
+56:2026-10-01 02:41:08,397 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (1/8) (59a4b51c8dd2cdd5671c71c47cedf5f1) switched from CREATED to SCHEDULED.
+57:2026-10-01 02:41:08,397 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (2/8) (3b57d50b5b78f481957bce3dcd11a0f0) switched from CREATED to SCHEDULED.
+58:2026-10-01 02:41:08,397 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (3/8) (1acaac88511ae3cd2f7d470dcffca919) switched from CREATED to SCHEDULED.
+59:2026-10-01 02:41:08,397 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (4/8) (80117f4fc7113ff7de217bd4885a611f) switched from CREATED to SCHEDULED.
+60:2026-10-01 02:41:08,397 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (5/8) (f8617c6b42fd77c9d3527e8c8c7294ea) switched from CREATED to SCHEDULED.
+61:2026-10-01 02:41:08,398 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (6/8) (cb1f5f9f2302bafabab294252fa6809a) switched from CREATED to SCHEDULED.
+62:2026-10-01 02:41:08,398 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (7/8) (19b23625f52d72d3563dea4ff417b3ca) switched from CREATED to SCHEDULED.
+63:2026-10-01 02:41:08,398 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (8/8) (ae713aa0a3472115b3f15699b0c36518) switched from CREATED to SCHEDULED.
+64:2026-10-01 02:41:08,398 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (1/8) (38fefc4c46cec919c23572bbf400f9e5) switched from CREATED to SCHEDULED.
+65:2026-10-01 02:41:08,398 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (2/8) (0cd3457239ac4739d4eeaa2ff3fac659) switched from CREATED to SCHEDULED.
+66:2026-10-01 02:41:08,398 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (3/8) (7cd8752240b73a6e92080d0632a449a9) switched from CREATED to SCHEDULED.
+67:2026-10-01 02:41:08,398 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (4/8) (6c184021d390643af357fbf7b9216a9c) switched from CREATED to SCHEDULED.
+68:2026-10-01 02:41:08,398 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (5/8) (9abf0d2303d6a2c8221b01bc1bc6784a) switched from CREATED to SCHEDULED.
+69:2026-10-01 02:41:08,399 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (6/8) (077c60363aaee95107326d98fc10f327) switched from CREATED to SCHEDULED.
+70:2026-10-01 02:41:08,399 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (7/8) (92ba097e7128dac07819833d6575623f) switched from CREATED to SCHEDULED.
+71:2026-10-01 02:41:08,399 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (8/8) (028b0b27147fea98f45d53cb9cdeb8c2) switched from CREATED to SCHEDULED.
+
+== 检查点（触发、完成、失败、过期、拒绝）==
+302:2026-10-01 02:41:17,446 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 1 (type=CHECKPOINT) @ 1790822477430 for job 6905b0331435ca57a7b1b0b7790a30e1.
+303:2026-10-01 02:41:17,829 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 1 for job 6905b0331435ca57a7b1b0b7790a30e1 (257784 bytes in 396 ms).
+304:2026-10-01 02:41:47,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 2 (type=CHECKPOINT) @ 1790822507429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+305:2026-10-01 02:41:47,520 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 2 for job 6905b0331435ca57a7b1b0b7790a30e1 (257784 bytes in 88 ms).
+306:2026-10-01 02:42:17,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 3 (type=CHECKPOINT) @ 1790822537429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+307:2026-10-01 02:42:17,492 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 3 for job 6905b0331435ca57a7b1b0b7790a30e1 (257784 bytes in 61 ms).
+308:2026-10-01 02:42:47,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 4 (type=CHECKPOINT) @ 1790822567429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+309:2026-10-01 02:42:47,481 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 4 for job 6905b0331435ca57a7b1b0b7790a30e1 (257784 bytes in 51 ms).
+310:2026-10-01 02:43:17,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 5 (type=CHECKPOINT) @ 1790822597429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+311:2026-10-01 02:43:17,724 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 5 for job 6905b0331435ca57a7b1b0b7790a30e1 (1458198 bytes in 287 ms).
+314:2026-10-01 02:43:47,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 6 (type=CHECKPOINT) @ 1790822627429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+315:2026-10-01 02:43:47,611 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 6 for job 6905b0331435ca57a7b1b0b7790a30e1 (4912283 bytes in 179 ms).
+316:2026-10-01 02:44:17,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 7 (type=CHECKPOINT) @ 1790822657429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+317:2026-10-01 02:44:17,687 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 7 for job 6905b0331435ca57a7b1b0b7790a30e1 (8253186 bytes in 255 ms).
+318:2026-10-01 02:44:47,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 8 (type=CHECKPOINT) @ 1790822687429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+319:2026-10-01 02:44:47,866 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 8 for job 6905b0331435ca57a7b1b0b7790a30e1 (11658533 bytes in 435 ms).
+320:2026-10-01 02:45:17,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 9 (type=CHECKPOINT) @ 1790822717429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+321:2026-10-01 02:45:17,742 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 9 for job 6905b0331435ca57a7b1b0b7790a30e1 (15092013 bytes in 308 ms).
+322:2026-10-01 02:45:47,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 10 (type=CHECKPOINT) @ 1790822747429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+323:2026-10-01 02:45:47,872 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 10 for job 6905b0331435ca57a7b1b0b7790a30e1 (18498075 bytes in 440 ms).
+324:2026-10-01 02:46:17,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 11 (type=CHECKPOINT) @ 1790822777429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+325:2026-10-01 02:46:18,039 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 11 for job 6905b0331435ca57a7b1b0b7790a30e1 (17481586 bytes in 600 ms).
+326:2026-10-01 02:46:47,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 12 (type=CHECKPOINT) @ 1790822807429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+327:2026-10-01 02:46:47,984 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 12 for job 6905b0331435ca57a7b1b0b7790a30e1 (21396476 bytes in 555 ms).
+328:2026-10-01 02:47:17,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 13 (type=CHECKPOINT) @ 1790822837429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+329:2026-10-01 02:47:18,000 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 13 for job 6905b0331435ca57a7b1b0b7790a30e1 (24930449 bytes in 569 ms).
+330:2026-10-01 02:47:47,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 14 (type=CHECKPOINT) @ 1790822867429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+331:2026-10-01 02:47:47,883 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 14 for job 6905b0331435ca57a7b1b0b7790a30e1 (25726352 bytes in 450 ms).
+332:2026-10-01 02:48:17,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 15 (type=CHECKPOINT) @ 1790822897429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+333:2026-10-01 02:48:17,923 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 15 for job 6905b0331435ca57a7b1b0b7790a30e1 (29383152 bytes in 492 ms).
+334:2026-10-01 02:48:47,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 16 (type=CHECKPOINT) @ 1790822927429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+335:2026-10-01 02:49:17,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 17 (type=CHECKPOINT) @ 1790822957429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+336:2026-10-01 02:49:47,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 18 (type=CHECKPOINT) @ 1790822987429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+337:2026-10-01 02:50:17,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 19 (type=CHECKPOINT) @ 1790823017429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+338:2026-10-01 02:50:47,430 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 20 (type=CHECKPOINT) @ 1790823047429 for job 6905b0331435ca57a7b1b0b7790a30e1.
+339:2026-10-01 03:21:07,708 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 21 (type=CHECKPOINT) @ 1790824867707 for job 6905b0331435ca57a7b1b0b7790a30e1.
+
+== 异常与内存（JobManager）==
+312:2026-10-01 02:43:23,096 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job ab5260277c348d682a0d04ca1a2f8b53 not found
+313:2026-10-01 02:43:23,218 ERROR org.apache.flink.runtime.rest.handler.job.JobExceptionsHandler [] - Exception occurred in REST handler: Job ab5260277c348d682a0d04ca1a2f8b53 not found
+340:2026-10-01 03:21:11,851 WARN  akka.remote.transport.netty.NettyTransport                   [] - Remote connection to [/172.16.0.163:46976] failed with org.apache.flink.shaded.akka.org.jboss.netty.handler.codec.frame.TooLongFrameException: Adjusted frame length exceeds 67108864: 182053883 - discarded
+343:2026-10-01 03:21:16,784 ERROR org.apache.flink.runtime.util.FatalExitExceptionHandler      [] - FATAL: Thread 'flink-akka.remote.default-remote-dispatcher-6' produced an uncaught exception. Stopping the process...
+344:java.lang.OutOfMemoryError: Java heap space
+963:2026-10-01 03:21:34,682 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+964:2026-10-01 03:21:34,754 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+965:2026-10-01 03:21:49,851 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+966:2026-10-01 03:21:49,866 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+974:2026-10-01 03:22:04,906 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+975:2026-10-01 03:22:04,933 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+976:2026-10-01 03:22:19,985 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+977:2026-10-01 03:22:20,003 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+978:2026-10-01 03:22:35,056 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+979:2026-10-01 03:22:35,070 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+980:2026-10-01 03:22:50,117 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+981:2026-10-01 03:22:50,133 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+982:2026-10-01 03:23:05,182 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+983:2026-10-01 03:23:05,197 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+984:2026-10-01 03:23:10,537 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+985:2026-10-01 03:23:10,579 ERROR org.apache.flink.runtime.rest.handler.job.JobExceptionsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+986:2026-10-01 03:23:20,242 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+987:2026-10-01 03:23:20,265 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+988:2026-10-01 03:23:35,305 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+989:2026-10-01 03:23:35,321 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+990:2026-10-01 03:23:50,367 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+991:2026-10-01 03:23:50,382 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+992:2026-10-01 03:24:05,423 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+993:2026-10-01 03:24:05,449 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+995:2026-10-01 03:24:20,489 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+996:2026-10-01 03:24:20,514 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1000:2026-10-01 03:24:35,555 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1001:2026-10-01 03:24:35,568 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1002:2026-10-01 03:24:50,615 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1003:2026-10-01 03:24:50,645 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1004:2026-10-01 03:25:05,686 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1005:2026-10-01 03:25:05,705 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1006:2026-10-01 03:25:20,745 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1007:2026-10-01 03:25:20,761 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1008:2026-10-01 03:25:35,806 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1009:2026-10-01 03:25:35,821 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1010:2026-10-01 03:25:50,869 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1011:2026-10-01 03:25:50,886 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1012:2026-10-01 03:26:05,939 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1013:2026-10-01 03:26:05,957 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1014:2026-10-01 03:26:21,052 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1015:2026-10-01 03:26:21,091 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1016:2026-10-01 03:26:36,141 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1017:2026-10-01 03:26:36,157 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1018:2026-10-01 03:26:51,201 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1019:2026-10-01 03:26:51,215 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1020:2026-10-01 03:27:06,273 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1021:2026-10-01 03:27:06,307 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1022:2026-10-01 03:27:21,357 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1023:2026-10-01 03:27:21,372 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1024:2026-10-01 03:27:36,416 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1025:2026-10-01 03:27:36,433 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1026:2026-10-01 03:27:51,477 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1027:2026-10-01 03:27:51,499 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+1028:2026-10-01 03:28:06,538 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6905b0331435ca57a7b1b0b7790a30e1 not found
+
+== 异常与内存（TaskManager）==
+-- tm2.log --
+3297:org.apache.kafka.common.errors.DisconnectException: null
+3299:org.apache.kafka.common.errors.DisconnectException: null
+3301:org.apache.kafka.common.errors.DisconnectException: null
+3303:org.apache.kafka.common.errors.DisconnectException: null
+3698:2026-10-01 03:21:17,257 WARN  akka.remote.transport.netty.NettyTransport                   [] - Remote connection to [null] failed with java.net.ConnectException: Connection refused: /172.16.0.162:6123
+3699:2026-10-01 03:21:17,257 WARN  akka.remote.ReliableDeliverySupervisor                       [] - Association with remote system [akka.tcp://flink@172.16.0.162:6123] has failed, address is now gated for [50] ms. Reason: [Association failed with [akka.tcp://flink@172.16.0.162:6123]] Caused by: [java.net.ConnectException: Connection refused: /172.16.0.162:6123]
+3719:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+3748:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+3762:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+3791:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+3805:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+3834:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+3848:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+3877:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+3891:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+3920:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+3934:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+3963:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+3977:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+4006:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+4020:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+4049:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+4063:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+4092:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+4106:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+4135:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+4149:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+4178:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+4192:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+4221:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+-- tm3.log --
+3349:org.apache.kafka.common.errors.DisconnectException: null
+3351:org.apache.kafka.common.errors.DisconnectException: null
+3353:org.apache.kafka.common.errors.DisconnectException: null
+3355:org.apache.kafka.common.errors.DisconnectException: null
+3624:2026-10-01 03:21:17,300 WARN  akka.remote.transport.netty.NettyTransport                   [] - Remote connection to [null] failed with java.net.ConnectException: Connection refused: /172.16.0.162:6123
+3639:2026-10-01 03:21:17,303 WARN  akka.remote.ReliableDeliverySupervisor                       [] - Association with remote system [akka.tcp://flink@172.16.0.162:6123] has failed, address is now gated for [50] ms. Reason: [Association failed with [akka.tcp://flink@172.16.0.162:6123]] Caused by: [java.net.ConnectException: Connection refused: /172.16.0.162:6123]
+3786:2026-10-01 03:21:17,380 WARN  akka.remote.transport.netty.NettyTransport                   [] - Remote connection to [null] failed with java.net.ConnectException: Connection refused: /172.16.0.162:6123
+3789:2026-10-01 03:21:17,381 WARN  akka.remote.ReliableDeliverySupervisor                       [] - Association with remote system [akka.tcp://flink@172.16.0.162:6123] has failed, address is now gated for [50] ms. Reason: [Association failed with [akka.tcp://flink@172.16.0.162:6123]] Caused by: [java.net.ConnectException: Connection refused: /172.16.0.162:6123]
+3812:2026-10-01 03:21:17,463 WARN  akka.remote.transport.netty.NettyTransport                   [] - Remote connection to [null] failed with java.net.ConnectException: Connection refused: /172.16.0.162:6123
+3813:2026-10-01 03:21:17,463 WARN  akka.remote.ReliableDeliverySupervisor                       [] - Association with remote system [akka.tcp://flink@172.16.0.162:6123] has failed, address is now gated for [50] ms. Reason: [Association failed with [akka.tcp://flink@172.16.0.162:6123]] Caused by: [java.net.ConnectException: Connection refused: /172.16.0.162:6123]
+3816:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+3845:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+3859:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+3888:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+3902:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+3931:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+3945:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+3974:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+3988:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+4017:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+4031:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+4060:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+4074:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+4103:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+4117:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+4146:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+4160:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+4189:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+4203:java.util.concurrent.TimeoutException: Invocation of public abstract java.util.concurrent.CompletableFuture org.apache.flink.runtime.jobmaster.JobMasterGateway.updateTaskExecutionState(org.apache.flink.runtime.taskmanager.TaskExecutionState) timed out.
+4232:Caused by: akka.pattern.AskTimeoutException: Ask timed out on [Actor[akka.tcp://flink@172.16.0.162:6123/user/rpc/jobmanager_2#5895618]] after [10000 ms]. Message of type [org.apache.flink.runtime.rpc.messages.RemoteFencedMessage]. A typical reason for `AskTimeoutException` is that the recipient actor didn't send a reply.
+
+== M3 训练记录 ==
+[M3] Device D (subtask 7) entering TRAINING: 993 train windows (15 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device D trained: hidden=60, window=60, batch=64, 126 epochs (last improvement at epoch 106, longest plateau 15), early-stop loss=0.04550920786224863, 892.625s
+[M3] Device D REPORT: longest plateau 15 epochs is within 5 of the patience 20
+[M3] Device D calibrated: median=0.16265831625787602, IQR=0.36413963746677647, threshold=2.22
+[M3] Device D entering ONLINE
+[M3] Device G (subtask 7) entering TRAINING: 878 train windows (130 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device G trained: hidden=60, window=60, batch=64, 82 epochs (last improvement at epoch 62, longest plateau 5), early-stop loss=0.046266392714934906, 495.484s
+[M3] Device G calibrated: median=0.24950755919012624, IQR=0.3251563083184573, threshold=2.22
+[M3] Device G entering ONLINE
+[M3] Device E (subtask 1) entering TRAINING: 997 train windows (11 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device F (subtask 5) entering TRAINING: 1006 train windows (2 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device A (subtask 6) entering TRAINING: 994 train windows (14 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device F trained: hidden=60, window=60, batch=64, 44 epochs (last improvement at epoch 24, longest plateau 5), early-stop loss=0.04661801518885616, 655.601s
+[M3] Device F calibrated: median=0.20712344304748673, IQR=0.3264627825726073, threshold=2.22
+[M3] Device F entering ONLINE
+[M3] Device A trained: hidden=60, window=60, batch=64, 79 epochs (last improvement at epoch 59, longest plateau 13), early-stop loss=0.07058825048193978, 985.835s
+[M3] Device A calibrated: median=0.28964725357708143, IQR=0.30194876207512816, threshold=2.22
+[M3] Device A entering ONLINE
+[M3] Device E trained: hidden=60, window=60, batch=64, 118 epochs (last improvement at epoch 98, longest plateau 9), early-stop loss=0.030497488740066185, 1304.478s
+[M3] Device E calibrated: median=0.1468591090747182, IQR=0.205683642276333, threshold=2.22
+[M3] Device E entering ONLINE
+[M3] Device C (subtask 1) entering TRAINING: 992 train windows (16 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device C trained: hidden=60, window=60, batch=64, 63 epochs (last improvement at epoch 43, longest plateau 13), early-stop loss=0.18379850892708893, 497.41s
+[M3] Device C calibrated: median=0.3116497288611778, IQR=0.34791219469098955, threshold=2.22
+[M3] Device C entering ONLINE
+[M3] Device H (subtask 2) entering TRAINING: 1005 train windows (3 excluded by outlier sanitization), 288 early-stop windows
+
+== 检查点相关集群配置 ==
+taskmanager.memory.process.size = 1728m
+jobmanager.memory.off-heap.size = 134217728b
+jobmanager.memory.jvm-overhead.min = 201326592b
+jobmanager.memory.process.size = 1024m
+akka.framesize = 67108864b
+jobmanager.memory.jvm-metaspace.size = 268435456b
+jobmanager.memory.heap.size = 469762048b
+jobmanager.memory.jvm-overhead.max = 201326592b
+
+== 作业列表 ==
+{"jobs":[]}
+
+== 内存 ==
+===== fa-master =====
+               total        used        free      shared  buff/cache   available
+Mem:            3495        1417         463           3        1614        1833
+Swap:              0           0           0
+
+jobmanager CPU=0.52% 内存=327.5MiB / 3.413GiB
+kafka-1 CPU=0.52% 内存=618.8MiB / 3.413GiB
+node-exporter CPU=0.00% 内存=14.19MiB / 3.413GiB
+zookeeper CPU=0.05% 内存=87.27MiB / 3.413GiB
+prometheus CPU=0.00% 内存=95.36MiB / 3.413GiB
+grafana CPU=0.01% 内存=87.9MiB / 3.413GiB
+
+===== fa-worker1 =====
+               total        used        free      shared  buff/cache   available
+Mem:            7266        3821         453           2        2991        3156
+Swap:              0           0           0
+
+taskmanager-2 CPU=0.33% 内存=2.745GiB / 7.096GiB
+kafka-2 CPU=0.38% 内存=935.8MiB / 7.096GiB
+node-exporter-2 CPU=0.00% 内存=12.16MiB / 7.096GiB
+
+===== fa-worker2 =====
+               total        used        free      shared  buff/cache   available
+Mem:            7266        1757        2579           2        2929        5238
+Swap:              0           0           0
+
+taskmanager-3 CPU=0.42% 内存=720.1MiB / 7.096GiB
+kafka-3 CPU=0.47% 内存=1.587GiB / 7.096GiB
+node-exporter-3 CPU=0.00% 内存=8.367MiB / 7.096GiB
+
