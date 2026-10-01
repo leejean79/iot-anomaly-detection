@@ -1,0 +1,39 @@
+===== fa-worker1 / taskmanager-2 =====
+2026-10-01 09:28:01,775 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E (subtask 1) entering TRAINING: 997 train windows (11 excluded by outlier sanitization), 288 early-stop windows
+2026-10-01 09:28:02,166 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A (subtask 6) entering TRAINING: 994 train windows (14 excluded by outlier sanitization), 288 early-stop windows
+2026-10-01 09:28:04,643 INFO  org.nd4j.nativeblas.NativeOpsHolder                          [] - Number of threads used for linear algebra: 1
+2026-10-01 09:28:04,654 INFO  org.nd4j.nativeblas.Nd4jBlas                                 [] - Number of threads used for OpenMP BLAS: 1
+2026-10-01 09:41:47,585 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A trained: hidden=60, window=60, batch=64, 79 epochs (last improvement at epoch 59, longest plateau 13), early-stop loss=0.07058825048193978, 825.419s
+2026-10-01 09:42:06,164 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A calibrated: median=0.28964725357708143, IQR=0.30194876207512816, threshold=2.22
+2026-10-01 09:42:06,164 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A entering ONLINE
+2026-10-01 09:47:03,312 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E trained: hidden=60, window=60, batch=64, 118 epochs (last improvement at epoch 98, longest plateau 9), early-stop loss=0.030497488740066185, 1141.537s
+2026-10-01 09:47:17,583 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E calibrated: median=0.1468591090747182, IQR=0.205683642276333, threshold=2.22
+2026-10-01 09:47:17,583 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E entering ONLINE
+2026-10-01 09:47:17,773 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C (subtask 1) entering TRAINING: 992 train windows (16 excluded by outlier sanitization), 288 early-stop windows
+2026-10-01 09:55:40,515 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C trained: hidden=60, window=60, batch=64, 63 epochs (last improvement at epoch 43, longest plateau 13), early-stop loss=0.18379850892708893, 502.742s
+2026-10-01 09:55:56,525 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C calibrated: median=0.3116497288611778, IQR=0.34791219469098955, threshold=2.22
+2026-10-01 09:55:56,525 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C entering ONLINE
+2026-10-01 09:57:14,427 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H (subtask 2) entering TRAINING: 1005 train windows (3 excluded by outlier sanitization), 288 early-stop windows
+2026-10-01 10:03:06,147 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H trained: hidden=60, window=60, batch=64, 43 epochs (last improvement at epoch 23, longest plateau 5), early-stop loss=0.0712478648579484, 351.72s
+2026-10-01 10:03:21,488 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H calibrated: median=0.16063316729622912, IQR=0.08783228800803736, threshold=2.22
+2026-10-01 10:03:21,488 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H entering ONLINE
+2026-10-01 10:03:26,465 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B (subtask 1) entering TRAINING: 1003 train windows (5 excluded by outlier sanitization), 288 early-stop windows
+2026-10-01 10:09:33,616 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B trained: hidden=60, window=60, batch=64, 46 epochs (last improvement at epoch 26, longest plateau 6), early-stop loss=0.12691124386348754, 367.151s
+2026-10-01 10:09:49,322 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B calibrated: median=0.10411058832875304, IQR=0.04664655136347365, threshold=2.22
+2026-10-01 10:09:49,322 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B entering ONLINE
+===== fa-worker2 / taskmanager-3 =====
+2026-10-01 09:28:01,680 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D (subtask 7) entering TRAINING: 993 train windows (15 excluded by outlier sanitization), 288 early-stop windows
+2026-10-01 09:28:02,012 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F (subtask 5) entering TRAINING: 1006 train windows (2 excluded by outlier sanitization), 288 early-stop windows
+2026-10-01 09:28:04,470 INFO  org.nd4j.nativeblas.NativeOpsHolder                          [] - Number of threads used for linear algebra: 1
+2026-10-01 09:28:04,478 INFO  org.nd4j.nativeblas.Nd4jBlas                                 [] - Number of threads used for OpenMP BLAS: 1
+2026-10-01 09:36:13,676 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F trained: hidden=60, window=60, batch=64, 44 epochs (last improvement at epoch 24, longest plateau 5), early-stop loss=0.04661801518885616, 491.655s
+2026-10-01 09:36:32,112 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F calibrated: median=0.20712344304748673, IQR=0.3264627825726073, threshold=2.22
+2026-10-01 09:36:32,112 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F entering ONLINE
+2026-10-01 09:47:03,228 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D trained: hidden=60, window=60, batch=64, 126 epochs (last improvement at epoch 106, longest plateau 15), early-stop loss=0.04550920786224863, 1141.546s
+2026-10-01 09:47:03,228 WARN  com.leejean.m3.M3Function                                    [] - [M3] Device D REPORT: longest plateau 15 epochs is within 5 of the patience 20
+2026-10-01 09:47:18,764 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D calibrated: median=0.16265831625787602, IQR=0.36413963746677647, threshold=2.22
+2026-10-01 09:47:18,764 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D entering ONLINE
+2026-10-01 09:47:19,273 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G (subtask 7) entering TRAINING: 878 train windows (130 excluded by outlier sanitization), 288 early-stop windows
+2026-10-01 09:56:55,282 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G trained: hidden=60, window=60, batch=64, 82 epochs (last improvement at epoch 62, longest plateau 5), early-stop loss=0.046266392714934906, 576.009s
+2026-10-01 09:57:09,906 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G calibrated: median=0.24950755919012624, IQR=0.3251563083184573, threshold=2.22
+2026-10-01 09:57:09,906 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G entering ONLINE
