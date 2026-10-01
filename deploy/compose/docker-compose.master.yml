@@ -71,6 +71,9 @@ services:
         # JobManagerCheckpointStorage，状态随**确认 RPC** 回传，因此它就是真正的 checkpoint 上限
         # （曾有一条 27,329,480 字节的确认 RPC 撞上默认值导致作业重启、重放基线作废）。抬到 64 MB
         # 作为纵深防护，给后续加入 M3 模型状态的运行留出余量。JM 与 TM 两侧必须一致。
+        # 2026-10-01 裁决第二节起改为 256 MB（268435456b）：三月第一次运行中，同步训练结束后第一个
+        # 检查点的确认消息达 182,053,883 字节，超过 64 MB 被丢弃。
+        # Raised to 256 MB by the ruling of 2026-10-01: a post-training acknowledgement reached 182 MB.
         # akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
         # checkpoint state rides inside the acknowledge RPC, so this is the real ceiling. Must match on
         # both JobManager and TaskManager.
@@ -81,7 +84,7 @@ services:
         # 因此一律沿用 Flink 官方默认所用的纯字节写法（默认值就是 10485760b）。67108864b = 64 MiB。
         # UNIT PITFALL: the value goes verbatim to Akka and is parsed by Typesafe Config, which
         # rejects lowercase "mb" while Flink's own MemorySize accepts it. Always use plain bytes.
-        akka.framesize: ${SYN_AKKA_FRAMESIZE:-67108864b}
+        akka.framesize: ${SYN_AKKA_FRAMESIZE:-268435456b}
         parallelism.default: ${JOB_LOCAL_PARALLELISM}
         rest.address: 0.0.0.0
         rest.bind-address: 0.0.0.0
@@ -90,6 +93,9 @@ services:
         metrics.reporter.prom.port: 9249
     volumes:
       - ${REMOTE_HOME}/jars:/opt/flink/usrlib
+      # 检查点包 DEBUG 日志（2026-10-01 裁决第三节第 2 条），只读挂载，查清后可去掉这一行。
+      # DEBUG logging for the checkpoint package (ruling of 2026-10-01); remove once resolved.
+      - ./log4j-console-jm.properties:/opt/flink/conf/log4j-console.properties:ro
 
   # -------- Prometheus(可选) --------
   prometheus:

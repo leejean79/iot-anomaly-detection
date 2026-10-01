@@ -360,19 +360,29 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                 N_FEATURES, hiddenSize, windowLength, batchSize, maxEpochs,
                 earlyStopPatience, channelWeights, reverseTarget, learningRate, gradClip);
         final String dev = device;
-        M3Training.Result trained = M3Training.train(cfg, trainData, trainMaskData, esData,
-                new M3Training.EpochListener() {
-                    @Override
-                    public void onEpoch(int epoch, double trainLoss, double esLoss,
-                                        double epochSeconds) {
-                        // 在线训练会长时间占住任务线程，逐 epoch 落日志是唯一能看到它还在推进的途径，
-                        // 也是补遗三 §4 要求记录「逐设备在算子内训练墙钟时间」的数据来源。
-                        // Per-epoch logging is the only visibility into in-operator training.
-                        LOG.info("[M3] Device {} training epoch {}/{}: train loss={}, "
-                                 + "early-stop loss={}, {}s",
-                                 dev, epoch, maxEpochs, trainLoss, esLoss, epochSeconds);
-                    }
-                });
+        M3Training.Result trained;
+        try {
+            trained = M3Training.train(cfg, trainData, trainMaskData, esData,
+                    new M3Training.EpochListener() {
+                        @Override
+                        public void onEpoch(int epoch, double trainLoss, double esLoss,
+                                            double epochSeconds) {
+                            // 在线训练会长时间占住任务线程，逐 epoch 落日志是唯一能看到它还在推进的途径，
+                            // 也是补遗三 §4 要求记录「逐设备在算子内训练墙钟时间」的数据来源。
+                            // Per-epoch logging is the only visibility into in-operator training.
+                            LOG.info("[M3] Device {} training epoch {}/{}: train loss={}, "
+                                     + "early-stop loss={}, {}s",
+                                     dev, epoch, maxEpochs, trainLoss, esLoss, epochSeconds);
+                        }
+                    });
+        } catch (InterruptedException e) {
+            // 任务被取消（2026-10-01 裁决第三节第 1 条）：记一行日志后把中断交还给 Flink。相位停在 TRAINING，
+            // 但取消之后这个子任务不会再处理数据，恢复时状态回到上一个检查点，所以不需要另行回滚。
+            // Cancelled: log and hand the interruption back to Flink; the phase stays TRAINING, but the
+            // subtask processes nothing further and recovery restores the last checkpoint.
+            LOG.warn("[M3] Device {} training interrupted (task cancelled): {}", device, e.getMessage());
+            throw e;
+        }
         lastTrainEpochs = trained.epochs;
         lastTrainModels++;
         LstmAutoEncoder bestModel = trained.model;

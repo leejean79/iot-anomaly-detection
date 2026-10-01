@@ -76,6 +76,7 @@ checks=(
     "com/leejean/m2/M2Job.class|checkpoint-timeout-min|checkpoint 超时参数（2026-09-30 冷启动检查点裁决）"
     "com/leejean/m2/M2Job.class|m3-rounds-per-day|冷启动短重放验证用的每天折合轮数（补遗三步骤 C）"
     "com/leejean/m3/M3Function.class|(subtask {}) entering TRAINING|冷启动日志带子任务编号（2026-09-30）"
+    "com/leejean/m3/M3Training.class|M3 training interrupted after epoch|训练循环响应取消（2026-10-01 裁决第三节第 1 条）"
 )
 
 fail=0

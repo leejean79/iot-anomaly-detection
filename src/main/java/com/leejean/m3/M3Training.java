@@ -166,12 +166,17 @@ public final class M3Training {
      * @param trainMasks       训练集掩码，null = 全有效 / training masks, null = all valid
      * @param earlyStopWindows 早停集，**不做**净化 / early-stopping set, NOT sanitized
      * @param listener         每个 epoch 的进度回调，可为 null / per-epoch callback, may be null
+     * @throws InterruptedException 训练线程被中断时，在当前 epoch 结束处抛出（2026-10-01 裁决第三节第 1 条）。
+     *         在线算子的任务被取消时，Flink 会中断任务线程；此前训练不检查中断，三月第一次运行中一个训练中的
+     *         任务因此 180 秒不响应取消，使整台 TaskManager 退出。
+     *         / thrown at the end of the current epoch when the thread is interrupted, which is how Flink
+     *         cancels a task; without it a training task ignored cancellation and took its TaskManager down.
      */
     public static Result train(Config cfg,
                                double[][][] trainWindows,
                                boolean[][][] trainMasks,
                                double[][][] earlyStopWindows,
-                               EpochListener listener) {
+                               EpochListener listener) throws InterruptedException {
         long t0 = System.currentTimeMillis();
         LstmAutoEncoder ae = new LstmAutoEncoder(
                 cfg.nFeatures, cfg.hiddenSize, cfg.windowLength, cfg.reverseTarget,
@@ -195,6 +200,13 @@ public final class M3Training {
             if (listener != null) {
                 listener.onEpoch(epochsRun, trainLoss, esLoss,
                         (System.currentTimeMillis() - epochStart) / 1000.0);
+            }
+            // 每个 epoch 结束检查一次中断：被取消就放弃这次训练，模型随之丢弃，不留下半成品。
+            // 用 isInterrupted 而不是 interrupted，保留中断标志给调用方与 Flink 的取消逻辑。
+            // Check for interruption once per epoch; on cancellation the partial model is discarded.
+            // isInterrupted keeps the flag set for the caller and Flink's cancellation path.
+            if (Thread.currentThread().isInterrupted()) {
+                throw new InterruptedException("M3 training interrupted after epoch " + epochsRun);
             }
 
             if (esLoss < prevLoss - 1e-6) {

@@ -145,8 +145,8 @@ bash deploy/scripts/syn-m3-watch.sh start --jid $JID --since $SINCE
 - `syn-m3-coldstart-watch.sh` 每 15 秒记录一行检查点时间线（挂起时长、完成与失败计数、重启次数）。
   如果某个检查点在统计里悬挂（挂起编号小于最近完成编号，即步骤 C 里第 22 号检查点那种情况），它会在作业
   运行时自动取回明细，存为 `ckpt_stale_<编号>.json`，按 2026-09-30 裁决把推断变成证据。
-- `syn-ckpt-watch.sh` 每 20 秒记录逐算子与逐子任务的检查点大小，`--framesize-mb 64` 与 `.env` 的
-  `SYN_AKKA_FRAMESIZE=67108864b` 一致。
+- `syn-ckpt-watch.sh` 每 20 秒记录逐算子与逐子任务的检查点大小。告警阈值取自 `.env` 的 `SYN_AKKA_FRAMESIZE`，
+  自 2026-10-01 起为 256 MB（268435456b）。
 
 两个监测在作业取消或结束后会自行退出。期望输出「监测已在 master 的 tmux 会话 syn-m3-watch 中启动」。
 master 上缺少 python3 或 tmux 时脚本退出码 2，并打印在本地 Mac 上用 `caffeinate` 后台运行的替代命令

@@ -25,7 +25,8 @@
 # 4. 期望产出 / Expected output: 终端每次打印一行；--out 处逐行追加 CSV。训练期间应看到「进行中 1」
 #    且挂起秒数持续增长、已完成计数不变；训练结束后已完成计数加一，最近完成的那次检查点端到端耗时
 #    接近训练时长；重启次数始终为 0。若某个检查点在统计里悬挂（挂起编号小于最近完成编号），自动取回它的
-#    明细存为 CSV 旁边的 ckpt_stale_<编号>.json。作业取消、结束或失败后自动退出。
+#    明细存为 CSV 旁边的 ckpt_stale_<编号>.json；进行中满 60 秒与 600 秒的检查点各取一次明细，存为
+#    ckpt_inspect_<编号>_60s.json 与 _600s.json。作业取消、结束或失败后，或连续 20 次查不到作业时自动退出。
 # 5. 失败兜底 / Failure fallback: 读不到 /jobs 时退出码 2（检查 jobmanager 容器）；找不到唯一的 M2Job
 #    时退出码 2，用 --jid 指定；作业从 RUNNING 变为其他状态时照常记录一行后继续，以便看到重启过程。
 # ============================================================================
@@ -118,6 +119,14 @@ print("[%s] %s 重启=%s 进行中=%s 完成=%s 失败=%s 挂起=%s%s 最近完�
          ("  最近失败=%s：%s" % (row[11], reason[:60])) if row[11] else ""))
 if stale:
     print("@@STALE %s" % pend_id)
+# 2026-10-01 裁决第三节第 2 条：进行中超过 60 秒的检查点都要在作业运行时取明细。三月第一次运行中第 16 至 19 号
+# 全部确认却没有完成，而其后再没有检查点完成，所以「编号小于最近完成编号」这一条触发不了，须按挂起时长判断。
+# Every checkpoint in progress for 60 s or more gets its details fetched while the job runs.
+for h in (ck.get("history") or []):
+    if h.get("status") == "IN_PROGRESS" and h.get("trigger_timestamp"):
+        age = (now_ms - h["trigger_timestamp"]) / 1000
+        if age >= 60:
+            print("@@INSPECT %s %d" % (h.get("id"), age))
 if state in ("CANCELED", "FINISHED", "FAILED"):
     print("@@END %s" % state)
 if state == "UNREACHABLE":
@@ -150,6 +159,17 @@ while true; do
     if [ "$MISS" -ge 20 ]; then
         echo "[watch] 连续 ${MISS} 次查不到作业（JobManager 可能重启过，作业已丢失），结束记录。"; exit 0
     fi
+    # 进行中超过 60 秒的检查点取一次明细，超过 600 秒再取一次，前后对照确认数有没有变化。
+    # Details of a checkpoint in progress at 60 s and again at 600 s, to compare the acknowledgements.
+    printf '%s\n' "$RES" | sed -n 's/^@@INSPECT //p' | while read -r IID IAGE; do
+        for MARK in 60 600; do
+            IF="$(dirname "$OUT")/ckpt_inspect_${IID}_${MARK}s.json"
+            if [ "$IAGE" -ge "$MARK" ] && [ ! -s "$IF" ]; then
+                mcurl "$REST/jobs/$JID/checkpoints/details/$IID" > "$IF"
+                echo "[watch] 检查点 ${IID} 已进行 ${IAGE} 秒，取回明细 → ${IF}"
+            fi
+        done
+    done
     # 作业已取消、结束或失败时退出，无人值守也不会一直空转。/ exit once the job is no longer running
     if printf '%s\n' "$RES" | grep -q '^@@END'; then
         echo "[watch] 作业状态为 $(printf '%s\n' "$RES" | sed -n 's/^@@END //p')，结束记录。"; exit 0

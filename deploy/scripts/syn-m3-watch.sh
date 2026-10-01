@@ -47,6 +47,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 RD="${REMOTE_HOME:-/opt/fa-iforest}/m3watch"
+# 告警阈值跟随 .env 里的帧上限（纯字节写法，如 268435456b）；读不出时按 256 MB。
+# The warning threshold follows the frame size in .env (plain bytes); 256 MB if it cannot be read.
+FR="${SYN_AKKA_FRAMESIZE:-268435456b}"
+if [[ "$FR" =~ ^([0-9]+)b$ ]]; then FRAME_MB=$(( ${BASH_REMATCH[1]} / 1048576 )); else FRAME_MB=256; fi
 SESSION="syn-m3-watch"
 
 case "$CMD" in
@@ -56,7 +60,7 @@ case "$CMD" in
             echo "ERROR: master 上缺少 python3、tmux 或 curl，无法在 master 上运行监测。" >&2
             echo "       替代做法：在本地 Mac 上后台运行（Mac 须接电源、全程不睡眠、不断网）：" >&2
             echo "       caffeinate -i nohup bash deploy/scripts/syn-m3-coldstart-watch.sh --jid $JID --out docs/m3_march/ckpt_timeline.csv > /tmp/timeline.log 2>&1 &" >&2
-            echo "       caffeinate -i nohup bash deploy/scripts/syn-ckpt-watch.sh --jid $JID --interval 20 --framesize-mb 64 --out docs/m3_march/ckpt_sizes.csv > /tmp/sizes.log 2>&1 &" >&2
+            echo "       caffeinate -i nohup bash deploy/scripts/syn-ckpt-watch.sh --jid $JID --interval 20 --framesize-mb $FRAME_MB --out docs/m3_march/ckpt_sizes.csv > /tmp/sizes.log 2>&1 &" >&2
             exit 2
         fi
         if ssh fa-master "tmux has-session -t $SESSION 2>/dev/null"; then
@@ -73,7 +77,7 @@ case "$CMD" in
 #!/usr/bin/env bash
 printf 'JID=%s\nSINCE=%s\n' '$JID' '$SINCE' > $RD/meta.env
 tmux new-session -d -s $SESSION -n timeline "SYN_ON_MASTER=1 bash $RD/scripts/syn-m3-coldstart-watch.sh --jid $JID --out $RD/ckpt_timeline.csv 2>&1 | tee -a $RD/timeline.log"
-tmux new-window -t $SESSION -n sizes "SYN_ON_MASTER=1 bash $RD/scripts/syn-ckpt-watch.sh --jid $JID --interval 20 --framesize-mb 64 --out $RD/ckpt_sizes.csv 2>&1 | tee -a $RD/sizes.log"
+tmux new-window -t $SESSION -n sizes "SYN_ON_MASTER=1 bash $RD/scripts/syn-ckpt-watch.sh --jid $JID --interval 20 --framesize-mb $FRAME_MB --out $RD/ckpt_sizes.csv 2>&1 | tee -a $RD/sizes.log"
 EOF
         scp -q "$LAUNCH" "fa-master:$RD/launch.sh"; rm -f "$LAUNCH"
         ssh fa-master "bash $RD/launch.sh"
@@ -119,6 +123,8 @@ EOF
             || echo "[watch] ⚠ 部分文件没有取回，请检查 master 上的 $RD" >&2
         scp -q "fa-master:$RD/ckpt_stale_*.json" "$OUT_DIR/" 2>/dev/null \
             && echo "[watch] 取回了统计悬挂检查点的明细" || true
+        scp -q "fa-master:$RD/ckpt_inspect_*.json" "$OUT_DIR/" 2>/dev/null \
+            && echo "[watch] 取回了长时间进行中的检查点明细" || true
         echo "[watch] 监测已停止，结果在 ${OUT_DIR}："
         ls -l "$OUT_DIR" | grep -E 'ckpt_|\.log' | sed 's/^/        /'
         ;;
