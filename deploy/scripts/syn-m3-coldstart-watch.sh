@@ -120,9 +120,12 @@ if stale:
     print("@@STALE %s" % pend_id)
 if state in ("CANCELED", "FINISHED", "FAILED"):
     print("@@END %s" % state)
+if state == "UNREACHABLE":
+    print("@@UNREACHABLE")
 PY
 
 START=$(date +%s)
+MISS=0   # 连续查不到作业的次数 / consecutive polls without the job
 while true; do
     if [ "$DURATION" -gt 0 ] && [ $(( $(date +%s) - START )) -ge "$DURATION" ]; then
         echo "[watch] 达到 --duration ${DURATION}s，结束。"; exit 0
@@ -141,6 +144,12 @@ while true; do
             echo "[watch] 检查点 ${SID} 在统计里悬挂，已取回明细 → ${SF}"
         fi
     done
+    # 连续 20 次（默认约 5 分钟）查不到作业：JobManager 重启后作业丢失，或作业已被清理，不再空转。
+    # Twenty consecutive misses (about 5 minutes): the job is gone, e.g. after a JobManager restart.
+    if printf '%s\n' "$RES" | grep -q '^@@UNREACHABLE'; then MISS=$((MISS + 1)); else MISS=0; fi
+    if [ "$MISS" -ge 20 ]; then
+        echo "[watch] 连续 ${MISS} 次查不到作业（JobManager 可能重启过，作业已丢失），结束记录。"; exit 0
+    fi
     # 作业已取消、结束或失败时退出，无人值守也不会一直空转。/ exit once the job is no longer running
     if printf '%s\n' "$RES" | grep -q '^@@END'; then
         echo "[watch] 作业状态为 $(printf '%s\n' "$RES" | sed -n 's/^@@END //p')，结束记录。"; exit 0
