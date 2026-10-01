@@ -1,0 +1,30 @@
+===== fa-master =====
+               total        used        free      shared  buff/cache   available
+Mem:            7266        1291        4230           3        1744        5723
+Swap:              0           0           0
+
+jobmanager CPU=2.09% 内存=315.8MiB / 7.096GiB
+kafka-1 CPU=0.76% 内存=347.2MiB / 7.096GiB
+node-exporter CPU=0.00% 内存=8.695MiB / 7.096GiB
+zookeeper CPU=0.04% 内存=93.48MiB / 7.096GiB
+prometheus CPU=0.07% 内存=156.9MiB / 7.096GiB
+grafana CPU=0.01% 内存=79.39MiB / 7.096GiB
+
+===== fa-worker1 =====
+               total        used        free      shared  buff/cache   available
+Mem:            7266        1343        4579           2        1342        5673
+Swap:              0           0           0
+
+taskmanager-2 CPU=0.55% 内存=712.2MiB / 7.096GiB
+kafka-2 CPU=0.72% 内存=315.5MiB / 7.096GiB
+node-exporter-2 CPU=0.00% 内存=7.266MiB / 7.096GiB
+
+===== fa-worker2 =====
+               total        used        free      shared  buff/cache   available
+Mem:            7266        1296        5000           2         969        5723
+Swap:              0           0           0
+
+taskmanager-3 CPU=0.30% 内存=696.8MiB / 7.096GiB
+kafka-3 CPU=2.21% 内存=313.8MiB / 7.096GiB
+node-exporter-3 CPU=0.00% 内存=7.145MiB / 7.096GiB
+

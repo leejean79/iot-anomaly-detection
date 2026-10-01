@@ -1,0 +1,304 @@
+诊断时间：2026-10-01 20:03:13 CST，日志起点：2026-10-01T09:15:18Z
+
+== 容器状态 ==
+/jobmanager 状态=running 启动于=2026-10-01T12:01:24.635262991Z 重启次数=0 内存被杀=false 退出码=0
+/kafka-1 状态=running 启动于=2026-10-01T12:01:54.590750983Z 重启次数=4 内存被杀=false 退出码=0
+/zookeeper 状态=running 启动于=2026-10-01T12:01:24.684315135Z 重启次数=0 内存被杀=false 退出码=0
+/taskmanager-2 状态=running 启动于=2026-10-01T12:01:25.410369262Z 重启次数=0 内存被杀=false 退出码=0
+/kafka-2 状态=running 启动于=2026-10-01T12:01:48.847526688Z 重启次数=3 内存被杀=false 退出码=0
+/taskmanager-3 状态=running 启动于=2026-10-01T12:01:25.543646078Z 重启次数=0 内存被杀=false 退出码=0
+/kafka-3 状态=running 启动于=2026-10-01T12:01:25.497770552Z 重启次数=0 内存被杀=false 退出码=0
+
+== JobManager 进程启动记录（出现多次说明 JobManager 重启过）==
+19715:2026-10-01 12:00:03,424 INFO  org.apache.flink.runtime.entrypoint.ClusterEntrypoint        [] - RECEIVED SIGNAL 15: SIGTERM. Shutting down as requested.
+19716:2026-10-01 12:00:03,837 INFO  akka.remote.RemoteActorRefProvider$RemotingTerminator        [] - Shutting down remote daemon.
+19717:2026-10-01 12:00:03,839 INFO  akka.remote.RemoteActorRefProvider$RemotingTerminator        [] - Shutting down remote daemon.
+19781:2026-10-01 12:01:33,644 INFO  org.apache.flink.runtime.entrypoint.ClusterEntrypoint        [] -  Starting StandaloneSessionClusterEntrypoint (Version: 1.13.6, Scala: 2.12, Rev:b2ca390, Date:2022-02-03T14:54:22+01:00)
+19853:2026-10-01 12:01:33,729 INFO  org.apache.flink.runtime.entrypoint.ClusterEntrypoint        [] - Starting StandaloneSessionClusterEntrypoint.
+
+== 作业状态变化 ==
+17:2026-10-01 09:15:45,838 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Job M2Job - M1 ingestion/normalization + pMCOD + LSTM-AE contextual anomaly detection (b6687789f6f8d24f3c403e1072db0601) switched from state CREATED to RUNNING.
+18:2026-10-01 09:15:45,848 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (1/8) (d40a5ba62688350c11f18a0bcb6a47c3) switched from CREATED to SCHEDULED.
+19:2026-10-01 09:15:45,848 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (2/8) (e4a33ab8bf736d030ab80720b0ce7caa) switched from CREATED to SCHEDULED.
+20:2026-10-01 09:15:45,849 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (3/8) (987edf988211491b5b2a85913ec33c88) switched from CREATED to SCHEDULED.
+21:2026-10-01 09:15:45,850 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (4/8) (95fb365d88c48320661d44dbdc304477) switched from CREATED to SCHEDULED.
+22:2026-10-01 09:15:45,850 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (5/8) (0372cab092302ba69715adfe0cbc9cf7) switched from CREATED to SCHEDULED.
+23:2026-10-01 09:15:45,850 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (6/8) (6f2106b3801749184edd06f3ee3da126) switched from CREATED to SCHEDULED.
+24:2026-10-01 09:15:45,850 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (7/8) (b3d0fc1f63aed411408c5a7d29b2c52d) switched from CREATED to SCHEDULED.
+25:2026-10-01 09:15:45,850 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser (8/8) (534d1bab2622a4eafc0898256a92cffd) switched from CREATED to SCHEDULED.
+26:2026-10-01 09:15:45,850 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (1/8) (ee087eb1af0326938cd2307d8a467c3b) switched from CREATED to SCHEDULED.
+27:2026-10-01 09:15:45,850 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (2/8) (ebe0a7176f5ae2a6887bb1b00af7b478) switched from CREATED to SCHEDULED.
+28:2026-10-01 09:15:45,850 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (3/8) (8e60d962fc883ab94b4f2833ab9bdea5) switched from CREATED to SCHEDULED.
+29:2026-10-01 09:15:45,851 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (4/8) (5fde75300ae8e2f31be247dbf292eac5) switched from CREATED to SCHEDULED.
+30:2026-10-01 09:15:45,851 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (5/8) (c657efc89329f1e16bd5a1159b9c18e4) switched from CREATED to SCHEDULED.
+31:2026-10-01 09:15:45,851 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (6/8) (d376551246e8998adcfb66702c7caa47) switched from CREATED to SCHEDULED.
+32:2026-10-01 09:15:45,851 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (7/8) (c6ab72a50f7cddc04ae6865f50c3f1e4) switched from CREATED to SCHEDULED.
+33:2026-10-01 09:15:45,851 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RoundAssembler -> AlignEventTime (8/8) (0965113e1588dbb811ab1d3b73db7814) switched from CREATED to SCHEDULED.
+34:2026-10-01 09:15:45,851 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (1/8) (49efe057867c76dd9fa5838cc8492586) switched from CREATED to SCHEDULED.
+35:2026-10-01 09:15:45,851 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (2/8) (362af816cfe67ee011ad7c8d1ef4a977) switched from CREATED to SCHEDULED.
+36:2026-10-01 09:15:45,851 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (3/8) (cdd715678469a313eb6f48e4b0a08f1f) switched from CREATED to SCHEDULED.
+37:2026-10-01 09:15:45,852 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (4/8) (535af46654bcc6f7b8fca1bb09dab66e) switched from CREATED to SCHEDULED.
+38:2026-10-01 09:15:45,852 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (5/8) (2b886cff0d838c139743dfee5daf23f8) switched from CREATED to SCHEDULED.
+39:2026-10-01 09:15:45,852 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (6/8) (078435d70a452507d73bd39d88a35c2c) switched from CREATED to SCHEDULED.
+40:2026-10-01 09:15:45,852 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (7/8) (29ac716c0394c5df7f770ff2632fbdcc) switched from CREATED to SCHEDULED.
+41:2026-10-01 09:15:45,852 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RobustScaler (8/8) (8578697a1be045acb1b9af13bc4f8f98) switched from CREATED to SCHEDULED.
+42:2026-10-01 09:15:45,852 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (1/8) (950e1c9ef88ec5518a58d2807917b54c) switched from CREATED to SCHEDULED.
+43:2026-10-01 09:15:45,852 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (2/8) (9bf0824205626f9a0ddb637e20cf3fcd) switched from CREATED to SCHEDULED.
+44:2026-10-01 09:15:45,852 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (3/8) (66f3a8b083ada6920ac7d7ec3d044c9e) switched from CREATED to SCHEDULED.
+45:2026-10-01 09:15:45,852 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (4/8) (8cd211891f1d32156202ff40cdcae898) switched from CREATED to SCHEDULED.
+46:2026-10-01 09:15:45,852 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (5/8) (8290f059a3de43a31be01bcdfafae9da) switched from CREATED to SCHEDULED.
+47:2026-10-01 09:15:45,853 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (6/8) (29972f8a67006377bb42cc44af1cf4fd) switched from CREATED to SCHEDULED.
+48:2026-10-01 09:15:45,853 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (7/8) (9d355f7897609ad7d737897ee706218c) switched from CREATED to SCHEDULED.
+49:2026-10-01 09:15:45,853 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate) (8/8) (209af3e6346c6fad9e6fbc78ed24f1b3) switched from CREATED to SCHEDULED.
+50:2026-10-01 09:15:45,853 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (1/8) (f717738fd5e08557435ab09f18799135) switched from CREATED to SCHEDULED.
+51:2026-10-01 09:15:45,853 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (2/8) (5d4c7e1fdd8ff6baab64e64cd85e8fa3) switched from CREATED to SCHEDULED.
+52:2026-10-01 09:15:45,853 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (3/8) (a4dfcc45877ebd9d1c7b899226e689ca) switched from CREATED to SCHEDULED.
+53:2026-10-01 09:15:45,853 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (4/8) (db8a8e20966abb33118a1135eee6766d) switched from CREATED to SCHEDULED.
+54:2026-10-01 09:15:45,854 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (5/8) (4c55cbe2e88435f9258449fd800b8a33) switched from CREATED to SCHEDULED.
+55:2026-10-01 09:15:45,854 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (6/8) (54a9acb3facfe0c2f4ef522cfdd6e6e2) switched from CREATED to SCHEDULED.
+56:2026-10-01 09:15:45,854 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (7/8) (60cfc7d686b9bf0f8400494e6d4889cd) switched from CREATED to SCHEDULED.
+57:2026-10-01 09:15:45,854 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops) (8/8) (bae6e40ac6017aa4bb8fb82ff3a62d8b) switched from CREATED to SCHEDULED.
+58:2026-10-01 09:15:45,854 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (1/8) (1e48c9332a9dfe57c58cf532466212e9) switched from CREATED to SCHEDULED.
+59:2026-10-01 09:15:45,854 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (2/8) (8e49083833bf6a2ada8d08bfb3f0e521) switched from CREATED to SCHEDULED.
+60:2026-10-01 09:15:45,855 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (3/8) (bc3ddd2d8bf3b49c91c4d61d7e9d2d4b) switched from CREATED to SCHEDULED.
+61:2026-10-01 09:15:45,855 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (4/8) (b4328fb567e38d3c23768c62205a0913) switched from CREATED to SCHEDULED.
+62:2026-10-01 09:15:45,855 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (5/8) (93b4f5a0a662547eb7d6a3c6107e18ab) switched from CREATED to SCHEDULED.
+63:2026-10-01 09:15:45,855 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (6/8) (a125fbdd02e53cd1c1eceb1d956ad803) switched from CREATED to SCHEDULED.
+64:2026-10-01 09:15:45,855 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (7/8) (3e0f598ba022e8f03b3a69a74bb3d737) switched from CREATED to SCHEDULED.
+65:2026-10-01 09:15:45,855 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3]) (8/8) (527ed16fbade1b78123519034d9c8649) switched from CREATED to SCHEDULED.
+66:2026-10-01 09:15:45,855 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (1/8) (0489a58eb9f34bba3f36bb812ffa880f) switched from CREATED to SCHEDULED.
+67:2026-10-01 09:15:45,855 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (2/8) (cc21211369ea33d2398c52a177f5c06e) switched from CREATED to SCHEDULED.
+68:2026-10-01 09:15:45,856 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (3/8) (528b5c70acc9abf83527f9d64efe91c8) switched from CREATED to SCHEDULED.
+69:2026-10-01 09:15:45,856 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (4/8) (8c619fcd83fd6715f14f298d52e5fdb3) switched from CREATED to SCHEDULED.
+70:2026-10-01 09:15:45,856 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (5/8) (3f28079d2f0264997dbba66da68a9cea) switched from CREATED to SCHEDULED.
+71:2026-10-01 09:15:45,856 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (6/8) (aea84f8c4f882b8b4645a0e14748a288) switched from CREATED to SCHEDULED.
+72:2026-10-01 09:15:45,856 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (7/8) (ac73e7a0180222e1c191c8d3038a5e72) switched from CREATED to SCHEDULED.
+73:2026-10-01 09:15:45,856 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1] (8/8) (438fb79d8d859b1125a659b8d2b9f315) switched from CREATED to SCHEDULED.
+
+== 检查点（触发、完成、失败、过期、拒绝）==
+17355:2026-10-01 11:40:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 290 (type=CHECKPOINT) @ 1790854829581 for job b6687789f6f8d24f3c403e1072db0601.
+17412:2026-10-01 11:40:29,684 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 290 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 103 ms).
+17414:2026-10-01 11:40:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 291 (type=CHECKPOINT) @ 1790854859581 for job b6687789f6f8d24f3c403e1072db0601.
+17471:2026-10-01 11:40:59,683 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 291 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 102 ms).
+17473:2026-10-01 11:41:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 292 (type=CHECKPOINT) @ 1790854889581 for job b6687789f6f8d24f3c403e1072db0601.
+17530:2026-10-01 11:41:29,672 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 292 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 91 ms).
+17532:2026-10-01 11:41:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 293 (type=CHECKPOINT) @ 1790854919581 for job b6687789f6f8d24f3c403e1072db0601.
+17589:2026-10-01 11:41:59,700 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 293 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 119 ms).
+17591:2026-10-01 11:42:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 294 (type=CHECKPOINT) @ 1790854949581 for job b6687789f6f8d24f3c403e1072db0601.
+17648:2026-10-01 11:42:29,668 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 294 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 86 ms).
+17650:2026-10-01 11:42:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 295 (type=CHECKPOINT) @ 1790854979581 for job b6687789f6f8d24f3c403e1072db0601.
+17707:2026-10-01 11:42:59,695 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 295 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 114 ms).
+17709:2026-10-01 11:43:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 296 (type=CHECKPOINT) @ 1790855009581 for job b6687789f6f8d24f3c403e1072db0601.
+17766:2026-10-01 11:43:29,669 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 296 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 88 ms).
+17768:2026-10-01 11:43:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 297 (type=CHECKPOINT) @ 1790855039581 for job b6687789f6f8d24f3c403e1072db0601.
+17825:2026-10-01 11:43:59,693 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 297 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 111 ms).
+17827:2026-10-01 11:44:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 298 (type=CHECKPOINT) @ 1790855069581 for job b6687789f6f8d24f3c403e1072db0601.
+17884:2026-10-01 11:44:29,679 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 298 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 97 ms).
+17886:2026-10-01 11:44:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 299 (type=CHECKPOINT) @ 1790855099581 for job b6687789f6f8d24f3c403e1072db0601.
+17943:2026-10-01 11:44:59,693 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 299 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 112 ms).
+17945:2026-10-01 11:45:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 300 (type=CHECKPOINT) @ 1790855129581 for job b6687789f6f8d24f3c403e1072db0601.
+18002:2026-10-01 11:45:29,668 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 300 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 87 ms).
+18004:2026-10-01 11:45:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 301 (type=CHECKPOINT) @ 1790855159581 for job b6687789f6f8d24f3c403e1072db0601.
+18061:2026-10-01 11:45:59,697 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 301 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 115 ms).
+18063:2026-10-01 11:46:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 302 (type=CHECKPOINT) @ 1790855189581 for job b6687789f6f8d24f3c403e1072db0601.
+18120:2026-10-01 11:46:29,674 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 302 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 93 ms).
+18122:2026-10-01 11:46:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 303 (type=CHECKPOINT) @ 1790855219581 for job b6687789f6f8d24f3c403e1072db0601.
+18179:2026-10-01 11:46:59,708 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 303 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 126 ms).
+18181:2026-10-01 11:47:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 304 (type=CHECKPOINT) @ 1790855249581 for job b6687789f6f8d24f3c403e1072db0601.
+18238:2026-10-01 11:47:29,680 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 304 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 99 ms).
+18240:2026-10-01 11:47:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 305 (type=CHECKPOINT) @ 1790855279581 for job b6687789f6f8d24f3c403e1072db0601.
+18297:2026-10-01 11:47:59,673 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 305 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 92 ms).
+18299:2026-10-01 11:48:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 306 (type=CHECKPOINT) @ 1790855309581 for job b6687789f6f8d24f3c403e1072db0601.
+18356:2026-10-01 11:48:29,673 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 306 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 92 ms).
+18358:2026-10-01 11:48:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 307 (type=CHECKPOINT) @ 1790855339581 for job b6687789f6f8d24f3c403e1072db0601.
+18415:2026-10-01 11:48:59,678 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 307 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 96 ms).
+18417:2026-10-01 11:49:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 308 (type=CHECKPOINT) @ 1790855369581 for job b6687789f6f8d24f3c403e1072db0601.
+18474:2026-10-01 11:49:29,686 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 308 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 105 ms).
+18476:2026-10-01 11:49:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 309 (type=CHECKPOINT) @ 1790855399581 for job b6687789f6f8d24f3c403e1072db0601.
+18533:2026-10-01 11:49:59,670 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 309 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 89 ms).
+18535:2026-10-01 11:50:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 310 (type=CHECKPOINT) @ 1790855429581 for job b6687789f6f8d24f3c403e1072db0601.
+18592:2026-10-01 11:50:29,698 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 310 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 116 ms).
+18594:2026-10-01 11:50:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 311 (type=CHECKPOINT) @ 1790855459581 for job b6687789f6f8d24f3c403e1072db0601.
+18651:2026-10-01 11:50:59,676 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 311 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 95 ms).
+18653:2026-10-01 11:51:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 312 (type=CHECKPOINT) @ 1790855489581 for job b6687789f6f8d24f3c403e1072db0601.
+18710:2026-10-01 11:51:29,675 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 312 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 93 ms).
+18712:2026-10-01 11:51:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 313 (type=CHECKPOINT) @ 1790855519581 for job b6687789f6f8d24f3c403e1072db0601.
+18769:2026-10-01 11:51:59,678 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 313 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 97 ms).
+18771:2026-10-01 11:52:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 314 (type=CHECKPOINT) @ 1790855549581 for job b6687789f6f8d24f3c403e1072db0601.
+18828:2026-10-01 11:52:29,690 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 314 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 109 ms).
+18830:2026-10-01 11:52:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 315 (type=CHECKPOINT) @ 1790855579581 for job b6687789f6f8d24f3c403e1072db0601.
+18887:2026-10-01 11:52:59,685 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 315 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 104 ms).
+18889:2026-10-01 11:53:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 316 (type=CHECKPOINT) @ 1790855609581 for job b6687789f6f8d24f3c403e1072db0601.
+18946:2026-10-01 11:53:29,699 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 316 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 117 ms).
+18948:2026-10-01 11:53:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 317 (type=CHECKPOINT) @ 1790855639581 for job b6687789f6f8d24f3c403e1072db0601.
+19005:2026-10-01 11:53:59,682 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 317 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 100 ms).
+19007:2026-10-01 11:54:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 318 (type=CHECKPOINT) @ 1790855669581 for job b6687789f6f8d24f3c403e1072db0601.
+19064:2026-10-01 11:54:29,688 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 318 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 106 ms).
+19066:2026-10-01 11:54:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 319 (type=CHECKPOINT) @ 1790855699581 for job b6687789f6f8d24f3c403e1072db0601.
+19123:2026-10-01 11:54:59,703 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 319 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 122 ms).
+19125:2026-10-01 11:55:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 320 (type=CHECKPOINT) @ 1790855729581 for job b6687789f6f8d24f3c403e1072db0601.
+19182:2026-10-01 11:55:29,672 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 320 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 91 ms).
+19184:2026-10-01 11:55:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 321 (type=CHECKPOINT) @ 1790855759581 for job b6687789f6f8d24f3c403e1072db0601.
+19241:2026-10-01 11:55:59,674 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 321 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 93 ms).
+19243:2026-10-01 11:56:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 322 (type=CHECKPOINT) @ 1790855789581 for job b6687789f6f8d24f3c403e1072db0601.
+19300:2026-10-01 11:56:29,671 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 322 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 90 ms).
+19302:2026-10-01 11:56:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 323 (type=CHECKPOINT) @ 1790855819581 for job b6687789f6f8d24f3c403e1072db0601.
+19359:2026-10-01 11:56:59,681 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 323 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 100 ms).
+19361:2026-10-01 11:57:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 324 (type=CHECKPOINT) @ 1790855849581 for job b6687789f6f8d24f3c403e1072db0601.
+19418:2026-10-01 11:57:29,677 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 324 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 96 ms).
+19420:2026-10-01 11:57:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 325 (type=CHECKPOINT) @ 1790855879581 for job b6687789f6f8d24f3c403e1072db0601.
+19477:2026-10-01 11:57:59,683 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 325 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 102 ms).
+19479:2026-10-01 11:58:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 326 (type=CHECKPOINT) @ 1790855909581 for job b6687789f6f8d24f3c403e1072db0601.
+19536:2026-10-01 11:58:29,672 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 326 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 91 ms).
+19538:2026-10-01 11:58:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 327 (type=CHECKPOINT) @ 1790855939581 for job b6687789f6f8d24f3c403e1072db0601.
+19595:2026-10-01 11:58:59,695 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 327 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 113 ms).
+19597:2026-10-01 11:59:29,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 328 (type=CHECKPOINT) @ 1790855969581 for job b6687789f6f8d24f3c403e1072db0601.
+19654:2026-10-01 11:59:29,669 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 328 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 88 ms).
+19656:2026-10-01 11:59:59,581 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 329 (type=CHECKPOINT) @ 1790855999581 for job b6687789f6f8d24f3c403e1072db0601.
+19713:2026-10-01 11:59:59,686 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 329 for job b6687789f6f8d24f3c403e1072db0601 (14759711 bytes in 105 ms).
+
+== 异常与内存（JobManager）==
+
+== 异常与内存（TaskManager）==
+-- tm2.log --
+3543:org.apache.kafka.common.errors.DisconnectException: null
+3545:org.apache.kafka.common.errors.DisconnectException: null
+3547:org.apache.kafka.common.errors.DisconnectException: null
+3549:org.apache.kafka.common.errors.DisconnectException: null
+3764:org.apache.kafka.common.errors.DisconnectException: null
+3769:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3770:Caused by: org.apache.kafka.common.errors.DisconnectException
+3772:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3773:Caused by: org.apache.kafka.common.errors.DisconnectException
+3775:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3776:Caused by: org.apache.kafka.common.errors.DisconnectException
+3778:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3779:Caused by: org.apache.kafka.common.errors.DisconnectException
+3805:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3806:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3808:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3809:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3811:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3812:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3814:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3815:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3841:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3842:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3844:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3845:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3847:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3848:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3850:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3851:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3877:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+-- tm3.log --
+3514:org.apache.kafka.common.errors.DisconnectException: null
+3516:org.apache.kafka.common.errors.DisconnectException: null
+3518:org.apache.kafka.common.errors.DisconnectException: null
+3520:org.apache.kafka.common.errors.DisconnectException: null
+3660:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3661:Caused by: org.apache.kafka.common.errors.DisconnectException
+3663:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3664:Caused by: org.apache.kafka.common.errors.DisconnectException
+3690:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3691:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3693:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3694:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3720:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3721:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3723:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3724:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3750:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3751:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3753:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3754:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3780:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3781:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3783:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3784:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3810:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3811:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3813:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3814:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+3840:org.apache.kafka.clients.consumer.RetriableCommitFailedException: Offset commit failed with a retriable exception. You should retry committing the latest consumed offsets.
+3841:Caused by: org.apache.kafka.common.errors.CoordinatorNotAvailableException: The coordinator is not available.
+
+== M3 训练记录 ==
+[M3] Device E (subtask 1) entering TRAINING: 997 train windows (11 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device A (subtask 6) entering TRAINING: 994 train windows (14 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device A trained: hidden=60, window=60, batch=64, 79 epochs (last improvement at epoch 59, longest plateau 13), early-stop loss=0.07058825048193978, 825.419s
+[M3] Device A calibrated: median=0.28964725357708143, IQR=0.30194876207512816, threshold=2.22
+[M3] Device A entering ONLINE
+[M3] Device E trained: hidden=60, window=60, batch=64, 118 epochs (last improvement at epoch 98, longest plateau 9), early-stop loss=0.030497488740066185, 1141.537s
+[M3] Device E calibrated: median=0.1468591090747182, IQR=0.205683642276333, threshold=2.22
+[M3] Device E entering ONLINE
+[M3] Device C (subtask 1) entering TRAINING: 992 train windows (16 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device C trained: hidden=60, window=60, batch=64, 63 epochs (last improvement at epoch 43, longest plateau 13), early-stop loss=0.18379850892708893, 502.742s
+[M3] Device C calibrated: median=0.3116497288611778, IQR=0.34791219469098955, threshold=2.22
+[M3] Device C entering ONLINE
+[M3] Device H (subtask 2) entering TRAINING: 1005 train windows (3 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device H trained: hidden=60, window=60, batch=64, 43 epochs (last improvement at epoch 23, longest plateau 5), early-stop loss=0.0712478648579484, 351.72s
+[M3] Device H calibrated: median=0.16063316729622912, IQR=0.08783228800803736, threshold=2.22
+[M3] Device H entering ONLINE
+[M3] Device B (subtask 1) entering TRAINING: 1003 train windows (5 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device B trained: hidden=60, window=60, batch=64, 46 epochs (last improvement at epoch 26, longest plateau 6), early-stop loss=0.12691124386348754, 367.151s
+[M3] Device B calibrated: median=0.10411058832875304, IQR=0.04664655136347365, threshold=2.22
+[M3] Device B entering ONLINE
+[M3] Device D (subtask 7) entering TRAINING: 993 train windows (15 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device F (subtask 5) entering TRAINING: 1006 train windows (2 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device F trained: hidden=60, window=60, batch=64, 44 epochs (last improvement at epoch 24, longest plateau 5), early-stop loss=0.04661801518885616, 491.655s
+[M3] Device F calibrated: median=0.20712344304748673, IQR=0.3264627825726073, threshold=2.22
+[M3] Device F entering ONLINE
+[M3] Device D trained: hidden=60, window=60, batch=64, 126 epochs (last improvement at epoch 106, longest plateau 15), early-stop loss=0.04550920786224863, 1141.546s
+[M3] Device D REPORT: longest plateau 15 epochs is within 5 of the patience 20
+[M3] Device D calibrated: median=0.16265831625787602, IQR=0.36413963746677647, threshold=2.22
+[M3] Device D entering ONLINE
+[M3] Device G (subtask 7) entering TRAINING: 878 train windows (130 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device G trained: hidden=60, window=60, batch=64, 82 epochs (last improvement at epoch 62, longest plateau 5), early-stop loss=0.046266392714934906, 576.009s
+[M3] Device G calibrated: median=0.24950755919012624, IQR=0.3251563083184573, threshold=2.22
+[M3] Device G entering ONLINE
+
+== 检查点相关集群配置 ==
+taskmanager.memory.process.size = 1728m
+jobmanager.memory.off-heap.size = 134217728b
+jobmanager.memory.jvm-overhead.min = 214748368b
+jobmanager.memory.process.size = 2048m
+akka.framesize = 268435456b
+jobmanager.memory.jvm-metaspace.size = 268435456b
+jobmanager.memory.heap.size = 1530082096b
+jobmanager.memory.jvm-overhead.max = 214748368b
+
+== 作业列表 ==
+{"jobs":[]}
+
+== 内存 ==
+===== fa-master =====
+               total        used        free      shared  buff/cache   available
+Mem:            7266        1291        4230           3        1744        5723
+Swap:              0           0           0
+
+jobmanager CPU=2.09% 内存=315.8MiB / 7.096GiB
+kafka-1 CPU=0.76% 内存=347.2MiB / 7.096GiB
+node-exporter CPU=0.00% 内存=8.695MiB / 7.096GiB
+zookeeper CPU=0.04% 内存=93.48MiB / 7.096GiB
+prometheus CPU=0.07% 内存=156.9MiB / 7.096GiB
+grafana CPU=0.01% 内存=79.39MiB / 7.096GiB
+
+===== fa-worker1 =====
+               total        used        free      shared  buff/cache   available
+Mem:            7266        1343        4579           2        1342        5673
+Swap:              0           0           0
+
+taskmanager-2 CPU=0.55% 内存=712.2MiB / 7.096GiB
+kafka-2 CPU=0.72% 内存=315.5MiB / 7.096GiB
+node-exporter-2 CPU=0.00% 内存=7.266MiB / 7.096GiB
+
+===== fa-worker2 =====
+               total        used        free      shared  buff/cache   available
+Mem:            7266        1296        5000           2         969        5723
+Swap:              0           0           0
+
+taskmanager-3 CPU=0.30% 内存=696.8MiB / 7.096GiB
+kafka-3 CPU=2.21% 内存=313.8MiB / 7.096GiB
+node-exporter-3 CPU=0.00% 内存=7.145MiB / 7.096GiB
+
