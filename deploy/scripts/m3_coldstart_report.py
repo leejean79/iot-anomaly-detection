@@ -40,10 +40,14 @@ RE_TRAINED = re.compile(TS + r".*\[M3\] Device (\S+) trained: .*?, (\d+) epochs 
                         r"longest plateau (\d+)\), early-stop loss=([0-9.eE+-]+), ([0-9.]+)s")
 RE_ONLINE = re.compile(TS + r".*\[M3\] Device (\S+) entering ONLINE")
 RE_REPORT = re.compile(r"\[M3\] Device (\S+) REPORT: (.*)")
+RE_EXCLUDED = re.compile(r"\[M3\] Device (\S+) excluded training window ending at round (\d+)")
 
 
 def ts(s):
     return datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+
+
+excl = {}   # 在线算子日志中的剔除窗口标识（窗口最后一轮的时间戳）/ online excluded window ids
 
 
 def parse_log(path):
@@ -64,11 +68,16 @@ def parse_log(path):
         if m:
             d = dev.setdefault(m.group(2), {"reports": []})
             d.update(trained=ts(m.group(1)), epochs=int(m.group(3)), best=int(m.group(4)),
-                     plateau=int(m.group(5)), esloss=float(m.group(6)), sec=float(m.group(7)))
+                     plateau=int(m.group(5)), esloss=float(m.group(6)), esloss_str=m.group(6),
+                     sec=float(m.group(7)))
             continue
         m = RE_ONLINE.search(line)
         if m:
             dev.setdefault(m.group(2), {"reports": []})["online"] = ts(m.group(1))
+            continue
+        m = RE_EXCLUDED.search(line)
+        if m:
+            excl.setdefault(m.group(1), set()).add(int(m.group(2)))
             continue
         m = RE_REPORT.search(line)
         if m:
@@ -84,7 +93,9 @@ def load_offline(paths):
         for r in csv.DictReader(open(p, encoding="utf-8")):
             if r.get("hiddenSize") == "60" and r.get("windowLength") == "60" and r["device"] not in ref:
                 ref[r["device"]] = {"epochs": int(r["epochs"]), "sec": float(r["trainSeconds"]),
-                                    "spe": float(r["secPerEpoch"]), "esloss": float(r["esLoss"]), "src": p}
+                                    "spe": float(r["secPerEpoch"]), "esloss": float(r["esLoss"]),
+                                    "esloss_str": r.get("esLossExact", ""), "train": int(r["trainWindows"]),
+                                    "excluded": int(r["trainExcluded"]), "src": p}
     return ref
 
 
@@ -93,6 +104,8 @@ def main():
     ap.add_argument("--dir", required=True)
     ap.add_argument("--rounds-per-day", type=int, default=FULL_RPD)
     ap.add_argument("--offline-csv", default="")
+    ap.add_argument("--offline-excluded", default="",
+                    help="离线网格的剔除窗口清单（syn-m3-grid.sh 拉回的 *_excluded.csv）")
     ap.add_argument("--max-epochs", type=int, default=300)
     ap.add_argument("--timeout-min", type=float, default=60.0)
     a = ap.parse_args()
@@ -233,18 +246,59 @@ def main():
     # 与离线单台训练相比的减速比（全尺寸运行）
     if a.rounds_per_day == FULL_RPD and ref:
         p("\n## 四、与离线单台训练相比的减速比（每轮秒数之比）\n")
-        p("| 设备 | 在线秒/轮 | 离线秒/轮 | 减速比 | 在线轮数 | 离线轮数 | 在线早停集误差 | 离线早停集误差 | 相对偏差 |")
-        p("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+        p("| 设备 | 在线秒/轮 | 离线秒/轮 | 减速比 |")
+        p("| --- | --- | --- | --- |")
+        for k in sorted(set(dev) & set(ref)):
+            d, r = dev[k], ref[k]
+            if "sec" in d:
+                spe = d["sec"] / d["epochs"]
+                p("| %s | %.2f | %.2f | %.2f |" % (k, spe, r["spe"], spe / r["spe"]))
+        p("\n离线参照来自 %s。离线在 master 上运行，在线在 worker 上运行，两者 CPU 不同，减速比同时包含"
+          "机器差异与并行争用。" % "、".join(sorted({r["src"] for r in ref.values()})))
+
+        # 等值核验（2026-10-02 裁决第二节第 2 条）：先核对两边训练集完全相同（窗口数与剔除集合逐一相等），
+        # 再要求早停集误差逐位相同；输入不同时不套 5%，报告差异所在。
+        # Parity check: identical training sets first, then a bit-identical early-stop loss.
+        off_excl = {}
+        if a.offline_excluded and os.path.exists(a.offline_excluded):
+            for r in csv.DictReader(open(a.offline_excluded, encoding="utf-8")):
+                if r.get("windowLength", "60") == "60":
+                    off_excl.setdefault(r["device"], set()).add(int(r["lastRoundTs"]))
+        p("\n## 五、等值核验（先核训练集，再核早停集误差是否逐位相同）\n")
+        p("| 设备 | 训练窗（在线/离线） | 剔除数（在线/离线） | 剔除集合 | 早停集误差（在线/离线） | 结论 |")
+        p("| --- | --- | --- | --- | --- | --- |")
+        fmt = lambda t: datetime.utcfromtimestamp(t).strftime("%m-%d %H:%M:%S")
+        notes = []
         for k in sorted(set(dev) & set(ref)):
             d, r = dev[k], ref[k]
             if "sec" not in d:
                 continue
-            spe = d["sec"] / d["epochs"]
-            p("| %s | %.2f | %.2f | %.2f | %d | %d | %.6f | %.6f | %+.1f%% |" % (
-                k, spe, r["spe"], spe / r["spe"], d["epochs"], r["epochs"], d["esloss"], r["esloss"],
-                100 * (d["esloss"] - r["esloss"]) / r["esloss"]))
-        p("\n离线参照来自 %s。离线在 master 上运行，在线在 worker 上运行，两者 CPU 不同，减速比同时包含"
-          "机器差异与并行争用。" % "、".join(sorted({r["src"] for r in ref.values()})))
+            same_n = d["train"] == r["train"] and d["excluded"] == r["excluded"]
+            if k in excl and k in off_excl:
+                only_on, only_off = sorted(excl[k] - off_excl[k]), sorted(off_excl[k] - excl[k])
+                same_set = not only_on and not only_off
+                set_txt = "相同" if same_set else "不同（仅在线 %d，仅离线 %d）" % (len(only_on), len(only_off))
+                if not same_set:
+                    notes.append("%s 仅在线剔除：%s；仅离线剔除：%s" % (
+                        k, "、".join(fmt(t) for t in only_on[:10]) or "无",
+                        "、".join(fmt(t) for t in only_off[:10]) or "无"))
+            else:
+                same_set = None
+                set_txt = "缺少清单，无法核对"
+            if same_n and same_set:
+                bit = r["esloss_str"] != "" and d["esloss_str"] == r["esloss_str"]
+                verdict = "通过：训练集相同，误差逐位相同" if bit else (
+                    "不通过：训练集相同但误差不逐位相同" if r["esloss_str"] else "离线缺少完整精度误差，无法逐位比对")
+            elif same_set is None:
+                verdict = "训练集无法完整核对，不作判定"
+            else:
+                verdict = "输入不同，不作判定（见差异）"
+            p("| %s | %d/%d | %d/%d | %s | %s / %s | %s |" % (
+                k, d["train"], r["train"], d["excluded"], r["excluded"], set_txt,
+                d["esloss_str"], r["esloss_str"] or ("%.8f" % r["esloss"]), verdict))
+        for n in notes:
+            p("\n- " + n)
+        p("\n剔除窗口以窗口最后一轮的时间戳（UTC）标识。")
 
     text = "\n".join(out) + "\n"
     print(text)

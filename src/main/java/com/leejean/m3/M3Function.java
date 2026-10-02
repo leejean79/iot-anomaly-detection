@@ -10,6 +10,9 @@ import org.apache.flink.api.common.typeinfo.PrimitiveArrayTypeInfo;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.Gauge;
+import org.apache.flink.metrics.Histogram;
+import org.apache.flink.runtime.metrics.DescriptiveStatisticsHistogram;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
@@ -135,6 +138,14 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     private transient Counter collectingCount;
     private transient Counter trainingCount;
     private transient Counter onlineCount;
+    // V-M3-6 的三项测量（2026-10-02 裁决第五节），由监控系统在运行期间采集。
+    // The three V-M3-6 measurements (ruling of 2026-10-02 section 5), scraped while the job runs.
+    /** 逐窗推理时延：前向传播两侧计时（毫秒）/ per-window forward-pass latency in ms. */
+    private transient Histogram inferenceLatencyMs;
+    /** 点异常通道转发引入的延迟：滑动步末减轮时间戳（事件时间秒）/ slide end minus round ts, event-time s. */
+    private transient Histogram forwardDelaySec;
+    /** 直方图保留的最近样本数 / samples kept by each histogram. */
+    private static final int HISTOGRAM_WINDOW = 10_000;
 
     /**
      * @param trainDays      训练集天数（默认 7）/ training-set days
@@ -226,6 +237,18 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         collectingCount = getRuntimeContext().getMetricGroup().counter("m3_collecting_rounds");
         trainingCount = getRuntimeContext().getMetricGroup().counter("m3_training_events");
         onlineCount = getRuntimeContext().getMetricGroup().counter("m3_online_windows");
+        inferenceLatencyMs = getRuntimeContext().getMetricGroup().histogram(
+                "m3_inference_latency_ms", new DescriptiveStatisticsHistogram(HISTOGRAM_WINDOW));
+        forwardDelaySec = getRuntimeContext().getMetricGroup().histogram(
+                "m3_forward_delay_sec", new DescriptiveStatisticsHistogram(HISTOGRAM_WINDOW));
+        // 任务管理器堆外内存：JavaCPP 读到的进程物理内存（RSS），以及 JavaCPP 自己分配、尚未释放的堆外字节数。
+        // 同一个 TaskManager 上的各子任务读到的是同一个进程的值。
+        // Physical memory of the TaskManager process as JavaCPP reads it, and JavaCPP's own off-heap bytes;
+        // every subtask in one TaskManager reports the same process-wide value.
+        getRuntimeContext().getMetricGroup().gauge("m3_javacpp_physical_bytes",
+                (Gauge<Long>) org.bytedeco.javacpp.Pointer::physicalBytes);
+        getRuntimeContext().getMetricGroup().gauge("m3_javacpp_total_bytes",
+                (Gauge<Long>) org.bytedeco.javacpp.Pointer::totalBytes);
     }
 
     @Override
@@ -238,6 +261,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         if (count == null) count = 0L;
 
         String device = round.getDevice();
+        // 点异常通道转发引入的延迟：本轮所在滑动步的窗口末减去本轮时间戳，按事件时间计（秒）。
+        // Delay added by the point channel's forwarding: slide end minus round timestamp, in event time.
+        forwardDelaySec.update(round.getWindowEnd() - round.getTs());
         count++;                                       // 本轮计入总数 / this round counts toward the total
         roundCount.update(count);
 
@@ -303,6 +329,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
             } else {
                 Long ex = trainExcluded.value();       // 含离群的窗口计入被剔除数 / count the excluded window
                 trainExcluded.update(ex == null ? 1L : ex + 1L);
+                // 记下被剔除窗口的标识（最后一轮的时间戳），供等值核验与离线网格逐一比对剔除集合
+                // （2026-10-02 裁决第二节第 2 条）。/ log the excluded window's id for the parity check.
+                LOG.info("[M3] Device {} excluded training window ending at round {}", device, round.getTs());
             }
         } else if (count <= trainRounds + esRounds) {
             earlyStopWindows.add(flat);                // 早停集（不做净化）/ early-stop set (no sanitization)
@@ -528,7 +557,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
             masks[t] = bytesToBool(maskBytes.get(t));
         }
 
+        long t0 = System.nanoTime();
         double[][] recon = ae.reconstruct(window);     // 推理得重建 / reconstruct
+        inferenceLatencyMs.update((System.nanoTime() - t0) / 1_000_000L);   // 前向传播两侧计时 / forward pass only
         WeightedMseLoss lossCalc = new WeightedMseLoss(N_FEATURES, channelWeights);
         WeightedMseLoss.LossResult lr = lossCalc.compute(window, recon, masks, windowLength);   // 计算误差 / compute errors
         M3Scorer.ScoreResult sr = scorer.score(lr.wmse, lr.perChannelMse);   // 评分 / score

@@ -116,7 +116,11 @@ public class M2Job {
         boolean m3Enabled = params.getBoolean("m3-enabled", true);
         int m3TrainDays = params.getInt("m3-train-days", 7);
         int m3EarlyStopDays = params.getInt("m3-earlystop-days", 2);
-        int m3ThreshDays = params.getInt("m3-thresh-days", 2);
+        // 阈值校准集 7 天（2026-10-02 裁决第四节第 1 条，原则：至少覆盖已知最慢的周期一次）。原为 2 天：
+        // 三月重跑表明相邻日湿度可摆动 1.5 个标定期宽度，两天的校准集代表不了正常变异。
+        // Threshold calibration of 7 days (ruling of 2026-10-02 section 4): it must cover the slowest known
+        // cycle at least once; two days could not represent normal day-to-day variation.
+        int m3ThreshDays = params.getInt("m3-thresh-days", 7);
         int m3WindowLength = params.getInt("m3-window-length", 60);
         double m3ZThreshold = params.getDouble("m3-z-threshold", 2.22);
         // 上限 300（4800 次更新）：2026-09-27 裁决书第二节。设备 C 在选定配置下第 111 轮才早停，

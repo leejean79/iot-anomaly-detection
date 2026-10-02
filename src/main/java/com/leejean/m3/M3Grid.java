@@ -34,6 +34,13 @@ import java.util.TreeMap;
  * (设备, 轮时间戳) 名单还原离群标记，从而与在线口径一致。**不传则不做训练净化**，此时网格结果会
  * 偏乐观（含异常的窗口也参与了训练），程序会在标准输出与 CSV 的同一行里显式标注这一点。
  *
+ * <p><b>离群标记的规范定义（2026-10-02 裁决第二节）：一轮在它到达的那个滑动步被判定为离群，即视为被标记。</b>
+ * 点异常通道每个滑动步都会把整窗内的离群点重发一次，一轮在 60 个滑动窗里都会被重新判定；在线算子只取
+ * 到达那一步的判定。因此这里只读轮时间戳落在 [窗口末 − 滑动步, 窗口末) 之内的离群记录，与在线口径一致。
+ * 此前读全部名单（「60 次判定中任意一次」），三月重跑中 G 因此多剔除 53 个训练窗。
+ * The canonical flag (ruling of 2026-10-02 section 2): a round is flagged if it is an outlier in the
+ * slide in which it arrives, so only records with windowEnd - slide <= roundTs < windowEnd are read.
+ *
  * <p>Sanitization needs an extra input: the online operator reads M2's per-round outlier flag off the
  * AnnotatedRound, but the m1-out dump holds DeviceRound, which does not carry it. Pass
  * --scores-jsonl (a dump of synergia-scores) to restore the flags; without it no sanitization is
@@ -192,8 +199,14 @@ public final class M3Grid {
         int roundsPerDay = Integer.parseInt(
                 a.getOrDefault("rounds-per-day", String.valueOf(DEFAULT_ROUNDS_PER_DAY)));
         String scoresJsonl = a.getOrDefault("scores-jsonl", "");
+        // 点异常通道的滑动步（秒），须与作业的 --slide-sec 一致；用于按到达滑动步取离群标记。
+        // The point channel's slide in seconds; must match the job's --slide-sec.
+        long slideSec = Long.parseLong(a.getOrDefault("slide-sec", "60"));
+        // 被训练净化剔除的窗口清单（设备、窗口长度、窗口最后一轮的时间戳），供等值核验逐一比对。
+        // List of sanitized-out training windows (device, window length, last round ts) for the parity check.
+        String excludedPath = a.getOrDefault("excluded-csv", "");
         java.util.Set<String> outlierKeys = scoresJsonl.isEmpty()
-                ? java.util.Collections.emptySet() : readOutlierKeys(scoresJsonl);
+                ? java.util.Collections.emptySet() : readOutlierKeys(scoresJsonl, slideSec);
         boolean sanitized = !outlierKeys.isEmpty();
         if (!sanitized) {
             System.out.println("[grid] **未做训练净化**：没有提供 --scores-jsonl，无法还原 M2 的逐轮离群标记，"
@@ -229,6 +242,11 @@ public final class M3Grid {
             perEpochCsv.flush();
         }
         final PrintWriter perEpochWriter = perEpochCsv;
+        PrintWriter excludedCsv = null;
+        if (!excludedPath.isEmpty()) {
+            excludedCsv = new PrintWriter(excludedPath, "UTF-8");
+            excludedCsv.println("device,windowLength,lastRoundTs");
+        }
 
         PrintWriter gradNormCsv = null;
         if (!gradNormPath.isEmpty()) {
@@ -247,6 +265,12 @@ public final class M3Grid {
             for (int win : windowGrid) {
                 // 窗口划分只与窗口长度有关，同一窗口长度下各隐藏层大小共用同一份数据集。
                 Split split = buildSplit(rows, win, trainRounds, esRounds);
+                if (excludedCsv != null) {
+                    for (long id : split.excludedIds) {
+                        excludedCsv.printf("%s,%d,%d%n", device, win, id);
+                    }
+                    excludedCsv.flush();
+                }
                 if (split.train.length == 0 || split.earlyStop.length == 0) {
                     System.out.printf("[grid] %s 窗口长度 %d：训练集 %d 窗、早停集 %d 窗，样本不足，跳过。%n",
                             device, win, split.train.length, split.earlyStop.length);
@@ -388,6 +412,10 @@ public final class M3Grid {
                 }
             }
         }
+        if (excludedCsv != null) {
+            excludedCsv.close();
+            System.out.println("[grid] 剔除窗口清单 → " + excludedPath);
+        }
         if (perEpochWriter != null) {
             perEpochWriter.close();
             System.out.println("[grid] 逐轮 CSV → " + perEpochPath);
@@ -442,6 +470,8 @@ public final class M3Grid {
         /** 早停集每个窗口是否含 M2 离群轮。早停集不做净化，因此两类窗口都在里面。/ per-window outlier flag. */
         boolean[] earlyStopHasOutlier;
         int trainExcluded;
+        /** 被剔除训练窗的标识：窗口最后一轮的时间戳，与在线算子日志口径一致 / last-round ts of excluded windows. */
+        List<Long> excludedIds = new ArrayList<>();
         /** 跨停机的窗口数：窗口内相邻两轮相隔至少 OUTAGE_GAP_SEC / windows spanning an outage. */
         int trainSpanningOutage;
         int esSpanningOutage;
@@ -467,6 +497,7 @@ public final class M3Grid {
         List<double[][]> es = new ArrayList<>();
         List<Boolean> esHasOutlier = new ArrayList<>();
         int excluded = 0;
+        List<Long> excludedIds = new ArrayList<>();
 
         List<Row> buf = new ArrayList<>(windowLength);
         long count = 0;
@@ -499,6 +530,7 @@ public final class M3Grid {
                 hasSurgeOutlier |= w.outlier && recoveryTs != Long.MIN_VALUE
                         && w.ts >= recoveryTs && w.ts - recoveryTs < SURGE_SEC;
             }
+            long lastTs = buf.get(windowLength - 1).ts;    // 窗口标识：最后一轮的时间戳 / window id: last round ts
             buf.clear();                                   // 窗口不重叠 / windows do not overlap
 
             if (count <= trainRounds) {
@@ -507,6 +539,7 @@ public final class M3Grid {
                 }
                 if (hasOutlier) {
                     excluded++;                            // 训练净化：整窗剔除 / sanitization drops the window
+                    excludedIds.add(lastTs);
                     if (hasSurgeOutlier) {
                         excludedSurge++;
                     }
@@ -526,6 +559,7 @@ public final class M3Grid {
         }
 
         Split s = new Split();
+        s.excludedIds = excludedIds;
         s.train = train.toArray(new double[0][][]);
         s.trainMasks = trainMasks.toArray(new boolean[0][][]);
         s.earlyStop = es.toArray(new double[0][][]);
@@ -546,10 +580,12 @@ public final class M3Grid {
      * scores 流只列出被判为离群的点（{@code outlier} 恒为 true），因此名单即离群集合。
      * Read the outlier roster from a synergia-scores dump; that stream lists only outliers.
      */
-    private static java.util.Set<String> readOutlierKeys(String path) throws Exception {
+    static java.util.Set<String> readOutlierKeys(String path, long slideSec) throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         java.util.Set<String> keys = new java.util.HashSet<>();
         long bad = 0;
+        long records = 0;
+        long later = 0;
         try (BufferedReader br = new BufferedReader(new FileReader(path))) {
             String line;
             while ((line = br.readLine()) != null) {
@@ -559,13 +595,22 @@ public final class M3Grid {
                 }
                 try {
                     com.leejean.m2.ScoreEvent se = mapper.readValue(line, com.leejean.m2.ScoreEvent.class);
-                    keys.add(se.getDevice() + "@" + se.getRoundTs());
+                    records++;
+                    // 只认到达滑动步的那一次判定：轮时间戳落在 [窗口末 − 滑动步, 窗口末) 之内。
+                    // Only the verdict of the arrival slide: windowEnd - slide <= roundTs < windowEnd.
+                    if (se.getRoundTs() >= se.getWindowEnd() - slideSec && se.getRoundTs() < se.getWindowEnd()) {
+                        keys.add(se.getDevice() + "@" + se.getRoundTs());
+                    } else {
+                        later++;
+                    }
                 } catch (Exception ex) {
                     bad++;
                 }
             }
         }
-        System.out.printf("[grid] 离群名单读入：%d 条 (设备, 轮时间戳)；解析失败 %d 行%n", keys.size(), bad);
+        System.out.printf("[grid] 离群名单读入：%d 条记录，其中到达滑动步的判定 %d 条，后续滑动步的重复判定 %d 条（不计）；"
+                + "得到 %d 个 (设备, 轮时间戳)；无法解析 %d 行（含上下文通道的评分记录）%n",
+                records, records - later, later, keys.size(), bad);
         return keys;
     }
 
@@ -635,7 +680,7 @@ public final class M3Grid {
                     + "gradNormCount,gradNormMedian,gradNormP99,gradNormP999,gradNormMax,"
                     + "layerNormMedian,layerNormP99,layerNormP999,layerNormMax,"
                     + "learningRate,esCleanWindows,esOutlierWindows,esLossBaseline,trainedOk,"
-                    + "trainSeconds,secPerEpoch,sanitized");
+                    + "trainSeconds,secPerEpoch,sanitized,esLossExact");
             for (Result r : results) {
                 // secPerEpoch 由程序算出并写入，避免事后手算出错 / computed here, not by hand afterwards
                 double secPerEpoch = r.epochs > 0 ? r.trainSeconds / r.epochs : 0.0;
@@ -646,7 +691,7 @@ public final class M3Grid {
                         ? String.format("%.6f", (r.esLoss - referenceLoss) / referenceLoss) : "";
                 pw.printf("%s,%d,%d,%d,%s,%d,%d,%d,%d,%.8f,%s,%.8f,%.8f,%.1f,"
                                 + "%d,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,"
-                                + "%s,%d,%d,%.8f,%s,%.1f,%.1f,%s%n",
+                                + "%s,%d,%d,%.8f,%s,%.1f,%.1f,%s,%s%n",
                         r.device, r.hiddenSize, r.windowLength, r.batchSize, r.ompThreads,
                         r.trainWindows, r.trainExcluded, r.esWindows,
                         r.epochs, r.esLoss, rel,
@@ -656,7 +701,10 @@ public final class M3Grid {
                         r.layerNormMedian, r.layerNormP99, r.layerNormP999, r.layerNormMax,
                         r.learningRate, r.esCleanWindows, r.esOutlierWindows,
                         r.esLossBaseline, r.trainedOk,
-                        r.trainSeconds, secPerEpoch, r.sanitized);
+                        r.trainSeconds, secPerEpoch, r.sanitized,
+                        // 早停集误差的完整双精度写法（Double.toString），与在线日志同一写法，供等值核验逐位比对
+                        // （2026-10-02 裁决第二节第 2 条）。/ full-precision form, same as the online log.
+                        Double.toString(r.esLoss));
             }
         }
         if (announce) {

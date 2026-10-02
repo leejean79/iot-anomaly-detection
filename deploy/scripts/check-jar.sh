@@ -77,6 +77,9 @@ checks=(
     "com/leejean/m2/M2Job.class|m3-rounds-per-day|冷启动短重放验证用的每天折合轮数（补遗三步骤 C）"
     "com/leejean/m3/M3Function.class|(subtask {}) entering TRAINING|冷启动日志带子任务编号（2026-09-30）"
     "com/leejean/m3/M3Training.class|M3 training interrupted after epoch|训练循环响应取消（2026-10-01 裁决第三节第 1 条）"
+    "com/leejean/m3/M3Grid.class|excluded-csv|离线网格写剔除窗口清单（2026-10-02 裁决第二节）"
+    "com/leejean/m3/M3Function.class|excluded training window ending at round|在线算子记录剔除窗口（2026-10-02 裁决第二节）"
+    "com/leejean/m3/M3Function.class|m3_inference_latency_ms|V-M3-6 推理时延指标（2026-10-02 裁决第五节）"
 )
 
 fail=0

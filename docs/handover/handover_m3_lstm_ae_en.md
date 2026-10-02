@@ -54,8 +54,11 @@ threshold-calibration set), online (inference and scoring). A retraining entry p
 trigger logic is written in this stage.
 
 **Data segments** (decision 3). After the scaler's seven-day warm-up: seven days of training, two
-days of early stopping, two days of threshold calibration — parameters `--m3-train-days`,
-`--m3-earlystop-days`, `--m3-thresh-days`. Training-set sanitization: any window containing a round
+days of early stopping, seven days of threshold calibration — parameters `--m3-train-days`,
+`--m3-earlystop-days`, `--m3-thresh-days`. *(Revised 2026-10-02 by the design session's ruling on the
+March rerun, section 4: threshold calibration extended from two to seven days so that it covers the
+slowest known cycle at least once; the March rerun showed day-to-day humidity swings of up to 1.5
+calibration-period widths, which two days could not represent.)* Training-set sanitization: any window containing a round
 flagged as an outlier by the point channel is excluded from the training set; the excluded fraction
 is reported per device.
 

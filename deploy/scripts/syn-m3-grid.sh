@@ -317,6 +317,16 @@ if [ "$COLLECT" -eq 1 ]; then
             echo "[grid] 梯度范数 CSV 拉回失败，可手动：ssh ${RUN_HOST} 'cat ${WORK}/m3_grad_norms.csv' > docs/${GRAD_NORM_LOCAL}" >&2
         fi
     fi
+    # 剔除窗口清单（有训练净化时才有），一律尝试拉回。/ excluded-window list, pulled when present
+    EXCLUDED_LOCAL="${OUT_NAME%.csv}_excluded.csv"
+    if ssh "$RUN_HOST" "test -s ${WORK}/m3_excluded.csv" 2>/dev/null; then
+        if ssh "$RUN_HOST" "cat ${WORK}/m3_excluded.csv" > "${PROJECT_ROOT}/docs/${EXCLUDED_LOCAL}" 2>/dev/null \
+                && [ -s "${PROJECT_ROOT}/docs/${EXCLUDED_LOCAL}" ]; then
+            echo "[grid] 剔除窗口清单已拉回本地：${PROJECT_ROOT}/docs/${EXCLUDED_LOCAL}"
+        else
+            rm -f "${PROJECT_ROOT}/docs/${EXCLUDED_LOCAL}" 2>/dev/null || true
+        fi
+    fi
     if ssh "$RUN_HOST" "test -s ${WORK}/m3_per_epoch.csv" 2>/dev/null; then
         if ssh "$RUN_HOST" "cat ${WORK}/m3_per_epoch.csv" > "${PROJECT_ROOT}/docs/${PER_EPOCH_LOCAL}" 2>/dev/null \
                 && [ -s "${PROJECT_ROOT}/docs/${PER_EPOCH_LOCAL}" ]; then
@@ -385,7 +395,9 @@ if [ "$USE_SCORES" -eq 1 ]; then
     SLINES="$(ssh fa-master "wc -l < ${WORK}/scores.jsonl 2>/dev/null || echo 0" | tr -d '[:space:]')"
     echo "[grid] scores 转储 ${SLINES:-0} 行。"
     if [ "${SLINES:-0}" -gt 0 ]; then
-        SCORES_ARG="--scores-jsonl /work/scores.jsonl"
+        # 剔除窗口清单一并写出，供等值核验逐一比对剔除集合；滑动步与作业一致（2026-10-02 裁决第二节）。
+        # Also write the excluded-window list for the parity check; the slide matches the job's.
+        SCORES_ARG="--scores-jsonl /work/scores.jsonl --slide-sec ${SYN_M2_SLIDE_SEC:-60} --excluded-csv /work/m3_excluded.csv"
     else
         echo "[grid] scores 转储为空——将**跳过训练净化**，结果偏乐观，CSV 的 sanitized 列记为 false。"
     fi
@@ -416,7 +428,7 @@ if [ "$RUN_HOST" != "fa-master" ]; then
     done
 fi
 
-ssh "$RUN_HOST" "rm -f ${WORK}/m3_grid.csv ${WORK}/m3_per_epoch.csv ${WORK}/m3_grad_norms.csv" || true
+ssh "$RUN_HOST" "rm -f ${WORK}/m3_grid.csv ${WORK}/m3_per_epoch.csv ${WORK}/m3_grad_norms.csv ${WORK}/m3_excluded.csv" || true
 
 REF_ARG=""
 [ -n "$REFERENCE_LOSS" ] && REF_ARG="--reference-loss ${REFERENCE_LOSS}"

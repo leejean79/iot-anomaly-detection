@@ -111,7 +111,8 @@ class M3GridTest {
 
         List<String> lines = java.nio.file.Files.readAllLines(out);
         assertEquals(2, lines.size(), "表头加一行结果");
-        assertTrue(lines.get(0).endsWith(",sanitized"), "CSV 应含 sanitized 列");
+        assertTrue(lines.get(0).contains(",sanitized,"), "CSV 应含 sanitized 列");
+        assertTrue(lines.get(0).endsWith(",esLossExact"), "CSV 末列应为完整精度的早停集误差（等值核验逐位比对用）");
         assertEquals("E", col(lines, "device"));
         assertEquals("false", col(lines, "sanitized"),
                 "未提供 --scores-jsonl 时不应做训练净化，该列须为 false");
@@ -135,8 +136,8 @@ class M3GridTest {
         ObjectMapper mapper = new ObjectMapper();
         Path scores = dir.resolve("scores.jsonl");
         try (PrintWriter pw = new PrintWriter(scores.toFile(), "UTF-8")) {
-            pw.println(mapper.writeValueAsString(new ScoreEvent("E", base, base)));
-            pw.println(mapper.writeValueAsString(new ScoreEvent("E", base + 250L, base + 250L)));
+            pw.println(mapper.writeValueAsString(new ScoreEvent("E", base, base + 10L)));
+            pw.println(mapper.writeValueAsString(new ScoreEvent("E", base + 250L, base + 260L)));
         }
         Path out = dir.resolve("grid.csv");
 
@@ -231,8 +232,8 @@ class M3GridTest {
             // 第 5 轮在停机之前，不算浪涌；第 42 轮在恢复后 70 秒，算浪涌。两者分属第 1 与第 5 个窗口。
             long t5 = rounds.get(5).getTs();
             long t42 = rounds.get(42).getTs();
-            pw.println(mapper.writeValueAsString(new ScoreEvent("E", t5, t5)));
-            pw.println(mapper.writeValueAsString(new ScoreEvent("E", t42, t42)));
+            pw.println(mapper.writeValueAsString(new ScoreEvent("E", t5, t5 + 10L)));
+            pw.println(mapper.writeValueAsString(new ScoreEvent("E", t42, t42 + 10L)));
         }
         assertEquals(70L, rounds.get(42).getTs() - recovery, "测试数据自检：第 42 轮在恢复后 70 秒");
         Path out = dir.resolve("grid.csv");
@@ -282,5 +283,33 @@ class M3GridTest {
             }
         }
         throw new IllegalArgumentException("CSV 表头里没有列 " + name + "：" + lines.get(0));
+    }
+
+    /**
+     * 2026-10-02 裁决第二节第 1 条：离群标记只认到达滑动步的那一次判定。同一轮在后续滑动步里被重复判为
+     * 离群，不应让一个到达时并未被判离群的轮进入名单；上下文通道的评分记录解析失败、不计入。
+     * Only the arrival-slide verdict counts; later re-flags of other rounds must not leak in.
+     */
+    @Test
+    @DisplayName("离群名单只取到达滑动步的判定")
+    void outlierKeysUseOnlyTheArrivalSlide(@TempDir Path tmp) throws Exception {
+        Path scores = tmp.resolve("scores.jsonl");
+        ObjectMapper om = new ObjectMapper();
+        try (PrintWriter pw = new PrintWriter(scores.toFile(), "UTF-8")) {
+            // 轮 1000 在它到达的滑动步（窗口末 1020，步长 60 → [960, 1020)）被判离群：应计入。
+            pw.println(om.writeValueAsString(new ScoreEvent("E", 1000L, 1020L)));
+            // 同一轮在后续滑动步再次出现：重复判定，不影响结果。
+            pw.println(om.writeValueAsString(new ScoreEvent("E", 1000L, 1080L)));
+            // 轮 2000 只在后来的滑动步（窗口末 2400）被判离群，到达时没有：不应计入。
+            pw.println(om.writeValueAsString(new ScoreEvent("E", 2000L, 2400L)));
+            // 边界：轮时间戳恰为窗口末，不属于该滑动步。
+            pw.println(om.writeValueAsString(new ScoreEvent("G", 3000L, 3000L)));
+            // 边界：轮时间戳恰为窗口末减步长，属于该滑动步。
+            pw.println(om.writeValueAsString(new ScoreEvent("G", 2940L, 3000L)));
+            // 上下文通道的评分记录：解析失败，不计入。
+            pw.println("{\"device\":\"E\",\"windowEnd\":5000,\"channel\":\"m3_context\",\"mainScore\":1.0}");
+        }
+        java.util.Set<String> keys = M3Grid.readOutlierKeys(scores.toString(), 60L);
+        assertEquals(new java.util.HashSet<>(java.util.Arrays.asList("E@1000", "G@2940")), keys);
     }
 }

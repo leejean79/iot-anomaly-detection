@@ -86,7 +86,7 @@ fi
 for pair in "fa-worker1 taskmanager-2" "fa-worker2 taskmanager-3"; do
     set -- $pair
     echo "===== $1 / $2 =====" >> "$OUT_DIR/m3_tm_log.txt"
-    ssh "$1" "docker logs ${SINCE:+--since $SINCE} $2 2>&1 | grep -E '\[M3\] Device .* (entering|trained|REPORT|calibrated)|OpenMP BLAS|threads used for'" \
+    ssh "$1" "docker logs ${SINCE:+--since $SINCE} $2 2>&1 | grep -E '\[M3\] Device .* (entering|trained|REPORT|calibrated|interrupted|excluded training window)|OpenMP BLAS|threads used for'" \
         >> "$OUT_DIR/m3_tm_log.txt" 2>/dev/null || true
 done
 
