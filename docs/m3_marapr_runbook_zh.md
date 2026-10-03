@@ -153,12 +153,34 @@ bash deploy/scripts/syn-m3-perf-collect.sh --since $SINCE --out-dir docs/m3_mara
 ```bash
 bash deploy/scripts/syn-m2-probe.sh --r-grid 0.75,1.0,1.5 --k-grid 10 --max-messages 6000000 \
     --out-name m2_probe_corrected.csv
-bash deploy/scripts/syn-m2-baseline.sh --tag marapr-m3 --probe-ref docs/m2_probe_corrected.csv
+bash deploy/scripts/syn-m2-baseline.sh --tag marapr-m3 --probe-ref docs/m2_probe_corrected.csv --max-messages 3000000
 ```
 
 - 半径网格取 0.75、1.0、1.5，覆盖各设备实际使用的半径（D 为 0.75，G 为 1.5，其余为 1.0）。
 - 期望第二条输出逐设备表，八台的相对差都在 ±1% 以内。
 - 探针要转储约 400 万轮，master 上会多占约 2 GB 磁盘，第十二步复位时清掉。
+
+- `--max-messages 3000000`：三月的监测主题约 62 万条，两个月约 125 万条，默认上限 200 万留的余量不够大。
+
+### 第九步之二：三月二十二日至二十七日事件的双通道对比（设计会话 2026-10-02 分析任务书）
+
+这一步只用转储，不另外重放。点异常通道取第九步刚拉回的本次监测转储；上下文通道和气体剖面取**三月重跑**的
+已有文件。原因有两点：本次运行的上下文通道要到 03-24 才进入在线，覆盖不了 03-19 至 03-23；本次的阈值校准期
+03-17 至 03-24 又包含了事件的前半段。宽度倍数必须用参照期 03-17 至 03-19 的那份剖面，才能与任务书中
+「D 六点一三倍、E 五点二九倍」同一口径。
+
+```bash
+python3 deploy/scripts/m3_dual_channel_week.py \
+    --monitoring docs/m2_monitoring_marapr-m3.jsonl \
+    --scores docs/m3_march/m3_scores.jsonl \
+    --profile docs/m3_march/daily_channel_profile.csv \
+    --out-dir docs/reports/m3_march_dual_channel_week
+```
+
+- 期望终端打印五条预言的核对表，`docs/reports/m3_march_dual_channel_week/` 下有 `dual_channel_check.md`、
+  `dual_channel_hourly.csv`、`dual_fleet.png`、`dual_D.png`、`dual_E.png`。
+- 必须在第十二步删除 `docs/m2_monitoring_marapr-m3.jsonl` 之前执行。
+- 若预言一、二、三的表格显示「缺少监测转储」，说明第九步的监测转储没有生成，请先检查第九步的输出。
 
 ### 第十步：离线参照（约 45 分钟）
 
@@ -204,7 +226,8 @@ git add -f docs/m3_marapr_eda_rounds.csv docs/m3_marapr/m3_scores.jsonl docs/m3_
     docs/m3_marapr/coldstart_report.md docs/m3_marapr/collect_summary.txt docs/m3_marapr/perf \
     docs/m3_marapr/daily_channel_profile.csv docs/m3_marapr/v34 \
     docs/m3_marapr_reference.csv docs/m3_marapr_reference_per_epoch.csv docs/m3_marapr_reference_excluded.csv \
-    docs/m2_probe_corrected.csv docs/reports/m2_java11_marapr-m3_* docs/m2_replay_verify.csv
+    docs/m2_probe_corrected.csv docs/reports/m2_java11_marapr-m3_* docs/m2_replay_verify.csv \
+    docs/reports/m3_march_dual_channel_week
 git add -f docs/m3_marapr/ckpt_inspect_*.json 2>/dev/null
 git commit -m "data(m3): 三月至四月运行（类型 A）结果" && git push origin dev-claude
 bash deploy/scripts/syn-m3-diag.sh --since $SINCE --out-dir docs/m3_marapr/diag
@@ -233,5 +256,5 @@ rm -f docs/m3_marapr/scores.jsonl docs/m2_monitoring_marapr-m3.jsonl
 | 重放 | 约 25 分钟 |
 | 冷启动 | 子任务 1 约 45 分钟 |
 | 追赶积压与排空 | 约 30 分钟 |
-| 核验、收集、探针、离线参照 | 约 1.5 小时 |
+| 核验、收集、探针、双通道对比、离线参照 | 约 1.5 小时 |
 | EDA 与 V-M3-4（本地 Mac） | 约 15 分钟 |
