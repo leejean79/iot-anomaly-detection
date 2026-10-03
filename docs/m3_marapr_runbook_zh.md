@@ -173,11 +173,13 @@ bash deploy/scripts/syn-m3-diag.sh --since $SINCE --out-dir docs/m3_marapr/diag
 ### 第八步：重放完整性核验（在取消作业之前）
 
 ```bash
+TOTAL=$(python3 -c "import csv; r=list(csv.reader(open('docs/m3_marapr_eda_rounds.csv'))); print(sum(int(x) for row in r[1:] for x in row[1:]))"); echo "TOTAL=$TOTAL"
 bash deploy/scripts/syn-replay-verify.sh --start-utc 2022-03-01T00:00:00Z --end-utc 2022-05-01T00:00:00Z \
-    --expected-total <第二步的总轮数> --tol-pct 0.2 --max-messages 6000000 \
+    --expected-total "$TOTAL" --tol-pct 0.2 --max-messages 6000000 \
     --report-name m2_replay_verify_marapr.csv 2>&1 | tee docs/m3_marapr/replay_verify.txt
 ```
 
+- 第一行从第二步的逐日表求出总轮数，打印的 `TOTAL` 应与第二步终端显示的总轮数相同。
 - 期望五条断言全部 PASS，最后一行为「五条断言全部通过」。
 - `--report-name m2_replay_verify_marapr.csv` 是必需的：默认文件名 `docs/m2_replay_verify.csv` 里存着三月重跑
   的逐台冻结时刻，第十一步要拿它作比对，不能被覆盖。
