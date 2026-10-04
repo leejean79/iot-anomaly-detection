@@ -35,6 +35,9 @@ set -a; source "$DEPLOY_DIR/.env"; set +a
 
 SINCE=""; LATE_OUT=""
 while [[ $# -gt 0 ]]; do
+    if [[ "$1" == --* && -z "${2:-}" ]]; then
+        echo "ERROR: 参数 $1 后面缺少取值（命令是否被拆成了两行？请写在同一行）" >&2; exit 2
+    fi
     case "$1" in
         --since) SINCE="$2"; shift 2 ;;
         --late-drop-out) LATE_OUT="$2"; shift 2 ;;
