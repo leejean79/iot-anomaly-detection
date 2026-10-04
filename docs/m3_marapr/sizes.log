@@ -1,0 +1,733 @@
+====================================================================
+  作业 / job : M2Job - M1 ingestion/normalization + pMCOD + LSTM-AE contextual anomaly detection
+  JobID      : d9c216093ef83b760912a28ba8b4bb6c
+  轮询间隔   : 20s    总时长: 直到 Ctrl-C 或作业结束
+  CSV 输出   : /opt/fa-iforest/m3watch/ckpt_sizes.csv
+  framesize  : 256 MB（单子任务超过其 80% 即告警）
+====================================================================
+
+[2026-10-03 15:23:25] checkpoint 1  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        0.074          8          0.009
+  RobustScaler                                          0.044          8          0.005
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],         0.043          8          0.005
+  RoundAssembler -> AlignEventTime                      0.032          8          0.004
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.026          8          0.003
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.018          8          0.002
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：0.246 MB
+
+[2026-10-03 15:23:26] checkpoint 2  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        0.074          8          0.009
+  RobustScaler                                          0.044          8          0.005
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],         0.043          8          0.005
+  RoundAssembler -> AlignEventTime                      0.032          8          0.004
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.026          8          0.003
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.018          8          0.002
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：0.246 MB
+
+[2026-10-03 15:23:46] checkpoint 3  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        0.074          8          0.009
+  RobustScaler                                          0.044          8          0.005
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],         0.043          8          0.005
+  RoundAssembler -> AlignEventTime                      0.032          8          0.004
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.026          8          0.003
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.018          8          0.002
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：0.246 MB
+
+[2026-10-03 15:24:27] checkpoint 4  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  RobustScaler                                          1.955          8          0.722
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.111          8          0.034
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        0.074          8          0.009
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.030          8          0.007
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],         0.043          8          0.005
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：2.614 MB
+
+[2026-10-03 15:24:47] checkpoint 5  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  RobustScaler                                          5.223          8          1.941
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.110          8          0.032
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        0.074          8          0.009
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.030          8          0.007
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],         0.043          8          0.005
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：5.881 MB
+
+[2026-10-03 15:25:27] checkpoint 6  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  RobustScaler                                          8.428          8          3.116
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.083          8          0.023
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        0.074          8          0.009
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.030          8          0.007
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],         0.043          8          0.005
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：9.059 MB
+
+[2026-10-03 15:25:48] checkpoint 7  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  RobustScaler                                         11.684          8          4.321
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.102          8          0.030
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        0.074          8          0.009
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.029          8          0.006
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],         0.043          8          0.005
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：12.333 MB
+
+[2026-10-03 15:26:28] checkpoint 8  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  RobustScaler                                         14.945          8          5.533
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.120          8          0.038
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        0.074          8          0.009
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.028          8          0.006
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],         0.043          8          0.005
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：15.610 MB
+
+[2026-10-03 15:26:49] checkpoint 9  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  RobustScaler                                         18.191          8          6.750
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.114          8          0.035
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        0.074          8          0.009
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],         0.043          8          0.005
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.020          8          0.003
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：18.843 MB
+
+[2026-10-03 15:27:29] checkpoint 10  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        14.170          8          5.320
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        3.349          8          1.176
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.099          8          0.029
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.030          8          0.007
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：18.095 MB
+
+[2026-10-03 15:27:50] checkpoint 11  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        13.915          8          5.026
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        6.896          8          2.531
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.108          8          0.029
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.030          8          0.006
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：21.395 MB
+
+[2026-10-03 15:28:30] checkpoint 12  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        14.660          8          5.260
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor       10.359          8          3.803
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.081          8          0.023
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.035          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：25.581 MB
+
+[2026-10-03 15:28:50] checkpoint 13  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        14.205          8          5.317
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor       13.801          8          5.094
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.100          8          0.029
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.030          8          0.007
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：28.581 MB
+
+[2026-10-03 15:29:31] checkpoint 14  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor       17.446          8          6.477
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        14.133          8          5.270
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.115          8          0.035
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.030          8          0.007
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：32.169 MB
+
+[2026-10-03 15:29:51] checkpoint 15  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor       21.059          8          7.841
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        13.740          8          5.005
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.087          8          0.025
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.030          8          0.007
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：35.361 MB
+
+[2026-10-03 15:30:12] checkpoint 16  状态=IN_PROGRESS
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor       18.629          7          9.173
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.037          6          6.019
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.101          8          0.030
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.036          8          0.009
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：29.248 MB
+
+[2026-10-03 15:30:52] checkpoint 17  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor       28.089          8         10.430
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        14.123          8          5.227
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.112          8          0.034
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.030          8          0.007
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：42.800 MB
+
+[2026-10-03 15:31:13] checkpoint 18  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor       31.738          8         11.794
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        14.928          8          5.552
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.108          8          0.032
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.033          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：47.253 MB
+
+[2026-10-03 15:31:53] checkpoint 19  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor       35.407          8         13.180
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        14.041          8          5.241
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.108          8          0.032
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.030          8          0.007
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：50.031 MB
+
+[2026-10-03 15:32:13] checkpoint 20  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor       39.054          8         14.544
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        15.269          8          5.666
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.112          8          0.034
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.033          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：54.913 MB
+
+[2026-10-03 15:32:54] checkpoint 21  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor       42.610          8         15.858
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        12.377          8          4.273
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.087          8          0.025
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.029          8          0.006
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：55.550 MB
+
+[2026-10-03 15:33:14] checkpoint 22  状态=IN_PROGRESS
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        5.543          4          5.516
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        14.165          8          5.263
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.101          8          0.030
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.030          8          0.007
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：20.286 MB
+
+[2026-10-03 16:09:20] checkpoint 23  状态=IN_PROGRESS
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  RoundAssembler -> AlignEventTime                      0.035          7          0.008
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        0.000          0          0.000
+  MonitoringAggregator -> Sink: Kafka Sink [syne        0.000          0          0.000
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.000          0          0.000
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],         0.000          0          0.000
+  RobustScaler                                          0.000          0          0.000
+  本次合计：0.043 MB
+
+[2026-10-03 16:30:03] checkpoint 38  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:04] checkpoint 39  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:04] checkpoint 40  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:04] checkpoint 41  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:05] checkpoint 42  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:05] checkpoint 43  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:05] checkpoint 44  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:06] checkpoint 45  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:06] checkpoint 46  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:26] checkpoint 121  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:26] checkpoint 122  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:27] checkpoint 123  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:27] checkpoint 127  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:27] checkpoint 128  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:28] checkpoint 129  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:28] checkpoint 130  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:48] checkpoint 131  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:48] checkpoint 132  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:49] checkpoint 133  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:49] checkpoint 134  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:49] checkpoint 135  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:49] checkpoint 136  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:30:50] checkpoint 137  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:31:30] checkpoint 138  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:31:50] checkpoint 139  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:32:31] checkpoint 140  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:32:51] checkpoint 141  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:33:31] checkpoint 142  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:33:52] checkpoint 143  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:34:32] checkpoint 144  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:34:52] checkpoint 145  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:35:33] checkpoint 146  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:35:53] checkpoint 147  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:36:14] checkpoint 148  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:36:54] checkpoint 149  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:37:14] checkpoint 150  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:37:55] checkpoint 151  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:38:15] checkpoint 152  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:38:56] checkpoint 153  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:39:16] checkpoint 154  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:39:56] checkpoint 155  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:40:17] checkpoint 156  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB
+
+[2026-10-03 16:40:57] checkpoint 157  状态=COMPLETED
+  算子 / operator                                         合计 MB        已确认      单子任务峰值 MB
+  MonitoringAggregator -> Sink: Kafka Sink [syne       11.812          8         11.795
+  Pmcod -> (Sink: Kafka Sink [synergia-scores],        10.078          8          3.804
+  M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scor        4.681          8          1.739
+  RawCache -> (Sink: Kafka Sink [synergia-m1-out        0.393          8          0.141
+  RoundAssembler -> AlignEventTime                      0.042          8          0.008
+  RobustScaler                                          0.045          8          0.006
+  Source: Custom Source -> Kafka Source [synergi        0.008          8          0.001
+  本次合计：27.059 MB

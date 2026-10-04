@@ -1,0 +1,2 @@
+# 来源：Prometheus，2026-10-03T07:21:59Z 起的运行期间（作业已不存在，Flink 接口读不到）
+  m2_gate_late_drop            615474
