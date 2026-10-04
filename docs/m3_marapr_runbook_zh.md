@@ -318,6 +318,34 @@ rm -f docs/m3_marapr/scores.jsonl
 
 ---
 
+## 四之二、第八步之后集群被停止或重启过时的处理（2026-10-04）
+
+实例重启后 Flink 作业不会自动恢复，但容器都是 `restart: unless-stopped`，只要容器没有被重建，Kafka 主题、
+docker 日志和 Prometheus 的历史都还在。失去的只有活着的作业里的东西：排空检查失去意义，迟到丢弃计数要改从
+Prometheus 读。处理顺序如下：
+
+1. 先做只读检查，并从 Prometheus 写出迟到丢弃计数：
+   ```bash
+   bash deploy/scripts/syn-m3-after-reboot.sh --since $SINCE --late-drop-out docs/m3_marapr/m2_metrics_final.txt
+   ```
+   期望：第一段里 kafka-1、zookeeper、taskmanager 的创建时间都早于重启时刻；第三段三个主题的消息总数都不为 0；
+   第五段写出迟到丢弃合计。任何一项不符合，先停下来上报。
+2. 第九步只执行 `syn-m3-watch.sh stop`、`syn-m3-march-collect.sh`、`syn-m3-perf-collect.sh` 三条，跳过排空与
+   `syn-m2-metrics.sh` 那几行（第 1 项已写出 `m2_metrics_final.txt`）。
+3. 收集之后核对作业在重启前是否已经处理完：
+   ```bash
+   python3 -c "
+   import json,datetime as d
+   last={}
+   for l in open('docs/m3_marapr/m3_scores.jsonl'):
+       o=json.loads(l); last[o['device']]=max(last.get(o['device'],0),o['windowEnd'])
+   for k in sorted(last): print(k, d.datetime.utcfromtimestamp(last[k]))"
+   ```
+   期望八台的最后一个窗口都在 2022-04-30 的最后一小时内。若明显更早，说明重启前积压没有处理完，评分不完整，
+   请上报。
+4. 第十至十三步照常执行，它们只读 Kafka 主题和本地文件，不需要作业在运行。
+5. 第十四步跳过 `flink cancel` 那一行（作业已不存在），其余照做。
+
 ## 五、预授权的退路
 
 若作业又在训练后的第一个检查点上失败（确认消息超帧，或 JobManager 内存耗尽），按 2026-10-01 裁决第四节，
