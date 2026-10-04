@@ -343,8 +343,15 @@ Prometheus 读。处理顺序如下：
    ```
    期望八台的最后一个窗口都在 2022-04-30 的最后一小时内。若明显更早，说明重启前积压没有处理完，评分不完整，
    请上报。
-4. 第十至十三步照常执行，它们只读 Kafka 主题和本地文件，不需要作业在运行。
-5. 第十四步跳过 `flink cancel` 那一行（作业已不存在），其余照做。
+4. 若第 1 项的迟到丢弃合计不为 0（2026-10-04 实测为 615,474，约占全部轮数的 15%），先做两项诊断并入库，
+   暂停第十至十四步，等代码开发代理分析后再决定：
+   ```bash
+   bash deploy/scripts/syn-m2-late-drop-history.sh --since "$SINCE" --out-dir docs/m3_marapr/late_drop
+   python3 eda/m3_window_gap_check.py --scores docs/m3_marapr/m3_scores.jsonl --out-dir docs/m3_marapr/gap_check
+   ```
+   数据都在 Kafka 主题里，只要不复位就不会丢；暂停期间不要执行 `syn-reset-env.sh`。
+5. 迟到丢弃为 0 时，第十至十三步照常执行，它们只读 Kafka 主题和本地文件，不需要作业在运行。
+6. 第十四步跳过 `flink cancel` 那一行（作业已不存在），其余照做。
 
 ## 五、预授权的退路
 
