@@ -118,6 +118,7 @@ class PmcodM3FlagEquivalenceTest {
         final List<String> snaps = new ArrayList<>();
         final Map<String, Long> counters = new TreeMap<>();
         int annotated;
+        final java.util.Set<String> annotatedDevices = new java.util.TreeSet<>();
     }
 
     /**
@@ -126,6 +127,11 @@ class PmcodM3FlagEquivalenceTest {
      * Run PmcodFunction once; with m3Enabled=false the tag is null, exactly as M2Job wires it.
      */
     private Result run(List<DevicePoint> input, boolean m3Enabled) throws Exception {
+        return run(input, m3Enabled, (KeySelector<DevicePoint, String>) DevicePoint::getDevice, Collections.emptyMap());
+    }
+
+    private Result run(List<DevicePoint> input, boolean m3Enabled, KeySelector<DevicePoint, String> keys,
+                       Map<String, Double> rPerDevice) throws Exception {
         SCORES.clear(); SNAPS.clear(); ANNOTATED.clear(); COUNTERS.clear();
 
         Configuration cfg = new Configuration();
@@ -145,9 +151,9 @@ class PmcodM3FlagEquivalenceTest {
 
         DataStream<DevicePoint> src = env.fromCollection(input).assignTimestampsAndWatermarks(wm);
         SingleOutputStreamOperator<ScoreEvent> scored = src
-                .keyBy((KeySelector<DevicePoint, String>) DevicePoint::getDevice)
+                .keyBy(keys)
                 .window(SlidingEventTimeWindows.of(Time.seconds(WINDOW_SEC), Time.seconds(SLIDE_SEC)))
-                .process(new PmcodFunction(R, K, SLIDE_SEC, Collections.emptyMap(), monTag, m3Tag))
+                .process(new PmcodFunction(R, K, SLIDE_SEC, rPerDevice, monTag, m3Tag))
                 .name("Pmcod");
 
         scored.addSink(new ScoreSink());
@@ -173,7 +179,35 @@ class PmcodM3FlagEquivalenceTest {
         Collections.sort(r.snaps);
         r.counters.putAll(COUNTERS);
         r.annotated = ANNOTATED.size();
+        for (AnnotatedRound a : ANNOTATED) {
+            r.annotatedDevices.add(a.getDevice());
+        }
         return r;
+    }
+
+    /**
+     * 按代理键分组时，PmcodFunction 的三类输出与按原设备号分组逐条相同，逐设备半径照常生效
+     * （2026-10-05 预验证发现窗口键被当作设备号，输出带「F#3」、逐设备半径失效）。
+     * Grouping by surrogate keys must give exactly the raw-key output, with per-device R in effect.
+     */
+    @Test
+    void surrogateKeysKeepDeviceIdsAndPerDeviceRadius() throws Exception {
+        List<DevicePoint> input = buildInput();
+        Map<String, Double> rPer = Collections.singletonMap("A", R * 0.3);
+        Map<String, String> table = com.leejean.m1.DeviceKeys.parse("A=A#11,B=B#1");
+
+        Result raw = run(input, true, (KeySelector<DevicePoint, String>) DevicePoint::getDevice, rPer);
+        Result sur = run(input, true, com.leejean.m1.DeviceKeys.selector(table, DevicePoint::getDevice), rPer);
+        Result noPer = run(input, true, (KeySelector<DevicePoint, String>) DevicePoint::getDevice,
+                Collections.emptyMap());
+
+        assertFalse(raw.scores.isEmpty());
+        assertEquals(raw.scores, sur.scores);
+        assertEquals(raw.snaps, sur.snaps);
+        assertEquals(raw.annotated, sur.annotated);
+        assertEquals(new java.util.TreeSet<>(java.util.Arrays.asList("A", "B")), sur.annotatedDevices);
+        // 逐设备半径确实改变了 A 的结果，上面的相等才说明它在代理键下也生效 / R per device matters
+        assertFalse(raw.snaps.equals(noPer.snaps), "逐设备半径应改变 A 的监测快照");
     }
 
     /**

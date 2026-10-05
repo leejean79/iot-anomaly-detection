@@ -4,7 +4,9 @@
 # 从 master 上的 Prometheus 取回点通道迟到丢弃计数 m2_gate_late_drop 的历史（只读），回答三个问题：
 #   1. 近 15 天里每个 Flink 作业各丢了多少（三月重跑、三月至四月运行等能否放在一起比较）；
 #   2. 本次运行的丢弃发生在什么时候（与 M3 冷启动训练的时段对照）；
-#   3. 丢在哪些子任务上，也就是哪些设备（keyBy 的分配：子任务 1 = B、C、E；7 = D、G；2 = H；5 = F；6 = A）。
+#   3. 丢在哪些子任务上，也就是哪些设备。子任务与设备的对应取决于作业是否用了设备代理键：
+#      用代理键（2026-10-05 起的默认）时 A..H 依次在子任务 0..7；用原始设备号时子任务 1 = B、C、E，
+#      7 = D、G，2 = H，5 = F，6 = A。表中两种对应都列出。
 # Read the history of the point channel's late-drop counter from Prometheus (read-only): totals per job
 # over 15 days, and this run's timeline per subtask.
 #
@@ -54,7 +56,8 @@ python3 - "$OUT" <<'PY'
 import csv, json, os, sys
 from datetime import datetime, timezone
 out = sys.argv[1]
-DEV = {"0": "-", "1": "B、C、E", "2": "H", "3": "-", "4": "-", "5": "F", "6": "A", "7": "D、G"}
+RAW = {"0": "-", "1": "B、C、E", "2": "H", "3": "-", "4": "-", "5": "F", "6": "A", "7": "D、G"}
+SUR = {str(i): d for i, d in enumerate("ABCDEFGH")}
 def load(name):
     try:
         d = json.load(open(os.path.join(out, name)))
@@ -86,7 +89,8 @@ with open(os.path.join(out, "per_job.csv"), "w", newline="") as fh:
 L.append("")
 
 L += ["## 二、本次运行逐子任务的丢弃", "",
-      "| 子任务 | 对应设备 | 丢弃合计 | 首次出现丢弃 | 最后一次增加 |", "| --- | --- | --- | --- | --- |"]
+      "| 子任务 | 设备（代理键） | 设备（原始编号） | 丢弃合计 | 首次出现丢弃 | 最后一次增加 |",
+      "| --- | --- | --- | --- | --- | --- |"]
 series = {}
 for r in tl or []:
     series[r["metric"].get("subtask_index", "?")] = [(float(t), float(x)) for t, x in r["values"]]
@@ -106,7 +110,7 @@ for s in sorted(series, key=lambda s: int(s) if s.isdigit() else 99):
     for (t0, x0), (t1, x1) in zip(v, v[1:]):
         if x1 > x0:
             last_inc = t1
-    L.append("| %s | %s | %d | %s | %s |" % (s, DEV.get(s, "?"), tot, iso(first) if first else "无",
+    L.append("| %s | %s | %s | %d | %s | %s |" % (s, SUR.get(s, "?"), RAW.get(s, "?"), tot, iso(first) if first else "无",
                                              iso(last_inc) if last_inc else "-"))
 L.append("")
 text = "\n".join(L) + "\n"

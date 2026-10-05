@@ -1,5 +1,7 @@
 package com.leejean.m2;
 
+import com.leejean.m1.DeviceKeys;
+
 import com.leejean.m1.MonitoringSnapshot;
 import com.leejean.m3.AnnotatedRound;
 import org.apache.flink.api.common.state.ValueState;
@@ -91,8 +93,11 @@ public class PmcodFunction
     }
 
     @Override
-    public void process(String device, Context ctx, Iterable<DevicePoint> elements,
+    public void process(String key, Context ctx, Iterable<DevicePoint> elements,
                         Collector<ScoreEvent> out) throws Exception {
+        // 窗口的键可能是代理键「设备号#序号」（2026-10-05 裁决第三节第 3 条）；逐设备半径、输出记录与
+        // M3 标注轮都必须用原设备号。/ The key may be a surrogate; per-device R and every output use the device id.
+        String device = DeviceKeys.deviceOf(key);
         long windowStart = ctx.window().getStart();
         long windowEnd = ctx.window().getEnd();
 
