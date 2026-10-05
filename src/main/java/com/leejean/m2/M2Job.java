@@ -12,11 +12,11 @@ import com.leejean.m1.ChannelTransform;
 import com.leejean.m1.RobustScalerFunction;
 import com.leejean.m1.RoundAssembler;
 import com.leejean.m3.AnnotatedRound;
+import com.leejean.m1.DeviceKeys;
 import com.leejean.m3.M3Function;
 import com.leejean.m3.M3ScoreRecord;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
-import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.runtime.state.storage.JobManagerCheckpointStorage;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -69,7 +69,16 @@ public class M2Job {
         String outTopic = params.get("out-topic", "");
         String startupMode = params.get("start-offset", "earliest");
         int parallelism = params.getInt("parallelism", 8);
-        long idleWallSec = params.getLong("idle-wall", 10L);
+        // 空闲时限：2026-10-05 裁决第三节第 1 条由 10 秒改为 3600 秒，须长于同一子任务上最长的同步训练时长；
+        // 10 秒时被训练阻塞的路径会被标为空闲，其余设备把水位线推过去，释放后的积压在点通道窗口处被当作
+        // 迟到全部丢弃（三月至四月运行丢了 615,474 轮）。生产环境中此值使真正离线的设备拖住全机队窗口一小时，
+        // 补遗四（训练移出任务线程）完成后改回 10 秒。
+        // Idle timeout raised from 10 s to 3600 s (ruling of 2026-10-05): at 10 s a path blocked by synchronous
+        // training was marked idle and its backlog was later dropped as late. Revert to 10 s after addendum 4.
+        long idleWallSec = params.getLong("idle-wall", 3600L);
+        // 设备代理键（裁决第三节第 3 条）：八台设备各占一个子任务；空 = 用原始设备号作键（旧行为）。
+        // Device surrogate keys (section 3.3): one device per subtask; empty = raw ids as keys (old behaviour).
+        java.util.Map<String, String> surrogate = DeviceKeys.parse(params.get("device-surrogate-keys", ""));
         // 标定窗口（补充指令四 step2，与 M1Job 同源）：--calib-days×每日轮数（86400/标称周期，10s→8640/日），默认 7 天
         // ≈60480 轮；--warmup-rounds 显式给出时优先。联合作业复用同一 RobustScaler，必须与 M1Job 保持一致，
         // 否则会静默退回一天标定。/ Calibration window derived from --calib-days exactly as in M1Job.
@@ -178,6 +187,7 @@ public class M2Job {
         System.out.println("Monitoring topic:" + monitoringTopic);
         System.out.println("Start offset:    " + startupMode);
         System.out.println("Parallelism:     " + parallelism);
+        System.out.println("Idle timeout:    " + idleWallSec + " s");
         System.out.println("Calib days:      " + calibDays + " (rounds/day=" + roundsPerDay + ")");
         System.out.println("Warmup rounds:   " + warmupRounds
                 + (params.has("warmup-rounds") ? " (explicit --warmup-rounds)" : " (from --calib-days)"));
@@ -209,6 +219,21 @@ public class M2Job {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(parallelism);
+        // 代理键落位：按作业实际的最大并行度算出每台设备的子任务；配置了代理键却有两台落到同一子任务，
+        // 说明表与并行度不匹配，直接拒绝启动。/ Placement check; a mismatched table refuses to start.
+        if (!surrogate.isEmpty()) {
+            int maxP = DeviceKeys.effectiveMaxParallelism(env.getMaxParallelism(), parallelism);
+            java.util.Map<String, Integer> placement =
+                    DeviceKeys.placement(surrogate, surrogate.keySet(), maxP, parallelism);
+            System.out.println("Device subtasks: " + placement + " (surrogate keys, maxParallelism=" + maxP + ")");
+            if (new java.util.HashSet<>(placement.values()).size() != placement.size()) {
+                throw new IllegalArgumentException("代理键表与并行度 " + parallelism + "、最大并行度 " + maxP
+                        + " 不匹配，有设备落到同一子任务：" + placement
+                        + "。请用 java -cp <jar> com.leejean.m1.DeviceKeys 重新生成。");
+            }
+        } else {
+            System.out.println("Device subtasks: raw device ids as keys (no surrogate table)");
+        }
         env.getConfig().setGlobalJobParameters(params);
         env.enableCheckpointing(checkpointMs);
         // 抬高内存型 checkpoint 状态上限（集群无共享 FS，不用 FileSystemCheckpointStorage）。
@@ -243,7 +268,7 @@ public class M2Job {
         // ---- M1 段（复用已验收算子）/ M1 stage (reused, accepted operators) ----
         SingleOutputStreamOperator<DeviceRound> rounds = raw
                 .process(new RawLineParser()).name("RawLineParser")
-                .keyBy((KeySelector<Reading, String>) Reading::getDevice)
+                .keyBy(DeviceKeys.selector(surrogate, Reading::getDevice))
                 .process(new RoundAssembler()).name("RoundAssembler");
 
         // ---- 事件时间重对齐（M2 补充件 Option A，2026-09-18）/ event-time re-alignment ----
@@ -272,18 +297,18 @@ public class M2Job {
                 .name("AlignEventTime");
 
         SingleOutputStreamOperator<DeviceRound> cached = aligned
-                .keyBy((KeySelector<DeviceRound, String>) DeviceRound::getDevice)
+                .keyBy(DeviceKeys.selector(surrogate, DeviceRound::getDevice))
                 .process(new RobustScalerFunction(
                         warmupRounds, epsilon, ChannelTransform.defaultTable(), relativeGuard))
                 .name("RobustScaler")
-                .keyBy((KeySelector<DeviceRound, String>) DeviceRound::getDevice)
+                .keyBy(DeviceKeys.selector(surrogate, DeviceRound::getDevice))
                 .process(new RawCacheFunction(cacheDepth, nominalPeriodSec)).name("RawCache");
 
         Properties producerProps = new Properties();
         producerProps.setProperty("bootstrap.servers", brokers);
 
         // (M1) 逐设备 60s 监测快照 → synergia-monitoring（保留 M1 信号）
-        cached.keyBy((KeySelector<DeviceRound, String>) DeviceRound::getDevice)
+        cached.keyBy(DeviceKeys.selector(surrogate, DeviceRound::getDevice))
                 .process(new MonitoringAggregator()).name("MonitoringAggregator")
                 .addSink(new FlinkKafkaProducer<>(monitoringTopic,
                         new MonitoringSerializationSchema(monitoringTopic),
@@ -308,7 +333,7 @@ public class M2Job {
         DataStream<DevicePoint> gated = cached.process(new M2Gate()).name("M2Gate");
 
         SingleOutputStreamOperator<ScoreEvent> scored = gated
-                .keyBy((KeySelector<DevicePoint, String>) DevicePoint::getDevice)
+                .keyBy(DeviceKeys.selector(surrogate, DevicePoint::getDevice))
                 .window(SlidingEventTimeWindows.of(Time.seconds(windowSec), Time.seconds(slideSec)))
                 .allowedLateness(Time.seconds(0))                 // 允许迟到 = 0（§4）
                 .sideOutputLateData(lateTag)
@@ -339,7 +364,7 @@ public class M2Job {
             SingleOutputStreamOperator<M3ScoreRecord> m3Scored = scored
                     .getSideOutput(m3AnnotatedTag)      // 取 PmcodFunction 的标注轮侧输出 / take the annotated-round side output
                     // 按设备分键：每设备一套独立状态机与模型 / key by device: one independent state machine & model per device
-                    .keyBy((KeySelector<AnnotatedRound, String>) AnnotatedRound::getDevice)
+                    .keyBy(DeviceKeys.selector(surrogate, AnnotatedRound::getDevice))
                     .process(new M3Function(
                             m3TrainDays, m3EarlyStopDays, m3ThreshDays,
                             m3WindowLength, m3ZThreshold, m3ChannelWeights,

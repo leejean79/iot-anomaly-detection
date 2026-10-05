@@ -53,6 +53,9 @@ def main():
     ap.add_argument("--common-min", type=int, default=6)
     ap.add_argument("--threshold", type=float, default=2.22)
     ap.add_argument("--out-dir", required=True)
+    # 排除评分不可用的设备（2026-10-05 裁决第二节第 1 条：三月至四月运行按 A、B、C、E、F、H 六台口径出）。
+    # 只排除评分；平稳日按全部设备的原始数据剖面判定，不受影响。
+    ap.add_argument("--exclude-devices", default="")
     a = ap.parse_args()
     os.makedirs(a.out_dir, exist_ok=True)
 
@@ -61,10 +64,12 @@ def main():
     days = [(t0 + timedelta(days=i)).strftime("%m-%d") for i in range((t1 - t0).days)]
     lo, hi = int(t0.timestamp()), int(t1.timestamp())
 
+    excluded = {x.strip() for x in a.exclude_devices.split(",") if x.strip()}
     recs = []
     for line in open(a.scores, encoding="utf-8"):
         r = json.loads(line)
-        if r.get("channel", "m3_context") == "m3_context" and lo <= r["windowEnd"] < hi:
+        if r.get("channel", "m3_context") == "m3_context" and lo <= r["windowEnd"] < hi \
+                and r["device"] not in excluded:
             recs.append(r)
     if not recs:
         print("ERROR: %s 至 %s 之间没有上下文通道评分。" % (a.start, a.end), file=sys.stderr)
@@ -115,6 +120,9 @@ def main():
     p("平稳日定义：五个检测通道的机队中位偏移（各设备当日中位数相对阈值校准期中位数的偏移，以校准期 P10–P90 "
       "宽度为单位，再取设备间中位数）绝对值都不超过 %.1f。共模：同一小时内至少 %d 台设备告警。\n"
       % (a.stable_max, a.common_min))
+    if excluded:
+        p("本报告排除了 %s 的评分（%d 台口径）；平稳日仍按全部设备的原始数据剖面判定。共模门槛 %d 台不随之缩小，"
+          "在 %d 台口径下更严。\n" % ("、".join(sorted(excluded)), len(devices), a.common_min, len(devices)))
     p("## 一、平稳日误报率\n")
     p("平稳日共 %d 天：%s。" % (len(stable), "、".join(stable) or "无"))
     if missing:

@@ -53,6 +53,11 @@ MCOD_R="${SYN_M2_R:-1.0}"
 MCOD_K="${SYN_M2_K:-10}"
 # 逐设备半径 R（收尾任务；空则全用全局 MCOD_R）/ per-device R (empty = global for all)
 MCOD_R_PER_DEVICE="${SYN_M2_R_PER_DEVICE:-}"
+# 设备代理键（2026-10-05 裁决第三节第 3 条）：八台设备各占一个子任务。.env 未设时用并行度 8 的生成表；
+# 设为 none 则回到用原始设备号作键。重新生成：java -cp <jar> com.leejean.m1.DeviceKeys A,B,C,D,E,F,G,H 8
+# Device surrogate keys (ruling of 2026-10-05, 3.3); "none" falls back to raw device ids.
+SURROGATE_KEYS="${SYN_DEVICE_SURROGATE_KEYS:-A=A#11,B=B#1,C=C#0,D=D#10,E=E#3,F=F#3,G=G#7,H=H#8}"
+[ "$SURROGATE_KEYS" = "none" ] && SURROGATE_KEYS=""
 
 # 分区数预检：synergia-source 必须已是 8 分区（否则 Flink 消费者触发 broker 自动建 1 分区，重放静默丢失）。
 SRC_DESC=$(ssh fa-master \
@@ -110,6 +115,7 @@ submit_output=$(ssh fa-master "
         --mcod-r $MCOD_R \
         --mcod-k $MCOD_K \
         --mcod-r-per-device \"$MCOD_R_PER_DEVICE\" \
+        --device-surrogate-keys \"$SURROGATE_KEYS\" \
         --start-offset $START_OFFSET \
         --parallelism $PARALLELISM \
         $EXTRA_ARGS

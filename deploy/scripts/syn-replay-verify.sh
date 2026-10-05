@@ -11,6 +11,11 @@
 #   ② 零重复：同设备同时间戳零重复（重发在此暴露）。
 #   ③ 边界对齐：最早=start、最晚=end−周期（含边界空档容差）。
 #   ④ 冻结落第八天：八台标准化冻结时刻落在第 8 天区间（压缩/重发会提前到第 4 天，本条抓它）。
+#   ⑥ 迟到丢弃为零（2026-10-05 裁决第四节）：运行期间点通道迟到丢弃 m2_gate_late_drop 合计为 0（Prometheus）。
+#   ⑦ 输出覆盖到末尾（同上）：逐台设备两个通道的最晚输出，与该设备最后一轮的差不超过 --coverage-slack-sec。
+#      点通道取监测主题中的点通道快照（评分主题里的点通道记录只有离群点，最晚一条离群点不代表覆盖）；
+#      上下文通道取评分主题中的 m3_context 记录。
+#   ⑥⑦ 只在给出 --since（运行结束时执行）时检查；不给 --since 时与此前的五条断言完全相同。
 #
 # ---------------------------- 脚本交付五要素 -------------------------------
 # 1. 执行环境 / Environment: 本地 Mac（bash），ssh 免密到 fa-master；master 有 flink 镜像与最新 jar。
@@ -19,6 +24,8 @@
 #      bash deploy/scripts/syn-replay-verify.sh --expected-total 2006400
 #      bash deploy/scripts/syn-replay-verify.sh --start-utc 2022-03-01T00:00:00Z --end-utc 2022-04-01T00:00:00Z \
 #           --calib-days 7 --period-sec 10 --expected-total <EDA三月合计>
+#      # 运行结束时（作业仍在运行、已排空）加上断言六、七：
+#      bash deploy/scripts/syn-replay-verify.sh ... --since "$SINCE" [--coverage-slack-sec 3600]
 # 3. 前置条件 / Preconditions: synergia-m1-out 已含目标整月的标准化 DeviceRound（含 warmup 标记）。
 # 4. 期望产出 / Expected output: stdout 打印四条断言 PASS/FAIL + 逐台冻结日；docs/<report-name> 逐设备汇总；
 #      退出码 0=全过、1=有失败、3=断言一缺 EDA 参照。**本脚本的退出码就是门槛**（配 && 串联下一步）。
@@ -44,8 +51,15 @@ TOL_PCT=2.0
 REPORT_NAME="m2_replay_verify.csv"
 # 边界容差秒（默认 120：三月最后一轮 23:58:30 比名义右界早 80s，属数据自然缺口；见 ReplayVerify 注释）
 BOUNDARY_SLACK_SEC=120
+SINCE=""
+COVERAGE_SLACK_SEC=3600
 while [[ $# -gt 0 ]]; do
+    if [[ "$1" == --* && -z "${2:-}" ]]; then
+        echo "ERROR: 参数 $1 后面缺少取值（命令是否被拆成了两行？请写在同一行）" >&2; exit 2
+    fi
     case "$1" in
+        --since) SINCE="$2"; shift 2 ;;
+        --coverage-slack-sec) COVERAGE_SLACK_SEC="$2"; shift 2 ;;
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
         --start-utc) START_UTC="$2"; shift 2 ;;
         --end-utc) END_UTC="$2"; shift 2 ;;
@@ -172,9 +186,94 @@ if [ "$VERIFY_RC" -eq 0 ] && [ "$RESTART_RC" -ne 0 ]; then
     VERIFY_RC=1
 fi
 
+# ---------------------------------------------------------------------------
+# 断言六、七（2026-10-05 裁决第四节），只在运行结束时、给出 --since 时检查。
+# 断言一至五查的是 M1 输出主题，点通道窗口在其下游，那里的迟到丢弃它们看不见（三月至四月运行
+# 断言全过，D、G 却丢了 615,474 轮）。断言六直接读丢弃计数，断言七从结果端核对每台设备都有输出到末尾。
+# Assertions 6 and 7 (ruling of 2026-10-05): assertions 1-5 inspect the M1 output topic, upstream of the
+# point-channel window, so they cannot see drops there.
+# ---------------------------------------------------------------------------
+N_ASSERT="五"
+if [ -n "$SINCE" ]; then
+    N_ASSERT="七"
+    RANGE_SEC=$(python3 -c "
+import datetime as d,sys
+t=d.datetime.strptime(sys.argv[1],'%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=d.timezone.utc)
+print(int((d.datetime.now(d.timezone.utc)-t).total_seconds())+60)" "$SINCE")
+    Q="max_over_time(flink_taskmanager_job_task_operator_m2_gate_late_drop[${RANGE_SEC}s])"
+    LATE="$(on_master "curl -s --max-time 30 'http://localhost:9090/api/v1/query' --data-urlencode 'query=${Q}'" \
+        | python3 -c "
+import json,sys
+try:
+    r=json.load(sys.stdin)['data']['result']
+except Exception:
+    r=[]
+print('' if not r else int(sum(float(x['value'][1]) for x in r)))")"
+    if [ -z "$LATE" ]; then
+        echo "[断言六 迟到丢弃] FAIL —— Prometheus 读不到 m2_gate_late_drop，无法确认为零。"
+        VERIFY_RC=1
+    elif [ "$LATE" -eq 0 ]; then
+        echo "[断言六 迟到丢弃] PASS —— ${SINCE} 以来点通道迟到丢弃合计 0。"
+    else
+        echo "[断言六 迟到丢弃] FAIL —— ${SINCE} 以来点通道迟到丢弃合计 ${LATE}。"
+        echo "                  逐子任务与发生时刻：bash deploy/scripts/syn-m2-late-drop-history.sh --since $SINCE --out-dir <目录>"
+        VERIFY_RC=1
+    fi
+
+    # 每台设备两个通道的最晚输出时刻，在 master 上边读边取最大值，不落大文件。
+    # Latest output per device and channel, reduced on master while streaming (no large files).
+    last_out() {   # $1 = 主题，$2 = 只保留匹配此扩展正则的行
+        on_master "docker exec kafka-1 kafka-console-consumer.sh --bootstrap-server $BROKERS --topic $1 \
+            --from-beginning --timeout-ms 60000 2>/dev/null | grep -E '$2' | awk '
+            { if (match(\$0, /\"device\":\"[^\"]*\"/)) d = substr(\$0, RSTART + 10, RLENGTH - 11); else next
+              if (match(\$0, /\"windowEnd\":[0-9]+/)) w = substr(\$0, RSTART + 12, RLENGTH - 12) + 0; else next
+              if (w > 0 && w > m[d]) m[d] = w }
+            END { for (k in m) print k, m[k] }'"
+    }
+    # 监测主题里还有 M1 快照（windowEnd 为 0）与上下文通道快照（m2WindowPoints 为 0），只认点通道快照。
+    POINT_LAST="$(last_out "${SYN_TOPIC_MONITORING:-synergia-monitoring}" '"m2WindowPoints":[1-9]')"
+    CTX_LAST="$(last_out "${SYN_TOPIC_SCORES:-synergia-scores}" '"m3_context"')"
+    COV="$(python3 - "$LOCAL_REPORT" "$COVERAGE_SLACK_SEC" "$POINT_LAST" "$CTX_LAST" <<'PY'
+import csv, sys
+from datetime import datetime, timezone
+report, slack, point, ctx = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+parse = lambda s: {l.split()[0]: int(l.split()[1]) for l in s.splitlines() if len(l.split()) == 2}
+P, C = parse(point), parse(ctx)
+try:
+    last = {r["device"]: int(r["max_ts"]) for r in csv.DictReader(open(report))}
+except Exception:
+    print("NOREPORT"); sys.exit(0)
+iso = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%m-%d %H:%M") if t else "无输出"
+bad = 0
+for d in sorted(last):
+    lp, lc = P.get(d, 0), C.get(d, 0)
+    gp, gc = last[d] - lp, last[d] - lc
+    ok = lp and lc and gp <= slack and gc <= slack
+    bad += 0 if ok else 1
+    print("  %s 最后一轮 %s；点通道最晚 %s（差 %s）；上下文通道最晚 %s（差 %s）%s" % (
+        d, iso(last[d]), iso(lp), ("%d 秒" % gp) if lp else "-", iso(lc), ("%d 秒" % gc) if lc else "-",
+        "" if ok else "  ← 未覆盖到末尾"))
+print("BAD %d" % bad)
+PY
+)"
+    if [ "$COV" = "NOREPORT" ]; then
+        echo "[断言七 覆盖末尾] FAIL —— 没有逐设备汇总（docs/${REPORT_NAME}），无法取每台设备的最后一轮。"
+        VERIFY_RC=1
+    else
+        NBAD="$(printf '%s\n' "$COV" | awk '/^BAD /{print $2}')"
+        if [ "${NBAD:-1}" -eq 0 ]; then
+            echo "[断言七 覆盖末尾] PASS —— 八台设备两个通道的最晚输出都在最后一轮之前 ${COVERAGE_SLACK_SEC} 秒以内。"
+        else
+            echo "[断言七 覆盖末尾] FAIL —— ${NBAD} 台设备至少一个通道没有覆盖到末尾（容差 ${COVERAGE_SLACK_SEC} 秒）。"
+            VERIFY_RC=1
+        fi
+        printf '%s\n' "$COV" | grep -v '^BAD '
+    fi
+fi
+
 echo "===================================="
 case "$VERIFY_RC" in
-    0) echo "✅ 五条断言全部通过——**允许**进入标定/探针（step2）。" ;;
+    0) echo "✅ ${N_ASSERT}条断言全部通过——**允许**进入标定/探针（step2）。" ;;
     3) echo "⛔ 退出码 3：断言一缺 EDA 参照。请用 --expected-total <三月逐日合计> 或 .env 的 SYN_EDA_MARCH_ROUNDS_TOTAL 重跑。" ;;
     *) echo "⛔ 退出码 ${VERIFY_RC}：有断言未通过——**拦住**后续标定/探针，请先解决重放完整性问题（见上方逐条与 docs/${REPORT_NAME}）。" ;;
 esac

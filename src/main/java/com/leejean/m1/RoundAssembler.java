@@ -139,7 +139,7 @@ public class RoundAssembler extends KeyedProcessFunction<String, Reading, Device
         rounds.remove(roundTsMs);
 
         DeviceRound dr = new DeviceRound();
-        dr.setDevice(ctx.getCurrentKey());
+        dr.setDevice(DeviceKeys.deviceOf(ctx.getCurrentKey()));   // 键可能是代理键「设备号#序号」/ key may be a surrogate
         dr.setTs(roundTsMs / 1000L);
 
         boolean incomplete = false;

@@ -83,7 +83,7 @@ public class MonitoringAggregator extends KeyedProcessFunction<String, DeviceRou
 
         MonitoringSnapshot s = new MonitoringSnapshot();
         s.setTs(timerTs / 1000L);
-        s.setDevice(ctx.getCurrentKey());
+        s.setDevice(DeviceKeys.deviceOf(ctx.getCurrentKey()));   // 键可能是代理键「设备号#序号」/ key may be a surrogate
         s.setRoundsTotal(acc[ROUNDS]);
         s.setIncompleteRounds(acc[INCOMPLETE]);
         s.setMalformed(acc[MALFORMED]);

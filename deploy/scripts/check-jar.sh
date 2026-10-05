@@ -80,6 +80,8 @@ checks=(
     "com/leejean/m3/M3Grid.class|excluded-csv|离线网格写剔除窗口清单（2026-10-02 裁决第二节）"
     "com/leejean/m3/M3Function.class|excluded training window ending at round|在线算子记录剔除窗口（2026-10-02 裁决第二节）"
     "com/leejean/m3/M3Function.class|m3_inference_latency_ms|V-M3-6 推理时延指标（2026-10-02 裁决第五节）"
+    "com/leejean/m2/M2Job.class|device-surrogate-keys|设备代理键，八台设备各占一个子任务（2026-10-05 裁决第三节第 3 条）"
+    "com/leejean/m2/M2Job.class|Idle timeout:|空闲时限改为 3600 秒并在启动横幅中打印（2026-10-05 裁决第三节第 1 条）"
 )
 
 fail=0
