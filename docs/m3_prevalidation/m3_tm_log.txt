@@ -1,0 +1,70 @@
+===== fa-worker1 / taskmanager-2 =====
+2026-10-05 13:36:29,676 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D#10 excluded training window ending at round 1646179985
+2026-10-05 13:36:29,681 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E#3 excluded training window ending at round 1646179980
+2026-10-05 13:36:29,732 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C#0 excluded training window ending at round 1646180007
+2026-10-05 13:36:30,268 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B#1 excluded training window ending at round 1646180343
+2026-10-05 13:40:20,559 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D#10 (subtask 3) entering TRAINING: 99 train windows (1 excluded by outlier sanitization), 29 early-stop windows
+2026-10-05 13:40:20,591 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C#0 (subtask 2) entering TRAINING: 99 train windows (1 excluded by outlier sanitization), 29 early-stop windows
+2026-10-05 13:40:20,594 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E#3 (subtask 4) entering TRAINING: 99 train windows (1 excluded by outlier sanitization), 29 early-stop windows
+2026-10-05 13:40:22,703 INFO  org.nd4j.nativeblas.NativeOpsHolder                          [] - Number of threads used for linear algebra: 1
+2026-10-05 13:40:22,708 INFO  org.nd4j.nativeblas.Nd4jBlas                                 [] - Number of threads used for OpenMP BLAS: 1
+2026-10-05 13:40:43,882 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B#1 (subtask 1) entering TRAINING: 99 train windows (1 excluded by outlier sanitization), 29 early-stop windows
+2026-10-05 13:41:26,359 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D#10 trained: hidden=60, window=60, batch=64, 29 epochs (last improvement at epoch 9, longest plateau 0), early-stop loss=0.49243954805279977, 65.799s
+2026-10-05 13:41:30,021 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E#3 trained: hidden=60, window=60, batch=64, 29 epochs (last improvement at epoch 9, longest plateau 0), early-stop loss=0.5829296079150723, 69.427s
+2026-10-05 13:41:43,469 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D#10 calibrated: median=1.624210628446957, IQR=1.0532329045143152, threshold=2.22
+2026-10-05 13:41:43,470 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D#10 entering ONLINE
+2026-10-05 13:41:45,236 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E#3 calibrated: median=1.3331797902321958, IQR=0.5638121049076799, threshold=2.22
+2026-10-05 13:41:45,236 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E#3 entering ONLINE
+2026-10-05 13:42:11,045 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B#1 trained: hidden=60, window=60, batch=64, 37 epochs (last improvement at epoch 17, longest plateau 0), early-stop loss=0.7592127944336485, 87.163s
+2026-10-05 13:42:17,950 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B#1 calibrated: median=1.638178316976766, IQR=0.2920511242394368, threshold=2.22
+2026-10-05 13:42:17,950 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B#1 entering ONLINE
+2026-10-05 13:43:09,404 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C#0 trained: hidden=60, window=60, batch=64, 104 epochs (last improvement at epoch 84, longest plateau 12), early-stop loss=18.398910563036747, 168.813s
+2026-10-05 13:43:14,218 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C#0 calibrated: median=33.09669068825444, IQR=33.489802714243126, threshold=2.22
+2026-10-05 13:43:14,218 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C#0 entering ONLINE
+===== fa-worker2 / taskmanager-3 =====
+2026-10-05 13:36:29,695 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A#11 excluded training window ending at round 1646180001
+2026-10-05 13:36:29,695 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646179999
+2026-10-05 13:36:29,713 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F#3 excluded training window ending at round 1646179988
+2026-10-05 13:36:30,095 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H#8 excluded training window ending at round 1646180184
+2026-10-05 13:37:26,844 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646214286
+2026-10-05 13:37:27,845 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646214888
+2026-10-05 13:37:29,845 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A#11 excluded training window ending at round 1646216083
+2026-10-05 13:37:29,847 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646216090
+2026-10-05 13:37:30,848 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646216692
+2026-10-05 13:37:31,848 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646217293
+2026-10-05 13:37:32,849 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646217894
+2026-10-05 13:37:33,841 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646218496
+2026-10-05 13:37:34,851 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646219097
+2026-10-05 13:37:35,852 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646219698
+2026-10-05 13:37:36,853 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646220299
+2026-10-05 13:37:38,854 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646221502
+2026-10-05 13:37:40,856 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646222705
+2026-10-05 13:37:41,957 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646223306
+2026-10-05 13:37:46,361 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646225711
+2026-10-05 13:37:48,963 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646227515
+2026-10-05 13:37:49,964 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646228117
+2026-10-05 13:37:50,965 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646228718
+2026-10-05 13:37:53,967 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646230521
+2026-10-05 13:37:54,968 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646231123
+2026-10-05 13:37:57,170 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646232325
+2026-10-05 13:37:57,971 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646232927
+2026-10-05 13:38:01,974 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646235342
+2026-10-05 13:38:02,975 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 excluded training window ending at round 1646235943
+2026-10-05 13:40:20,559 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A#11 (subtask 0) entering TRAINING: 98 train windows (2 excluded by outlier sanitization), 29 early-stop windows
+2026-10-05 13:40:20,604 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 (subtask 6) entering TRAINING: 76 train windows (24 excluded by outlier sanitization), 29 early-stop windows
+2026-10-05 13:40:20,621 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F#3 (subtask 5) entering TRAINING: 99 train windows (1 excluded by outlier sanitization), 29 early-stop windows
+2026-10-05 13:40:22,390 INFO  org.nd4j.nativeblas.NativeOpsHolder                          [] - Number of threads used for linear algebra: 1
+2026-10-05 13:40:22,396 INFO  org.nd4j.nativeblas.Nd4jBlas                                 [] - Number of threads used for OpenMP BLAS: 1
+2026-10-05 13:40:30,582 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H#8 (subtask 7) entering TRAINING: 99 train windows (1 excluded by outlier sanitization), 29 early-stop windows
+2026-10-05 13:41:15,914 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F#3 trained: hidden=60, window=60, batch=64, 29 epochs (last improvement at epoch 9, longest plateau 0), early-stop loss=0.790702368952629, 55.293s
+2026-10-05 13:41:24,973 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H#8 trained: hidden=60, window=60, batch=64, 29 epochs (last improvement at epoch 9, longest plateau 0), early-stop loss=0.6689496396709664, 54.391s
+2026-10-05 13:41:27,016 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F#3 calibrated: median=1.3885585330628005, IQR=0.261761810284602, threshold=2.22
+2026-10-05 13:41:27,016 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F#3 entering ONLINE
+2026-10-05 13:41:27,549 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A#11 trained: hidden=60, window=60, batch=64, 35 epochs (last improvement at epoch 15, longest plateau 0), early-stop loss=0.39996668123834916, 66.989s
+2026-10-05 13:41:36,087 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 trained: hidden=60, window=60, batch=64, 42 epochs (last improvement at epoch 22, longest plateau 0), early-stop loss=0.5801310407501084, 75.482s
+2026-10-05 13:41:38,897 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H#8 calibrated: median=1.90477603680765, IQR=0.7037567576119752, threshold=2.22
+2026-10-05 13:41:38,897 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H#8 entering ONLINE
+2026-10-05 13:41:40,696 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A#11 calibrated: median=1.028747544516359, IQR=0.24413235599393568, threshold=2.22
+2026-10-05 13:41:40,696 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A#11 entering ONLINE
+2026-10-05 13:41:45,072 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 calibrated: median=1.5838163962401801, IQR=0.803819959546161, threshold=2.22
+2026-10-05 13:41:45,072 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G#7 entering ONLINE
