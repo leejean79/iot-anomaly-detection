@@ -13,6 +13,7 @@
 # 2. 调用命令 / Invocation:
 #      bash deploy/scripts/syn-m2-late-drop-history.sh --since "$SINCE" --out-dir docs/m3_marapr/late_drop
 #    --since 为第五步记下的 SINCE，决定第 2、3 问的起点（到现在为止）。
+#    可选 --job <作业编号前缀>：第 2、3 问只看这个作业（例如查三月重跑：--since 2026-10-01T09:20:00Z --job b6687789）。
 # 3. 前置条件 / Preconditions: master 上 Prometheus 在运行（保留期默认 15 天）。
 # 4. 期望产出 / Expected output: --out-dir 下 per_job.csv（每个作业的首末采样时刻与丢弃合计）、
 #    timeline.csv（本次运行每分钟、每个子任务的累计丢弃）、late_drop_summary.md；终端打印摘要。
@@ -20,7 +21,7 @@
 # ============================================================================
 set -uo pipefail
 
-SINCE=""; OUT=""
+SINCE=""; OUT=""; JOB=""
 while [[ $# -gt 0 ]]; do
     if [[ "$1" == --* && -z "${2:-}" ]]; then
         echo "ERROR: 参数 $1 后面缺少取值（命令是否被拆成了两行？请写在同一行）" >&2; exit 2
@@ -28,6 +29,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --since) SINCE="$2"; shift 2 ;;
         --out-dir) OUT="$2"; shift 2 ;;
+        --job) JOB="$2"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 2 ;;
     esac
 done
@@ -45,7 +47,8 @@ qr() {   # $1 = 输出文件，$2 = PromQL，$3 = 起点，$4 = 步长秒
         --data-urlencode 'step=$4'" > "$OUT/$1"
 }
 qr prom_per_job.json "sum by (job_id, job_name) ($M)" $((NOW - 15 * 86400)) 300
-qr prom_timeline.json "sum by (subtask_index) ($M)" "$T_SINCE" 60
+SEL=""; [ -n "$JOB" ] && SEL="{job_id=~\"${JOB}.*\"}"
+qr prom_timeline.json "sum by (subtask_index) (${M}${SEL})" "$T_SINCE" 60
 
 python3 - "$OUT" <<'PY'
 import csv, json, os, sys
