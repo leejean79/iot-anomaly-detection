@@ -27,7 +27,7 @@ import java.util.List;
  *
  * <p>========================= 脚本交付五要素 / Five delivery elements =========================
  * <ul>
- *   <li><b>执行环境</b>：同 CsvKafkaReplayer（集群 master 容器内 JDK 8）。</li>
+ *   <li><b>执行环境</b>：同 CsvKafkaReplayer（集群 master 容器内 JDK 11）。</li>
  *   <li><b>调用命令</b>：{@code --inject "E:Temperature:1711929600:300:spike:10;E:Humidity:1711929600:600:step:5"}</li>
  *   <li><b>前置条件</b>：注入规格的 device/channel 必须在数据集中存在。</li>
  *   <li><b>期望产出</b>：注入后的消息流（原始值被改写）；地面真值日志到 --inject-log（默认 inject-truth.csv）。</li>

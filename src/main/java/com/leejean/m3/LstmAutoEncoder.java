@@ -71,9 +71,9 @@ public class LstmAutoEncoder implements Serializable {
     private static final long SEED = 42L;               // 固定随机种子，保证可复现 / fixed seed for reproducibility
     /**
      * Adam 学习率。原为写死的 0.01（为旧的两层结构所定）；2026-09-22 的裁决书第三节明文解除
-     * 「不改学习率」的边界，范围限于诊断及其后的选值，故改为构造参数。默认仍是 0.01，
-     * 以免在诊断出结论之前悄悄改变既有行为。
-     * The Adam learning rate, formerly hard-coded at 0.01 for the two-layer architecture.
+     * 「不改学习率」的边界，范围限于诊断及其后的选值，故改为构造参数。诊断期间默认保持 0.01；
+     * 诊断结论出来后默认值改为 0.001（见下方 DEFAULT_LEARNING_RATE）。
+     * The Adam learning rate, formerly hard-coded at 0.01 for the two-layer architecture; the default is now 0.001.
      */
     private final double learningRate;
     /** 梯度裁剪阈值，0 表示不裁剪 / L2 clipping threshold; 0 disables. */

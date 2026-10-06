@@ -378,20 +378,20 @@ JobManager 堆内存也要装得下。代码里的默认值（间隔 10 秒、�
 
 ---
 
-## 十一、注释与当前代码不一致之处（只列出，未改）
+## 十一、已更正的过时注释（2026-10-06）
 
-按项目规范，这些是既有注释，本次只指出、不修改：
+下列注释曾与当前代码不一致，已于 2026-10-06 更正：
 
-| 位置 | 注释说的 | 实际 |
+| 位置 | 原注释 | 更正为 |
 | --- | --- | --- |
-| `M3Function.java:35` | 阈值标定集 2 天 | 默认 7 天（2026-10-02 裁决） |
-| `LstmAutoEncoder.java:74` | 学习率默认仍是 0.01 | `DEFAULT_LEARNING_RATE = 0.001` |
-| `CsvKafkaReplayer.java:39`、`Injector.java:30`、`M3ClusterSmoke.java:27,36` | JDK 8 / 门槛是 Java 8 | 运行时已是 Java 11（Maven 强制 11） |
-| `M1Job` 类注释 | 预热 8,640 轮 | 由 `--calib-days` 推出，默认 7 天 60,480 轮 |
-| `M2Job` 类注释的流程图 | 没有画出 `AlignEventTime` 与 M3 段 | 两者都已接入（见本文第二节） |
-| `CLAUDE.md` | 语言 Java 8 | Java 11；`CLAUDE.md` 按约定由你决定是否修改 |
+| `M3Function` 类注释 | 阈值标定集 2 天；早停集选最佳隐单元数 | 7 天（2026-10-02 裁决起）；隐单元数固定为 60，早停集只决定训练到第几个 epoch |
+| `LstmAutoEncoder` 学习率字段注释 | 默认仍是 0.01 | 诊断期间默认 0.01，诊断后改为 0.001 |
+| `CsvKafkaReplayer`、`Injector`、`M3ClusterSmoke` | JDK 8、门槛 Java 8、java8 镜像 | JDK 11、门槛 Java 11、镜像 `fa-iforest/flink:1.13.6-java11` |
+| `M1Job` 算子链注释 | 预热 8,640 轮 | 预热 `--calib-days` 天，默认 7 天 60,480 轮 |
+| `M2Job` 类注释的流程图 | 缺 `AlignEventTime`、迟到计数与 M3 段 | 补全，并注明所有按设备分组都用代理键 |
+| `pom.xml` 文件头 | JDK 8；src 为空包架子 | JDK 11；已含全部代码 |
 
----
+`CLAUDE.md` 中「语言：Java 8」仍未修改，按约定由你决定。
 
 ## 十二、建议的阅读路线
 

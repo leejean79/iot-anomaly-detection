@@ -44,15 +44,21 @@ import java.util.UUID;
  * one job. M1 operators are reused as-is; M2 adds the gates, the sliding window and PmcodFunction.
  *
  * <pre>
- *   Kafka(synergia-source, event time, 55s OOO)
- *     → RawLineParser → keyBy → RoundAssembler → keyBy → RobustScaler → keyBy → RawCache  [= M1 标准化流]
+ *   Kafka(synergia-source, event time, 55s OOO, idle 时限 --idle-wall)
+ *     → RawLineParser → keyBy → RoundAssembler → AlignEventTime（事件时间改回轮时间戳）
+ *     → keyBy → RobustScaler → keyBy → RawCache  [= M1 标准化流]
  *     ├→ MonitoringAggregator → synergia-monitoring        （M1 逐设备 60s 快照，保留）
+ *     ├→ synergia-m1-out                                   （可选，--out-topic）
  *     └→ M2Gate（三道闸）→ keyBy(device)
- *          → SlidingEventTimeWindows(W, S), allowedLateness(0), sideOutputLateData
+ *          → SlidingEventTimeWindows(W, S), allowedLateness(0), sideOutputLateData → M2LateDrops（只计数）
  *          → PmcodFunction
  *              ├→ synergia-scores                            （离群点名单）
- *              └(side)→ synergia-monitoring                  （M2 三路信号快照）
+ *              ├(side)→ synergia-monitoring                  （M2 三路信号快照）
+ *              └(side)→ AnnotatedRound → keyBy(device) → M3Function（--m3-enabled，默认开启）
+ *                         ├→ synergia-scores                 （上下文通道评分）
+ *                         └(side)→ synergia-monitoring       （M3 重构误差）
  * </pre>
+ * 所有 keyBy(device) 经 {@link com.leejean.m1.DeviceKeys} 使用设备代理键，八台设备各占一个子任务。
  * 注：M1Job 保持独立不动（已验收）；本作业为"M1+M2 联合"入口，二者不同时运行（都消费 synergia-source）。
  */
 public class M2Job {

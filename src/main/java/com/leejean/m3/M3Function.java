@@ -32,9 +32,9 @@ import java.util.List;
  *
  * <p>状态机（决策 2，仿 LocalProcessorFunction 模板）：
  * <ol>
- *   <li><b>COLLECTING</b>：校准器冻结后开始，累积训练集（7 天）+ 早停集（2 天）+ 阈值标定集（2 天）；
+ *   <li><b>COLLECTING</b>：校准器冻结后开始，累积训练集（7 天）+ 早停集（2 天）+ 阈值标定集（7 天，2026-10-02 裁决起）；
  *       含离群轮的窗口从训练集剔除（决策 3 训练净化）。</li>
- *   <li><b>TRAINING</b>：同步训练（阻塞当前轮处理），用早停集选最佳 hidden size 与 epoch；单次。</li>
+ *   <li><b>TRAINING</b>：同步训练（阻塞当前轮处理）；隐藏层宽度固定（离线网格选定 60），早停集只决定训练到第几个 epoch；单次。</li>
  *   <li><b>CALIBRATING</b>：在阈值标定集上推理，估计 WMSE 的 median/IQR 与协方差逆矩阵。</li>
  *   <li><b>ONLINE</b>：每满窗推理 → 计算主分与 Mahalanobis 分 → 发 M3ScoreRecord。</li>
  * </ol>

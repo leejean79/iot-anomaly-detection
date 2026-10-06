@@ -18,9 +18,9 @@
         Smile's blanket Kotlin exclusion, the dependencyManagement version pins,
         the maven-shade configuration, and log4j2 / JUnit5 / Guava / Jackson.
     - 版本严格对齐集群 / versions strictly aligned with the cluster:
-        Flink 1.13.6 (Scala 2.12) + Kafka 2.6.3 + JDK 8。
-    - 本阶段 src/ 为空包架子，无业务代码；`mvn clean package` 应产出
-      iot-anomaly-detection-1.0-SNAPSHOT.jar（shade 链路自证，jar 内无业务类属正常）。
+        Flink 1.13.6 (Scala 2.12) + Kafka 2.6.3 + JDK 11（2026-09 起，见下方 Java 11 迁移说明）。
+    - 建立之初 src/ 为空包架子；现已包含 M1、M2、M3 全部代码。`mvn clean package` 产出
+      iot-anomaly-detection-1.0-SNAPSHOT.jar（shaded fat jar，供集群部署）。
       This stage ships an empty source skeleton; `mvn clean package` must still produce
       iot-anomaly-detection-1.0-SNAPSHOT.jar (a jar with no business classes is expected).
   ============================================================================

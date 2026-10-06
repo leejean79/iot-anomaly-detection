@@ -24,7 +24,7 @@ import java.util.Properties;
  * M3 集群冒烟作业（交接文档 §2 决策 1 第三部分：真实集群侧验证）。
  * M3 cluster smoke job (handover §2 decision 1, part 3: verification on the real cluster).
  *
- * <p>MiniCluster 测试（{@code DL4JCompatSmokeTest}）已覆盖第 (1)(2) 部分——JDK 8 打包无冲突、
+ * <p>MiniCluster 测试（{@code DL4JCompatSmokeTest}）已覆盖第 (1)(2) 部分——JDK 11 打包无冲突、
  * 算子线程内训练+推理可行。第 (3) 部分只能在真实容器内证明，因为两个预警的风险只在那里出现：
  * ND4J 通过 JavaCPP 在 Java 堆外分配张量（Flink 默认 off-heap 为 0），以及容器用户 9999 对
  * JavaCPP 原生库解包目录的写权限。本作业在**每个并行子任务**（覆盖两个 TaskManager）内：
@@ -33,8 +33,8 @@ import java.util.Properties;
  * (Flink's default off-heap is 0), and container user 9999's write access to JavaCPP's native
  * extraction directory. In each parallel subtask (spanning both TaskManagers) this job:
  * <ol>
- *   <li>记录实际使用的 JDK（java.version/vendor/vm，os.arch）——门槛是 Java 8；
- *       records the JDK actually used (the gate is Java 8);</li>
+ *   <li>记录实际使用的 JDK（java.version/vendor/vm，os.arch）——门槛是 Java 11（2026-09 迁移后）；
+ *       records the JDK actually used (the gate is Java 11 since the 2026-09 migration);</li>
  *   <li>强制 ND4J 原生后端加载（小 LSTM 训练+推理），触发 .so 解包与堆外分配；
  *       forces the ND4J native backend to load (tiny LSTM train + inference);</li>
  *   <li>读取 JavaCPP 堆外内存上限与用量（maxBytes/maxPhysicalBytes/totalBytes）——证明堆外预算；
@@ -50,7 +50,7 @@ import java.util.Properties;
  * <p>========================= 脚本交付五要素 / Five delivery elements =========================
  * <ul>
  *   <li><b>执行环境 / Environment</b>：真实集群 jobmanager 容器内 `flink run`（Flink 1.13.6，
- *       镜像 flink:1.13.6-scala_2.12-java8）；jar 已上传至 /opt/flink/usrlib/。由 syn-m3-smoke.sh 驱动。</li>
+ *       镜像 FLINK_IMAGE_TAG，即 fa-iforest/flink:1.13.6-java11）；jar 已上传至 /opt/flink/usrlib/。由 syn-m3-smoke.sh 驱动。</li>
  *   <li><b>调用命令 / Invocation</b>：
  *       {@code flink run -c com.leejean.m3.M3ClusterSmoke <jar> --brokers <b1:9092,...>
  *       --smoke-topic synergia-smoke --parallelism 8}</li>

@@ -33,7 +33,7 @@ import java.util.UUID;
  *     → RawLineParser (ProcessFunction, 四守卫计数)
  *     → keyBy(device)
  *     → RoundAssembler (精确时间戳成轮, 保留首值, 事件时间 ts+30s 关闭)
- *     → RobustScalerFunction (预热 8640 轮冻结 中位数/IQR, IQR≤ε 旁路)
+ *     → RobustScalerFunction (预热 --calib-days 天，默认 7 天 = 60480 轮，冻结 中位数/IQR, IQR≤ε 旁路)
  *     → RawCacheFunction (原始环形缓存, 冷启动标记)
  *     ├→ synergia-m1-out       归一化 DeviceRound 的 JSON（仅验收）
  *     └→ MonitoringAggregator → synergia-monitoring  逐设备每 60s 监测快照

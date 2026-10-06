@@ -36,7 +36,7 @@ import java.util.stream.Stream;
  * <p>========================= 脚本交付五要素 / Five delivery elements =========================
  * <ul>
  *   <li><b>执行环境 / Environment</b>：集群 master 上 docker-exec 进 jobmanager/kafka 容器内运行
- *       （前台，见操作规则 §3.5）；JDK 8；shaded jar 在 /opt/fa-iforest/jars/。</li>
+ *       （前台，见操作规则 §3.5）；JDK 11（镜像 FLINK_IMAGE_TAG）；shaded jar 在 /opt/fa-iforest/jars/。</li>
  *   <li><b>调用命令 / Invocation</b>：
  *       {@code java -cp <jar> com.leejean.source.CsvKafkaReplayer --data-dir <dir>
  *       --brokers <b1:9092,...> --topic synergia-source --speedup 3600 --max-idle-wall 2000}</li>
