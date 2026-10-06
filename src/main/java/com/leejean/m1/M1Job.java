@@ -157,11 +157,11 @@ public class M1Job {
         // ---- 事件时间重对齐（M2 补充件 Option A，2026-09-18）/ event-time re-alignment ----
         // 【为何存在】RoundAssembler 只在 onTimer 里发射轮，而 Flink 给 onTimer 发出的记录盖的是
         //   **定时器的时间戳**，即 轮时间戳 + ROUND_CLOSE_DELAY_MS(30s)。下游窗口按该时间戳分配，而
-        //   MCOD 的准入判据比对的是 McodPoint.arrival = 轮时间戳本身，两个时钟相差 30 秒；在 60 秒滑动
+        //   MCOD 的准入判据比对的是 McodPoint.arrival = 轮时间戳本身，两个事件时间戳相差 30 秒；在 60 秒滑动
         //   步长下，(轮时间戳 mod 60s) >= 30s 的那一半轮永远不满足 arrival >= windowEnd - slide，
         //   于是被计入 admitted、出现在窗口 elements 里，却从不进入 MCOD 状态（2026-09-18 发现报告）。
         //   此处把事件时间改回轮的标称时间，使下游所有消费者（M2 窗口、M1 监测快照、以及将来的 M3
-        //   注入时延测量、漂移检测、场级聚合、差分层 ±5s 跨设备连接）都用同一个时钟。
+        //   注入时延测量、漂移检测、场级聚合、差分层 ±5s 跨设备连接）都用同一个事件时间戳。
         // 【为何用 forMonotonousTimestamps】同一子任务内定时器按事件时间顺序触发，且每轮固定在 +30s
         //   关闭，故重赋后的时间戳在子任务内单调不减；此处不可复用源端的 55 秒有界乱序，那会凭空增加
         //   55 秒的下游时延。withIdleness 需保留，否则离线设备的分区会拖停水位线。

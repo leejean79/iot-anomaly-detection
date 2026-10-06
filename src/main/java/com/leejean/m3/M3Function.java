@@ -120,9 +120,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     private transient ValueState<Long> trainExcluded;           // 离群净化排除的窗口数 / outlier-sanitized excluded windows
 
     /**
-     * 最近一次训练实际跑完的 epoch 数。**仅供测试**断言早停确实截断了训练——用墙钟耗时来判断早停
+     * 最近一次训练实际跑完的 epoch 数。**仅供测试**断言早停确实截断了训练——用处理时间下的耗时来判断早停
      * 既不确定也会在慢机器上假失败，用实际 epoch 数则是精确的。生产路径不读取它。
-     * Epochs actually run in the most recent training. Test-only: asserting on wall-clock time would
+     * Epochs actually run in the most recent training. Test-only: asserting on processing-time duration would
      * be both imprecise and flaky on slow machines, while the epoch count is exact.
      */
     transient int lastTrainEpochs;
@@ -397,7 +397,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                         public void onEpoch(int epoch, double trainLoss, double esLoss,
                                             double epochSeconds) {
                             // 在线训练会长时间占住任务线程，逐 epoch 落日志是唯一能看到它还在推进的途径，
-                            // 也是补遗三 §4 要求记录「逐设备在算子内训练墙钟时间」的数据来源。
+                            // 也是补遗三 §4 要求记录「逐设备在算子内训练墙钟时间」（即处理时间下的训练耗时）的数据来源。
                             // Per-epoch logging is the only visibility into in-operator training.
                             LOG.info("[M3] Device {} training epoch {}/{}: train loss={}, "
                                      + "early-stop loss={}, {}s",

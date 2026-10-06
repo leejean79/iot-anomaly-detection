@@ -62,7 +62,7 @@ Kafka: synergia-source（8 分区，一台设备一个分区）
    `M2Job.java:259-265` 读出）。所以把三个月数据以 3600 倍速重放，作业看到的时间流与现场实时运行完全一样，结果
    与重放速度无关。这是所有「重放即验收」的前提。
 2. **一个作业、算子链内传递，不经 Kafka 中转。** M3 需要 M2 对每一轮的离群判定来净化训练数据，并且三个模块必须
-   共用同一个时钟。拆成三个作业就得经过 Kafka，时钟与对齐都会变复杂。代价是：任一模块阻塞会拖住整个作业
+   共用同一条事件时间线（同一个水位线）。拆成三个作业就得经过 Kafka，事件时间的对齐会变复杂。代价是：任一模块阻塞会拖住整个作业
    （见第九节的三起事故）。
 3. **先标定、后冻结，不在线自适应。** 标准化参数在前 7 天标定后冻结（`RobustScalerFunction`），M3 模型训练一次
    后冻结。漂移检测与重新标定是将来 M6 模块的职责，现在的代码只留了入口（`RobustScalerFunction.recalibrate`）。
@@ -128,8 +128,8 @@ Kafka: synergia-source（8 分区，一台设备一个分区）
 - 关键位置：`main` 在 65 行；文件发现与嗅探在 234、298 行；按时段过滤在 135 行（注意 `row.ts > endSec`，结束时刻
   **包含在内**，两段重放时第一段要用 23:59:59 的秒数作结束）；节奏器 `Pacer` 在 469 行起，空闲压缩在 508 行附近；
   发送在 613 行（记录时间戳 = 数据时间）。
-- 为什么：事件时间来自数据而不是墙钟，倍速只影响多快放完，不影响作业看到的时间流。空闲压缩把数据里几天的停机
-  压成几秒墙钟，但**不改事件时间戳**，所以停机在作业眼里仍是停机。
+- 为什么：事件时间来自数据而不是处理时间，倍速只影响多快放完，不影响作业看到的时间流。空闲压缩把数据里几天的停机
+  压成几秒处理时间，但**不改事件时间戳**，所以停机在作业眼里仍是停机。
 - 留意：`--resume` 才会使用断点文件；`--inject-file` 经 `syn-replay.sh` 传入，避免分号被 shell 截断。
 
 **`DevicePartition`**：显式映射 A→0 … H→7。默认哈希会让 A 与 F 撞到同一分区、留一个空分区，所以改为显式。
@@ -158,7 +158,7 @@ Kafka: synergia-source（8 分区，一台设备一个分区）
 **事件时间重对齐 `AlignEventTime`**（`m2/M2Job.java:274-297`）
 
 - 做什么：把每一轮的事件时间改回轮自身的时间戳。
-- 为什么：上一条的 30 秒偏移使窗口分配时钟与 MCOD 的准入时钟（`arrival`）相差 30 秒，在 60 秒滑动步下，
+- 为什么：上一条的 30 秒偏移使窗口分配所用的事件时间戳（定时器时间）与 MCOD 准入判据所用的轮时间戳（`arrival`）相差 30 秒，在 60 秒滑动步下，
   有一半的轮被计入窗口却从不进入 MCOD 状态（2026-09-18 发现）。代码旁的长注释完整记录了原因，值得细读。
 - 留意：这里用 `forMonotonousTimestamps`，同时保留空闲判定 `withIdleness`，时限由 `--idle-wall` 决定（见 5.5）。
 - 测试：`M1M2TimestampAlignmentTest`、`PmcodTimestampOffsetTest`。
@@ -314,7 +314,7 @@ JobManager 堆内存也要装得下。代码里的默认值（间隔 10 秒、�
 | `McodEquivalenceTest` | MCOD 增量算法与朴素对照器逐窗口离群集合完全相等 |
 | `McodLifecycleTest`、`McodStateRecoveryTest` | 微簇的生命周期正确；从检查点恢复后计数器延续、编号不撞 |
 | `PmcodM3FlagEquivalenceTest` | 打开 M3 侧输出不改变 M2 的任何产出；按代理键分组与按原设备号分组输出逐条相同 |
-| `PmcodTimestampOffsetTest`、`M1M2TimestampAlignmentTest` | 钉住 30 秒时钟偏移的修复 |
+| `PmcodTimestampOffsetTest`、`M1M2TimestampAlignmentTest` | 钉住 30 秒事件时间戳偏移的修复 |
 | `M1PipelineTest`、`ChannelTransformTest`、`RelativeDegeneracyTest` | M1 管线与标准化的行为 |
 | `ReplayVerifyTest` | 一份干净数据四条断言全过；逐一注入故障时各自报错 |
 | `M3StateMachineTest` | 状态机跃迁、设备隔离、检查点恢复后模型仍可用 |
@@ -370,7 +370,7 @@ JobManager 堆内存也要装得下。代码里的默认值（间隔 10 秒、�
 1. **同步训练**（`M3Function`）：已引发三起事故——第一次三月运行的 JobManager 内存耗尽与检查点超帧；三月重跑的
    D、G 缺 10.5 小时；三月至四月运行的 D、G 丢 615,474 轮。现有缓解：120 分钟检查点超时、3,600 秒空闲时限、一台
    设备一个子任务、两段重放、可中断训练。下一次再出事即做补遗四。
-2. **30 秒时钟偏移**（`AlignEventTime` 的由来）：修复前一半的轮从未进入 MCOD 状态。
+2. **30 秒事件时间戳偏移**（`AlignEventTime` 的由来）：修复前一半的轮从未进入 MCOD 状态。
 3. **风险 R8**（`McodState`）：原文的微簇计数器不在状态里，恢复后编号相撞。
 4. **光照通道重尾**（`ChannelTransform`）：log1p 之前，C、D 的点通道过度活跃几乎全部来自光照。
 5. **检查点上限是 `akka.framesize`**（`CheckpointCeiling`）：多次排查方向错在 `--checkpoint-max-state-mb`。
