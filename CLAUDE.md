@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 
 
-- **语言**: Java 8
+- **语言**: Java 11（2026-09 起；构建须用 JDK 11，Maven enforcer 限定 [11,12)）
 - **构建工具**: Maven
 - **核心框架**: Apache Flink 1.13.6 (Scala 2.12)
 - **数据源/Sink**: Kafka 2.6.3
