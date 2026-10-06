@@ -1,0 +1,7 @@
+job_id,job_name,first_sample_utc,last_sample_utc,first_drop_utc,late_drop_total
+ab5260277c348d682a0d04ca1a2f8b53,M2Job___M1_ingestion_normalization___pMCOD___LSTM_AE_contextual_anomaly_detection,2026-09-30 04:21 UTC,2026-09-30 04:51 UTC,2026-09-30 04:36 UTC,5852
+6905b0331435ca57a7b1b0b7790a30e1,M2Job___M1_ingestion_normalization___pMCOD___LSTM_AE_contextual_anomaly_detection,2026-10-01 02:41 UTC,2026-10-01 03:16 UTC,,0
+b6687789f6f8d24f3c403e1072db0601,M2Job___M1_ingestion_normalization___pMCOD___LSTM_AE_contextual_anomaly_detection,2026-10-01 09:16 UTC,2026-10-01 12:01 UTC,2026-10-01 10:01 UTC,6854
+d9c216093ef83b760912a28ba8b4bb6c,M2Job___M1_ingestion_normalization___pMCOD___LSTM_AE_contextual_anomaly_detection,2026-10-03 07:26 UTC,2026-10-03 08:41 UTC,2026-10-03 08:11 UTC,615474
+ed12055358d1a2fcd827b4cc816c3a6d,M2Job___M1_ingestion_normalization___pMCOD___LSTM_AE_contextual_anomaly_detection,2026-10-05 13:36 UTC,2026-10-05 14:26 UTC,,0
+fa9ee1a149d1b50c4f9bcd3027e07655,M2Job___M1_ingestion_normalization___pMCOD___LSTM_AE_contextual_anomaly_detection,2026-10-06 01:46 UTC,2026-10-06 02:46 UTC,,0
