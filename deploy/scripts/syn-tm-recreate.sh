@@ -17,7 +17,8 @@
 # 3. 前置条件 / Preconditions: 集群上**没有作业在运行**（重建 TaskManager 会让运行中的作业失败）；
 #    本地 deploy/.env 已改好（例如 SYN_JAVACPP_MAXPHYSICALBYTES=3900m）。
 # 4. 期望产出 / Expected output: 每台 worker 打印重建前后 Kafka 容器的创建时间（应相同）、TaskManager 的
-#    新创建时间，以及运行中 TaskManager 进程实际带的 -Dorg.bytedeco.javacpp.maxphysicalbytes 取值。
+#    新创建时间，以及 JavaCPP 物理内存上限的两个取值：容器配置里的值与运行中进程实际带的值（读 /proc，镜像里
+#    没有 ps）。两者都应等于 .env 中的 SYN_JAVACPP_MAXPHYSICALBYTES，不一致时以退出码 1 结束。
 # 5. 失败兜底 / Failure fallback: 发现有作业在运行时退出码 3，不做任何改动；.env 中某台 worker 的内网地址与
 #    现有 TaskManager 注册的地址不同时跳过该台并以退出码 1 结束；某台 worker 的 Kafka 创建时间前后不同时
 #    打印「Kafka 被重建」并以退出码 1 结束，此时请立即停下上报。
@@ -62,6 +63,24 @@ for spec in "fa-worker1 2 $NODE_WORKER1_IP taskmanager-2 kafka-2" "fa-worker2 3 
         rc=1
     fi
     echo "TaskManager 创建时间：$(ssh "$host" "docker inspect -f '{{.Created}}' $tm" 2>/dev/null)"
-    echo "JavaCPP 物理内存上限：$(ssh "$host" "docker exec $tm sh -c 'ps -eo args | grep -o \"maxphysicalbytes=[^ ]*\" | head -1'" 2>/dev/null)"
+    # 镜像里没有 ps，直接读 /proc 下各进程的命令行；同时列出容器配置里的值作对照。
+    # The image has no ps: read each process's command line from /proc; also show the configured value.
+    cfg="$(ssh "$host" "docker inspect $tm" 2>/dev/null | grep -o 'maxphysicalbytes=[^ \"]*' | head -1 | cut -d= -f2)"
+    # 只看 TaskManager 的 Java 进程（命令行含 TaskManagerRunner）；容器刚重建时 JVM 可能尚未启动，最多等 30 秒。
+    # Only the TaskManager JVM (its command line contains TaskManagerRunner); wait up to 30 s for it to start.
+    run=""
+    for _ in 1 2 3 4 5 6; do
+        run="$(ssh "$host" "docker exec -i $tm sh -s" 2>/dev/null <<'EOS'
+for f in /proc/[0-9]*/cmdline; do tr '\000' ' ' < "$f"; echo; done 2>/dev/null | grep TaskManagerRunner | grep -o 'maxphysicalbytes=[^ ]*' | head -1 | cut -d= -f2
+EOS
+)"
+        [ -n "$run" ] && break
+        sleep 5
+    done
+    echo "JavaCPP 物理内存上限：容器配置 ${cfg:-?}；运行中进程 ${run:-?}（期望 ${SYN_JAVACPP_MAXPHYSICALBYTES:-3900m}）"
+    if [ "$run" != "${SYN_JAVACPP_MAXPHYSICALBYTES:-3900m}" ]; then
+        echo "  ⚠ 运行中进程的取值与 .env 不一致。"
+        rc=1
+    fi
 done
 exit $rc
