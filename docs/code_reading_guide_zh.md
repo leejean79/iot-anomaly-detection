@@ -335,15 +335,18 @@ JobManager 堆内存也要装得下。代码里的默认值（间隔 10 秒、�
 ## 八、部署与运维层速览
 
 - `deploy/compose/`：master 与 worker 的容器编排。TaskManager 设 `OMP_NUM_THREADS=1`（训练单线程，结果可复现）；
-  两侧 `akka.framesize` 为 256 MB；JobManager 挂载检查点调试日志配置。
+  两侧 `akka.framesize` 为 256 MB；JobManager 挂载检查点调试日志配置。TaskManager 的 JavaCPP 物理内存上限
+  `maxphysicalbytes` 为 3,900 MB（2026-10-06 裁决第四节，比对的是整个进程的常驻内存）。
 - `deploy/env.example`：全部可配置项与注释，包括逐设备半径 `SYN_M2_R_PER_DEVICE` 与代理键表。
 - `deploy/scripts/`，按用途分组：
-  - 生命周期：`syn-upload-m1.sh`、`syn-submit-m2.sh`、`syn-replay.sh`、`syn-reset-env.sh`、`check-jar.sh`、`refresh-ips.sh`。
+  - 生命周期：`syn-upload-m1.sh`、`syn-submit-m2.sh`、`syn-replay.sh`、`syn-reset-env.sh`、`check-jar.sh`、`refresh-ips.sh`、
+    `syn-tm-recreate.sh`（只重建两台 TaskManager，使配置改动生效，Kafka 不动）。
   - 运行中监测：`syn-m3-watch.sh`（在 master 上无人值守）、`syn-m2-metrics.sh`、`syn-m3-diag.sh`。
   - 运行后核验与收集：`syn-replay-verify.sh`（七条断言）、`syn-m3-march-collect.sh`、`syn-m3-perf-collect.sh`、
     `syn-m2-late-drop-history.sh`、`syn-m3-after-reboot.sh`。
   - 离线参照：`syn-m2-probe.sh`、`syn-m2-baseline.sh`、`syn-m3-grid.sh`。
-  - 报告生成（Python）：`m3_coldstart_report.py`、`m3_v34_report.py`、`m3_dual_channel_week.py`。
+  - 报告生成（Python）：`m3_coldstart_report.py`、`m3_v34_report.py`、`m3_dual_channel_week.py`、
+    `m3_injection_recall.py`（V-M3-5 召回表与双通道对注入的响应）、`m3_bh_analysis.py`（B、H 误报偏高的并行分析）。
 - `eda/`：探索性数据分析与只读原始 CSV 的工具（`count_rounds.py`、`daily_channel_profile.py`、`make_injection_specs.py`、
   `m3_window_gap_check.py`），只能在存有原始数据的本地 Mac 上运行。
 
@@ -426,3 +429,4 @@ JobManager 堆内存也要装得下。代码里的默认值（间隔 10 秒、�
 | 2026-10-06 | 初版，对应提交 `ce05467` 之后的代码 |
 | 2026-10-06 | 过时注释已更正（第十一节）；时间用语统一为 Flink 术语「事件时间」「处理时间」 |
 | 2026-10-08 | 在 5.4 节 `M3Training` 处补充 `EpochListener` 的说明（回调，不是线程）；新增注入专题文档 `docs/injection_guide_zh.md`，涵盖注入策略、代码阅读要点与使用方法 |
+| 2026-10-08 | 按 2026-10-06 裁决与注入参数书：第八节补 JavaCPP 上限 3,900 MB 与三个新脚本（`syn-tm-recreate.sh`、`m3_injection_recall.py`、`m3_bh_analysis.py`）；注入专题文档同步新参数（尖峰按轮、间隔下限 3,660 秒、气体补做、平稳日参照期 03-08 至 03-17）。Java 代码本轮没有改动 |
