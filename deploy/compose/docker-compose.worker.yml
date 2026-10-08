@@ -93,7 +93,7 @@ services:
         # UNIT PITFALL: the value goes verbatim to Akka and is parsed by Typesafe Config, which
         # rejects lowercase "mb" while Flink's own MemorySize accepts it. Always use plain bytes.
         akka.framesize: ${SYN_AKKA_FRAMESIZE:-268435456b}
-        env.java.opts.taskmanager: -Dorg.bytedeco.javacpp.maxbytes=${SYN_JAVACPP_MAXBYTES:-512m} -Dorg.bytedeco.javacpp.maxphysicalbytes=${SYN_JAVACPP_MAXPHYSICALBYTES:-3584m} -Dorg.bytedeco.javacpp.cachedir=${SYN_JAVACPP_CACHEDIR:-/tmp/javacpp-cache}
+        env.java.opts.taskmanager: -Dorg.bytedeco.javacpp.maxbytes=${SYN_JAVACPP_MAXBYTES:-512m} -Dorg.bytedeco.javacpp.maxphysicalbytes=${SYN_JAVACPP_MAXPHYSICALBYTES:-3900m} -Dorg.bytedeco.javacpp.cachedir=${SYN_JAVACPP_CACHEDIR:-/tmp/javacpp-cache}
         taskmanager.host: ${NODE_SELF_IP}
         parallelism.default: ${JOB_LOCAL_PARALLELISM}
         metrics.reporters: prom

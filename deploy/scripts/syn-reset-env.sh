@@ -317,8 +317,8 @@ else
 fi
 
 TM_PHYS="$(ssh fa-worker1 "docker inspect taskmanager-2 | grep -o 'maxphysicalbytes=[^ \"]*' | head -1 | cut -d= -f2" 2>/dev/null)"
-echo "  TaskManager maxphysicalbytes: ${TM_PHYS:-?}（期望 ${SYN_JAVACPP_MAXPHYSICALBYTES:-3584m}）"
-if [ "$TM_PHYS" = "${SYN_JAVACPP_MAXPHYSICALBYTES:-3584m}" ]; then
+echo "  TaskManager maxphysicalbytes: ${TM_PHYS:-?}（期望 ${SYN_JAVACPP_MAXPHYSICALBYTES:-3900m}）"
+if [ "$TM_PHYS" = "${SYN_JAVACPP_MAXPHYSICALBYTES:-3900m}" ]; then
     record "JavaCPP 上限" PASS "$TM_PHYS"
 else
     record "JavaCPP 上限" FAIL "实测 ${TM_PHYS:-?} 与 .env 不一致"
