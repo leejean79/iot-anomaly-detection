@@ -9,32 +9,33 @@
 # the injection window. Strength is in units of the channel's raw P10-P90 width over the calibration period,
 # converted to raw units because the replayer adds the magnitude to the raw value.
 #
-# 依据：2026-10-02 裁决第六节（注入方案的要求）：注入设备 E；注入放在四月的平稳日里；四种类型各三档，
-# 幅度以标定期 P10 至 P90 宽度的倍数表达（1、2、4 倍）；时长为尖峰 3 轮（30 秒）、阶跃 2 小时、爬坡 6 小时、
-# 卡死 2 小时；相邻注入之间至少间隔一个窗长加一个滑动步；真值写入日志（重放器的 --inject-log）。
-#
-# 「标定期」取阈值校准期（默认 2022-03-17 至 03-24），与 V-M3-4 的「标定期宽度」同一口径。卡死没有幅度，
-# 「三档」无法按幅度取，本脚本的做法是卡死三次、各 2 小时，排在不同时刻，这一点须送交设计会话确认。
-# Per the ruling of 2026-10-02 section 6. "Calibration period" is the threshold-calibration period,
-# the same reference as V-M3-4. Stuck has no magnitude; it is injected three times for 2 hours each,
-# which the design session must confirm.
+# 依据：2026-10-06 设计会话《注入实验参数（书面版）》（整理自 10-02 裁决第六节与 10-03 确认）：
+#   - 注入设备 E；主通道温度；若排程有余，在气体通道上补做阶跃两倍、爬坡两倍各一次。
+#   - 幅度：阈值校准期（03-17 至 03-24）该通道 P10 至 P90 宽度的 1、2、4 倍（卡死无幅度）。
+#   - 尖峰：一、二、三轮各对应一档幅度（1 倍一轮、2 倍两轮、4 倍三轮）；阶跃 2 小时；爬坡 6 小时，
+#     加量从零线性增长到标称幅度；卡死在三个不同时刻各一次，每次 2 小时，值冻结为注入开始时刻的读数。
+#   - 相邻注入间隔下限 3660 秒（点通道窗长 3600 秒加滑动步 60 秒），默认 7200 秒。
+#   - 排程范围：按新参照期（03-08 至 03-17）重算后的四月平稳日。
+# 尖峰要恰好覆盖 k 轮：脚本读取该设备该通道在平稳日里的真实轮时间戳，尖峰从某一轮开始，到第 k+1 轮
+# 之前结束（注入区间左闭右开），而不是简单取 10k 秒——实际轮间隔并不恒为 10 秒。
+# Per the design session's written injection parameters of 2026-10-06. Spikes cover exactly k rounds by
+# aligning to the device's real round timestamps.
 #
 # ---------------------------- 脚本交付五要素 -------------------------------
 # 1. 执行环境：本地 Mac，仓库根目录，Python 3.9+，已装 eda/requirements.txt。
 # 2. 调用命令：
 #      python3 eda/make_injection_specs.py \
 #          --data-dir /Users/lijing/Downloads/fwlmb11wni392kodtyljkw4n2/files_csv \
-#          --days 2022-04-10,2022-04-11,2022-04-12,2022-04-13 \
-#          --out docs/m3_inject_plan.csv
-#    --days 为平稳日（取自 m3_v34_report.py 报告的平稳日清单，须是四月的日子）。
-#    可选：--device E、--channel Temperature、--multipliers 1,2,4、--calib-start 2022-03-17、
-#    --calib-end 2022-03-24、--gap-sec 7200（相邻注入的间隔，不得小于窗长加滑动步，即 660 秒）、
+#          --days 2022-04-10,2022-04-11,2022-04-12 --out docs/m3_inject_plan.csv
+#    --days 为重算后的四月平稳日（取自 m3_v34_report.py 报告）。
+#    可选：--device E、--channel Temperature、--extra-channel Gas（设为空串则不补做）、--multipliers 1,2,4、
+#    --calib-start 2022-03-17、--calib-end 2022-03-24、--gap-sec 7200（不得小于 3660）、
 #    --lead-hours 2（每个平稳日从 UTC 几点开始排）。
 # 3. 前置条件：原始 CSV 目录可读；--days 已由 V-M3-4 报告确定。
-# 4. 期望产出：终端打印标定期的中位数与 P10–P90 宽度、12 条注入的计划表；--out 处写出计划表 CSV，同目录
-#    写出 m3_inject_spec.txt（规格串，供 syn-replay.sh --inject-file 读取）。
-# 5. 失败兜底：标定期内该设备该通道没有数据时退出码 2；平稳日排不下全部注入时退出码 3；间隔小于
-#    660 秒或 --days 中有不在四月的日子时退出码 4。
+# 4. 期望产出：终端打印两个通道标定期的中位数与 P10–P90 宽度、注入计划表（主通道 12 条，排得下时另加
+#    气体通道 2 条）；--out 处写出计划表 CSV，同目录写出 m3_inject_spec.txt（供 syn-replay.sh --inject-file）。
+# 5. 失败兜底：标定期内主通道没有数据时退出码 2；平稳日排不下主通道的 12 条时退出码 3；间隔小于 3660 秒或
+#    --days 中有不在四月的日子时退出码 4。气体通道的补做排不下时只打印说明，不算失败。
 # ============================================================================
 import argparse
 import csv
@@ -52,36 +53,19 @@ from edalib import config                            # noqa: E402
 from edalib.inventory import list_all_files          # noqa: E402
 from edalib.scan import sniff_schema                 # noqa: E402
 
-DUR_SEC = {"spike": 30, "step": 2 * 3600, "ramp": 6 * 3600, "stuck": 2 * 3600}
-MIN_GAP_SEC = 60 * 10 + 60      # 一个窗长（60 轮 × 10 秒）加一个滑动步（60 秒）/ one window plus one slide
+DUR_SEC = {"step": 2 * 3600, "ramp": 6 * 3600, "stuck": 2 * 3600}
+SPIKE_ROUNDS = (1, 2, 3)        # 第 i 档幅度对应的尖峰轮数 / rounds per spike tier
+MIN_GAP_SEC = 3600 + 60         # 点通道窗长加一个滑动步 / point-channel window plus one slide
 
 
 def utc(day: str) -> datetime:
     return datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=timezone.utc)
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--data-dir", required=True)
-    ap.add_argument("--device", default="E")
-    ap.add_argument("--channel", default="Temperature")
-    ap.add_argument("--multipliers", default="1,2,4")
-    ap.add_argument("--calib-start", default="2022-03-17")
-    ap.add_argument("--calib-end", default="2022-03-24")
-    ap.add_argument("--days", required=True, help="四月的平稳日，逗号分隔，如 2022-04-10,2022-04-11")
-    ap.add_argument("--gap-sec", type=int, default=7200)
-    ap.add_argument("--lead-hours", type=int, default=2)
-    ap.add_argument("--out", required=True)
-    a = ap.parse_args()
-
-    days = [d.strip() for d in a.days.split(",") if d.strip()]
-    if a.gap_sec < MIN_GAP_SEC or any(not d.startswith("2022-04-") for d in days):
-        print("ERROR: --gap-sec 不得小于 %d 秒（窗长加滑动步），--days 必须都是四月的日子。" % MIN_GAP_SEC,
-              file=sys.stderr)
-        return 4
-    lo, hi = int(utc(a.calib_start).timestamp()), int(utc(a.calib_end).timestamp())
-    vals = []
-    for path in list_all_files(a.data_dir):
+def load(data_dir, device, channels, ranges):
+    """读取某设备若干通道在若干时段内的 (时间戳, 值) / read (ts, value) for channels within ranges."""
+    out = {c: [] for c in channels}
+    for path in list_all_files(data_dir):
         try:
             with open(path, "rb") as fh:
                 raw = fh.read()
@@ -99,52 +83,111 @@ def main() -> int:
         except Exception:  # noqa: BLE001
             continue
         t = pd.to_numeric(df["Time"], errors="coerce")
-        sel = ((df["DeviceId"].astype(str).str.strip() == a.device)
-               & (df["Sensor"].astype(str).str.strip() == a.channel) & (t >= lo) & (t < hi))
-        if sel.any():
-            vals.append(pd.to_numeric(df["Value"][sel], errors="coerce").dropna().to_numpy())
-    if not vals:
-        print(f"ERROR: {a.calib_start} 至 {a.calib_end} 内没有设备 {a.device} 通道 {a.channel} 的数据。",
+        in_range = np.logical_or.reduce([(t >= lo) & (t < hi) for lo, hi in ranges])
+        dev = df["DeviceId"].astype(str).str.strip() == device
+        sens = df["Sensor"].astype(str).str.strip()
+        for c in channels:
+            sel = dev & (sens == c) & in_range
+            if sel.any():
+                v = pd.to_numeric(df["Value"][sel], errors="coerce")
+                ok = v.notna()
+                out[c].append(np.column_stack([t[sel][ok].to_numpy(), v[ok].to_numpy()]))
+    return {c: (np.concatenate(a) if a else np.empty((0, 2))) for c, a in out.items()}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data-dir", required=True)
+    ap.add_argument("--device", default="E")
+    ap.add_argument("--channel", default="Temperature")
+    ap.add_argument("--extra-channel", default="Gas")
+    ap.add_argument("--multipliers", default="1,2,4")
+    ap.add_argument("--calib-start", default="2022-03-17")
+    ap.add_argument("--calib-end", default="2022-03-24")
+    ap.add_argument("--days", required=True, help="四月的平稳日，逗号分隔，如 2022-04-10,2022-04-11")
+    ap.add_argument("--gap-sec", type=int, default=7200)
+    ap.add_argument("--lead-hours", type=int, default=2)
+    ap.add_argument("--out", required=True)
+    a = ap.parse_args()
+
+    days = [d.strip() for d in a.days.split(",") if d.strip()]
+    if a.gap_sec < MIN_GAP_SEC or any(not d.startswith("2022-04-") for d in days):
+        print("ERROR: --gap-sec 不得小于 %d 秒（点通道窗长加滑动步），--days 必须都是四月的日子。" % MIN_GAP_SEC,
               file=sys.stderr)
-        return 2
-    v = np.concatenate(vals)
-    med, p10, p90 = np.median(v), np.percentile(v, 10), np.percentile(v, 90)
-    width = p90 - p10
-    print(f"标定期 {a.calib_start} 至 {a.calib_end}，设备 {a.device} 通道 {a.channel}："
-          f"{len(v)} 个读数，中位数 {med:.4f}，P10–P90 宽度 {width:.4f}（P10 {p10:.4f}，P90 {p90:.4f}）")
+        return 4
+    channels = [a.channel] + ([a.extra_channel] if a.extra_channel else [])
+    calib = (int(utc(a.calib_start).timestamp()), int(utc(a.calib_end).timestamp()))
+    day_ranges = [(int(utc(d).timestamp()), int((utc(d) + timedelta(days=1)).timestamp())) for d in days]
 
-    # 计划：尖峰、阶跃、爬坡各三档幅度；卡死没有幅度，三次各 2 小时（须设计会话确认）。
+    cal = load(a.data_dir, a.device, channels, [calib])
+    width = {}
+    for c in channels:
+        v = cal[c][:, 1] if len(cal[c]) else np.empty(0)
+        if len(v) == 0:
+            if c == a.channel:
+                print(f"ERROR: {a.calib_start} 至 {a.calib_end} 内没有设备 {a.device} 通道 {c} 的数据。", file=sys.stderr)
+                return 2
+            print(f"说明：标定期内没有通道 {c} 的数据，不做该通道的补做注入。")
+            continue
+        med, p10, p90 = np.median(v), np.percentile(v, 10), np.percentile(v, 90)
+        width[c] = p90 - p10
+        print(f"标定期 {a.calib_start} 至 {a.calib_end}，设备 {a.device} 通道 {c}：{len(v)} 个读数，"
+              f"中位数 {med:.4f}，P10–P90 宽度 {width[c]:.4f}（P10 {p10:.4f}，P90 {p90:.4f}）")
+
+    # 主通道在平稳日里的真实轮时间戳，用来让尖峰恰好覆盖 k 轮 / real round timestamps for exact spikes
+    rounds = np.unique(load(a.data_dir, a.device, [a.channel], day_ranges)[a.channel][:, 0].astype(np.int64))
+
     mults = [float(x) for x in a.multipliers.split(",")]
-    plan = []
-    for typ in ("spike", "step", "ramp"):
+    plan = []                                   # (通道, 类型, 档位, 原始幅度, 时长或轮数, 是否补做)
+    for i, m in enumerate(mults):
+        plan.append((a.channel, "spike", f"{m:g}xP10P90/{SPIKE_ROUNDS[i]}轮", round(m * width[a.channel], 4),
+                     ("rounds", SPIKE_ROUNDS[i]), False))
+    for typ in ("step", "ramp"):
         for m in mults:
-            plan.append((typ, f"{m:g}xP10P90", round(m * width, 4), DUR_SEC[typ]))
+            plan.append((a.channel, typ, f"{m:g}xP10P90", round(m * width[a.channel], 4), ("sec", DUR_SEC[typ]), False))
     for k in range(3):
-        plan.append(("stuck", f"2h#{k + 1}", 0.0, DUR_SEC["stuck"]))
+        plan.append((a.channel, "stuck", f"2h#{k + 1}", 0.0, ("sec", DUR_SEC["stuck"]), False))
+    if a.extra_channel and a.extra_channel in width:
+        for typ in ("step", "ramp"):
+            plan.append((a.extra_channel, typ, "2xP10P90", round(2 * width[a.extra_channel], 4),
+                         ("sec", DUR_SEC[typ]), True))
 
-    # 依次排进平稳日：每天从 lead-hours 开始；一条注入必须整条落在同一个平稳日之内；相邻两条之间至少 gap-sec。
-    # Greedy placement inside the stable days; an injection must fit within one day; gaps >= gap-sec.
+    # 依次排进平稳日：每天从 lead-hours 开始；一条注入整条落在同一个平稳日之内；相邻两条之间至少 gap-sec。
+    # Greedy placement; an injection must fit within one stable day; gaps >= gap-sec.
     rows, specs = [], []
     di = 0
     cursor = utc(days[0]) + timedelta(hours=a.lead_hours)
-    for typ, level, mag, dur in plan:
-        while True:
+    for ch, typ, level, mag, (kind, n), extra in plan:
+        placed = False
+        while di < len(days):
             day_end = utc(days[di]) + timedelta(days=1)
-            if cursor + timedelta(seconds=dur) <= day_end:
+            if kind == "rounds":
+                idx = int(np.searchsorted(rounds, int(cursor.timestamp())))
+                if idx + n < len(rounds) and rounds[idx + n] <= day_end.timestamp():
+                    start_ts, dur = int(rounds[idx]), int(rounds[idx + n] - rounds[idx])
+                    placed = True
+                    break
+            elif cursor + timedelta(seconds=n) <= day_end:
+                start_ts, dur = int(cursor.timestamp()), n
+                placed = True
                 break
             di += 1
-            if di >= len(days):
-                print(f"ERROR: 平稳日 {a.days} 排不下全部 {len(plan)} 条注入（卡在 {typ} {level}）。"
-                      f"请多给几个平稳日，或减小 --gap-sec。", file=sys.stderr)
-                return 3
-            cursor = utc(days[di]) + timedelta(hours=a.lead_hours)
-        st = cursor
-        ts = int(st.timestamp())
-        specs.append(f"{a.device}:{a.channel}:{ts}:{dur}:{typ}:{mag}")
-        rows.append({"device": a.device, "channel": a.channel, "type": typ, "level": level,
-                     "magnitude_raw": mag, "unit": "P10-P90 width %.4f" % width,
-                     "start_utc": st.strftime("%Y-%m-%dT%H:%M:%SZ"), "start_ts": ts, "duration_sec": dur,
-                     "end_utc": (st + timedelta(seconds=dur)).strftime("%Y-%m-%dT%H:%M:%SZ")})
+            if di < len(days):
+                cursor = utc(days[di]) + timedelta(hours=a.lead_hours)
+        if not placed:
+            if extra:
+                print(f"说明：平稳日已排满，气体通道的补做（{typ} {level}）不再安排。")
+                continue
+            print(f"ERROR: 平稳日 {a.days} 排不下主通道的全部注入（卡在 {typ} {level}）。"
+                  f"请多给几个平稳日，或减小 --gap-sec。", file=sys.stderr)
+            return 3
+        st = datetime.fromtimestamp(start_ts, timezone.utc)
+        specs.append(f"{a.device}:{ch}:{start_ts}:{dur}:{typ}:{mag}")
+        rows.append({"device": a.device, "channel": ch, "type": typ, "level": level,
+                     "magnitude_raw": mag, "unit": "P10-P90 width %.4f" % width[ch],
+                     "start_utc": st.strftime("%Y-%m-%dT%H:%M:%SZ"), "start_ts": start_ts, "duration_sec": dur,
+                     "end_utc": (st + timedelta(seconds=dur)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                     "extra": "是" if extra else ""})
         cursor = st + timedelta(seconds=dur + a.gap_sec)
 
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
@@ -156,10 +199,11 @@ def main() -> int:
     spec_path = os.path.join(os.path.dirname(a.out) or ".", "m3_inject_spec.txt")
     with open(spec_path, "w") as fh:
         fh.write(spec + "\n")
-    print(f"\n{'类型':<6}{'档位':<10}{'原始幅度':>10}  {'开始（UTC）':<22}{'持续秒数':>8}")
+    print(f"\n{'通道':<12}{'类型':<6}{'档位':<16}{'原始幅度':>10}  {'开始（UTC）':<22}{'持续秒数':>8}")
     for r in rows:
-        print(f"{r['type']:<8}{r['level']:<10}{r['magnitude_raw']:>10}  {r['start_utc']:<22}{r['duration_sec']:>8}")
-    print(f"\n计划表：{a.out}\n规格串：{spec_path}\n--inject \"{spec}\"")
+        print(f"{r['channel']:<14}{r['type']:<8}{r['level']:<18}{r['magnitude_raw']:>10}  "
+              f"{r['start_utc']:<22}{r['duration_sec']:>8}")
+    print(f"\n共 {len(rows)} 条。计划表：{a.out}\n规格串：{spec_path}")
     return 0
 
 

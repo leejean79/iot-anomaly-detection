@@ -4,7 +4,8 @@
 # V-M3-4 的两项报告（2026-10-02 裁决第四节第 3、4 条）：
 #   其一，全程逐日告警率与逐日通道剖面并排；
 #   其二，平稳日误报率：平稳日定义为五个检测通道的机队中位偏移绝对值都不超过 0.5 个标定期宽度的日子，
-#         期望 0.1% 至 1%；另加「共模比例」：告警窗口中，同一小时内八台设备至少六台告警的占比。
+#         期望 0.1% 至 1%；另加「共模比例」：告警窗口中，同一小时内告警设备数达到「该小时在场设备数的四分之三
+#         向上取整」（八台为六、六台为五，2026-10-06 裁决第四节）的占比。
 # 持续数日、全机队同时的高告警率记为漂移事件，不计为误报（第四节第 4 条）。
 # V-M3-4 per the ruling of 2026-10-02 section 4: daily alarm rate beside the daily channel profile, the
 # false-alarm rate on stable days, and the common-mode share of alarm windows.
@@ -15,9 +16,11 @@
 #      python3 deploy/scripts/m3_v34_report.py --scores docs/m3_march/m3_scores.jsonl \
 #          --profile docs/m3_march/daily_channel_profile.csv --start 2022-03-24 --end 2022-05-01 \
 #          --out-dir docs/m3_march/v34
-#    --profile 由 eda/daily_channel_profile.py 生成，其参照期须为阈值校准期（--ref-start 2022-03-17
-#    --ref-end 2022-03-24），「标定期宽度」即该期间的 P10 至 P90 宽度。
-#    可选：--stable-max 0.5（平稳日阈值）、--common-min 6（共模的设备数下限）、--threshold 2.22（只用于作图）。
+#    --profile 由 eda/daily_channel_profile.py 生成。2026-10-06 裁决第三节起，判定平稳日的参照期为
+#    训练集加早停集（--ref-start 2022-03-08 --ref-end 2022-03-17），偏移以该期间的 P10 至 P90 宽度为单位。
+#    可选：--stable-max 0.5（平稳日阈值）、--common-min 0（0 = 按在场设备数的四分之三向上取整；给正数则固定）、
+#    --threshold 2.22（只用于作图）、--exclude-devices D,G（排除评分不可用的设备）、
+#    --exclude-truth <inject-truth.csv>（排除注入设备在注入区间及其后一个点通道窗长 3600 秒内的评分）。
 # 3. 前置条件：两份输入文件存在；评分来自在线算子（channel 为 m3_context）。
 # 4. 期望产出：--out-dir 下 v34_report.md（逐日表、平稳日清单、平稳日误报率表、共模比例）、
 #    v34_daily.csv、v34_daily.png（逐日告警率与五个通道的机队中位偏移，上下对齐）、
@@ -28,6 +31,7 @@ import argparse
 import collections
 import csv
 import json
+import math
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -50,12 +54,14 @@ def main():
     ap.add_argument("--start", default="2022-03-24")
     ap.add_argument("--end", default="2022-05-01")
     ap.add_argument("--stable-max", type=float, default=0.5)
-    ap.add_argument("--common-min", type=int, default=6)
+    ap.add_argument("--common-min", type=int, default=0)
     ap.add_argument("--threshold", type=float, default=2.22)
     ap.add_argument("--out-dir", required=True)
     # 排除评分不可用的设备（2026-10-05 裁决第二节第 1 条：三月至四月运行按 A、B、C、E、F、H 六台口径出）。
     # 只排除评分；平稳日按全部设备的原始数据剖面判定，不受影响。
     ap.add_argument("--exclude-devices", default="")
+    # 注入运行：注入引起的告警不是误报，按真值把注入设备在注入区间及其后一个点通道窗长内的评分去掉。
+    ap.add_argument("--exclude-truth", default="")
     a = ap.parse_args()
     os.makedirs(a.out_dir, exist_ok=True)
 
@@ -65,11 +71,16 @@ def main():
     lo, hi = int(t0.timestamp()), int(t1.timestamp())
 
     excluded = {x.strip() for x in a.exclude_devices.split(",") if x.strip()}
+    inj = []
+    if a.exclude_truth:
+        for r in csv.DictReader(open(a.exclude_truth, encoding="utf-8")):
+            inj.append((r["device"], int(r["start_ts"]), int(r["end_ts"]) + 3600))
+    in_inj = lambda r: any(r["device"] == d and s0 <= r["windowEnd"] < s1 for d, s0, s1 in inj)
     recs = []
     for line in open(a.scores, encoding="utf-8"):
         r = json.loads(line)
         if r.get("channel", "m3_context") == "m3_context" and lo <= r["windowEnd"] < hi \
-                and r["device"] not in excluded:
+                and r["device"] not in excluded and not in_inj(r):
             recs.append(r)
     if not recs:
         print("ERROR: %s 至 %s 之间没有上下文通道评分。" % (a.start, a.end), file=sys.stderr)
@@ -100,6 +111,10 @@ def main():
 
     # 共模比例：告警窗口中，同一小时内告警设备数 ≥ common-min 的占比。
     hour_devs = collections.defaultdict(set)
+    hour_present = collections.defaultdict(set)
+    for r in recs:
+        hour_present[r["windowEnd"] // 3600].add(r["device"])
+    need = lambda h: a.common_min if a.common_min > 0 else math.ceil(0.75 * len(hour_present[h]))
     for r in recs:
         if r["aboveThreshold"]:
             hour_devs[r["windowEnd"] // 3600].add(r["device"])
@@ -108,7 +123,7 @@ def main():
         alarms = [r for r in rs if r["aboveThreshold"]]
         if not alarms:
             return None, 0
-        cm = sum(1 for r in alarms if len(hour_devs[r["windowEnd"] // 3600]) >= a.common_min)
+        cm = sum(1 for r in alarms if len(hour_devs[r["windowEnd"] // 3600]) >= need(r["windowEnd"] // 3600))
         return 100.0 * cm / len(alarms), len(alarms)
 
     st_set = set(stable)
@@ -117,12 +132,15 @@ def main():
     out = []
     p = out.append
     p("# V-M3-4 报告（%s 至 %s）\n" % (a.start, (t1 - timedelta(days=1)).strftime("%Y-%m-%d")))
-    p("平稳日定义：五个检测通道的机队中位偏移（各设备当日中位数相对阈值校准期中位数的偏移，以校准期 P10–P90 "
-      "宽度为单位，再取设备间中位数）绝对值都不超过 %.1f。共模：同一小时内至少 %d 台设备告警。\n"
-      % (a.stable_max, a.common_min))
+    p("平稳日定义：五个检测通道的机队中位偏移（各设备当日中位数相对剖面参照期中位数的偏移，以参照期 P10–P90 "
+      "宽度为单位，再取设备间中位数）绝对值都不超过 %.1f。共模：同一小时内告警设备数达到%s。\n"
+      % (a.stable_max, ("固定的 %d 台" % a.common_min) if a.common_min > 0
+         else "该小时在场设备数的四分之三向上取整（八台为六，六台为五）"))
     if excluded:
-        p("本报告排除了 %s 的评分（%d 台口径）；平稳日仍按全部设备的原始数据剖面判定。共模门槛 %d 台不随之缩小，"
-          "在 %d 台口径下更严。\n" % ("、".join(sorted(excluded)), len(devices), a.common_min, len(devices)))
+        p("本报告排除了 %s 的评分（%d 台口径）；平稳日仍按全部设备的原始数据剖面判定。\n"
+          % ("、".join(sorted(excluded)), len(devices)))
+    if inj:
+        p("本报告按注入真值排除了 %d 段注入区间（各延长 3600 秒）内注入设备的评分。\n" % len(inj))
     p("## 一、平稳日误报率\n")
     p("平稳日共 %d 天：%s。" % (len(stable), "、".join(stable) or "无"))
     if missing:
@@ -157,7 +175,7 @@ def main():
         row.update({"alarm_pct_" + dv: rate((dv, d)) for dv in devices})
         row.update({"fleet_shift_" + c: fleet.get((c, d)) for c in CHANNELS})
         rows.append(row)
-    p("\n各设备列为当日告警率（%）；通道列为机队中位偏移（单位：阈值校准期 P10–P90 宽度）。"
+    p("\n各设备列为当日告警率（%）；通道列为机队中位偏移（单位：剖面参照期 P10–P90 宽度）。"
       "持续数日、全机队同时的高告警率按裁决记为漂移事件，不计为误报。")
 
     with open(os.path.join(a.out_dir, "v34_daily.csv"), "w", newline="", encoding="utf-8") as fh:
