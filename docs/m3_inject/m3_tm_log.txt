@@ -1,0 +1,235 @@
+===== fa-worker1 / taskmanager-2 =====
+2026-10-09 01:15:03,236 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F excluded training window ending at round 1646699588
+2026-10-09 01:15:03,316 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646699871
+2026-10-09 01:15:03,316 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646699799
+2026-10-09 01:15:08,139 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H excluded training window ending at round 1646717116
+2026-10-09 01:15:10,750 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646726391
+2026-10-09 01:15:11,753 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646730009
+2026-10-09 01:15:12,958 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646734258
+2026-10-09 01:15:13,158 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646734863
+2026-10-09 01:15:13,358 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646735460
+2026-10-09 01:15:13,662 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646737264
+2026-10-09 01:15:21,959 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646766612
+2026-10-09 01:15:23,480 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646772838
+2026-10-09 01:15:33,592 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646808939
+2026-10-09 01:15:33,792 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646809541
+2026-10-09 01:15:33,992 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646810745
+2026-10-09 01:15:34,296 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646811345
+2026-10-09 01:15:34,897 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646813159
+2026-10-09 01:15:35,097 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646813760
+2026-10-09 01:15:35,297 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646814362
+2026-10-09 01:15:35,497 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646815584
+2026-10-09 01:15:35,697 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646816186
+2026-10-09 01:15:36,098 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646817389
+2026-10-09 01:15:37,099 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646821010
+2026-10-09 01:15:37,499 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646822830
+2026-10-09 01:15:47,491 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646859277
+2026-10-09 01:15:47,510 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646858975
+2026-10-09 01:15:47,710 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646859576
+2026-10-09 01:15:50,694 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646870709
+2026-10-09 01:15:50,713 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646870421
+2026-10-09 01:15:50,913 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646871022
+2026-10-09 01:15:53,397 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646880332
+2026-10-09 01:15:53,516 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646880644
+2026-10-09 01:15:53,690 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646881246
+2026-10-09 01:15:57,119 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646893875
+2026-10-09 01:15:57,320 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646894476
+2026-10-09 01:15:57,495 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646895078
+2026-10-09 01:15:57,720 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646895680
+2026-10-09 01:15:57,920 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646896280
+2026-10-09 01:15:57,920 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646896882
+2026-10-09 01:15:58,120 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646897483
+2026-10-09 01:15:58,496 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646898686
+2026-10-09 01:15:58,721 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646899288
+2026-10-09 01:15:58,921 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646899889
+2026-10-09 01:15:59,121 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646901102
+2026-10-09 01:15:59,322 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646901704
+2026-10-09 01:15:59,522 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646902305
+2026-10-09 01:15:59,722 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646902906
+2026-10-09 01:15:59,922 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646903508
+2026-10-09 01:15:59,922 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646904109
+2026-10-09 01:16:00,522 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646905923
+2026-10-09 01:16:01,312 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646908930
+2026-10-09 01:16:01,935 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646910733
+2026-10-09 01:16:02,336 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646911936
+2026-10-09 01:16:02,502 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646913139
+2026-10-09 01:16:03,336 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646916146
+2026-10-09 01:16:09,527 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646938837
+2026-10-09 01:16:11,129 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646944248
+2026-10-09 01:16:11,146 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646944090
+2026-10-09 01:16:11,310 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646944691
+2026-10-09 01:16:16,051 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646961529
+2026-10-09 01:16:20,018 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646975963
+2026-10-09 01:16:20,655 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646978369
+2026-10-09 01:16:20,856 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646978970
+2026-10-09 01:16:21,056 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646980173
+2026-10-09 01:16:21,256 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646980775
+2026-10-09 01:16:21,456 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646981376
+2026-10-09 01:16:21,857 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646982579
+2026-10-09 01:16:22,022 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646983180
+2026-10-09 01:16:22,057 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646983782
+2026-10-09 01:16:22,457 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646984984
+2026-10-09 01:16:23,058 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646987390
+2026-10-09 01:16:23,258 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646987992
+2026-10-09 01:16:23,458 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646988593
+2026-10-09 01:16:24,459 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646992221
+2026-10-09 01:16:25,825 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646997116
+2026-10-09 01:16:26,462 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646997731
+2026-10-09 01:16:27,063 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647001359
+2026-10-09 01:16:27,263 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647001969
+2026-10-09 01:16:34,056 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647026865
+2026-10-09 01:16:34,074 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647026667
+2026-10-09 01:16:34,875 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647029683
+2026-10-09 01:16:35,075 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647030285
+2026-10-09 01:16:38,679 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647043523
+2026-10-09 01:16:40,566 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647049705
+2026-10-09 01:16:40,568 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H excluded training window ending at round 1647049737
+2026-10-09 01:16:40,578 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F excluded training window ending at round 1647050165
+2026-10-09 01:16:40,580 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647050128
+2026-10-09 01:16:44,784 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647065171
+2026-10-09 01:16:44,985 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647065773
+2026-10-09 01:16:45,146 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647066374
+2026-10-09 01:16:45,185 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647066975
+2026-10-09 01:16:45,385 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647067576
+2026-10-09 01:16:45,585 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647068188
+2026-10-09 01:16:45,785 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647068789
+2026-10-09 01:16:45,986 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647069390
+2026-10-09 01:16:48,188 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647077819
+2026-10-09 01:16:49,389 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647082029
+2026-10-09 01:16:50,390 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647085636
+2026-10-09 01:16:50,590 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647086238
+2026-10-09 01:16:53,593 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647097071
+2026-10-09 01:16:53,754 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647097673
+2026-10-09 01:16:54,394 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647100077
+2026-10-09 01:16:55,395 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647103685
+2026-10-09 01:16:58,189 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647113454
+2026-10-09 01:16:58,189 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647114055
+2026-10-09 01:16:58,197 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647113907
+2026-10-09 01:16:58,798 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647115711
+2026-10-09 01:16:59,399 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647118117
+2026-10-09 01:17:00,000 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647120522
+2026-10-09 01:17:00,191 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647120670
+2026-10-09 01:17:02,694 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647129690
+2026-10-09 01:17:02,703 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647129542
+2026-10-09 01:17:06,907 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647144585
+2026-10-09 01:17:08,909 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647151811
+2026-10-09 01:17:08,910 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647152412
+2026-10-09 01:17:09,110 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647153014
+2026-10-09 01:17:09,310 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647153615
+2026-10-09 01:17:09,511 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647154216
+2026-10-09 01:17:09,711 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647154818
+2026-10-09 01:17:09,911 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647155420
+2026-10-09 01:17:10,512 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647157824
+2026-10-09 01:17:10,712 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647158427
+2026-10-09 01:17:10,912 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647159037
+2026-10-09 01:17:10,912 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647159639
+2026-10-09 01:17:14,716 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647173469
+2026-10-09 01:17:16,117 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647178280
+2026-10-09 01:17:16,717 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647180083
+2026-10-09 01:17:24,627 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647208344
+2026-10-09 01:17:27,226 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647218094
+2026-10-09 01:17:27,230 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647217965
+2026-10-09 01:17:32,639 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647237822
+2026-10-09 01:17:32,839 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647238422
+2026-10-09 01:17:33,039 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647239023
+2026-10-09 01:17:33,239 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647239625
+2026-10-09 01:17:33,404 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647240226
+2026-10-09 01:17:33,639 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647241429
+2026-10-09 01:17:33,840 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647242031
+2026-10-09 01:17:34,040 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647242632
+2026-10-09 01:17:37,245 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647254067
+2026-10-09 01:17:38,044 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647257093
+2026-10-09 01:17:39,446 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647261904
+2026-10-09 01:17:40,847 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647267334
+2026-10-09 01:17:41,448 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647269158
+2026-10-09 01:17:41,648 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647270370
+2026-10-09 01:17:41,848 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647270972
+2026-10-09 01:17:44,646 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647280689
+2026-10-09 01:17:46,555 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647287214
+2026-10-09 01:17:49,754 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647299349
+2026-10-09 01:17:49,754 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H excluded training window ending at round 1647299312
+2026-10-09 01:17:49,763 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647299261
+2026-10-09 01:17:50,164 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647300464
+2026-10-09 01:21:31,371 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F (subtask 5) entering TRAINING: 1006 train windows (2 excluded by outlier sanitization), 288 early-stop windows
+2026-10-09 01:21:31,401 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C (subtask 2) entering TRAINING: 992 train windows (16 excluded by outlier sanitization), 288 early-stop windows
+2026-10-09 01:21:31,700 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G (subtask 6) entering TRAINING: 878 train windows (130 excluded by outlier sanitization), 288 early-stop windows
+2026-10-09 01:21:34,270 INFO  org.nd4j.nativeblas.NativeOpsHolder                          [] - Number of threads used for linear algebra: 1
+2026-10-09 01:21:34,277 INFO  org.nd4j.nativeblas.Nd4jBlas                                 [] - Number of threads used for OpenMP BLAS: 1
+2026-10-09 01:31:52,256 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F trained: hidden=60, window=60, batch=64, 44 epochs (last improvement at epoch 24, longest plateau 5), early-stop loss=0.04661801518885616, 620.881s
+2026-10-09 01:33:22,866 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F calibrated: median=0.15861121472035283, IQR=0.3701342093073466, threshold=2.22
+2026-10-09 01:33:22,866 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F entering ONLINE
+2026-10-09 01:35:26,911 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C trained: hidden=60, window=60, batch=64, 63 epochs (last improvement at epoch 43, longest plateau 13), early-stop loss=0.18379850892708893, 835.509s
+2026-10-09 01:36:32,129 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C calibrated: median=0.3190026394001149, IQR=0.39559776380979517, threshold=2.22
+2026-10-09 01:36:32,129 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C entering ONLINE
+2026-10-09 01:36:56,481 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G trained: hidden=60, window=60, batch=64, 82 epochs (last improvement at epoch 62, longest plateau 5), early-stop loss=0.046266392714934906, 924.78s
+2026-10-09 01:37:46,876 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G calibrated: median=0.19583762718183942, IQR=0.3110724369659814, threshold=2.22
+2026-10-09 01:37:46,876 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G entering ONLINE
+2026-10-09 01:48:50,177 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H (subtask 7) entering TRAINING: 1005 train windows (3 excluded by outlier sanitization), 288 early-stop windows
+2026-10-09 01:54:50,225 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H trained: hidden=60, window=60, batch=64, 43 epochs (last improvement at epoch 23, longest plateau 5), early-stop loss=0.0712478648579484, 360.011s
+2026-10-09 01:55:41,382 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H calibrated: median=0.15639563665719497, IQR=0.23780480954999103, threshold=2.22
+2026-10-09 01:55:41,382 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H entering ONLINE
+===== fa-worker2 / taskmanager-3 =====
+2026-10-09 01:15:03,278 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646699506
+2026-10-09 01:15:03,324 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646699923
+2026-10-09 01:15:03,455 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646699424
+2026-10-09 01:15:13,279 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B excluded training window ending at round 1646735614
+2026-10-09 01:15:14,863 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646741414
+2026-10-09 01:15:17,678 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646751730
+2026-10-09 01:15:17,697 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646751819
+2026-10-09 01:15:17,878 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646752331
+2026-10-09 01:15:19,268 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646757678
+2026-10-09 01:15:19,467 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646758279
+2026-10-09 01:15:21,872 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646766726
+2026-10-09 01:15:40,419 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646833513
+2026-10-09 01:15:45,823 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646853352
+2026-10-09 01:15:47,626 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646859378
+2026-10-09 01:16:00,740 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646906874
+2026-10-09 01:16:00,742 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646906981
+2026-10-09 01:16:00,940 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646907475
+2026-10-09 01:16:00,942 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646907583
+2026-10-09 01:16:06,548 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646928024
+2026-10-09 01:16:06,948 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646928625
+2026-10-09 01:16:10,550 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646942352
+2026-10-09 01:16:33,675 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1647025380
+2026-10-09 01:16:34,089 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647026920
+2026-10-09 01:16:34,234 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B excluded training window ending at round 1647027307
+2026-10-09 01:16:40,380 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B excluded training window ending at round 1647049634
+2026-10-09 01:16:40,581 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1647050031
+2026-10-09 01:16:40,585 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647050113
+2026-10-09 01:16:40,596 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647049779
+2026-10-09 01:16:40,780 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B excluded training window ending at round 1647050466
+2026-10-09 01:16:53,755 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647097627
+2026-10-09 01:16:53,999 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647098829
+2026-10-09 01:16:58,214 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647113549
+2026-10-09 01:17:16,733 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647180008
+2026-10-09 01:17:17,733 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647184217
+2026-10-09 01:17:27,246 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647218188
+2026-10-09 01:17:39,462 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647262125
+2026-10-09 01:17:39,662 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647262727
+2026-10-09 01:17:40,467 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647265996
+2026-10-09 01:17:40,667 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647266598
+2026-10-09 01:17:41,870 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647270806
+2026-10-09 01:17:42,470 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1647273124
+2026-10-09 01:17:42,470 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647273210
+2026-10-09 01:17:47,077 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1647289374
+2026-10-09 01:17:49,778 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B excluded training window ending at round 1647299459
+2026-10-09 01:17:49,780 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647299424
+2026-10-09 01:21:30,857 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E (subtask 4) entering TRAINING: 997 train windows (11 excluded by outlier sanitization), 288 early-stop windows
+2026-10-09 01:21:30,948 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D (subtask 3) entering TRAINING: 993 train windows (15 excluded by outlier sanitization), 288 early-stop windows
+2026-10-09 01:21:31,366 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A (subtask 0) entering TRAINING: 994 train windows (14 excluded by outlier sanitization), 288 early-stop windows
+2026-10-09 01:21:33,646 INFO  org.nd4j.nativeblas.NativeOpsHolder                          [] - Number of threads used for linear algebra: 1
+2026-10-09 01:21:33,653 INFO  org.nd4j.nativeblas.Nd4jBlas                                 [] - Number of threads used for OpenMP BLAS: 1
+2026-10-09 01:39:36,984 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A trained: hidden=60, window=60, batch=64, 79 epochs (last improvement at epoch 59, longest plateau 13), early-stop loss=0.07058825048193978, 1085.616s
+2026-10-09 01:41:07,974 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A calibrated: median=0.27922194764082275, IQR=0.35343649992440446, threshold=2.22
+2026-10-09 01:41:07,974 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A entering ONLINE
+2026-10-09 01:46:25,249 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E trained: hidden=60, window=60, batch=64, 118 epochs (last improvement at epoch 98, longest plateau 9), early-stop loss=0.030497488740066185, 1494.39s
+2026-10-09 01:47:30,121 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E calibrated: median=0.1546518696628152, IQR=0.20746275165272748, threshold=2.22
+2026-10-09 01:47:30,121 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E entering ONLINE
+2026-10-09 01:47:46,932 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D trained: hidden=60, window=60, batch=64, 126 epochs (last improvement at epoch 106, longest plateau 15), early-stop loss=0.04550920786224863, 1575.984s
+2026-10-09 01:47:46,932 WARN  com.leejean.m3.M3Function                                    [] - [M3] Device D REPORT: longest plateau 15 epochs is within 5 of the patience 20
+2026-10-09 01:48:38,369 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D calibrated: median=0.14324502676033163, IQR=0.23733230960348256, threshold=2.22
+2026-10-09 01:48:38,369 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D entering ONLINE
+2026-10-09 01:55:41,548 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B (subtask 1) entering TRAINING: 1003 train windows (5 excluded by outlier sanitization), 288 early-stop windows
+2026-10-09 02:02:01,962 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B trained: hidden=60, window=60, batch=64, 46 epochs (last improvement at epoch 26, longest plateau 6), early-stop loss=0.12691124386348754, 380.412s
+2026-10-09 02:02:53,177 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B calibrated: median=0.12835670804531224, IQR=0.22153802620807844, threshold=2.22
+2026-10-09 02:02:53,177 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B entering ONLINE

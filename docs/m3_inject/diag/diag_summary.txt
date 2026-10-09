@@ -1,0 +1,190 @@
+诊断时间：2026-10-09 10:08:47 CST，日志起点：2026-10-09T01:10:57Z
+
+== 容器状态 ==
+/jobmanager 状态=running 启动于=2026-10-09T01:05:54.042845935Z 重启次数=0 内存被杀=false 退出码=0
+/kafka-1 状态=running 启动于=2026-10-09T01:06:19.666315549Z 重启次数=3 内存被杀=false 退出码=0
+/zookeeper 状态=running 启动于=2026-10-09T01:05:54.109309044Z 重启次数=0 内存被杀=false 退出码=0
+/taskmanager-2 状态=running 启动于=2026-10-09T01:05:53.519750689Z 重启次数=0 内存被杀=false 退出码=0
+/kafka-2 状态=running 启动于=2026-10-09T01:05:53.469502213Z 重启次数=0 内存被杀=false 退出码=0
+/taskmanager-3 状态=running 启动于=2026-10-09T01:05:53.258155386Z 重启次数=0 内存被杀=false 退出码=0
+/kafka-3 状态=running 启动于=2026-10-09T01:06:22.682307653Z 重启次数=4 内存被杀=false 退出码=0
+
+== JobManager 进程启动记录（出现多次说明 JobManager 重启过）==
+
+== 作业状态变化 ==
+
+== 检查点（触发、完成、失败、过期、拒绝）==
+4485:2026-10-09 02:03:03,540 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 80 (type=CHECKPOINT) @ 1791511383539 for job bce435a5700bea8e045b3c1a7054afb3.
+4542:2026-10-09 02:03:03,642 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 80 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 103 ms).
+4544:2026-10-09 02:03:03,644 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 81 (type=CHECKPOINT) @ 1791511383643 for job bce435a5700bea8e045b3c1a7054afb3.
+4601:2026-10-09 02:03:03,780 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 81 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 137 ms).
+4603:2026-10-09 02:03:03,782 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 82 (type=CHECKPOINT) @ 1791511383782 for job bce435a5700bea8e045b3c1a7054afb3.
+4660:2026-10-09 02:03:03,904 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 82 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 122 ms).
+4662:2026-10-09 02:03:03,906 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 83 (type=CHECKPOINT) @ 1791511383906 for job bce435a5700bea8e045b3c1a7054afb3.
+4719:2026-10-09 02:03:04,029 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 83 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 123 ms).
+4721:2026-10-09 02:03:04,031 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 84 (type=CHECKPOINT) @ 1791511384030 for job bce435a5700bea8e045b3c1a7054afb3.
+4778:2026-10-09 02:03:04,160 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 84 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 129 ms).
+4780:2026-10-09 02:03:04,165 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 85 (type=CHECKPOINT) @ 1791511384161 for job bce435a5700bea8e045b3c1a7054afb3.
+4837:2026-10-09 02:03:04,298 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 85 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 137 ms).
+4839:2026-10-09 02:03:04,304 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 86 (type=CHECKPOINT) @ 1791511384304 for job bce435a5700bea8e045b3c1a7054afb3.
+4896:2026-10-09 02:03:04,428 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 86 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 123 ms).
+4898:2026-10-09 02:03:04,429 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 87 (type=CHECKPOINT) @ 1791511384428 for job bce435a5700bea8e045b3c1a7054afb3.
+4955:2026-10-09 02:03:04,572 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 87 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 144 ms).
+4957:2026-10-09 02:03:04,576 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 88 (type=CHECKPOINT) @ 1791511384575 for job bce435a5700bea8e045b3c1a7054afb3.
+5014:2026-10-09 02:03:04,687 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 88 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 112 ms).
+5016:2026-10-09 02:03:04,689 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 89 (type=CHECKPOINT) @ 1791511384688 for job bce435a5700bea8e045b3c1a7054afb3.
+5073:2026-10-09 02:03:04,810 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 89 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 122 ms).
+5075:2026-10-09 02:03:04,814 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 90 (type=CHECKPOINT) @ 1791511384813 for job bce435a5700bea8e045b3c1a7054afb3.
+5132:2026-10-09 02:03:04,941 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 90 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 128 ms).
+5134:2026-10-09 02:03:04,947 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 91 (type=CHECKPOINT) @ 1791511384947 for job bce435a5700bea8e045b3c1a7054afb3.
+5191:2026-10-09 02:03:05,075 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 91 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 127 ms).
+5193:2026-10-09 02:03:05,076 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 92 (type=CHECKPOINT) @ 1791511385076 for job bce435a5700bea8e045b3c1a7054afb3.
+5251:2026-10-09 02:03:05,256 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 92 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 179 ms).
+5254:2026-10-09 02:03:05,259 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 93 (type=CHECKPOINT) @ 1791511385259 for job bce435a5700bea8e045b3c1a7054afb3.
+5311:2026-10-09 02:03:05,397 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 93 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 138 ms).
+5313:2026-10-09 02:03:05,398 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 94 (type=CHECKPOINT) @ 1791511385398 for job bce435a5700bea8e045b3c1a7054afb3.
+5370:2026-10-09 02:03:05,543 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 94 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 145 ms).
+5372:2026-10-09 02:03:05,545 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 95 (type=CHECKPOINT) @ 1791511385544 for job bce435a5700bea8e045b3c1a7054afb3.
+5429:2026-10-09 02:03:05,658 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 95 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 114 ms).
+5431:2026-10-09 02:03:05,660 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 96 (type=CHECKPOINT) @ 1791511385659 for job bce435a5700bea8e045b3c1a7054afb3.
+5488:2026-10-09 02:03:05,771 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 96 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 112 ms).
+5490:2026-10-09 02:03:05,773 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 97 (type=CHECKPOINT) @ 1791511385772 for job bce435a5700bea8e045b3c1a7054afb3.
+5547:2026-10-09 02:03:05,925 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 97 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 153 ms).
+5549:2026-10-09 02:03:05,927 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 98 (type=CHECKPOINT) @ 1791511385926 for job bce435a5700bea8e045b3c1a7054afb3.
+5606:2026-10-09 02:03:06,052 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 98 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 126 ms).
+5608:2026-10-09 02:03:06,054 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 99 (type=CHECKPOINT) @ 1791511386053 for job bce435a5700bea8e045b3c1a7054afb3.
+5665:2026-10-09 02:03:06,188 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 99 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 134 ms).
+5667:2026-10-09 02:03:06,193 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 100 (type=CHECKPOINT) @ 1791511386193 for job bce435a5700bea8e045b3c1a7054afb3.
+5724:2026-10-09 02:03:06,312 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 100 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 119 ms).
+5726:2026-10-09 02:03:06,314 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 101 (type=CHECKPOINT) @ 1791511386313 for job bce435a5700bea8e045b3c1a7054afb3.
+5783:2026-10-09 02:03:06,478 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 101 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 165 ms).
+5785:2026-10-09 02:03:06,480 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 102 (type=CHECKPOINT) @ 1791511386480 for job bce435a5700bea8e045b3c1a7054afb3.
+5842:2026-10-09 02:03:06,636 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 102 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 156 ms).
+5844:2026-10-09 02:03:06,638 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 103 (type=CHECKPOINT) @ 1791511386637 for job bce435a5700bea8e045b3c1a7054afb3.
+5901:2026-10-09 02:03:06,760 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 103 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 122 ms).
+5903:2026-10-09 02:03:06,761 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 104 (type=CHECKPOINT) @ 1791511386760 for job bce435a5700bea8e045b3c1a7054afb3.
+5960:2026-10-09 02:03:06,877 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 104 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 117 ms).
+5962:2026-10-09 02:03:06,879 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 105 (type=CHECKPOINT) @ 1791511386878 for job bce435a5700bea8e045b3c1a7054afb3.
+6019:2026-10-09 02:03:07,009 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 105 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 130 ms).
+6021:2026-10-09 02:03:07,012 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 106 (type=CHECKPOINT) @ 1791511387011 for job bce435a5700bea8e045b3c1a7054afb3.
+6078:2026-10-09 02:03:07,170 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 106 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 159 ms).
+6080:2026-10-09 02:03:07,171 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 107 (type=CHECKPOINT) @ 1791511387171 for job bce435a5700bea8e045b3c1a7054afb3.
+6137:2026-10-09 02:03:07,301 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 107 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 130 ms).
+6139:2026-10-09 02:03:07,303 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 108 (type=CHECKPOINT) @ 1791511387302 for job bce435a5700bea8e045b3c1a7054afb3.
+6196:2026-10-09 02:03:07,416 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 108 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 113 ms).
+6198:2026-10-09 02:03:31,271 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 109 (type=CHECKPOINT) @ 1791511411271 for job bce435a5700bea8e045b3c1a7054afb3.
+6255:2026-10-09 02:03:31,376 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 109 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 105 ms).
+6257:2026-10-09 02:04:01,272 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 110 (type=CHECKPOINT) @ 1791511441271 for job bce435a5700bea8e045b3c1a7054afb3.
+6314:2026-10-09 02:04:01,371 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 110 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 100 ms).
+6316:2026-10-09 02:04:31,272 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 111 (type=CHECKPOINT) @ 1791511471271 for job bce435a5700bea8e045b3c1a7054afb3.
+6373:2026-10-09 02:04:31,361 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 111 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 90 ms).
+6375:2026-10-09 02:05:01,272 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 112 (type=CHECKPOINT) @ 1791511501271 for job bce435a5700bea8e045b3c1a7054afb3.
+6432:2026-10-09 02:05:01,371 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 112 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 100 ms).
+6434:2026-10-09 02:05:31,272 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 113 (type=CHECKPOINT) @ 1791511531271 for job bce435a5700bea8e045b3c1a7054afb3.
+6491:2026-10-09 02:05:31,370 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 113 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 99 ms).
+6493:2026-10-09 02:06:01,271 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 114 (type=CHECKPOINT) @ 1791511561271 for job bce435a5700bea8e045b3c1a7054afb3.
+6550:2026-10-09 02:06:01,369 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 114 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 98 ms).
+6552:2026-10-09 02:06:31,272 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 115 (type=CHECKPOINT) @ 1791511591271 for job bce435a5700bea8e045b3c1a7054afb3.
+6609:2026-10-09 02:06:31,392 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 115 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 121 ms).
+6611:2026-10-09 02:07:01,271 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 116 (type=CHECKPOINT) @ 1791511621271 for job bce435a5700bea8e045b3c1a7054afb3.
+6668:2026-10-09 02:07:01,377 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 116 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 105 ms).
+6670:2026-10-09 02:07:31,272 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 117 (type=CHECKPOINT) @ 1791511651271 for job bce435a5700bea8e045b3c1a7054afb3.
+6727:2026-10-09 02:07:31,377 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 117 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 105 ms).
+6729:2026-10-09 02:08:01,272 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 118 (type=CHECKPOINT) @ 1791511681271 for job bce435a5700bea8e045b3c1a7054afb3.
+6786:2026-10-09 02:08:01,361 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 118 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 90 ms).
+6788:2026-10-09 02:08:31,272 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 119 (type=CHECKPOINT) @ 1791511711271 for job bce435a5700bea8e045b3c1a7054afb3.
+6845:2026-10-09 02:08:31,352 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Completed checkpoint 119 for job bce435a5700bea8e045b3c1a7054afb3 (16003895 bytes in 80 ms).
+
+== 异常与内存（JobManager）==
+5250:2026-10-09 02:03:05,231 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointStatisticDetailsHandler [] - Exception occurred in REST handler: Could not find checkpointing statistics for checkpoint 66.
+5252:2026-10-09 02:03:05,256 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointStatisticDetailsHandler [] - Exception occurred in REST handler: Could not find checkpointing statistics for checkpoint 67.
+
+== 异常与内存（TaskManager）==
+-- tm2.log --
+829:org.apache.kafka.common.errors.DisconnectException: null
+874:org.apache.kafka.common.errors.DisconnectException: null
+876:org.apache.kafka.common.errors.DisconnectException: null
+878:org.apache.kafka.common.errors.DisconnectException: null
+-- tm3.log --
+763:org.apache.kafka.common.errors.DisconnectException: null
+782:org.apache.kafka.common.errors.DisconnectException: null
+
+== M3 训练记录 ==
+[M3] Device F (subtask 5) entering TRAINING: 1006 train windows (2 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device C (subtask 2) entering TRAINING: 992 train windows (16 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device G (subtask 6) entering TRAINING: 878 train windows (130 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device F trained: hidden=60, window=60, batch=64, 44 epochs (last improvement at epoch 24, longest plateau 5), early-stop loss=0.04661801518885616, 620.881s
+[M3] Device F calibrated: median=0.15861121472035283, IQR=0.3701342093073466, threshold=2.22
+[M3] Device F entering ONLINE
+[M3] Device C trained: hidden=60, window=60, batch=64, 63 epochs (last improvement at epoch 43, longest plateau 13), early-stop loss=0.18379850892708893, 835.509s
+[M3] Device C calibrated: median=0.3190026394001149, IQR=0.39559776380979517, threshold=2.22
+[M3] Device C entering ONLINE
+[M3] Device G trained: hidden=60, window=60, batch=64, 82 epochs (last improvement at epoch 62, longest plateau 5), early-stop loss=0.046266392714934906, 924.78s
+[M3] Device G calibrated: median=0.19583762718183942, IQR=0.3110724369659814, threshold=2.22
+[M3] Device G entering ONLINE
+[M3] Device H (subtask 7) entering TRAINING: 1005 train windows (3 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device H trained: hidden=60, window=60, batch=64, 43 epochs (last improvement at epoch 23, longest plateau 5), early-stop loss=0.0712478648579484, 360.011s
+[M3] Device H calibrated: median=0.15639563665719497, IQR=0.23780480954999103, threshold=2.22
+[M3] Device H entering ONLINE
+[M3] Device E (subtask 4) entering TRAINING: 997 train windows (11 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device D (subtask 3) entering TRAINING: 993 train windows (15 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device A (subtask 0) entering TRAINING: 994 train windows (14 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device A trained: hidden=60, window=60, batch=64, 79 epochs (last improvement at epoch 59, longest plateau 13), early-stop loss=0.07058825048193978, 1085.616s
+[M3] Device A calibrated: median=0.27922194764082275, IQR=0.35343649992440446, threshold=2.22
+[M3] Device A entering ONLINE
+[M3] Device E trained: hidden=60, window=60, batch=64, 118 epochs (last improvement at epoch 98, longest plateau 9), early-stop loss=0.030497488740066185, 1494.39s
+[M3] Device E calibrated: median=0.1546518696628152, IQR=0.20746275165272748, threshold=2.22
+[M3] Device E entering ONLINE
+[M3] Device D trained: hidden=60, window=60, batch=64, 126 epochs (last improvement at epoch 106, longest plateau 15), early-stop loss=0.04550920786224863, 1575.984s
+[M3] Device D REPORT: longest plateau 15 epochs is within 5 of the patience 20
+[M3] Device D calibrated: median=0.14324502676033163, IQR=0.23733230960348256, threshold=2.22
+[M3] Device D entering ONLINE
+[M3] Device B (subtask 1) entering TRAINING: 1003 train windows (5 excluded by outlier sanitization), 288 early-stop windows
+[M3] Device B trained: hidden=60, window=60, batch=64, 46 epochs (last improvement at epoch 26, longest plateau 6), early-stop loss=0.12691124386348754, 380.412s
+[M3] Device B calibrated: median=0.12835670804531224, IQR=0.22153802620807844, threshold=2.22
+[M3] Device B entering ONLINE
+
+== 检查点相关集群配置 ==
+taskmanager.memory.process.size = 1728m
+jobmanager.memory.off-heap.size = 134217728b
+jobmanager.memory.jvm-overhead.min = 214748368b
+jobmanager.memory.process.size = 2048m
+akka.framesize = 268435456b
+jobmanager.memory.jvm-metaspace.size = 268435456b
+jobmanager.memory.heap.size = 1530082096b
+jobmanager.memory.jvm-overhead.max = 214748368b
+
+== 作业列表 ==
+{"jobs":[{"jid":"bce435a5700bea8e045b3c1a7054afb3","name":"M2Job - M1 ingestion/normalization + pMCOD + LSTM-AE contextual anomaly detection","state":"RUNNING","start-time":1791508159406,"end-time":-1,"duration":3559260,"last-modification":1791508163433,"tasks":{"total":56,"created":0,"scheduled":0,"deploying":0,"running":56,"finished":0,"canceling":0,"canceled":0,"failed":0,"reconciling":0,"initializing":0}}]}
+
+== 内存 ==
+===== fa-master =====
+               total        used        free      shared  buff/cache   available
+Mem:            7266        3179         158           3        3928        3815
+Swap:              0           0           0
+
+jobmanager CPU=0.80% 内存=2.013GiB / 7.096GiB
+kafka-1 CPU=0.93% 内存=980.8MiB / 7.096GiB
+node-exporter CPU=0.00% 内存=12.19MiB / 7.096GiB
+zookeeper CPU=0.08% 内存=109.9MiB / 7.096GiB
+prometheus CPU=0.00% 内存=137.2MiB / 7.096GiB
+grafana CPU=0.10% 内存=96.4MiB / 7.096GiB
+
+===== fa-worker1 =====
+               total        used        free      shared  buff/cache   available
+Mem:            7266        3940         289           2        3036        3049
+Swap:              0           0           0
+
+taskmanager-2 CPU=1.65% 内存=2.868GiB / 7.096GiB
+kafka-2 CPU=0.80% 内存=1007MiB / 7.096GiB
+node-exporter-2 CPU=0.00% 内存=8.484MiB / 7.096GiB
+
+===== fa-worker2 =====
+               total        used        free      shared  buff/cache   available
+Mem:            7266        3892         348           2        3026        3100
+Swap:              0           0           0
+
+taskmanager-3 CPU=1.60% 内存=2.869GiB / 7.096GiB
+kafka-3 CPU=0.75% 内存=1.022GiB / 7.096GiB
+node-exporter-3 CPU=0.00% 内存=9.762MiB / 7.096GiB
+

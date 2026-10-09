@@ -1,0 +1,26 @@
+[job] bce435a5700bea8e045b3c1a7054afb3  (M2Job - M1 ingestion/normalization + pMCOD + LSTM-AE contextual anomaly detection)
+============================================
+== 三道闸 / gates ==
+  m2_gate_admitted             3520747
+  m2_gate_warmup_bypass        483840
+  m2_gate_missing_bypass       378
+  m2_gate_censored_entered     0
+  m2_gate_coldstart_clear      17
+  m2_gate_late_drop            0
+== M2 ==
+  m2_outliers_total            72677
+  m2_points_total              211158904
+  m2_mc_points_total           210070506
+  m2_windows_total             598922
+  m2_state_cold_clears         17
+== M1（对账参照） ==
+  m1_assembler_rounds_total    4004965
+  m1_assembler_incomplete_rounds 430
+  m1_assembler_dup_keys        608
+  m1_scaler_warmup_rounds      483840
+  m1_parser_censored_light     0
+  m1_parser_rssi_sentinel      0
+  m1_parser_unknown_sensor     0
+============================================
+对账 / reconcile: admitted(3520747) ?= rounds(4004965) − warmup(483840) − missing(378) = 3520747  → 闭合 OK
+交叉核对 warmup: scaler(483840) vs gate(483840) → 一致
