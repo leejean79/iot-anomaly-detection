@@ -36,7 +36,7 @@
 #      --freeze-new docs/m2_replay_verify_marapr.csv      本次运行的逐台冻结时刻；
 #      --verify-log docs/m3_marapr/replay_verify.txt      本次重放核验的终端输出（读五条断言）；
 #      --metrics docs/m3_marapr/m2_metrics_final.txt      本次运行排空后的计数器（读点通道迟到丢弃 m2_gate_late_drop）。
-#    后四项用来核对「点通道数字取自三月至四月运行、与三月重跑等价」的两个条件。
+#    后四项用来核对「点通道数字取自 --monitoring 所给的运行、与三月重跑等价」的两个条件。
 #    可选：--start 2022-03-19、--end 2022-04-01（不含）、--base-start 2022-03-19、--base-end 2022-03-22（不含）、
 #    --devices D,E（单独出图的设备）。
 # 3. 前置条件：--profile 的参照期必须是 03-17 至 03-19（即三月重跑那一份），这样宽度倍数才与任务书中
@@ -65,7 +65,10 @@ def day_of(ts):
 
 
 def load_monitoring(path, t0, t1):
-    """M2 快照（windowEnd > 0）按 (设备, 小时) 聚合 / aggregate M2 snapshots by (device, hour)."""
+    """M2 快照按 (设备, 小时) 聚合 / aggregate M2 snapshots by (device, hour).
+    监测主题里还有 M1 快照（windowEnd 为 0）与上下文通道快照（windowEnd 非 0，但 m2WindowPoints 为 0），
+    只认 m2WindowPoints > 0 的点通道快照，否则上下文通道的零值会把离群率与微簇占比拉低。
+    Keep only point-channel snapshots (m2WindowPoints > 0); context-channel snapshots also carry a windowEnd."""
     agg = {}
     with open(path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
@@ -74,7 +77,7 @@ def load_monitoring(path, t0, t1):
             except ValueError:
                 continue
             we = int(o.get("windowEnd", 0) or 0)
-            if we <= 0 or not (t0 <= we < t1) or not o.get("device"):
+            if we <= 0 or int(o.get("m2WindowPoints", 0) or 0) <= 0 or not (t0 <= we < t1) or not o.get("device"):
                 continue
             a = agg.setdefault((o["device"], we // 3600 * 3600), ([], [], []))
             a[0].append(float(o.get("m2OutlierRate", 0.0) or 0.0))
@@ -382,7 +385,7 @@ def equivalence_section(a):
     """点通道等价性的两个条件（设计会话 2026-10-03 回复第一节）。
     Two conditions under which the point channel of this run equals the March rerun's."""
     L = ["## 点通道等价性的两个条件", "",
-         "点通道的数字取自三月至四月运行。点异常检测没有训练出来的参数，状态只由输入与事件时间决定，"
+         "点通道的数字取自 --monitoring 所给的运行。点异常检测没有训练出来的参数，状态只由输入与事件时间决定，"
          "满足以下两个条件时，03-19 至 03-31 的输出与三月重跑逐位相同。", ""]
     if not (a.freeze_ref and a.freeze_new and a.verify_log and a.metrics):
         return L + ["缺少 --freeze-ref、--freeze-new、--verify-log 或 --metrics，未核对。", ""]
@@ -411,7 +414,7 @@ def equivalence_section(a):
     for d in devs:
         f = lambda v: datetime.fromtimestamp(int(v), UTC).strftime("%m-%d %H:%M:%S") if v else "缺"
         L.append("| %s | %s | %s | %s |" % (d, f(old.get(d)), f(new.get(d)), "是" if old.get(d) == new.get(d) else "否"))
-    L += ["", "结论：%s" % ("两个条件都成立。点通道数字取自三月至四月运行，与三月重跑的等价性由确定性保证，条件已核对。"
+    L += ["", "结论：%s" % ("两个条件都成立。点通道数字取自 --monitoring 所给的运行，与三月重跑的等价性由确定性保证，条件已核对。"
                           if c1 and c2 else "条件不全成立，点通道数字不能当作三月重跑的结果，须上报设计会话。"), ""]
     return L
 

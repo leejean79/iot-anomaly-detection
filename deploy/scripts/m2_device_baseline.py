@@ -67,8 +67,11 @@ def parse_r_per_device(spec):
 
 
 def load_snapshots(path):
-    """读 monitoring 转储，只取 M2 快照（windowEnd>0；M1 快照的 windowEnd 恒为 0）。
-    Read the dump, keeping only M2 snapshots (M1 snapshots always carry windowEnd = 0)."""
+    """读 monitoring 转储，只取 M2 快照：M1 快照的 windowEnd 恒为 0；启用 M3 后，上下文通道快照的 windowEnd
+    非 0 但 m2WindowPoints 为 0，也要排除，否则每个上下文窗口都被当成一个离群率为 0 的滑动步，离群率被系统性
+    拉低约 6%（注入运行 2026-10-09 实测）。
+    Read the dump, keeping only M2 snapshots: M1 snapshots carry windowEnd = 0, and with M3 enabled the
+    context-channel snapshots carry a windowEnd but m2WindowPoints = 0; counting them diluted the rate by ~6%."""
     per_dev = {}
     total, kept, bad = 0, 0, 0
     with open(path, "r", encoding="utf-8", errors="replace") as fh:
@@ -84,6 +87,8 @@ def load_snapshots(path):
                 continue
             if int(o.get("windowEnd", 0) or 0) <= 0:
                 continue          # M1 快照，跳过 / M1 snapshot
+            if int(o.get("m2WindowPoints", 0) or 0) <= 0:
+                continue          # 上下文通道快照，跳过 / context-channel snapshot
             dev = o.get("device")
             if not dev:
                 continue
