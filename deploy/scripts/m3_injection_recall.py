@@ -81,7 +81,9 @@ def main():
         ctx[d].sort()
 
     # 背景：注入日期内、所有注入区间（前后各加一个窗长）之外 / background outside all injection spans
-    inj_days = {day(t["start"]) for t in truth} | {day(t["end"]) for t in truth}
+    # 区间左闭右开：结束时刻恰在零点时不属于次日，所以取 end - 1 所在的日期。
+    # Intervals are half-open: an injection ending exactly at midnight does not touch the next day.
+    inj_days = {day(t["start"]) for t in truth} | {day(t["end"] - 1) for t in truth}
     def outside(dv, ts, w):
         return all(not (t["start"] - w <= ts < t["end"] + w) for t in truth if t["device"] == dv)
     bg = {}
@@ -109,6 +111,10 @@ def main():
             "point_detected": "是" if p_hits else "否",
             "point_delay_sec": (min(p_hits) - s0) if p_hits else "",
             "point_hits": len(p_hits),
+            # 区间内与区间结束后分开计：爬坡、卡死结束时数值跳回原始读数，相当于一次反向阶跃，结束后的离群不代表
+            # 注入本身被识别。Split inside vs after the interval: the return to raw values at the end acts as a step.
+            "point_in": sum(1 for rt, we in point[dv] if s0 <= rt < s1),
+            "point_after": sum(1 for rt, we in point[dv] if s1 <= rt < s1 + W_POINT),
             "point_chance": "%.3f" % (1 - (1 - bpt) ** n_rounds),
             "ctx_detected": "是" if c_hits else "否",
             "ctx_delay_sec": (min(c_hits) - s0) if c_hits else "",
@@ -127,12 +133,13 @@ def main():
          "口径：检出 = 注入区间内（含其后一个窗长：点通道 3600 秒，上下文通道 600 秒）出现超阈；首次检出延迟 = 首个超阈"
          "窗口末减注入开始时刻。点通道只计在到达滑动步内被判离群的轮。「偶然检出概率」按同一设备在注入日期、注入区间"
          "以外的背景超阈比例估算，接近 1 时该行的「检出」不能说明注入被识别。", "",
-         "| 序号 | 通道 | 类型 | 档位 | 开始（UTC） | 时长 | 点通道检出 | 点通道延迟 | 点通道偶然概率 | 上下文检出 | 上下文延迟 | 上下文超阈窗/窗 | 上下文偶然概率 |",
-         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+         "| 序号 | 通道 | 类型 | 档位 | 开始（UTC） | 时长 | 点通道检出 | 点通道延迟 | 点通道离群轮（区间内/结束后） | 点通道偶然概率 | 上下文检出 | 上下文延迟 | 上下文超阈窗/窗 | 上下文偶然概率 |",
+         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
     for r in rows:
-        L.append("| %d | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |" % (
+        L.append("| %d | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |" % (
             r["no"], r["channel"], r["type"], r["level"], r["start_utc"],
-            fmt_delay(r["duration_sec"]), r["point_detected"], fmt_delay(r["point_delay_sec"]), r["point_chance"],
+            fmt_delay(r["duration_sec"]), r["point_detected"], fmt_delay(r["point_delay_sec"]),
+            "%d/%d" % (r["point_in"], r["point_after"]), r["point_chance"],
             r["ctx_detected"], fmt_delay(r["ctx_delay_sec"]), r["ctx_hits"], r["ctx_chance"]))
     L += ["", "## 背景", ""]
     for dv, (bctx, bpt, n) in sorted(bg.items()):
@@ -187,7 +194,7 @@ def figures(a, rows, truth, point, ctx):
         axes[1].axhline(2.22, color=INK2, lw=0.8, ls="--")
         axes[1].set_ylabel("Context: main\nscore (z)", rotation=0, ha="right", va="center")
         axes[0].set_title("#%d %s %s %s %s (grey = injection; dashed = threshold 2.22)"
-                          % (r["no"], dv, t["channel"], t["type"], r["level"]), loc="left")
+                          % (r["no"], dv, t["channel"], t["type"], r["level"].replace("轮", " rounds")), loc="left")
         axes[1].xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M"))
         fig.tight_layout()
         fig.savefig(os.path.join(a.out_dir, "figs", "inject_%02d_%s.png" % (r["no"], t["type"])), dpi=130)
