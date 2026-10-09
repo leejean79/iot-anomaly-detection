@@ -430,3 +430,4 @@ JobManager 堆内存也要装得下。代码里的默认值（间隔 10 秒、�
 | 2026-10-06 | 过时注释已更正（第十一节）；时间用语统一为 Flink 术语「事件时间」「处理时间」 |
 | 2026-10-08 | 在 5.4 节 `M3Training` 处补充 `EpochListener` 的说明（回调，不是线程）；新增注入专题文档 `docs/injection_guide_zh.md`，涵盖注入策略、代码阅读要点与使用方法 |
 | 2026-10-08 | 按 2026-10-06 裁决与注入参数书：第八节补 JavaCPP 上限 3,900 MB 与三个新脚本（`syn-tm-recreate.sh`、`m3_injection_recall.py`、`m3_bh_analysis.py`）；注入专题文档同步新参数（尖峰按轮、间隔下限 3,660 秒、气体补做、平稳日参照期 03-08 至 03-17）。Java 代码本轮没有改动 |
+| 2026-10-09 | 注入运行后的脚本修正：`m2_device_baseline.py` 与 `m3_dual_channel_week.py` 只认 `m2WindowPoints > 0` 的点通道快照（启用 M3 后上下文通道也向监测主题写带窗口末时刻的快照）；`m3_injection_recall.py` 修正注入日期集合并分列区间内与结束后的点通道离群；`syn-tm-recreate.sh` 改读 `/proc`。Java 代码没有改动 |
