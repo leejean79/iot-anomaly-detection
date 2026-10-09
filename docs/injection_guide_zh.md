@@ -159,10 +159,12 @@
 - **调用命令**（两段重放中的第二段）：
   ```bash
   bash deploy/scripts/syn-replay.sh --speedup 3600 --start 2022-03-27 --end 2022-05-01 --inject-file docs/m3_inject_spec.txt
-  bash deploy/scripts/syn-replay.sh logs
+  ssh fa-master "grep -nE '\[syn-replay\] (start|exit)|Injection' /opt/fa-iforest/syn-replay.log | cut -c1-160 | tail -6"
   ```
 - **前置条件**：作业已提交并处于运行状态；第一段重放已放完，并且八台设备都已进入在线。
-- **期望产出**：日志开头打印 `Injection: 12 spec(s)`（有气体补做时为 14）及每条规格；结束时打印
+  不要用 `syn-replay.sh logs` 查看：它是 `tail -f`，只显示最后 10 行并持续跟踪，不会退出，开头的注入行早已滚出。
+  重放日志是追加写入的，两段重放和以前各次运行都在同一个文件里，所以只看最后几行。
+- **期望产出**：最后一个 `[syn-replay] start` 行的参数里带 `--inject`，其后打印 `Injection: 12 spec(s)`（有气体补做时为 14）；结束时打印
   `Injection applied: <行数>`，行数应大于 0；master 上生成 `/opt/fa-iforest/replay-state/inject-truth.csv`（表头一行加
   每条规格一行）。
 - **常见失败**：结束时出现 `[WARN] No rows matched injection specs`，说明没有任何行被改写，通常是通道名与原始数据中
