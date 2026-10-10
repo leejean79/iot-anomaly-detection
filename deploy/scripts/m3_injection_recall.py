@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 # ============================================================================
 # m3_injection_recall.py
-# V-M3-5 注入召回表与双通道对注入的响应对比（2026-10-06《注入实验参数（书面版）》的召回表口径）。
+# V-M3-5 注入召回表与双通道对注入的响应对比。
 # V-M3-5 injection recall table and the dual-channel response to each injection.
 #
-# 口径 / definitions：
-#   - 检出：注入区间内（含其后一个窗长）出现超阈。点通道窗长 3600 秒，上下文通道窗长 600 秒。
-#   - 首次检出延迟：首个超阈窗口末减注入开始时刻。
+# 口径（2026-10-09 裁决第二节第 2 条）/ definitions (ruling of 2026-10-09, item 2)：
+#   - 检出：首次超阈落在注入区间 [开始, 结束) 内才算。点通道看离群轮的时间戳；上下文通道看窗口起点，
+#     窗口起点按「窗口末 − 600 秒」估算（60 轮、约每 10 秒一轮）。
+#   - 首次检出延迟：首个计入的超阈记录的窗口末减注入开始时刻。
 #   - 点通道的「超阈」：注入设备的离群记录，且该轮在它到达的滑动步内被判离群（窗口末 − 60 秒 ≤ 轮时间戳
-#     < 窗口末），轮时间戳落在 [注入开始, 注入结束 + 3600 秒)；检出时刻取该记录的窗口末。只取到达滑动步，是为了
-#     不把注入开始前就已在窗口里的离群点（每个滑动步都会重发）算作检出。
-#   - 上下文通道的「超阈」：注入设备 aboveThreshold 为真的评分，窗口末落在 (注入开始, 注入结束 + 600 秒]。
+#     < 窗口末）。只取到达滑动步，是为了不把注入开始前就已在窗口里的离群点（每个滑动步都会重发）算作检出。
+#   - 结束时跳回响应单列：点通道在 [结束, 结束 + 3600 秒) 内的离群轮数与首个离群距结束的时间。爬坡、卡死结束时
+#     数值跳回原始读数，相当于一次反向阶跃，这部分响应不计入检出。
+#   - 参考列：上下文通道按「窗口与注入区间重叠」计的检出与延迟（10-06 参数书的旧口径），供比较两种口径。
 #   - 背景：同一设备在注入所在日期、所有注入区间（前后各加一个窗长）之外的超阈比例；据此给出「偶然检出概率」
 #     = 1 − (1 − 背景比例)^(检出时段内的窗口或轮数)，用来区分真检出与碰巧落在区间里的误报。
 #
@@ -99,10 +101,14 @@ def main():
     rows = []
     for i, t in enumerate(sorted(truth, key=lambda r: r["start"]), 1):
         dv, s0, s1 = t["device"], t["start"], t["end"]
-        p_hits = [we for rt, we in point[dv] if s0 <= rt < s1 + W_POINT]
-        c_hits = [we for we, hit, _ in ctx[dv] if hit and s0 < we <= s1 + W_CTX]
-        n_ctx = sum(1 for we, _, _ in ctx[dv] if s0 < we <= s1 + W_CTX)
-        n_rounds = (s1 - s0 + W_POINT) / 10.0
+        p_hits = [we for rt, we in point[dv] if s0 <= rt < s1]                          # 区间内 / inside
+        p_jump = [we for rt, we in point[dv] if s1 <= rt < s1 + W_POINT]                # 结束时跳回 / end jump
+        in_win = lambda we: s0 <= we - W_CTX < s1                                       # 窗口起点在区间内
+        c_hits = [we for we, hit, _ in ctx[dv] if hit and in_win(we)]
+        n_ctx = sum(1 for we, _, _ in ctx[dv] if in_win(we))
+        ov_win = lambda we: we > s0 and we - W_CTX < s1                                 # 参考：窗口与区间重叠
+        c_ov = [we for we, hit, _ in ctx[dv] if hit and ov_win(we)]
+        n_rounds = max(1.0, (s1 - s0) / 10.0)
         bctx, bpt, _ = bg[dv]
         rows.append({
             "no": i, "device": dv, "channel": t["channel"], "type": t["type"],
@@ -110,16 +116,16 @@ def main():
             "start_utc": iso(s0), "duration_sec": s1 - s0,
             "point_detected": "是" if p_hits else "否",
             "point_delay_sec": (min(p_hits) - s0) if p_hits else "",
-            "point_hits": len(p_hits),
-            # 区间内与区间结束后分开计：爬坡、卡死结束时数值跳回原始读数，相当于一次反向阶跃，结束后的离群不代表
-            # 注入本身被识别。Split inside vs after the interval: the return to raw values at the end acts as a step.
-            "point_in": sum(1 for rt, we in point[dv] if s0 <= rt < s1),
-            "point_after": sum(1 for rt, we in point[dv] if s1 <= rt < s1 + W_POINT),
+            "point_in": len(p_hits),
+            "point_jump": len(p_jump),
+            "point_jump_delay_sec": (min(p_jump) - s1) if p_jump else "",
             "point_chance": "%.3f" % (1 - (1 - bpt) ** n_rounds),
             "ctx_detected": "是" if c_hits else "否",
             "ctx_delay_sec": (min(c_hits) - s0) if c_hits else "",
             "ctx_hits": "%d/%d" % (len(c_hits), n_ctx),
             "ctx_chance": "%.3f" % (1 - (1 - bctx) ** max(n_ctx, 1)),
+            "ctx_overlap_detected": "是" if c_ov else "否",
+            "ctx_overlap_delay_sec": (min(c_ov) - s0) if c_ov else "",
         })
 
     os.makedirs(os.path.join(a.out_dir, "figs"), exist_ok=True)
@@ -130,17 +136,20 @@ def main():
 
     fmt_delay = lambda v: "-" if v == "" else ("%d 秒" % v if v < 600 else "%.1f 分钟" % (v / 60.0))
     L = ["# V-M3-5 注入召回表", "",
-         "口径：检出 = 注入区间内（含其后一个窗长：点通道 3600 秒，上下文通道 600 秒）出现超阈；首次检出延迟 = 首个超阈"
-         "窗口末减注入开始时刻。点通道只计在到达滑动步内被判离群的轮。「偶然检出概率」按同一设备在注入日期、注入区间"
-         "以外的背景超阈比例估算，接近 1 时该行的「检出」不能说明注入被识别。", "",
-         "| 序号 | 通道 | 类型 | 档位 | 开始（UTC） | 时长 | 点通道检出 | 点通道延迟 | 点通道离群轮（区间内/结束后） | 点通道偶然概率 | 上下文检出 | 上下文延迟 | 上下文超阈窗/窗 | 上下文偶然概率 |",
-         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+         "口径（2026-10-09 裁决第二节第 2 条）：只计首次超阈落在注入区间内的响应。点通道看离群轮的时间戳（只计在到达"
+         "滑动步内被判离群的轮）；上下文通道看窗口起点（按窗口末 − 600 秒估算）。首次检出延迟 = 首个计入记录的窗口末减"
+         "注入开始时刻。「结束时跳回」单列：点通道在注入结束后一个窗长（3600 秒）内的离群轮数，以及首个离群距结束的时间，"
+         "不计入检出。「参考：重叠口径」为上下文窗口与注入区间有重叠即计的旧口径。「偶然检出概率」按同一设备在注入日期、"
+         "注入区间以外的背景超阈比例估算。", "",
+         "| 序号 | 通道 | 类型 | 档位 | 开始（UTC） | 时长 | 点通道检出 | 点通道延迟 | 点通道区间内离群轮 | 点通道结束时跳回（离群轮/距结束） | 点通道偶然概率 | 上下文检出 | 上下文延迟 | 上下文超阈窗/窗 | 上下文偶然概率 | 参考：上下文重叠口径（检出/延迟） |",
+         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
     for r in rows:
-        L.append("| %d | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |" % (
+        L.append("| %d | %s | %s | %s | %s | %s | %s | %s | %d | %d / %s | %s | %s | %s | %s | %s | %s / %s |" % (
             r["no"], r["channel"], r["type"], r["level"], r["start_utc"],
             fmt_delay(r["duration_sec"]), r["point_detected"], fmt_delay(r["point_delay_sec"]),
-            "%d/%d" % (r["point_in"], r["point_after"]), r["point_chance"],
-            r["ctx_detected"], fmt_delay(r["ctx_delay_sec"]), r["ctx_hits"], r["ctx_chance"]))
+            r["point_in"], r["point_jump"], fmt_delay(r["point_jump_delay_sec"]), r["point_chance"],
+            r["ctx_detected"], fmt_delay(r["ctx_delay_sec"]), r["ctx_hits"], r["ctx_chance"],
+            r["ctx_overlap_detected"], fmt_delay(r["ctx_overlap_delay_sec"])))
     L += ["", "## 背景", ""]
     for dv, (bctx, bpt, n) in sorted(bg.items()):
         L.append("- 设备 %s：上下文通道背景超阈比例 %.2f%%（%d 个窗口）；点通道背景离群轮比例 %.3f%%。"

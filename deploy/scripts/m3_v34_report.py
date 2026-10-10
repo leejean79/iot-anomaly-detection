@@ -3,9 +3,10 @@
 # m3_v34_report.py
 # V-M3-4 的两项报告（2026-10-02 裁决第四节第 3、4 条）：
 #   其一，全程逐日告警率与逐日通道剖面并排；
-#   其二，平稳日误报率：平稳日定义为五个检测通道的机队中位偏移绝对值都不超过 0.5 个标定期宽度的日子，
-#         期望 0.1% 至 1%；另加「共模比例」：告警窗口中，同一小时内告警设备数达到「该小时在场设备数的四分之三
-#         向上取整」（八台为六、六台为五，2026-10-06 裁决第四节）的占比。
+#   其二，平稳日误报率，期望 0.1% 至 1%。2026-10-09 裁决第二节第 5 条起按逐台平稳日计算：该设备五个检测通道的
+#         偏移绝对值都不超过 0.5 个参照期宽度的日子；机队中位平稳日只用于共模比例等机队统计。另加「共模比例」：
+#         告警窗口中，同一小时内告警设备数达到「该小时在场设备数的四分之三向上取整」（八台为六、六台为五，
+#         2026-10-06 裁决第四节）的占比。
 # 持续数日、全机队同时的高告警率记为漂移事件，不计为误报（第四节第 4 条）。
 # V-M3-4 per the ruling of 2026-10-02 section 4: daily alarm rate beside the daily channel profile, the
 # false-alarm rate on stable days, and the common-mode share of alarm windows.
@@ -89,8 +90,10 @@ def main():
 
     # 逐日通道剖面：每个通道每天取各设备偏移的中位数（机队中位偏移）。
     shift = collections.defaultdict(list)
+    dev_shift = {}          # (设备, 通道, 日) → 该设备自身的偏移 / the device's own shift
     for r in csv.DictReader(open(a.profile, encoding="utf-8")):
         shift[(r["channel"], r["day"])].append(float(r["shift_in_ref_widths"]))
+        dev_shift[(r["device"], r["channel"], r["day"])] = float(r["shift_in_ref_widths"])
     fleet = {(c, d): float(np.median(shift[(c, d)])) for c in CHANNELS for d in days if shift.get((c, d))}
     stable, missing = [], []
     for d in days:
@@ -99,6 +102,15 @@ def main():
             missing.append(d)
         elif all(abs(v) <= a.stable_max for v in vals):
             stable.append(d)
+
+    # 逐台平稳日（2026-10-09 裁决第二节第 5 条）：按该设备自身五个通道的偏移判定，误报率在各自的平稳日上算；
+    # 机队中位平稳日只用于共模比例等机队统计。
+    # Per-device stable days (ruling of 2026-10-09, item 5): judged on the device's own five channel shifts;
+    # the fleet-median stable days are kept only for fleet statistics such as the common-mode share.
+    dev_stable = {}
+    for dv in devices:
+        dev_stable[dv] = {d for d in days
+                          if all((dv, c, d) in dev_shift and abs(dev_shift[(dv, c, d)]) <= a.stable_max for c in CHANNELS)}
 
     # 逐日告警率 / daily alarm rate
     n, al = collections.Counter(), collections.Counter()
@@ -127,13 +139,15 @@ def main():
         return 100.0 * cm / len(alarms), len(alarms)
 
     st_set = set(stable)
-    st_recs = [r for r in recs if day_of(r["windowEnd"]) in st_set]
+    st_recs = [r for r in recs if day_of(r["windowEnd"]) in st_set]                          # 机队平稳日 / fleet
+    dst_recs = [r for r in recs if day_of(r["windowEnd"]) in dev_stable[r["device"]]]        # 逐台平稳日 / per device
 
     out = []
     p = out.append
     p("# V-M3-4 报告（%s 至 %s）\n" % (a.start, (t1 - timedelta(days=1)).strftime("%Y-%m-%d")))
-    p("平稳日定义：五个检测通道的机队中位偏移（各设备当日中位数相对剖面参照期中位数的偏移，以参照期 P10–P90 "
-      "宽度为单位，再取设备间中位数）绝对值都不超过 %.1f。共模：同一小时内告警设备数达到%s。\n"
+    p("逐台平稳日（2026-10-09 裁决第二节第 5 条）：该设备五个检测通道的偏移（当日中位数相对剖面参照期中位数的偏移，"
+      "以参照期 P10–P90 宽度为单位）绝对值都不超过 %.1f，误报率在各台自己的平稳日上计算。机队平稳日：五个通道的"
+      "机队中位偏移（再取设备间中位数）都不超过该值，只用于共模比例等机队统计。共模：同一小时内告警设备数达到%s。\n"
       % (a.stable_max, ("固定的 %d 台" % a.common_min) if a.common_min > 0
          else "该小时在场设备数的四分之三向上取整（八台为六，六台为五）"))
     if excluded:
@@ -141,23 +155,27 @@ def main():
           % ("、".join(sorted(excluded)), len(devices)))
     if inj:
         p("本报告按注入真值排除了 %d 段注入区间（各延长 3600 秒）内注入设备的评分。\n" % len(inj))
-    p("## 一、平稳日误报率\n")
-    p("平稳日共 %d 天：%s。" % (len(stable), "、".join(stable) or "无"))
-    if missing:
-        p("剖面缺少数据、不计为平稳日的日子：%s。" % "、".join(missing))
-    p("\n| 设备 | 平稳日窗口数 | 超阈值 | 误报率 |")
-    p("| --- | --- | --- | --- |")
+    p("## 一、逐台平稳日误报率\n")
+    p("| 设备 | 平稳日天数 | 平稳日 | 平稳日窗口数 | 超阈值 | 误报率 |")
+    p("| --- | --- | --- | --- | --- | --- |")
     tot_n = tot_a = 0
     for dv in devices:
-        rs = [r for r in st_recs if r["device"] == dv]
+        rs = [r for r in dst_recs if r["device"] == dv]
         k = sum(bool(r["aboveThreshold"]) for r in rs)
         tot_n += len(rs)
         tot_a += k
-        p("| %s | %d | %d | %s |" % (dv, len(rs), k, ("%.2f%%" % (100.0 * k / len(rs))) if rs else "-"))
-    p("| 机队 | %d | %d | %s |" % (tot_n, tot_a, ("%.2f%%" % (100.0 * tot_a / tot_n)) if tot_n else "-"))
+        p("| %s | %d | %s | %d | %d | %s |" % (dv, len(dev_stable[dv]), "、".join(sorted(dev_stable[dv])) or "无",
+                                            len(rs), k, ("%.2f%%" % (100.0 * k / len(rs))) if rs else "-"))
+    p("| 机队（合并） | - | - | %d | %d | %s |" % (tot_n, tot_a, ("%.2f%%" % (100.0 * tot_a / tot_n)) if tot_n else "-"))
+    p("\n机队平稳日共 %d 天：%s。" % (len(stable), "、".join(stable) or "无"))
+    if missing:
+        p("剖面缺少数据、不计为机队平稳日的日子：%s。" % "、".join(missing))
+    k_f = sum(bool(r["aboveThreshold"]) for r in st_recs)
+    p("作对照：按机队平稳日计算的机队误报率为 %s（%d / %d）。"
+      % (("%.2f%%" % (100.0 * k_f / len(st_recs))) if st_recs else "-", k_f, len(st_recs)))
     cs_all, na_all = common_share(recs)
     cs_st, na_st = common_share(st_recs)
-    p("\n共模比例：全程告警窗口 %d 个，其中共模 %s；平稳日告警窗口 %d 个，其中共模 %s。期望：平稳日误报率在 "
+    p("\n共模比例：全程告警窗口 %d 个，其中共模 %s；机队平稳日告警窗口 %d 个，其中共模 %s。期望：平稳日误报率在 "
       "0.1%% 至 1%% 之间。" % (na_all, ("%.1f%%" % cs_all) if cs_all is not None else "-",
                          na_st, ("%.1f%%" % cs_st) if cs_st is not None else "-"))
 
@@ -174,6 +192,7 @@ def main():
         row = {"day": d, "stable": d in st_set, "fleet_alarm_pct": fr}
         row.update({"alarm_pct_" + dv: rate((dv, d)) for dv in devices})
         row.update({"fleet_shift_" + c: fleet.get((c, d)) for c in CHANNELS})
+        row.update({"stable_" + dv: d in dev_stable[dv] for dv in devices})
         rows.append(row)
     p("\n各设备列为当日告警率（%）；通道列为机队中位偏移（单位：剖面参照期 P10–P90 宽度）。"
       "持续数日、全机队同时的高告警率按裁决记为漂移事件，不计为误报。")
@@ -183,9 +202,9 @@ def main():
         w.writeheader()
         w.writerows(rows)
 
-    figures(a, days, st_set, rows, st_recs, devices)
+    figures(a, days, st_set, rows, dst_recs, devices)
     p("\n图：`v34_daily.png`（逐日告警率与五个通道的机队中位偏移，上下对齐，灰底为平稳日）；"
-      "`v34_score_hist.png`（平稳日主分分布，逐设备，虚线为阈值 %.2f）。" % a.threshold)
+      "`v34_score_hist.png`（各台自身平稳日上的主分分布，虚线为阈值 %.2f）。" % a.threshold)
     text = "\n".join(out) + "\n"
     print(text)
     open(os.path.join(a.out_dir, "v34_report.md"), "w", encoding="utf-8").write(text)
@@ -253,7 +272,7 @@ def figures(a, days, st_set, rows, st_recs, devices):
             ax.spines[s].set_visible(False)
     for ax in axes[len(devices):]:
         ax.set_visible(False)
-    fig.suptitle("Main score on stable days (dashed line = threshold %.2f; windows above %.0f are counted "
+    fig.suptitle("Main score on each device's own stable days (dashed line = threshold %.2f; windows above %.0f are counted "
                  "in each title, not drawn)" % (a.threshold, hi_x), x=0.01, ha="left")
     fig.supxlabel("Main score z = (WMSE - median) / IQR")
     fig.tight_layout()
