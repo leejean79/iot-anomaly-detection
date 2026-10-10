@@ -29,7 +29,7 @@
 
 ### 0.2 「剖面」是什么
 
-剖面是 `eda/daily_channel_profile.py` 生成的一张表，回答一个问题：**某一天，某台设备某个通道的原始读数，和
+剖面是 `../../eda/daily_channel_profile.py` 生成的一张表，回答一个问题：**某一天，某台设备某个通道的原始读数，和
 「正常时期」相比偏了多少、散了多少。**
 
 计算方法：
@@ -59,13 +59,13 @@
 
 | 编号 | 内容 | 本项目的做法与出处 |
 | --- | --- | --- |
-| V-M1-1 | M1 读入与产出对账 | 全量读入条数、装配轮数与探索性数据分析（EDA）的统计逐一对上，`docs/m1_acceptance.md` |
+| V-M1-1 | M1 读入与产出对账 | 全量读入条数、装配轮数与探索性数据分析（EDA）的统计逐一对上，`../m1_acceptance.md` |
 | V-M1-2 | M1 时间语义与停机压缩 | 全集群停机 102.3 小时被压缩、H 单独停机不压缩，水位线延迟 55 秒 |
 | V-M1-3 | M1 装配抽检 | 抽 50 条装配结果，与原始数据逐值核对 |
 | V-M1-4 | M1 守卫计数对账 | 非法读数、未知传感器等守卫计数与 EDA 总数逐字对上 |
 | V-M1-5 | M1 全量压力测试 | 165 天全量重放的吞吐、反压、状态大小、检查点耗时 |
 | V-M2-1 | M2 功能正确性（离线） | MCOD 实现与参考实现逐步对拍，`McodEquivalenceTest` |
-| V-M2-2 | M2 集群单日联合作业与计数器对账 | 单日重放，计数器闭合，`docs/m2_acceptance.md` |
+| V-M2-2 | M2 集群单日联合作业与计数器对账 | 单日重放，计数器闭合，`../m2_acceptance.md` |
 | V-M2-3 | M2 半径与邻居阈值（R、k）的校准探针表 | 离线网格扫 R、k，按离群率选定逐设备半径 |
 | V-M2-4 | M2 一个月段压力测试 | 一个月重放，在线离群率与探针表互证 |
 | V-M2-5 | M2 Java 11 迁移后的逐设备等值核验 | 在线离群率与离线参照相差不超过 ±1%；本次注入运行完成形式化比较 |
@@ -78,7 +78,7 @@
 
 ### 0.4 重放完整性的七条断言
 
-`deploy/scripts/syn-replay-verify.sh` 在每次长运行结束时执行，七条全部通过才认为这次运行的数据可用。
+`../../deploy/scripts/syn-replay-verify.sh` 在每次长运行结束时执行，七条全部通过才认为这次运行的数据可用。
 
 | 断言 | 检查什么 | 为什么需要 |
 | --- | --- | --- |
@@ -152,10 +152,10 @@
 | 环节 | 产物 | 位置 |
 | --- | --- | --- |
 | 裁决 | 裁决书、参数书 | 由用户上传 |
-| 实现 | 代码、脚本（附五要素）、测试 | `src/`、`deploy/scripts/`、`eda/` |
+| 实现 | 代码、脚本（附五要素）、测试 | `../../src`、`../../deploy/scripts`、`../../eda` |
 | 手册 | 逐步命令、期望输出、失败处理 | `docs/*_runbook_zh.md` |
 | 运行数据 | 评分、日志、时间线、核验输出 | `docs/<运行名>/` |
-| 报告 | 结论、证据、缺陷记录、待裁决事项 | `docs/reports/` |
+| 报告 | 结论、证据、缺陷记录、待裁决事项 | `../reports` |
 
 脚本的「五要素」是：执行环境、调用命令、前置条件、期望产出、失败兜底。手册中的每一步也按这五项写，执行的人
 照着做就能判断每一步是否正常。
@@ -361,7 +361,7 @@ warmup：scaler(483840) 与 gate(483840) 一致
 
 ### 8.3 报告结构
 
-本项目报告统一用以下结构（例如 `docs/reports/m3_inject_run_report.md`）：
+本项目报告统一用以下结构（例如 `../reports/m3_inject_run_report.md`）：
 
 1. **结论**：编号列出，每条一两句话，附关键数字。
 2. **运行有效性**：断言、通过条件、确定性核对。
@@ -440,14 +440,14 @@ N+2、请设计会话裁决或知悉的事项
 
 | 阶段 | 文件 |
 | --- | --- |
-| 数据与剖面 | `eda/count_rounds.py`、`eda/daily_channel_profile.py`、`eda/make_injection_specs.py` |
-| 环境与提交 | `deploy/scripts/syn-reset-env.sh`、`syn-tm-recreate.sh`、`check-jar.sh`、`syn-upload-m1.sh`、`syn-submit-m2.sh` |
-| 重放与注入 | `deploy/scripts/syn-replay.sh`、`src/main/java/com/leejean/source/Injector.java` |
-| 监控 | `deploy/scripts/syn-m3-watch.sh`、`syn-m2-metrics.sh`、`syn-m3-diag.sh` |
-| 核验 | `deploy/scripts/syn-replay-verify.sh`、`syn-m2-late-drop-history.sh` |
-| 收集 | `deploy/scripts/syn-m3-march-collect.sh`、`syn-m3-perf-collect.sh` |
-| 离线参照 | `deploy/scripts/syn-m2-probe.sh`、`syn-m2-baseline.sh`、`syn-m3-grid.sh` |
-| 分析 | `deploy/scripts/m3_coldstart_report.py`、`m3_v34_report.py`（误报率）、`m3_injection_recall.py`（注入召回表）、`m3_dual_channel_week.py`（三月事件双通道对比）、`m3_bh_analysis.py`（B 与 H 分析） |
-| 运行手册 | `docs/m3_prevalidation_runbook_zh.md`、`docs/m3_marapr_runbook_zh.md`、`docs/m3_inject_runbook_zh.md` |
-| 报告 | `docs/reports/m3_marapr_late_drop_incident.md`、`docs/reports/m3_marapr_run_report.md`、`docs/reports/m3_inject_run_report.md` |
-| 说明 | `docs/code_reading_guide_zh.md`、`docs/injection_guide_zh.md` |
+| 数据与剖面 | `../../eda/count_rounds.py`、`../../eda/daily_channel_profile.py`、`../../eda/make_injection_specs.py` |
+| 环境与提交 | `../../deploy/scripts/syn-reset-env.sh`、`syn-tm-recreate.sh`、`check-jar.sh`、`syn-upload-m1.sh`、`syn-submit-m2.sh` |
+| 重放与注入 | `../../deploy/scripts/syn-replay.sh`、`../../src/main/java/com/leejean/source/Injector.java` |
+| 监控 | `../../deploy/scripts/syn-m3-watch.sh`、`syn-m2-metrics.sh`、`syn-m3-diag.sh` |
+| 核验 | `../../deploy/scripts/syn-replay-verify.sh`、`syn-m2-late-drop-history.sh` |
+| 收集 | `../../deploy/scripts/syn-m3-march-collect.sh`、`syn-m3-perf-collect.sh` |
+| 离线参照 | `../../deploy/scripts/syn-m2-probe.sh`、`syn-m2-baseline.sh`、`syn-m3-grid.sh` |
+| 分析 | `../../deploy/scripts/m3_coldstart_report.py`、`m3_v34_report.py`（误报率）、`m3_injection_recall.py`（注入召回表）、`m3_dual_channel_week.py`（三月事件双通道对比）、`m3_bh_analysis.py`（B 与 H 分析） |
+| 运行手册 | `../m3_prevalidation_runbook_zh.md`、`../m3_marapr_runbook_zh.md`、`../m3_inject_runbook_zh.md` |
+| 报告 | `../reports/m3_marapr_late_drop_incident.md`、`../reports/m3_marapr_run_report.md`、`../reports/m3_inject_run_report.md` |
+| 说明 | `../code_reading_guide_zh.md`、`../injection_guide_zh.md` |

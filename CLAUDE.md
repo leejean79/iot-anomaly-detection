@@ -118,7 +118,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - 表格、代码示例、命令行示例之外的正文部分,必须以完整句子组织,不使用裸名词短语充当一句话。
 - 列举要点时,每个条目须为完整的陈述句,而不是名词+省略号的形式。
 - 用完整、正常的中文句子写作，不再用那种省略虚词、堆叠短语、用斜杠缩写的电报式压缩中文
-- 提到验收项编号（如 V-M3-5）时，同时写出它对应的内容，例如「V-M3-5（注入召回表）」；编号对照表见 `docs/experiment_design_guide_zh.md` 第 0.3 节
+- 提到验收项编号（如 V-M3-5）时，同时写出它对应的内容，例如「V-M3-5（注入召回表）」；编号对照表见 `docs/design/experiment_design_guide_zh.md` 第 0.3 节
 
 ## 6. 脚本与命令的交付要求(Script Delivery)
 
