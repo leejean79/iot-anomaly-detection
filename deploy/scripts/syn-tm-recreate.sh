@@ -13,13 +13,17 @@
 # ---------------------------- 脚本交付五要素 -------------------------------
 # 1. 执行环境 / Environment: 本地 Mac，仓库根目录；ssh 别名 fa-worker1、fa-worker2 可用。
 # 2. 调用命令 / Invocation:
-#      bash deploy/scripts/syn-tm-recreate.sh
+#      bash deploy/scripts/syn-tm-recreate.sh                 # 先核对内存余量，再重建
+#      bash deploy/scripts/syn-tm-recreate.sh --check-only    # 只核对内存余量，不做任何改动
+#    内存余量核对（2026-10-09 裁决第二节第 6 条：进程总量提到 5120MB 前，先核实工作节点至少剩 1GB）：
+#    重建后的剩余内存按「当前可用内存 + 现有 TaskManager 进程常驻内存 − .env 中的 TM_HEAP_MB」估算，
+#    任一台不足 1024MB 时不重建。
 # 3. 前置条件 / Preconditions: 集群上**没有作业在运行**（重建 TaskManager 会让运行中的作业失败）；
-#    本地 deploy/.env 已改好（例如 SYN_JAVACPP_MAXPHYSICALBYTES=3900m）。
+#    本地 deploy/.env 已改好（例如 TM_HEAP_MB=5120 与 SYN_JAVACPP_MAXPHYSICALBYTES=5120m）。
 # 4. 期望产出 / Expected output: 每台 worker 打印重建前后 Kafka 容器的创建时间（应相同）、TaskManager 的
 #    新创建时间，以及 JavaCPP 物理内存上限的两个取值：容器配置里的值与运行中进程实际带的值（读 /proc，镜像里
 #    没有 ps）。两者都应等于 .env 中的 SYN_JAVACPP_MAXPHYSICALBYTES，不一致时以退出码 1 结束。
-# 5. 失败兜底 / Failure fallback: 发现有作业在运行时退出码 3，不做任何改动；.env 中某台 worker 的内网地址与
+# 5. 失败兜底 / Failure fallback: 内存余量不足时退出码 4，不做任何改动；发现有作业在运行时退出码 3，不做任何改动；.env 中某台 worker 的内网地址与
 #    现有 TaskManager 注册的地址不同时跳过该台并以退出码 1 结束；某台 worker 的 Kafka 创建时间前后不同时
 #    打印「Kafka 被重建」并以退出码 1 结束，此时请立即停下上报。
 # ============================================================================
@@ -29,6 +33,34 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(dirname "$SCRIPT_DIR")"
 set -a; source "$DEPLOY_DIR/.env"; set +a
 RHOME="${REMOTE_HOME:-/opt/fa-iforest}"
+CHECK_ONLY=0
+[ "${1:-}" = "--check-only" ] && CHECK_ONLY=1
+
+# 内存余量核对 / memory headroom check: 可用内存 + 现有 TaskManager 常驻内存 − 新的进程总量 ≥ 1024MB
+mem_ok=1
+for spec in "fa-worker1 taskmanager-2" "fa-worker2 taskmanager-3"; do
+    set -- $spec
+    host=$1; tm=$2
+    avail_kb="$(ssh "$host" "awk '/^MemAvailable:/{print \$2}' /proc/meminfo" 2>/dev/null)"
+    rss_kb="$(ssh "$host" "docker exec -i $tm sh -s" 2>/dev/null <<'EOS'
+for d in /proc/[0-9]*; do
+    if tr '\000' ' ' < "$d/cmdline" 2>/dev/null | grep -q TaskManagerRunner; then awk '/^VmRSS:/{print $2}' "$d/status"; break; fi
+done
+EOS
+)"
+    proj_mb=$(( (${avail_kb:-0} + ${rss_kb:-0}) / 1024 - TM_HEAP_MB ))
+    echo "${host}：可用 $(( ${avail_kb:-0} / 1024 ))MB，现有 TaskManager 常驻 $(( ${rss_kb:-0} / 1024 ))MB，" \
+         "进程总量 ${TM_HEAP_MB}MB 时预计剩余 ${proj_mb}MB（要求 ≥ 1024MB）"
+    if [ -z "$avail_kb" ] || [ "$proj_mb" -lt 1024 ]; then
+        echo "  ⚠ ${host} 内存余量不足或读取失败。" >&2
+        mem_ok=0
+    fi
+done
+if [ "$mem_ok" -ne 1 ]; then
+    echo "ERROR: 内存余量核对未通过，不重建。请把上面的输出告诉代码开发代理。" >&2
+    exit 4
+fi
+[ "$CHECK_ONLY" -eq 1 ] && { echo "内存余量核对通过（只核对，未做改动）。"; exit 0; }
 
 RUNNING="$(ssh fa-master "docker exec jobmanager flink list 2>/dev/null" | grep -E '\(RUNNING\)' || true)"
 if [ -n "$RUNNING" ]; then
@@ -77,8 +109,8 @@ EOS
         [ -n "$run" ] && break
         sleep 5
     done
-    echo "JavaCPP 物理内存上限：容器配置 ${cfg:-?}；运行中进程 ${run:-?}（期望 ${SYN_JAVACPP_MAXPHYSICALBYTES:-3900m}）"
-    if [ "$run" != "${SYN_JAVACPP_MAXPHYSICALBYTES:-3900m}" ]; then
+    echo "JavaCPP 物理内存上限：容器配置 ${cfg:-?}；运行中进程 ${run:-?}（期望 ${SYN_JAVACPP_MAXPHYSICALBYTES:-5120m}）"
+    if [ "$run" != "${SYN_JAVACPP_MAXPHYSICALBYTES:-5120m}" ]; then
         echo "  ⚠ 运行中进程的取值与 .env 不一致。"
         rc=1
     fi
