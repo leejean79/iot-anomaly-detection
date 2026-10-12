@@ -45,6 +45,8 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
     // 重复值游程守卫的阈值表（设备 → 五个通道的阈值，单位：轮）；空表时守卫关闭（开发决策第十条）。
     // Run-length guard thresholds (device → five per-channel thresholds in rounds); empty disables the guard.
     private final HashMap<String, int[]> stuckThresholds;
+    // 底值集合（按检测通道顺序；2026-10-12 裁决第二节）/ floor-value sets per detection channel
+    private final double[][] stuckFloors;
 
     private transient ValueState<RawRing> ring;
     private transient ValueState<Long> lastTsSec;
@@ -52,12 +54,18 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
     private transient Counter coldStarts;
     private transient Counter stuckRuns;
     private transient Counter stuckRounds;
+    private transient Counter floorRuns;
 
     public RawCacheFunction(int cacheDepth, int nominalPeriodSec) {
         this(cacheDepth, nominalPeriodSec, Collections.emptyMap());
     }
 
     public RawCacheFunction(int cacheDepth, int nominalPeriodSec, Map<String, int[]> stuckThresholds) {
+        this(cacheDepth, nominalPeriodSec, stuckThresholds, new double[Channels.N_DET][0]);
+    }
+
+    public RawCacheFunction(int cacheDepth, int nominalPeriodSec, Map<String, int[]> stuckThresholds,
+                            double[][] stuckFloors) {
         if (cacheDepth <= 0) {
             throw new IllegalArgumentException("cacheDepth must be > 0, got " + cacheDepth);
         }
@@ -67,6 +75,7 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
         this.cacheDepth = cacheDepth;
         this.nominalPeriodSec = nominalPeriodSec;
         this.stuckThresholds = new HashMap<>(stuckThresholds);
+        this.stuckFloors = stuckFloors;
     }
 
     @Override
@@ -79,6 +88,7 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
                 new ValueStateDescriptor<>("m1-repeat-run", Types.POJO(RepeatRunGuard.RunState.class)));
         stuckRuns = getRuntimeContext().getMetricGroup().counter("m1_guard_stuck_runs");
         stuckRounds = getRuntimeContext().getMetricGroup().counter("m1_guard_stuck_rounds");
+        floorRuns = getRuntimeContext().getMetricGroup().counter("m1_guard_floor_runs");
     }
 
     @Override
@@ -106,7 +116,9 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
             if (st == null) {
                 st = new RepeatRunGuard.RunState();
             }
-            stuckRuns.inc(RepeatRunGuard.update(st, round, thr));
+            int[] crossed = RepeatRunGuard.update(st, round, thr, stuckFloors);
+            stuckRuns.inc(crossed[0]);
+            floorRuns.inc(crossed[1]);
             if (round.stuckMaskBits() != 0) {
                 stuckRounds.inc();
             }

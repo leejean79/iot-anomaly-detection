@@ -60,6 +60,9 @@ public class M1Job {
         // Run-length guard thresholds (development decision 10), in rounds; omitted = guard off.
         java.util.Map<String, int[]> stuckThresholds =
                 com.leejean.m1.RepeatRunGuard.parse(params.get("stuck-run-thresholds", ""));
+        // 底值集合（2026-10-12 裁决第二节）：Light=0/1,Gas=400；底值游程只计数不打标。不给则全部按普通游程。
+        // Floor-value sets (ruling of 2026-10-12): floor runs are counted, never flagged as stuck.
+        double[][] stuckFloors = com.leejean.m1.RepeatRunGuard.parseFloors(params.get("stuck-floor-values", ""));
         long checkpointMs = params.getLong("checkpoint-ms", 10000L);
         // 内存型 checkpoint 存储的单子任务状态上限（MB）。Flink 默认 5 MB；七天标定使 RobustScaler 预热蓄水池
         // （60480 轮×5 通道，装箱 ListState<Double>）每子任务约 5~7 MB 越线 → checkpoint 失败 → 作业重启 →
@@ -109,6 +112,7 @@ public class M1Job {
                 + (ckptTolerableFailures > 0 ? "  [DIAGNOSTIC MODE: job will not restart on failed checkpoints]" : ""));
         System.out.println("Cache depth:     " + cacheDepth);
         System.out.println("Stuck guard:     " + RepeatRunGuard.describe(stuckThresholds));
+        System.out.println("Stuck floors:    " + RepeatRunGuard.describeFloors(stuckFloors));
         System.out.println("========================================");
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -192,7 +196,7 @@ public class M1Job {
 
         SingleOutputStreamOperator<DeviceRound> cached = scaled
                 .keyBy((KeySelector<DeviceRound, String>) DeviceRound::getDevice)
-                .process(new RawCacheFunction(cacheDepth, nominalPeriodSec, stuckThresholds))
+                .process(new RawCacheFunction(cacheDepth, nominalPeriodSec, stuckThresholds, stuckFloors))
                 .name("RawCache");
 
         // (a) 归一化流 → synergia-m1-out（JSON，仅验收）/ normalized stream → m1-out (acceptance only)

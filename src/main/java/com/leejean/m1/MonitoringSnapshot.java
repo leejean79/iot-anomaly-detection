@@ -30,6 +30,10 @@ public class MonitoringSnapshot implements Serializable {
     private long coldStart;
     private long stuckRounds;           // 本窗口内至少一个通道重复值游程达阈值的轮数（开发决策第十条）
     private long stuckChannelsMask;     // 本窗口内游程达阈值的通道位图（第 c 位=通道 c）
+    private long floorRounds;           // 本窗口内至少一个通道底值游程达阈值的轮数（2026-10-12 裁决第二节）
+    private long floorChannelsMask;     // 本窗口内底值游程达阈值的通道位图
+    private long[] guardRunLength;      // 本窗口最后一轮：处于疑似卡死或底值游程的通道的游程长度（轮），其余为 0
+    private long[] guardRunStartTs;     // 同上：游程起始轮时间戳（秒），其余为 0
 
     // ---- M2 追加字段（交接文档 §5.2；并入同一 topic 的设备快照，不另建 topic）----
     // M2-appended fields (handover §5.2): folded into the same monitoring topic; M1 快照保持这些为 0。
@@ -114,6 +118,22 @@ public class MonitoringSnapshot implements Serializable {
     @JsonProperty
     public long getStuckChannelsMask() { return stuckChannelsMask; }
     public void setStuckChannelsMask(long stuckChannelsMask) { this.stuckChannelsMask = stuckChannelsMask; }
+
+    @JsonProperty
+    public long getFloorRounds() { return floorRounds; }
+    public void setFloorRounds(long floorRounds) { this.floorRounds = floorRounds; }
+
+    @JsonProperty
+    public long getFloorChannelsMask() { return floorChannelsMask; }
+    public void setFloorChannelsMask(long floorChannelsMask) { this.floorChannelsMask = floorChannelsMask; }
+
+    @JsonProperty
+    public long[] getGuardRunLength() { return guardRunLength; }
+    public void setGuardRunLength(long[] guardRunLength) { this.guardRunLength = guardRunLength; }
+
+    @JsonProperty
+    public long[] getGuardRunStartTs() { return guardRunStartTs; }
+    public void setGuardRunStartTs(long[] guardRunStartTs) { this.guardRunStartTs = guardRunStartTs; }
 
     @JsonProperty
     public double getM2OutlierRate() { return m2OutlierRate; }

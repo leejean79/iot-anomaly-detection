@@ -37,7 +37,12 @@ public class MonitoringAggregator extends KeyedProcessFunction<String, DeviceRou
     private static final int DEGRADED_MASK = 11;  // 旁路|替代 通道位图（按位或）
     private static final int STUCK = 12;          // 重复值游程达阈值的轮数（开发决策第十条）
     private static final int STUCK_MASK = 13;     // 游程达阈值的通道位图（按位或）
-    private static final int WIDTH = 14;
+    private static final int FLOOR = 14;          // 底值游程达阈值的轮数（2026-10-12 裁决第二节）
+    private static final int FLOOR_MASK = 15;     // 底值游程达阈值的通道位图（按位或）
+    private static final int LAST_TS = 16;        // 本窗口已见的最晚轮时间戳，用来取最后一轮的游程信息
+    private static final int RUN_LEN = 17;        // 起 5 格：最后一轮的游程长度 / 5 slots: run length at the last round
+    private static final int RUN_START = 22;      // 起 5 格：最后一轮的游程起始时刻 / 5 slots: run start
+    private static final int WIDTH = 27;
 
     private transient MapState<Long, long[]> windows;   // windowEndMs → 累积 / accumulators
     private transient Counter snapshotsEmitted;
@@ -75,6 +80,18 @@ public class MonitoringAggregator extends KeyedProcessFunction<String, DeviceRou
         int stuckBits = round.stuckMaskBits();
         acc[STUCK] += stuckBits != 0 ? 1 : 0;
         acc[STUCK_MASK] |= stuckBits;
+        int floorBits = round.floorMaskBits();
+        acc[FLOOR] += floorBits != 0 ? 1 : 0;
+        acc[FLOOR_MASK] |= floorBits;
+        if (round.getTs() >= acc[LAST_TS]) {
+            acc[LAST_TS] = round.getTs();
+            int[] len = round.getGuardRunLength();
+            long[] start = round.getGuardRunStartTs();
+            for (int c = 0; c < Channels.N_DET; c++) {
+                acc[RUN_LEN + c] = len != null ? len[c] : 0;
+                acc[RUN_START + c] = start != null ? start[c] : 0;
+            }
+        }
         windows.put(windowEnd, acc);
     }
 
@@ -103,6 +120,10 @@ public class MonitoringAggregator extends KeyedProcessFunction<String, DeviceRou
         s.setColdStart(acc[COLD]);
         s.setStuckRounds(acc[STUCK]);
         s.setStuckChannelsMask(acc[STUCK_MASK]);
+        s.setFloorRounds(acc[FLOOR]);
+        s.setFloorChannelsMask(acc[FLOOR_MASK]);
+        s.setGuardRunLength(java.util.Arrays.copyOfRange(acc, RUN_LEN, RUN_LEN + Channels.N_DET));
+        s.setGuardRunStartTs(java.util.Arrays.copyOfRange(acc, RUN_START, RUN_START + Channels.N_DET));
         snapshotsEmitted.inc();
         out.collect(s);
     }

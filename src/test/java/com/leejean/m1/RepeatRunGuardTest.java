@@ -99,6 +99,43 @@ class RepeatRunGuardTest {
     }
 
     @Test
+    @DisplayName("底值集合：解析按检测通道顺序；通道名错误立即报错")
+    void parseFloors() {
+        double[][] f = RepeatRunGuard.parseFloors("Light=0/1, Gas=400");
+        assertArrayEquals(new double[]{0, 1}, f[Channels.LIGHT_INDEX]);
+        assertArrayEquals(new double[]{400}, f[3]);
+        assertEquals(0, f[0].length);
+        assertEquals(0, RepeatRunGuard.parseFloors("")[4].length);
+        assertThrows(IllegalArgumentException.class, () -> RepeatRunGuard.parseFloors("Lux=0"));
+        assertThrows(IllegalArgumentException.class, () -> RepeatRunGuard.parseFloors("Light="));
+    }
+
+    @Test
+    @DisplayName("底值游程：达到阈值只写 floorMask 并计数，不写 stuckMask；两类都给出游程起始与长度")
+    void floorRunIsCountedNotFlagged() {
+        RepeatRunGuard.RunState s = new RepeatRunGuard.RunState();
+        int[] thr = {3, 0, 0, 0, 3};
+        double[][] floors = RepeatRunGuard.parseFloors("Light=0");
+        int[] crossed = new int[2];
+        DeviceRound last = null;
+        for (int i = 0; i < 4; i++) {
+            // 温度卡在 20.0（普通游程），光照停在底值 0（底值游程）/ temperature stuck, light on its floor
+            last = round("A", 100 + i * 10L, 20.0, i, i, i, 0.0);
+            int[] c = RepeatRunGuard.update(s, last, thr, floors);
+            crossed[0] += c[0];
+            crossed[1] += c[1];
+        }
+        assertTrue(last.getStuckMask()[0], "温度：普通游程达到阈值，疑似卡死");
+        assertFalse(last.getStuckMask()[4], "光照：底值游程不写 stuckMask");
+        assertTrue(last.getFloorMask()[4], "光照：底值游程写 floorMask");
+        assertArrayEquals(new int[]{1, 1}, crossed, "各计一次新游程");
+        assertEquals(4, last.getGuardRunLength()[0]);
+        assertEquals(100, last.getGuardRunStartTs()[0], "游程起始为第一轮的时间戳");
+        assertEquals(4, last.getGuardRunLength()[4]);
+        assertEquals(0, last.getGuardRunLength()[1], "未达阈值的通道为 0");
+    }
+
+    @Test
     @DisplayName("原始缓存算子：按设备查阈值、打标并输出；没有阈值的设备不打标")
     void rawCacheFlagsRounds() throws Exception {
         Map<String, int[]> thr = RepeatRunGuard.parse("A=3/0/0/0/0");
@@ -133,6 +170,8 @@ class RepeatRunGuardTest {
             if (i >= 3) {
                 r.getStuckMask()[0] = true;
                 r.getStuckMask()[3] = i == 4;
+                r.getGuardRunLength()[0] = i + 1;
+                r.getGuardRunStartTs()[0] = 0;
             }
             h.processElement(r, i * 10_000L);
         }
@@ -146,6 +185,8 @@ class RepeatRunGuardTest {
         assertEquals(1, out.size());
         assertEquals(2, out.get(0).getStuckRounds());
         assertEquals(0b1001, out.get(0).getStuckChannelsMask(), "温度（第 0 位）与气体（第 3 位）");
+        assertEquals(0, out.get(0).getFloorRounds());
+        assertEquals(5, out.get(0).getGuardRunLength()[0], "取窗口最后一轮的游程长度");
         h.close();
     }
 }

@@ -1,5 +1,6 @@
 package com.leejean.m1;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.io.Serializable;
@@ -44,6 +45,9 @@ public class DeviceRound implements Serializable {
     private boolean[] bypassMask;       // RobustScaler 因 IQR≤ε 旁路该通道 / scaling bypassed (IQR<=eps)
     private boolean[] substitutedMask;  // 相对退化：该通道改用"主体宽度/2.44"作标准化分母 / substituted denominator
     private boolean[] stuckMask;        // 重复值游程达到阈值（开发决策第十条）/ repeated-value run reached threshold
+    private boolean[] floorMask;        // 底值游程达到阈值（2026-10-12 裁决第二节，只计数不打标）/ floor-value run
+    private int[] guardRunLength;       // 处于上述两类游程的通道：游程长度（轮），其余为 0 / run length, else 0
+    private long[] guardRunStartTs;     // 同上：游程起始轮时间戳（秒），其余为 0 / run start ts, else 0
 
     private boolean warmup;             // RobustScaler 预热期（统计未冻结）/ scaler still calibrating
     private boolean coldStart;          // 缺席超过缓存深度后返场 / returned after absence > cache depth
@@ -65,6 +69,9 @@ public class DeviceRound implements Serializable {
         this.bypassMask = new boolean[Channels.N_DET];
         this.substitutedMask = new boolean[Channels.N_DET];
         this.stuckMask = new boolean[Channels.N_DET];
+        this.floorMask = new boolean[Channels.N_DET];
+        this.guardRunLength = new int[Channels.N_DET];
+        this.guardRunStartTs = new long[Channels.N_DET];
     }
 
     @JsonProperty
@@ -113,6 +120,19 @@ public class DeviceRound implements Serializable {
     @JsonProperty
     public boolean[] getStuckMask() { return stuckMask; }
     public void setStuckMask(boolean[] stuckMask) { this.stuckMask = stuckMask; }
+
+    @JsonProperty
+    public boolean[] getFloorMask() { return floorMask; }
+    public void setFloorMask(boolean[] floorMask) { this.floorMask = floorMask; }
+
+    // 游程长度与起始时刻只供监测快照汇总，不写进 synergia-m1-out / for the monitoring snapshot only, not in m1-out
+    @JsonIgnore
+    public int[] getGuardRunLength() { return guardRunLength; }
+    public void setGuardRunLength(int[] guardRunLength) { this.guardRunLength = guardRunLength; }
+
+    @JsonIgnore
+    public long[] getGuardRunStartTs() { return guardRunStartTs; }
+    public void setGuardRunStartTs(long[] guardRunStartTs) { this.guardRunStartTs = guardRunStartTs; }
 
     @JsonProperty
     public boolean isWarmup() { return warmup; }
@@ -186,6 +206,17 @@ public class DeviceRound implements Serializable {
         int m = 0;
         for (int c = 0; c < Channels.N_DET; c++) {
             if (stuckMask != null && c < stuckMask.length && stuckMask[c]) {
+                m |= (1 << c);
+            }
+        }
+        return m;
+    }
+
+    /** 底值游程通道位图 / bitmask of channels in a floor-value run at or above the threshold. */
+    public int floorMaskBits() {
+        int m = 0;
+        for (int c = 0; c < Channels.N_DET; c++) {
+            if (floorMask != null && c < floorMask.length && floorMask[c]) {
                 m |= (1 << c);
             }
         }

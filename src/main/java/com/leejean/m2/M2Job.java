@@ -101,6 +101,9 @@ public class M2Job {
         // Run-length guard thresholds (development decision 10), in rounds; omitted = guard off.
         java.util.Map<String, int[]> stuckThresholds =
                 com.leejean.m1.RepeatRunGuard.parse(params.get("stuck-run-thresholds", ""));
+        // 底值集合（2026-10-12 裁决第二节）：Light=0/1,Gas=400；底值游程只计数不打标。不给则全部按普通游程。
+        // Floor-value sets (ruling of 2026-10-12): floor runs are counted, never flagged as stuck.
+        double[][] stuckFloors = com.leejean.m1.RepeatRunGuard.parseFloors(params.get("stuck-floor-values", ""));
         long checkpointMs = params.getLong("checkpoint-ms", 10000L);
         // 内存型 checkpoint 单子任务状态上限（MB），默认 128；七天预热蓄水池会越过 Flink 默认 5 MB（补充指令五 根因）。
         int ckptMaxStateMb = params.getInt("checkpoint-max-state-mb", 128);
@@ -207,6 +210,7 @@ public class M2Job {
         System.out.println("Ckpt tolerable failures: " + ckptTolerableFailures
                 + (ckptTolerableFailures > 0 ? "  (job restarts on consecutive failure no. " + (ckptTolerableFailures + 1) + ")" : ""));
         System.out.println("Stuck guard:     " + com.leejean.m1.RepeatRunGuard.describe(stuckThresholds));
+        System.out.println("Stuck floors:    " + com.leejean.m1.RepeatRunGuard.describeFloors(stuckFloors));
         System.out.println("Window W/S:      " + windowSec + "s / " + slideSec + "s");
         System.out.println("MCOD R/k:        " + r + " / " + k
                 + (rPerDevice.isEmpty() ? " (global R for all devices)"
@@ -313,7 +317,7 @@ public class M2Job {
                         warmupRounds, epsilon, ChannelTransform.defaultTable(), relativeGuard))
                 .name("RobustScaler")
                 .keyBy(DeviceKeys.selector(surrogate, DeviceRound::getDevice))
-                .process(new RawCacheFunction(cacheDepth, nominalPeriodSec, stuckThresholds)).name("RawCache");
+                .process(new RawCacheFunction(cacheDepth, nominalPeriodSec, stuckThresholds, stuckFloors)).name("RawCache");
 
         Properties producerProps = new Properties();
         producerProps.setProperty("bootstrap.servers", brokers);

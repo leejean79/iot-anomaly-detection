@@ -27,6 +27,14 @@ import java.util.TreeMap;
  * </ul>
  * 守卫只打标与计数，不改变下游的检测行为；标记供数据层漂移监测与聚合模块使用。
  * The guard only flags and counts; it does not change downstream detection.
+ *
+ * <p>底值游程（2026-10-12 裁决第二节）/ floor-value runs：每个通道可配置一个「底值集合」（光照的夜间底值、气体的
+ * 饱和值等，由探索性分析得出、设计会话冻结）。读数在底值集合里的游程是底值游程：达到阈值时只写 floorMask 并计数，
+ * 不写 stuckMask，因为单台设备无法区分「夜间」与「传感器死在底值」；是否「底值卡死」由聚合模块跨设备交叉核对。
+ * 读数不在底值集合里的游程是普通游程，达到阈值即写 stuckMask（疑似卡死）。两类标记都附带游程的起始时刻与长度，
+ * 格式一致，便于聚合模块消费。
+ * A run on a value in the channel's floor set is a floor-value run: on reaching the threshold it sets floorMask and
+ * is counted, never stuckMask; the fleet-level cross-check belongs to the aggregation module.
  */
 public final class RepeatRunGuard {
 
@@ -70,6 +78,57 @@ public final class RepeatRunGuard {
         return map;
     }
 
+    /**
+     * 解析底值集合 / parse the floor-value sets。格式：{@code Light=0/1/2,Gas=400}，通道名为五个检测通道之一，
+     * 取值用「/」分隔；空串返回全空（没有底值）。返回按检测通道固定顺序排列的数组。
+     * Format: channel name = values separated by "/"; returns per-channel arrays in the fixed channel order.
+     */
+    public static double[][] parseFloors(String spec) {
+        double[][] floors = new double[Channels.N_DET][0];
+        if (spec == null || spec.trim().isEmpty()) {
+            return floors;
+        }
+        for (String item : spec.split(",")) {
+            String s = item.trim();
+            if (s.isEmpty()) {
+                continue;
+            }
+            int eq = s.indexOf('=');
+            int ch = eq > 0 ? Channels.detectionIndex(s.substring(0, eq).trim()) : -1;
+            if (ch < 0 || eq == s.length() - 1) {
+                throw new IllegalArgumentException("--stuck-floor-values 项格式应为 检测通道名=v1/v2/...: " + s);
+            }
+            String[] parts = s.substring(eq + 1).split("/");
+            double[] v = new double[parts.length];
+            for (int i = 0; i < parts.length; i++) {
+                v[i] = Double.parseDouble(parts[i].trim());
+            }
+            floors[ch] = v;
+        }
+        return floors;
+    }
+
+    /** 底值集合的横幅描述 / banner description of the floor sets. */
+    public static String describeFloors(double[][] floors) {
+        StringBuilder sb = new StringBuilder();
+        for (int c = 0; c < Channels.N_DET; c++) {
+            if (floors[c].length > 0) {
+                sb.append(sb.length() == 0 ? "" : " ").append(Channels.DETECTION[c]).append('=')
+                  .append(java.util.Arrays.toString(floors[c]));
+            }
+        }
+        return sb.length() == 0 ? "none" : sb.toString();
+    }
+
+    private static boolean isFloor(double[] floor, double v) {
+        for (double f : floor) {
+            if (Double.compare(f, v) == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** 启动横幅用的描述 / description for the startup banner. */
     public static String describe(Map<String, int[]> thresholds) {
         if (thresholds.isEmpty()) {
@@ -84,19 +143,29 @@ public final class RepeatRunGuard {
         return sb.toString();
     }
 
-    /**
-     * 用本轮更新游程并在轮上写出卡死掩码 / update the runs with this round and write its stuck mask。
-     *
-     * @return 本轮游程刚好达到阈值的通道数（即新出现的卡死游程数）/ channels whose run reached the threshold now
-     */
+    /** 不设底值集合时的更新（全部按普通游程处理）/ update without floor sets. */
     public static int update(RunState s, DeviceRound round, int[] thr) {
+        return update(s, round, thr, new double[Channels.N_DET][0])[0];
+    }
+
+    /**
+     * 用本轮更新游程，在轮上写出卡死掩码、底值掩码与游程信息 / update the runs and write the masks and run info。
+     * 达到阈值的通道：读数在底值集合里写 floorMask，否则写 stuckMask；两类都在 guardRunLength / guardRunStartTs
+     * 中给出该游程的长度与起始时刻（其余通道为 0）。
+     *
+     * @return {本轮新出现的普通卡死游程数, 本轮新出现的底值游程数} / {new ordinary stuck runs, new floor runs}
+     */
+    public static int[] update(RunState s, DeviceRound round, int[] thr, double[][] floors) {
         if (round.isColdStart()) {
             s.reset();
         }
         double[] x = round.getX();
         boolean[] missing = round.getMissingMask();
         boolean[] stuck = new boolean[Channels.N_DET];
-        int crossed = 0;
+        boolean[] floor = new boolean[Channels.N_DET];
+        int[] runLen = new int[Channels.N_DET];
+        long[] runStart = new long[Channels.N_DET];
+        int[] crossed = new int[2];
         for (int c = 0; c < Channels.N_DET; c++) {
             if (missing != null && missing[c]) {
                 continue;
@@ -106,16 +175,27 @@ public final class RepeatRunGuard {
             } else {
                 s.last[c] = x[c];
                 s.run[c] = 1;
+                s.start[c] = round.getTs();
                 s.seen[c] = true;
             }
             if (thr[c] > 0 && s.run[c] >= thr[c]) {
-                stuck[c] = true;
+                boolean onFloor = isFloor(floors[c], s.last[c]);
+                if (onFloor) {
+                    floor[c] = true;
+                } else {
+                    stuck[c] = true;
+                }
+                runLen[c] = s.run[c];
+                runStart[c] = s.start[c];
                 if (s.run[c] == thr[c]) {
-                    crossed++;
+                    crossed[onFloor ? 1 : 0]++;
                 }
             }
         }
         round.setStuckMask(stuck);
+        round.setFloorMask(floor);
+        round.setGuardRunLength(runLen);
+        round.setGuardRunStartTs(runStart);
         return crossed;
     }
 
@@ -125,6 +205,7 @@ public final class RepeatRunGuard {
     public static class RunState {
         public double[] last = new double[Channels.N_DET];
         public int[] run = new int[Channels.N_DET];
+        public long[] start = new long[Channels.N_DET];     // 当前游程的起始轮时间戳（秒）/ run start ts (s)
         public boolean[] seen = new boolean[Channels.N_DET];
 
         public RunState() { }

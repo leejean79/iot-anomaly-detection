@@ -446,3 +446,4 @@ JobManager 堆内存也要装得下。代码里的默认值（间隔 10 秒、�
 | 2026-10-09 | 注入运行后的脚本修正：`m2_device_baseline.py` 与 `m3_dual_channel_week.py` 只认 `m2WindowPoints > 0` 的点通道快照（启用 M3 后上下文通道也向监测主题写带窗口末时刻的快照）；`m3_injection_recall.py` 修正注入日期集合并分列区间内与结束后的点通道离群；`syn-tm-recreate.sh` 改读 `/proc`。Java 代码没有改动 |
 | 2026-10-10 | 按 2026-10-09 裁决：`m3_v34_report.py`（误报率）改为逐台平稳日；`m3_injection_recall.py`（注入召回表）改为只计首次超阈落在注入区间内，结束时跳回单列；TaskManager 进程总量与 JavaCPP 物理内存上限默认 5120MB，`syn-tm-recreate.sh` 增加重建前的内存余量核对。Java 代码没有改动 |
 | 2026-10-12 | 新增重复值游程守卫 `RepeatRunGuard`（开发决策第十条），挂在 `RawCacheFunction` 中；`DeviceRound` 增加 `stuckMask`，监测快照增加 `stuckRounds`、`stuckChannelsMask`；作业参数 `--stuck-run-thresholds`。召回表改为定稿的重叠口径 |
+| 2026-10-13 | 重复值游程守卫区分底值游程与普通游程（2026-10-12 裁决第二节）：`RepeatRunGuard.parseFloors`、`DeviceRound.floorMask`、监测快照 `floorRounds`、`floorChannelsMask`、`guardRunLength`、`guardRunStartTs`，作业参数 `--stuck-floor-values`；误报率脚本增加尺度条件与 W 的推导 |

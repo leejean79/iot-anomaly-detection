@@ -55,6 +55,13 @@ def main():
     ap.add_argument("--start", default="2022-03-24")
     ap.add_argument("--end", default="2022-05-01")
     ap.add_argument("--stable-max", type=float, default=0.5)
+    # 尺度条件（2026-10-12 裁决第一节）：五个通道的宽度倍数都不超过 W。W 默认从参照期自身的日间变化推导：
+    # 参照期每一天的宽度 ÷ 参照期整体宽度，取所有设备、通道、日子的最大值，向上取整到一位小数；不得由误报率反推。
+    # Scale condition (ruling of 2026-10-12): every channel's daily width multiplier must not exceed W, derived by
+    # default from the reference period's own day-to-day variation, never from the false-alarm rate.
+    ap.add_argument("--width-max", default="auto")
+    ap.add_argument("--ref-start", default="2022-03-08")
+    ap.add_argument("--ref-end", default="2022-03-17", help="不含 / exclusive")
     ap.add_argument("--common-min", type=int, default=0)
     ap.add_argument("--threshold", type=float, default=2.22)
     ap.add_argument("--out-dir", required=True)
@@ -91,9 +98,29 @@ def main():
     # 逐日通道剖面：每个通道每天取各设备偏移的中位数（机队中位偏移）。
     shift = collections.defaultdict(list)
     dev_shift = {}          # (设备, 通道, 日) → 该设备自身的偏移 / the device's own shift
+    dev_width = {}          # (设备, 通道, 日) → 当天宽度 ÷ 参照期宽度 / daily width multiplier
     for r in csv.DictReader(open(a.profile, encoding="utf-8")):
         shift[(r["channel"], r["day"])].append(float(r["shift_in_ref_widths"]))
         dev_shift[(r["device"], r["channel"], r["day"])] = float(r["shift_in_ref_widths"])
+        ref_w = float(r["ref_p10_p90_width"])
+        if ref_w > 0:
+            dev_width[(r["device"], r["channel"], r["day"])] = (float(r["p90"]) - float(r["p10"])) / ref_w
+
+    # W 的推导 / derive W from the reference period
+    r0 = datetime.strptime(a.ref_start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    r1 = datetime.strptime(a.ref_end, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    ref_days = [(r0 + timedelta(days=i)).strftime("%m-%d") for i in range((r1 - r0).days)]
+    w_rows = [(dv, c, d, v) for (dv, c, d), v in dev_width.items() if d in ref_days]
+    w_derived = math.ceil(round(max(v for *_, v in w_rows) * 10, 9)) / 10.0 if w_rows else float("nan")
+    w_max = w_derived if a.width_max == "auto" else float(a.width_max)
+    with open(os.path.join(a.out_dir, "w_derivation.csv"), "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["device", "channel"] + ref_days + ["max"])
+        for dv in sorted({x[0] for x in w_rows}):
+            for c in CHANNELS:
+                vals = [dev_width.get((dv, c, d)) for d in ref_days]
+                w.writerow([dv, c] + ["%.3f" % v if v is not None else "" for v in vals]
+                           + ["%.3f" % max(v for v in vals if v is not None)])
     fleet = {(c, d): float(np.median(shift[(c, d)])) for c in CHANNELS for d in days if shift.get((c, d))}
     stable, missing = [], []
     for d in days:
@@ -107,10 +134,13 @@ def main():
     # 机队中位平稳日只用于共模比例等机队统计。
     # Per-device stable days (ruling of 2026-10-09, item 5): judged on the device's own five channel shifts;
     # the fleet-median stable days are kept only for fleet statistics such as the common-mode share.
-    dev_stable = {}
+    dev_stable_loc, dev_stable = {}, {}
     for dv in devices:
-        dev_stable[dv] = {d for d in days
-                          if all((dv, c, d) in dev_shift and abs(dev_shift[(dv, c, d)]) <= a.stable_max for c in CHANNELS)}
+        dev_stable_loc[dv] = {d for d in days
+                              if all((dv, c, d) in dev_shift and abs(dev_shift[(dv, c, d)]) <= a.stable_max for c in CHANNELS)}
+        # 位置加尺度（2026-10-12 裁决第一节）/ location plus scale
+        dev_stable[dv] = {d for d in dev_stable_loc[dv]
+                          if all(dev_width.get((dv, c, d), float("inf")) <= w_max for c in CHANNELS)}
 
     # 逐日告警率 / daily alarm rate
     n, al = collections.Counter(), collections.Counter()
@@ -141,14 +171,20 @@ def main():
     st_set = set(stable)
     st_recs = [r for r in recs if day_of(r["windowEnd"]) in st_set]                          # 机队平稳日 / fleet
     dst_recs = [r for r in recs if day_of(r["windowEnd"]) in dev_stable[r["device"]]]        # 逐台平稳日 / per device
+    dst_loc_recs = [r for r in recs if day_of(r["windowEnd"]) in dev_stable_loc[r["device"]]]  # 只按位置 / location only
 
     out = []
     p = out.append
     p("# V-M3-4 报告（%s 至 %s）\n" % (a.start, (t1 - timedelta(days=1)).strftime("%Y-%m-%d")))
-    p("逐台平稳日（2026-10-09 裁决第二节第 5 条）：该设备五个检测通道的偏移（当日中位数相对剖面参照期中位数的偏移，"
-      "以参照期 P10–P90 宽度为单位）绝对值都不超过 %.1f，误报率在各台自己的平稳日上计算。机队平稳日：五个通道的"
-      "机队中位偏移（再取设备间中位数）都不超过该值，只用于共模比例等机队统计。共模：同一小时内告警设备数达到%s。\n"
-      % (a.stable_max, ("固定的 %d 台" % a.common_min) if a.common_min > 0
+    p("逐台平稳日（2026-10-09 裁决第二节第 5 条，2026-10-12 裁决第一节补上尺度条件）：该设备五个检测通道的偏移（当日"
+      "中位数相对剖面参照期中位数的偏移，以参照期 P10–P90 宽度为单位）绝对值都不超过 %.1f，并且五个通道的宽度倍数"
+      "（当日 P10–P90 宽度 ÷ 参照期宽度）都不超过 W = %.1f；误报率在各台自己的平稳日上计算。W %s。机队平稳日：五个通道的"
+      "机队中位偏移（再取设备间中位数）都不超过 %.1f，只用于共模比例等机队统计。共模：同一小时内告警设备数达到%s。\n"
+      % (a.stable_max, w_max,
+         ("由参照期 %s 至 %s（不含）每天的宽度倍数取最大值、向上取整到一位小数推导，推导前的最大值为 %.3f，见 "
+          "w_derivation.csv" % (a.ref_start, a.ref_end, max(v for *_, v in w_rows)))
+         if a.width_max == "auto" else "由 --width-max 给定（推导值为 %.1f）" % w_derived,
+         a.stable_max, ("固定的 %d 台" % a.common_min) if a.common_min > 0
          else "该小时在场设备数的四分之三向上取整（八台为六，六台为五）"))
     if excluded:
         p("本报告排除了 %s 的评分（%d 台口径）；平稳日仍按全部设备的原始数据剖面判定。\n"
@@ -167,6 +203,15 @@ def main():
         p("| %s | %d | %s | %d | %d | %s |" % (dv, len(dev_stable[dv]), "、".join(sorted(dev_stable[dv])) or "无",
                                             len(rs), k, ("%.2f%%" % (100.0 * k / len(rs))) if rs else "-"))
     p("| 机队（合并） | - | - | %d | %d | %s |" % (tot_n, tot_a, ("%.2f%%" % (100.0 * tot_a / tot_n)) if tot_n else "-"))
+    k_l = sum(bool(r["aboveThreshold"]) for r in dst_loc_recs)
+    p("\n两套数字并排（2026-10-12 裁决第一节第三条）：只按位置判定的逐台平稳日上，机队合并误报率 %s（%d / %d）；"
+      "按位置加尺度判定（W = %.1f）为 %s（%d / %d）。"
+      % (("%.2f%%" % (100.0 * k_l / len(dst_loc_recs))) if dst_loc_recs else "-", k_l, len(dst_loc_recs), w_max,
+         ("%.2f%%" % (100.0 * tot_a / tot_n)) if tot_n else "-", tot_a, tot_n))
+    gas_wide = {dv: sorted(d for d in days if dev_width.get((dv, "Gas", d), 0) > w_max) for dv in devices}
+    p("\n在线期 %s 至 %s 各台气体宽度倍数超过 W 的日子（数据事实候选，2026-10-12 裁决第一节第四条）：%s。"
+      % (days[0], days[-1], "；".join("%s %d 天%s" % (dv, len(v), ("（" + "、".join(v) + "）") if v else "")
+                                      for dv, v in gas_wide.items())))
     p("\n机队平稳日共 %d 天：%s。" % (len(stable), "、".join(stable) or "无"))
     if missing:
         p("剖面缺少数据、不计为机队平稳日的日子：%s。" % "、".join(missing))
