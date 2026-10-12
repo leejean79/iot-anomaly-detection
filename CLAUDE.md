@@ -119,6 +119,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - 列举要点时,每个条目须为完整的陈述句,而不是名词+省略号的形式。
 - 用完整、正常的中文句子写作，不再用那种省略虚词、堆叠短语、用斜杠缩写的电报式压缩中文
 - 提到验收项编号（如 V-M3-5）时，同时写出它对应的内容，例如「V-M3-5（注入召回表）」；编号对照表见 `docs/design/experiment_design_guide_zh.md` 第 0.3 节
+- 提到补遗、裁决、开发决策、数据事实等编号或代称（如「补遗四」「开发决策第十条」「步骤 C」）时，同时附一句摘要说明它是什么，例如「补遗四（把 M3 训练移出任务线程）」；常用项见同一文件第 0.5 节
 
 ## 6. 脚本与命令的交付要求(Script Delivery)
 
