@@ -1,0 +1,4 @@
+no,device,channel,start_utc,readings_in_interval,threshold,flagged,rounds_to_flag,sec_to_flag
+1,E,Temperature,2022-04-21 02:00:00,718,92,True,92,921
+2,E,Temperature,2022-04-21 06:00:00,718,92,True,91,905
+3,E,Temperature,2022-04-21 10:00:00,718,92,True,91,908
