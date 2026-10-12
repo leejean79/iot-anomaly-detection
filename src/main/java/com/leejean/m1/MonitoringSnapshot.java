@@ -28,6 +28,8 @@ public class MonitoringSnapshot implements Serializable {
     private long substitutedChannels;   // 用替代分母（相对退化防护）的通道计数（补充指令三）
     private long degradedChannelsMask;  // 被旁路或替代分母的通道位图（列表，第 c 位=通道 c）
     private long coldStart;
+    private long stuckRounds;           // 本窗口内至少一个通道重复值游程达阈值的轮数（开发决策第十条）
+    private long stuckChannelsMask;     // 本窗口内游程达阈值的通道位图（第 c 位=通道 c）
 
     // ---- M2 追加字段（交接文档 §5.2；并入同一 topic 的设备快照，不另建 topic）----
     // M2-appended fields (handover §5.2): folded into the same monitoring topic; M1 快照保持这些为 0。
@@ -104,6 +106,14 @@ public class MonitoringSnapshot implements Serializable {
     @JsonProperty
     public long getColdStart() { return coldStart; }
     public void setColdStart(long coldStart) { this.coldStart = coldStart; }
+
+    @JsonProperty
+    public long getStuckRounds() { return stuckRounds; }
+    public void setStuckRounds(long stuckRounds) { this.stuckRounds = stuckRounds; }
+
+    @JsonProperty
+    public long getStuckChannelsMask() { return stuckChannelsMask; }
+    public void setStuckChannelsMask(long stuckChannelsMask) { this.stuckChannelsMask = stuckChannelsMask; }
 
     @JsonProperty
     public double getM2OutlierRate() { return m2OutlierRate; }

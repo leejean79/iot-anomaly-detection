@@ -35,7 +35,9 @@ public class MonitoringAggregator extends KeyedProcessFunction<String, DeviceRou
     private static final int COLD = 9;
     private static final int SUBSTITUTED = 10;    // 替代分母通道计数（补充指令三）
     private static final int DEGRADED_MASK = 11;  // 旁路|替代 通道位图（按位或）
-    private static final int WIDTH = 12;
+    private static final int STUCK = 12;          // 重复值游程达阈值的轮数（开发决策第十条）
+    private static final int STUCK_MASK = 13;     // 游程达阈值的通道位图（按位或）
+    private static final int WIDTH = 14;
 
     private transient MapState<Long, long[]> windows;   // windowEndMs → 累积 / accumulators
     private transient Counter snapshotsEmitted;
@@ -70,6 +72,9 @@ public class MonitoringAggregator extends KeyedProcessFunction<String, DeviceRou
         acc[SUBSTITUTED] += round.substitutedCount();
         acc[DEGRADED_MASK] |= round.degradedMaskBits();   // 位图按或累积 / OR-accumulate the mask
         acc[COLD] += round.isColdStart() ? 1 : 0;
+        int stuckBits = round.stuckMaskBits();
+        acc[STUCK] += stuckBits != 0 ? 1 : 0;
+        acc[STUCK_MASK] |= stuckBits;
         windows.put(windowEnd, acc);
     }
 
@@ -96,6 +101,8 @@ public class MonitoringAggregator extends KeyedProcessFunction<String, DeviceRou
         s.setSubstitutedChannels(acc[SUBSTITUTED]);
         s.setDegradedChannelsMask(acc[DEGRADED_MASK]);
         s.setColdStart(acc[COLD]);
+        s.setStuckRounds(acc[STUCK]);
+        s.setStuckChannelsMask(acc[STUCK_MASK]);
         snapshotsEmitted.inc();
         out.collect(s);
     }

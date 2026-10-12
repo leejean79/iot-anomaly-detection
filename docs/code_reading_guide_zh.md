@@ -176,6 +176,19 @@ Kafka: synergia-source（8 分区，一台设备一个分区）
 **`RawCacheFunction`**：每设备缓存最近 1,000 轮原始值；设备缺席超过「1,000 × 10 秒」后返场即标记冷启动。注释里写明
 这是实现取舍。冷启动标记一路传到 M2，触发清空该设备的 MCOD 状态。
 
+**重复值游程守卫 `RepeatRunGuard`**（`m1/RepeatRunGuard.java`，开发决策第十条，2026-10-12 加入）
+
+- 做什么：在 `RawCacheFunction` 里，逐设备逐检测通道统计连续完全相同原始读数的游程（以轮计）；游程达到阈值时在
+  轮上写 `stuckMask`，监测快照累计 `stuckRounds` 与 `stuckChannelsMask`，指标为 `m1_guard_stuck_runs`（新出现的卡死
+  游程数）与 `m1_guard_stuck_rounds`（被打标的轮数）。
+- 关键位置：`RepeatRunGuard.update`（计数规则）、`RawCacheFunction.processElement` 末尾（按设备号查阈值）、
+  `MonitoringAggregator` 的 `STUCK`/`STUCK_MASK` 两个累积量。
+- 为什么：注入运行证明冻结在合理值上的读数对两个检测通道按构造不可见，卡死只能在接入层按「读数不再变化」识别。
+- 留意：缺失的通道既不延长也不打断游程；冷启动清零全部游程；阈值由 `--stuck-run-thresholds`（`.env` 的
+  `SYN_STUCK_RUN_THRESHOLDS`）给出，取 `eda/repeat_run_lengths.py` 统计的自然最长游程的两倍，不给则守卫关闭。守卫
+  只打标与计数，不改变下游检测行为。
+- 测试：`RepeatRunGuardTest`（解析、计数规则、原始缓存算子打标、监测快照计数）。
+
 **`MonitoringAggregator` 与 `MonitoringSnapshot`**：每设备每 60 秒一份快照（轮数、不完整轮、畸形、未知传感器、
 重复、删失、哨兵、预热、旁路）。同一个 `MonitoringSnapshot` 类也承载 M2 的三路信号（`m2*` 字段，`windowEnd>0`）
 与 M3 的重构误差（`m3*` 字段）。区分方法：M1 快照 `windowEnd=0`；M2 快照 `m2WindowPoints>0`；M3 快照 `m3ReconError`
@@ -432,3 +445,4 @@ JobManager 堆内存也要装得下。代码里的默认值（间隔 10 秒、�
 | 2026-10-08 | 按 2026-10-06 裁决与注入参数书：第八节补 JavaCPP 上限 3,900 MB 与三个新脚本（`syn-tm-recreate.sh`、`m3_injection_recall.py`、`m3_bh_analysis.py`）；注入专题文档同步新参数（尖峰按轮、间隔下限 3,660 秒、气体补做、平稳日参照期 03-08 至 03-17）。Java 代码本轮没有改动 |
 | 2026-10-09 | 注入运行后的脚本修正：`m2_device_baseline.py` 与 `m3_dual_channel_week.py` 只认 `m2WindowPoints > 0` 的点通道快照（启用 M3 后上下文通道也向监测主题写带窗口末时刻的快照）；`m3_injection_recall.py` 修正注入日期集合并分列区间内与结束后的点通道离群；`syn-tm-recreate.sh` 改读 `/proc`。Java 代码没有改动 |
 | 2026-10-10 | 按 2026-10-09 裁决：`m3_v34_report.py`（误报率）改为逐台平稳日；`m3_injection_recall.py`（注入召回表）改为只计首次超阈落在注入区间内，结束时跳回单列；TaskManager 进程总量与 JavaCPP 物理内存上限默认 5120MB，`syn-tm-recreate.sh` 增加重建前的内存余量核对。Java 代码没有改动 |
+| 2026-10-12 | 新增重复值游程守卫 `RepeatRunGuard`（开发决策第十条），挂在 `RawCacheFunction` 中；`DeviceRound` 增加 `stuckMask`，监测快照增加 `stuckRounds`、`stuckChannelsMask`；作业参数 `--stuck-run-thresholds`。召回表改为定稿的重叠口径 |

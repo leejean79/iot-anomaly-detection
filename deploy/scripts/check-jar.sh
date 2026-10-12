@@ -82,6 +82,7 @@ checks=(
     "com/leejean/m3/M3Function.class|m3_inference_latency_ms|V-M3-6 推理时延指标（2026-10-02 裁决第五节）"
     "com/leejean/m2/M2Job.class|device-surrogate-keys|设备代理键，八台设备各占一个子任务（2026-10-05 裁决第三节第 3 条）"
     "com/leejean/m2/M2Job.class|Idle timeout:|空闲时限改为 3600 秒并在启动横幅中打印（2026-10-05 裁决第三节第 1 条）"
+    "com/leejean/m1/RawCacheFunction.class|m1_guard_stuck_runs|重复值游程守卫（开发决策第十条）"
 )
 
 fail=0

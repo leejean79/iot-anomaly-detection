@@ -43,6 +43,7 @@ public class DeviceRound implements Serializable {
     private boolean[] censoredMask;     // 该检测通道右删失（当前仅 Light）/ right-censored (Light only)
     private boolean[] bypassMask;       // RobustScaler 因 IQR≤ε 旁路该通道 / scaling bypassed (IQR<=eps)
     private boolean[] substitutedMask;  // 相对退化：该通道改用"主体宽度/2.44"作标准化分母 / substituted denominator
+    private boolean[] stuckMask;        // 重复值游程达到阈值（开发决策第十条）/ repeated-value run reached threshold
 
     private boolean warmup;             // RobustScaler 预热期（统计未冻结）/ scaler still calibrating
     private boolean coldStart;          // 缺席超过缓存深度后返场 / returned after absence > cache depth
@@ -63,6 +64,7 @@ public class DeviceRound implements Serializable {
         this.censoredMask = new boolean[Channels.N_DET];
         this.bypassMask = new boolean[Channels.N_DET];
         this.substitutedMask = new boolean[Channels.N_DET];
+        this.stuckMask = new boolean[Channels.N_DET];
     }
 
     @JsonProperty
@@ -107,6 +109,10 @@ public class DeviceRound implements Serializable {
 
     public boolean[] getSubstitutedMask() { return substitutedMask; }
     public void setSubstitutedMask(boolean[] substitutedMask) { this.substitutedMask = substitutedMask; }
+
+    @JsonProperty
+    public boolean[] getStuckMask() { return stuckMask; }
+    public void setStuckMask(boolean[] stuckMask) { this.stuckMask = stuckMask; }
 
     @JsonProperty
     public boolean isWarmup() { return warmup; }
@@ -173,6 +179,17 @@ public class DeviceRound implements Serializable {
             }
         }
         return n;
+    }
+
+    /** 卡死通道位图：第 c 位表示通道 c 的重复值游程已达阈值 / bitmask of channels whose repeated-value run reached the threshold. */
+    public int stuckMaskBits() {
+        int m = 0;
+        for (int c = 0; c < Channels.N_DET; c++) {
+            if (stuckMask != null && c < stuckMask.length && stuckMask[c]) {
+                m |= (1 << c);
+            }
+        }
+        return m;
     }
 
     /** 退化通道位图：第 c 位表示通道 c 被旁路或用了替代分母 / bitmask of bypassed-or-substituted channels. */

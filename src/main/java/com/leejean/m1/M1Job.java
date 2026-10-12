@@ -56,6 +56,10 @@ public class M1Job {
         double epsilon = params.getDouble("iqr-epsilon", 1e-9);
         int cacheDepth = params.getInt("cache-depth", 1000);           // approved decision 5
         int nominalPeriodSec = params.getInt("nominal-period-sec", 10);
+        // 重复值游程守卫的阈值表（开发决策第十条）：A=t1/t2/t3/t4/t5,B=...，单位为轮；不给则守卫关闭。
+        // Run-length guard thresholds (development decision 10), in rounds; omitted = guard off.
+        java.util.Map<String, int[]> stuckThresholds =
+                com.leejean.m1.RepeatRunGuard.parse(params.get("stuck-run-thresholds", ""));
         long checkpointMs = params.getLong("checkpoint-ms", 10000L);
         // 内存型 checkpoint 存储的单子任务状态上限（MB）。Flink 默认 5 MB；七天标定使 RobustScaler 预热蓄水池
         // （60480 轮×5 通道，装箱 ListState<Double>）每子任务约 5~7 MB 越线 → checkpoint 失败 → 作业重启 →
@@ -104,6 +108,7 @@ public class M1Job {
         System.out.println("Ckpt tolerable failures: " + ckptTolerableFailures
                 + (ckptTolerableFailures > 0 ? "  [DIAGNOSTIC MODE: job will not restart on failed checkpoints]" : ""));
         System.out.println("Cache depth:     " + cacheDepth);
+        System.out.println("Stuck guard:     " + RepeatRunGuard.describe(stuckThresholds));
         System.out.println("========================================");
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -187,7 +192,7 @@ public class M1Job {
 
         SingleOutputStreamOperator<DeviceRound> cached = scaled
                 .keyBy((KeySelector<DeviceRound, String>) DeviceRound::getDevice)
-                .process(new RawCacheFunction(cacheDepth, nominalPeriodSec))
+                .process(new RawCacheFunction(cacheDepth, nominalPeriodSec, stuckThresholds))
                 .name("RawCache");
 
         // (a) 归一化流 → synergia-m1-out（JSON，仅验收）/ normalized stream → m1-out (acceptance only)

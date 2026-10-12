@@ -97,6 +97,10 @@ public class M2Job {
         boolean relativeGuard = params.getBoolean("relative-guard", false);   // 补充指令四 step1：默认关闭
         double epsilon = params.getDouble("iqr-epsilon", 1e-9);
         int cacheDepth = params.getInt("cache-depth", 1000);
+        // 重复值游程守卫的阈值表（开发决策第十条）：A=t1/t2/t3/t4/t5,B=...，单位为轮；不给则守卫关闭。
+        // Run-length guard thresholds (development decision 10), in rounds; omitted = guard off.
+        java.util.Map<String, int[]> stuckThresholds =
+                com.leejean.m1.RepeatRunGuard.parse(params.get("stuck-run-thresholds", ""));
         long checkpointMs = params.getLong("checkpoint-ms", 10000L);
         // 内存型 checkpoint 单子任务状态上限（MB），默认 128；七天预热蓄水池会越过 Flink 默认 5 MB（补充指令五 根因）。
         int ckptMaxStateMb = params.getInt("checkpoint-max-state-mb", 128);
@@ -202,6 +206,7 @@ public class M2Job {
         System.out.println("Ckpt interval/timeout: " + checkpointMs + " ms / " + ckptTimeoutMin + " min");
         System.out.println("Ckpt tolerable failures: " + ckptTolerableFailures
                 + (ckptTolerableFailures > 0 ? "  (job restarts on consecutive failure no. " + (ckptTolerableFailures + 1) + ")" : ""));
+        System.out.println("Stuck guard:     " + com.leejean.m1.RepeatRunGuard.describe(stuckThresholds));
         System.out.println("Window W/S:      " + windowSec + "s / " + slideSec + "s");
         System.out.println("MCOD R/k:        " + r + " / " + k
                 + (rPerDevice.isEmpty() ? " (global R for all devices)"
@@ -308,7 +313,7 @@ public class M2Job {
                         warmupRounds, epsilon, ChannelTransform.defaultTable(), relativeGuard))
                 .name("RobustScaler")
                 .keyBy(DeviceKeys.selector(surrogate, DeviceRound::getDevice))
-                .process(new RawCacheFunction(cacheDepth, nominalPeriodSec)).name("RawCache");
+                .process(new RawCacheFunction(cacheDepth, nominalPeriodSec, stuckThresholds)).name("RawCache");
 
         Properties producerProps = new Properties();
         producerProps.setProperty("bootstrap.servers", brokers);

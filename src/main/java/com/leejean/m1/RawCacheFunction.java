@@ -8,6 +8,10 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * 原始缓存（交接文档 §4.5，approved decision 5）：每设备一个环形缓冲，存**原始未归一化**轮。
  * Raw cache (handover §4.5): a per-device ring buffer of RAW, un-normalized rounds.
@@ -24,6 +28,10 @@ import org.apache.flink.util.Collector;
  * as the equivalent test (nominalPeriodSec defaults to the 10 s nominal period, DF-2). This is an
  * implementation choice — report back to the design session if it misreads the intent.
  *
+ * <p>本算子同时承载重复值游程守卫（开发决策第十条，见 {@link RepeatRunGuard}）：给出阈值表时，逐设备逐通道统计
+ * 连续完全相同读数的游程，达到阈值即在轮上写 stuckMask，并累加 m1_guard_stuck_runs / m1_guard_stuck_rounds。
+ * This operator also hosts the repeated-value run-length guard (development decision 10, see RepeatRunGuard).
+ *
  * <p>缓存内容为**原始 x**（不含 xNorm），忠实「un-normalized」（本算子位于 RobustScaler 之后，
  * 但 DeviceRound 同时携带原始 x，故仍能缓存原始值）。
  * The cache stores the RAW x only (no xNorm); although this operator sits after the scaler, the
@@ -34,12 +42,22 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
 
     private final int cacheDepth;
     private final int nominalPeriodSec;
+    // 重复值游程守卫的阈值表（设备 → 五个通道的阈值，单位：轮）；空表时守卫关闭（开发决策第十条）。
+    // Run-length guard thresholds (device → five per-channel thresholds in rounds); empty disables the guard.
+    private final HashMap<String, int[]> stuckThresholds;
 
     private transient ValueState<RawRing> ring;
     private transient ValueState<Long> lastTsSec;
+    private transient ValueState<RepeatRunGuard.RunState> runState;
     private transient Counter coldStarts;
+    private transient Counter stuckRuns;
+    private transient Counter stuckRounds;
 
     public RawCacheFunction(int cacheDepth, int nominalPeriodSec) {
+        this(cacheDepth, nominalPeriodSec, Collections.emptyMap());
+    }
+
+    public RawCacheFunction(int cacheDepth, int nominalPeriodSec, Map<String, int[]> stuckThresholds) {
         if (cacheDepth <= 0) {
             throw new IllegalArgumentException("cacheDepth must be > 0, got " + cacheDepth);
         }
@@ -48,6 +66,7 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
         }
         this.cacheDepth = cacheDepth;
         this.nominalPeriodSec = nominalPeriodSec;
+        this.stuckThresholds = new HashMap<>(stuckThresholds);
     }
 
     @Override
@@ -56,6 +75,10 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
                 new ValueStateDescriptor<>("m1-raw-ring", Types.POJO(RawRing.class)));
         lastTsSec = getRuntimeContext().getState(new ValueStateDescriptor<>("m1-raw-last-ts", Types.LONG));
         coldStarts = getRuntimeContext().getMetricGroup().counter("m1_cache_cold_starts");
+        runState = getRuntimeContext().getState(
+                new ValueStateDescriptor<>("m1-repeat-run", Types.POJO(RepeatRunGuard.RunState.class)));
+        stuckRuns = getRuntimeContext().getMetricGroup().counter("m1_guard_stuck_runs");
+        stuckRounds = getRuntimeContext().getMetricGroup().counter("m1_guard_stuck_rounds");
     }
 
     @Override
@@ -75,6 +98,20 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
         r.add(round.getTs(), round.getX());   // 缓存原始 x / cache the raw x
         ring.update(r);
         lastTsSec.update(round.getTs());
+
+        // 重复值游程守卫：只打标与计数，不改变下游行为 / run-length guard: flag and count only
+        int[] thr = stuckThresholds.get(round.getDevice());
+        if (thr != null) {
+            RepeatRunGuard.RunState st = runState.value();
+            if (st == null) {
+                st = new RepeatRunGuard.RunState();
+            }
+            stuckRuns.inc(RepeatRunGuard.update(st, round, thr));
+            if (round.stuckMaskBits() != 0) {
+                stuckRounds.inc();
+            }
+            runState.update(st);
+        }
 
         out.collect(round);
     }
