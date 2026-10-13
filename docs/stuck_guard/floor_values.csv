@@ -1,0 +1,6 @@
+channel,value,share,range_min,range_max
+Light,0,0.13544,0.0,65535.0
+Light,1,0.08048,0.0,65535.0
+Light,2,0.027,0.0,65535.0
+Light,3,0.01329,0.0,65535.0
+Light,4,0.01037,0.0,65535.0
