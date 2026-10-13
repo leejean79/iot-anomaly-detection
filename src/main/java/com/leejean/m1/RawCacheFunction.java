@@ -46,7 +46,7 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
     // Run-length guard thresholds (device → five per-channel thresholds in rounds); empty disables the guard.
     private final HashMap<String, int[]> stuckThresholds;
     // 底值集合（按检测通道顺序；2026-10-12 裁决第二节）/ floor-value sets per detection channel
-    private final double[][] stuckFloors;
+    private final HashMap<String, double[][]> stuckFloors;
 
     private transient ValueState<RawRing> ring;
     private transient ValueState<Long> lastTsSec;
@@ -61,11 +61,11 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
     }
 
     public RawCacheFunction(int cacheDepth, int nominalPeriodSec, Map<String, int[]> stuckThresholds) {
-        this(cacheDepth, nominalPeriodSec, stuckThresholds, new double[Channels.N_DET][0]);
+        this(cacheDepth, nominalPeriodSec, stuckThresholds, Collections.emptyMap());
     }
 
     public RawCacheFunction(int cacheDepth, int nominalPeriodSec, Map<String, int[]> stuckThresholds,
-                            double[][] stuckFloors) {
+                            Map<String, double[][]> stuckFloors) {
         if (cacheDepth <= 0) {
             throw new IllegalArgumentException("cacheDepth must be > 0, got " + cacheDepth);
         }
@@ -75,7 +75,7 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
         this.cacheDepth = cacheDepth;
         this.nominalPeriodSec = nominalPeriodSec;
         this.stuckThresholds = new HashMap<>(stuckThresholds);
-        this.stuckFloors = stuckFloors;
+        this.stuckFloors = new HashMap<>(stuckFloors);
     }
 
     @Override
@@ -116,7 +116,8 @@ public class RawCacheFunction extends KeyedProcessFunction<String, DeviceRound, 
             if (st == null) {
                 st = new RepeatRunGuard.RunState();
             }
-            int[] crossed = RepeatRunGuard.update(st, round, thr, stuckFloors);
+            int[] crossed = RepeatRunGuard.update(st, round, thr,
+                    stuckFloors.getOrDefault(round.getDevice(), RepeatRunGuard.emptyFloors()));
             stuckRuns.inc(crossed[0]);
             floorRuns.inc(crossed[1]);
             if (round.stuckMaskBits() != 0) {

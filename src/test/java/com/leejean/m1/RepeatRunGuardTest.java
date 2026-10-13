@@ -85,6 +85,20 @@ class RepeatRunGuardTest {
     }
 
     @Test
+    @DisplayName("游程：相邻两条读数相隔超过 60 秒即断开")
+    void gapBreaksRun() {
+        RepeatRunGuard.RunState s = new RepeatRunGuard.RunState();
+        int[] thr = {3, 0, 0, 0, 0};
+        RepeatRunGuard.update(s, round("A", 0, 5.0, 0, 0, 0, 0), thr);
+        RepeatRunGuard.update(s, round("A", 10, 5.0, 0, 0, 0, 0), thr);
+        assertEquals(2, s.run[0]);
+        RepeatRunGuard.update(s, round("A", 71, 5.0, 0, 0, 0, 0), thr);
+        assertEquals(1, s.run[0], "间隔 61 秒，跨缺口的相同读数不连成一个游程");
+        RepeatRunGuard.update(s, round("A", 131, 5.0, 0, 0, 0, 0), thr);
+        assertEquals(2, s.run[0], "间隔恰为 60 秒仍算连续");
+    }
+
+    @Test
     @DisplayName("游程：冷启动清零全部游程")
     void coldStartResets() {
         RepeatRunGuard.RunState s = new RepeatRunGuard.RunState();
@@ -101,13 +115,15 @@ class RepeatRunGuardTest {
     @Test
     @DisplayName("底值集合：解析按检测通道顺序；通道名错误立即报错")
     void parseFloors() {
-        double[][] f = RepeatRunGuard.parseFloors("Light=0/1, Gas=400");
-        assertArrayEquals(new double[]{0, 1}, f[Channels.LIGHT_INDEX]);
-        assertArrayEquals(new double[]{400}, f[3]);
-        assertEquals(0, f[0].length);
-        assertEquals(0, RepeatRunGuard.parseFloors("")[4].length);
-        assertThrows(IllegalArgumentException.class, () -> RepeatRunGuard.parseFloors("Lux=0"));
-        assertThrows(IllegalArgumentException.class, () -> RepeatRunGuard.parseFloors("Light="));
+        Map<String, double[][]> m = RepeatRunGuard.parseFloors("A.Light=0/1, A.Gas=400, B.Light=5");
+        assertArrayEquals(new double[]{0, 1}, m.get("A")[Channels.LIGHT_INDEX]);
+        assertArrayEquals(new double[]{400}, m.get("A")[3]);
+        assertArrayEquals(new double[]{5}, m.get("B")[Channels.LIGHT_INDEX]);
+        assertEquals(0, m.get("B")[0].length);
+        assertTrue(RepeatRunGuard.parseFloors("").isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> RepeatRunGuard.parseFloors("A.Lux=0"));
+        assertThrows(IllegalArgumentException.class, () -> RepeatRunGuard.parseFloors("Light=0"));
+        assertThrows(IllegalArgumentException.class, () -> RepeatRunGuard.parseFloors("A.Light="));
     }
 
     @Test
@@ -115,7 +131,7 @@ class RepeatRunGuardTest {
     void floorRunIsCountedNotFlagged() {
         RepeatRunGuard.RunState s = new RepeatRunGuard.RunState();
         int[] thr = {3, 0, 0, 0, 3};
-        double[][] floors = RepeatRunGuard.parseFloors("Light=0");
+        double[][] floors = RepeatRunGuard.parseFloors("A.Light=0").get("A");
         int[] crossed = new int[2];
         DeviceRound last = null;
         for (int i = 0; i < 4; i++) {

@@ -447,3 +447,4 @@ JobManager 堆内存也要装得下。代码里的默认值（间隔 10 秒、�
 | 2026-10-10 | 按 2026-10-09 裁决：`m3_v34_report.py`（误报率）改为逐台平稳日；`m3_injection_recall.py`（注入召回表）改为只计首次超阈落在注入区间内，结束时跳回单列；TaskManager 进程总量与 JavaCPP 物理内存上限默认 5120MB，`syn-tm-recreate.sh` 增加重建前的内存余量核对。Java 代码没有改动 |
 | 2026-10-12 | 新增重复值游程守卫 `RepeatRunGuard`（开发决策第十条），挂在 `RawCacheFunction` 中；`DeviceRound` 增加 `stuckMask`，监测快照增加 `stuckRounds`、`stuckChannelsMask`；作业参数 `--stuck-run-thresholds`。召回表改为定稿的重叠口径 |
 | 2026-10-13 | 重复值游程守卫区分底值游程与普通游程（2026-10-12 裁决第二节）：`RepeatRunGuard.parseFloors`、`DeviceRound.floorMask`、监测快照 `floorRounds`、`floorChannelsMask`、`guardRunLength`、`guardRunStartTs`，作业参数 `--stuck-floor-values`；误报率脚本增加尺度条件与 W 的推导 |
+| 2026-10-13 | 守卫按 2026-10-13 裁决第四节改为逐设备底值集合（`A.Light=0/1` 格式）、相邻读数相隔超过 60 秒断开游程；离线脚本增加十大游程表与真实卡死候选的剔除 |

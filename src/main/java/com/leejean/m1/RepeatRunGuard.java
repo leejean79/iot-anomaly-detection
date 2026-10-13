@@ -22,6 +22,7 @@ import java.util.TreeMap;
  * <ul>
  *   <li>比较的是原始值 x（解析后的 double，逐位相等），不是标准化后的值。 Compares raw values, bit-exact.</li>
  *   <li>本轮该通道缺失时跳过，既不延长也不打断游程。 A missing channel neither extends nor breaks the run.</li>
+ *   <li>相邻两条读数相隔超过 60 秒即断开游程（2026-10-13 裁决第四节）。 A gap over 60 s breaks the run.</li>
  *   <li>设备冷启动（缺席超过缓存深度后返场）时清零全部游程。 A cold start resets all runs.</li>
  *   <li>阈值为 0 表示该通道不设守卫。 A threshold of 0 disables the guard for that channel.</li>
  * </ul>
@@ -79,14 +80,14 @@ public final class RepeatRunGuard {
     }
 
     /**
-     * 解析底值集合 / parse the floor-value sets。格式：{@code Light=0/1/2,Gas=400}，通道名为五个检测通道之一，
-     * 取值用「/」分隔；空串返回全空（没有底值）。返回按检测通道固定顺序排列的数组。
-     * Format: channel name = values separated by "/"; returns per-channel arrays in the fixed channel order.
+     * 解析底值集合（逐设备逐通道，2026-10-13 裁决第四节）/ parse the per-device floor-value sets。格式：
+     * {@code A.Light=0/1/2,B.Light=5}，键为「设备.检测通道名」，取值用「/」分隔；空串返回空表（没有底值）。
+     * 返回 设备 → 按检测通道固定顺序排列的数组。Key "device.channel", values separated by "/".
      */
-    public static double[][] parseFloors(String spec) {
-        double[][] floors = new double[Channels.N_DET][0];
+    public static Map<String, double[][]> parseFloors(String spec) {
+        Map<String, double[][]> map = new HashMap<>();
         if (spec == null || spec.trim().isEmpty()) {
-            return floors;
+            return map;
         }
         for (String item : spec.split(",")) {
             String s = item.trim();
@@ -94,27 +95,35 @@ public final class RepeatRunGuard {
                 continue;
             }
             int eq = s.indexOf('=');
-            int ch = eq > 0 ? Channels.detectionIndex(s.substring(0, eq).trim()) : -1;
+            int dot = eq > 0 ? s.lastIndexOf('.', eq) : -1;
+            int ch = dot > 0 ? Channels.detectionIndex(s.substring(dot + 1, eq).trim()) : -1;
             if (ch < 0 || eq == s.length() - 1) {
-                throw new IllegalArgumentException("--stuck-floor-values 项格式应为 检测通道名=v1/v2/...: " + s);
+                throw new IllegalArgumentException("--stuck-floor-values 项格式应为 设备.检测通道名=v1/v2/...: " + s);
             }
             String[] parts = s.substring(eq + 1).split("/");
             double[] v = new double[parts.length];
             for (int i = 0; i < parts.length; i++) {
                 v[i] = Double.parseDouble(parts[i].trim());
             }
-            floors[ch] = v;
+            map.computeIfAbsent(s.substring(0, dot).trim(), k -> emptyFloors())[ch] = v;
         }
-        return floors;
+        return map;
+    }
+
+    /** 没有底值的一台设备 / a device without floor values. */
+    public static double[][] emptyFloors() {
+        return new double[Channels.N_DET][0];
     }
 
     /** 底值集合的横幅描述 / banner description of the floor sets. */
-    public static String describeFloors(double[][] floors) {
+    public static String describeFloors(Map<String, double[][]> floors) {
         StringBuilder sb = new StringBuilder();
-        for (int c = 0; c < Channels.N_DET; c++) {
-            if (floors[c].length > 0) {
-                sb.append(sb.length() == 0 ? "" : " ").append(Channels.DETECTION[c]).append('=')
-                  .append(java.util.Arrays.toString(floors[c]));
+        for (Map.Entry<String, double[][]> e : new TreeMap<>(floors).entrySet()) {
+            for (int c = 0; c < Channels.N_DET; c++) {
+                if (e.getValue()[c].length > 0) {
+                    sb.append(sb.length() == 0 ? "" : " ").append(e.getKey()).append('.').append(Channels.DETECTION[c])
+                      .append('=').append(java.util.Arrays.toString(e.getValue()[c]));
+                }
             }
         }
         return sb.length() == 0 ? "none" : sb.toString();
@@ -145,8 +154,11 @@ public final class RepeatRunGuard {
 
     /** 不设底值集合时的更新（全部按普通游程处理）/ update without floor sets. */
     public static int update(RunState s, DeviceRound round, int[] thr) {
-        return update(s, round, thr, new double[Channels.N_DET][0])[0];
+        return update(s, round, thr, emptyFloors())[0];
     }
+
+    /** 相邻两条读数相隔超过此秒数即断开游程（探索性分析的缺口定义，2026-10-13 裁决第四节）/ gap that breaks a run. */
+    static final long GAP_SEC = 60L;
 
     /**
      * 用本轮更新游程，在轮上写出卡死掩码、底值掩码与游程信息 / update the runs and write the masks and run info。
@@ -170,7 +182,7 @@ public final class RepeatRunGuard {
             if (missing != null && missing[c]) {
                 continue;
             }
-            if (s.seen[c] && Double.compare(x[c], s.last[c]) == 0) {
+            if (s.seen[c] && Double.compare(x[c], s.last[c]) == 0 && round.getTs() - s.lastTs[c] <= GAP_SEC) {
                 s.run[c]++;
             } else {
                 s.last[c] = x[c];
@@ -178,6 +190,7 @@ public final class RepeatRunGuard {
                 s.start[c] = round.getTs();
                 s.seen[c] = true;
             }
+            s.lastTs[c] = round.getTs();
             if (thr[c] > 0 && s.run[c] >= thr[c]) {
                 boolean onFloor = isFloor(floors[c], s.last[c]);
                 if (onFloor) {
@@ -206,6 +219,7 @@ public final class RepeatRunGuard {
         public double[] last = new double[Channels.N_DET];
         public int[] run = new int[Channels.N_DET];
         public long[] start = new long[Channels.N_DET];     // 当前游程的起始轮时间戳（秒）/ run start ts (s)
+        public long[] lastTs = new long[Channels.N_DET];    // 该通道上一条读数的轮时间戳（秒）/ previous reading ts
         public boolean[] seen = new boolean[Channels.N_DET];
 
         public RunState() { }

@@ -60,9 +60,9 @@ public class M1Job {
         // Run-length guard thresholds (development decision 10), in rounds; omitted = guard off.
         java.util.Map<String, int[]> stuckThresholds =
                 com.leejean.m1.RepeatRunGuard.parse(params.get("stuck-run-thresholds", ""));
-        // 底值集合（2026-10-12 裁决第二节）：Light=0/1,Gas=400；底值游程只计数不打标。不给则全部按普通游程。
+        // 底值集合（逐设备逐通道，2026-10-13 裁决第四节）：A.Light=0/1,B.Light=5；底值游程只计数不打标。不给则全部按普通游程。
         // Floor-value sets (ruling of 2026-10-12): floor runs are counted, never flagged as stuck.
-        double[][] stuckFloors = com.leejean.m1.RepeatRunGuard.parseFloors(params.get("stuck-floor-values", ""));
+        java.util.Map<String, double[][]> stuckFloors = com.leejean.m1.RepeatRunGuard.parseFloors(params.get("stuck-floor-values", ""));
         long checkpointMs = params.getLong("checkpoint-ms", 10000L);
         // 内存型 checkpoint 存储的单子任务状态上限（MB）。Flink 默认 5 MB；七天标定使 RobustScaler 预热蓄水池
         // （60480 轮×5 通道，装箱 ListState<Double>）每子任务约 5~7 MB 越线 → checkpoint 失败 → 作业重启 →
