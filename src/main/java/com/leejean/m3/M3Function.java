@@ -7,6 +7,7 @@ import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.PrimitiveArrayTypeInfo;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
@@ -14,6 +15,7 @@ import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.runtime.metrics.DescriptiveStatisticsHistogram;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.operators.TimestampedCollector;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
@@ -21,7 +23,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * M3 LSTM 自编码器的 Flink 算子（交接文档 §3 决策 2/3/4/5/6/7）：按设备分键，消费 M2 的
@@ -34,10 +39,23 @@ import java.util.List;
  * <ol>
  *   <li><b>COLLECTING</b>：校准器冻结后开始，累积训练集（7 天）+ 早停集（2 天）+ 阈值标定集（7 天，2026-10-02 裁决起）；
  *       含离群轮的窗口从训练集剔除（决策 3 训练净化）。</li>
- *   <li><b>TRAINING</b>：同步训练（阻塞当前轮处理）；隐藏层宽度固定（离线网格选定 60），早停集只决定训练到第几个 epoch；单次。</li>
- *   <li><b>CALIBRATING</b>：在阈值标定集上推理，估计 WMSE 的 median/IQR 与协方差逆矩阵。</li>
- *   <li><b>ONLINE</b>：每满窗推理 → 计算主分与 Mahalanobis 分 → 发 M3ScoreRecord。</li>
+ *   <li><b>TRAINING</b>：训练在训练执行器的专用线程上异步进行（补遗四），任务线程照常收元素、推水位线、过检查点
+ *       屏障；此间到达的轮进入受检查点保护的有界缓冲。隐藏层宽度固定（离线网格选定 60），早停集只决定训练到第几个
+ *       epoch；单次。</li>
+ *   <li><b>CALIBRATING</b>：在阈值标定集上推理，估计 WMSE 的 median/IQR 与协方差逆矩阵。标定集在训练前已收齐，
+ *       所以标定紧接训练在训练线程上完成，任务线程上只是瞬态。</li>
+ *   <li><b>ONLINE</b>：每满窗推理 → 计算主分与 Mahalanobis 分 → 发 M3ScoreRecord。训练期间缓冲的轮先按到达
+ *       顺序分批排空（每批 {@code --drain-batch} 轮），排空期间新到的轮追加到缓冲尾部。</li>
  * </ol>
+ *
+ * <p>补遗四（训练移出任务线程）：结果的收回、模型写入状态、缓冲的读写都只在任务线程上进行；训练线程只运行
+ * 纯函数。训练期间与排空期间，配套的 {@link M3Operator} 把输出水位线保持在缓冲中最早一轮之前，使排空时发出的
+ * 评分对下游不是迟到记录。作业从检查点恢复时，若设备处于训练态而状态里没有模型，就用受检查点保护的收集窗口
+ * 重新提交一次训练（纯函数、种子固定，结果与未被打断时逐位相同）。
+ * Addendum 4: results are collected and state is touched on the task thread only; the training thread runs a
+ * pure function. While training and draining, {@link M3Operator} holds the output watermark just before the
+ * earliest buffered round. On restore, a device in TRAINING without a model resubmits from its checkpointed
+ * collection windows.
  *
  * <p>M1 的校准期（warmupRounds，默认 7 天 = 60,480 轮）后的轮才到达 M2/M3，因此 M3 不再需要
  * 单独跳过校准期——第一条 AnnotatedRound 意味着该设备的校准器已冻结。
@@ -94,6 +112,26 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     /** 梯度裁剪阈值，须与离线网格一致 / must match the offline grid. */
     private final double gradClip;
     private final OutputTag<MonitoringSnapshot> m3MonitoringTag;
+    /** 训练执行器线程数（每个任务管理器）/ training threads per TaskManager (--train-threads). */
+    private final int trainThreads;
+    /** 每次排空的轮数 / rounds drained per step (--drain-batch). */
+    private final int drainBatch;
+    /** 训练态下查询结果槽的处理时间间隔（秒）/ result-poll interval in processing time (--poll-interval-sec). */
+    private final int pollIntervalSec;
+
+    public static final int DEFAULT_TRAIN_THREADS = 2;
+    public static final int DEFAULT_DRAIN_BATCH = 200;
+    public static final int DEFAULT_POLL_INTERVAL_SEC = 30;
+    /** 失败几次后放弃（补遗四第二节第 2 条第四点：失败后重新提交一次，仍失败则停在训练态并上报）。 */
+    private static final int MAX_FAILURES = 2;
+    /** 监测状态快照的 windowEnd 取值，用于与点通道、上下文通道、数据接入快照区分 / marks status snapshots. */
+    public static final long STATUS_SNAPSHOT_WINDOW_END = -1L;
+
+    // 缓冲状态的描述符供 M3Operator 在恢复时遍历全部分键 / descriptors shared with M3Operator for restore
+    static final ValueStateDescriptor<Integer> PENDING_SIZE_DESC =
+            new ValueStateDescriptor<>("m3-pending-size", Types.INT);
+    static final ValueStateDescriptor<Long> PENDING_HEAD_TS_DESC =
+            new ValueStateDescriptor<>("m3-pending-head-ts", Types.LONG);
 
     // ---- Flink 状态 / Flink state ----
     private transient ValueState<Integer> statePhase;           // 0=COLLECTING, 1=TRAINING, 2=CALIBRATING, 3=ONLINE
@@ -118,6 +156,25 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
      */
     private transient ValueState<Integer> trainedWindow;
     private transient ValueState<Long> trainExcluded;           // 离群净化排除的窗口数 / outlier-sanitized excluded windows
+    // 补遗四：训练期间到达的轮的有界缓冲与训练任务记录 / addendum 4: bounded buffer and training-task records
+    private transient ListState<BufferedRound> pendingRounds;   // 按到达顺序 / in arrival order
+    private transient ValueState<Integer> pendingSize;
+    private transient ValueState<Long> pendingHeadTs;           // 缓冲头那一轮的记录时间戳（毫秒）/ head record ts (ms)
+    private transient ValueState<Long> trainTaskId;
+    private transient ValueState<Long> trainSubmitMs;           // 提交时刻（处理时间毫秒）/ submit time (processing ms)
+    private transient ValueState<Integer> trainFailures;        // 已失败次数 / failed attempts so far
+    private transient ValueState<String> deviceName;            // 定时器里没有元素，日志需要设备号 / for timer logs
+
+    private transient M3TrainExecutor executor;
+    /** 本子任务各分键的缓冲头时间戳（毫秒），供 M3Operator 计算输出水位线；只在任务线程上读写。 */
+    private transient Map<String, Long> holdHeadTs;
+    /** 本子任务各分键的缓冲轮数，供指标读取（指标线程读，故用并发表）/ buffer sizes for the gauge. */
+    private transient Map<String, Integer> bufferSizes;
+    /** 各分键缓冲开始排空的处理时间（毫秒）/ processing time when draining started, per key. */
+    private transient Map<String, Long> drainStartMs;
+    private transient volatile double lastQueueWaitSec;
+    private transient volatile double lastTrainWallSec;
+    private transient Counter bufferOverflow;
 
     /**
      * 最近一次训练实际跑完的 epoch 数。**仅供测试**断言早停确实截断了训练——用处理时间下的耗时来判断早停
@@ -134,6 +191,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
      * Models trained in the most recent cold start. Test-only: it makes "exactly one model" assertable.
      */
     transient int lastTrainModels;
+
+    /** 最近一次把训练结果写入状态的线程。**仅供测试**断言结果只在任务线程上收回（补遗四）。 */
+    transient Thread lastApplyThread;
 
     private transient Counter collectingCount;
     private transient Counter trainingCount;
@@ -182,6 +242,31 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                int maxEpochs, int earlyStopPatience, int hiddenSize, int batchSize,
                boolean reverseTarget, double learningRate, double gradClip,
                OutputTag<MonitoringSnapshot> m3MonitoringTag, int roundsPerDay) {
+        this(trainDays, earlyStopDays, threshDays, windowLength, zThreshold, channelWeights,
+                maxEpochs, earlyStopPatience, hiddenSize, batchSize, reverseTarget,
+                learningRate, gradClip, m3MonitoringTag, roundsPerDay,
+                DEFAULT_TRAIN_THREADS, DEFAULT_DRAIN_BATCH, DEFAULT_POLL_INTERVAL_SEC);
+    }
+
+    /**
+     * 带补遗四三个参数的构造函数 / constructor with the three addendum-4 parameters.
+     *
+     * @param trainThreads    训练执行器线程数（每个任务管理器）/ training threads per TaskManager
+     * @param drainBatch      每次排空的轮数 / rounds drained per step
+     * @param pollIntervalSec 训练态下查询结果的间隔（处理时间秒）/ result-poll interval (processing-time seconds)
+     */
+    public M3Function(int trainDays, int earlyStopDays, int threshDays,
+               int windowLength, double zThreshold, double[] channelWeights,
+               int maxEpochs, int earlyStopPatience, int hiddenSize, int batchSize,
+               boolean reverseTarget, double learningRate, double gradClip,
+               OutputTag<MonitoringSnapshot> m3MonitoringTag, int roundsPerDay,
+               int trainThreads, int drainBatch, int pollIntervalSec) {
+        if (drainBatch < 1 || pollIntervalSec < 1) {
+            throw new IllegalArgumentException("--drain-batch 与 --poll-interval-sec 必须为正");
+        }
+        this.trainThreads = trainThreads;
+        this.drainBatch = drainBatch;
+        this.pollIntervalSec = pollIntervalSec;
         this.roundsPerDay = roundsPerDay;
         this.trainDays = trainDays;
         this.earlyStopDays = earlyStopDays;
@@ -233,6 +318,24 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                 new ValueStateDescriptor<>("m3-trained-window", Types.INT));
         trainExcluded = getRuntimeContext().getState(
                 new ValueStateDescriptor<>("m3-train-excluded", Types.LONG));
+        pendingRounds = getRuntimeContext().getListState(
+                new ListStateDescriptor<>("m3-pending-rounds", TypeInformation.of(BufferedRound.class)));
+        pendingSize = getRuntimeContext().getState(PENDING_SIZE_DESC);
+        pendingHeadTs = getRuntimeContext().getState(PENDING_HEAD_TS_DESC);
+        trainTaskId = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-train-task-id", Types.LONG));
+        trainSubmitMs = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-train-submit-ms", Types.LONG));
+        trainFailures = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-train-failures", Types.INT));
+        deviceName = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-device", Types.STRING));
+
+        executor = new M3TrainExecutor(trainThreads);
+        holdHeadTs = new HashMap<>();
+        bufferSizes = new ConcurrentHashMap<>();
+        drainStartMs = new HashMap<>();
+        bufferOverflow = getRuntimeContext().getMetricGroup().counter("m3_train_buffer_overflow");
+        getRuntimeContext().getMetricGroup().gauge("m3_train_buffer_size",
+                (Gauge<Integer>) () -> bufferSizes.values().stream().mapToInt(Integer::intValue).sum());
+        getRuntimeContext().getMetricGroup().gauge("m3_train_queue_wait_sec", (Gauge<Double>) () -> lastQueueWaitSec);
+        getRuntimeContext().getMetricGroup().gauge("m3_train_wall_sec", (Gauge<Double>) () -> lastTrainWallSec);
 
         collectingCount = getRuntimeContext().getMetricGroup().counter("m3_collecting_rounds");
         trainingCount = getRuntimeContext().getMetricGroup().counter("m3_training_events");
@@ -267,19 +370,116 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         count++;                                       // 本轮计入总数 / this round counts toward the total
         roundCount.update(count);
 
-        // 只有 COLLECTING 与 ONLINE 两相位处理输入；TRAINING/CALIBRATING 是同步瞬态，不会在此看到
-        // Only COLLECTING and ONLINE handle input; TRAINING/CALIBRATING are synchronous transients
+        // COLLECTING 收集三段数据；TRAINING 期间到达的轮入缓冲；ONLINE 时缓冲非空则追加到尾部并排空一批，
+        // 缓冲为空则直接评分。CALIBRATING 只是任务线程上的瞬态，不会在此看到。
+        // COLLECTING collects; rounds arriving in TRAINING are buffered; in ONLINE a non-empty buffer is appended
+        // to and drained by one batch, otherwise the round is scored directly.
         switch (phase) {
             case 0:
                 handleCollecting(round, ctx, out, count, device);
                 break;
+            case 1:
+                bufferRound(round, ctx, device);
+                advance(ctx, out);
+                break;
             case 3:
-                handleOnline(round, ctx, out, device);
+                Integer pending = pendingSize.value();
+                if (pending != null && pending > 0) {
+                    bufferRound(round, ctx, device);
+                    advance(ctx, out);
+                } else {
+                    handleOnline(round, ctx, out, device);
+                }
                 break;
             default:
                 break;
         }
     }
+
+    /**
+     * 处理时间定时器（补遗四）：训练态下查询结果槽，排空态下继续排空，并在需要时重新登记下一次。
+     * Processing-time timer: poll the result slot while training, keep draining while the buffer is non-empty.
+     */
+    @Override
+    public void onTimer(long timestamp, OnTimerContext ctx, Collector<M3ScoreRecord> out) throws Exception {
+        advance(ctx, out);
+        Integer phase = statePhase.value();
+        if (phase != null && phase == 1 && m3MonitoringTag != null) {
+            emitStatusSnapshot(ctx, phase);
+        }
+    }
+
+    @Override
+    public void close() throws Exception {
+        if (executor != null) {
+            executor.close();                          // 中断本实例的训练 / interrupt this instance's training
+        }
+        super.close();
+    }
+
+    /**
+     * 推进训练与排空（只在任务线程上调用）：训练态查询结果，结果就绪则写入状态并转为在线态；在线态缓冲非空则
+     * 排空一批；最后按相位登记下一次定时器。
+     * Advance training and draining on the task thread, then register the next timer for the phase.
+     */
+    private void advance(Context ctx, Collector<M3ScoreRecord> out) throws Exception {
+        Integer phase = statePhase.value();
+        if (phase != null && phase == 1) {
+            pollTraining(ctx);
+            phase = statePhase.value();
+        }
+        Integer pending = pendingSize.value();
+        boolean draining = phase != null && phase == 3 && pending != null && pending > 0;
+        if (draining) {
+            drainBatch(ctx, out);
+            pending = pendingSize.value();
+            draining = pending != null && pending > 0;
+        }
+        long now = ctx.timerService().currentProcessingTime();
+        if (phase != null && phase == 1) {
+            ctx.timerService().registerProcessingTimeTimer(now + pollIntervalSec * 1000L);
+        } else if (draining) {
+            // 排空节拍：下一个邮箱轮次继续，期间元素、检查点屏障照常处理 / next mailbox turn keeps draining
+            ctx.timerService().registerProcessingTimeTimer(now + 1);
+        }
+    }
+
+    /** 训练态：查询结果槽；未提交（例如从检查点恢复后）则重新提交 / poll; resubmit if nothing is in flight. */
+    private void pollTraining(Context ctx) throws Exception {
+        String key = ctx.getCurrentKey();
+        String device = deviceName.value();
+        M3TrainExecutor.Outcome o = executor.poll(key);
+        if (o == M3TrainExecutor.PENDING) {
+            return;
+        }
+        if (o == M3TrainExecutor.NOT_SUBMITTED) {
+            Integer failures = trainFailures.value();
+            if (modelBytes.value() == null && (failures == null || failures < MAX_FAILURES)) {
+                // 训练线程里的进行中训练不进检查点；恢复后结果槽为空，用受检查点保护的收集窗口重新提交。
+                // In-flight training is not checkpointed; after a restore the slot is empty, so resubmit.
+                LOG.info("[M3] Device {} is in TRAINING without a model and nothing in flight "
+                         + "(restored from a checkpoint): resubmitting", device);
+                submitTraining(key, device, ctx);
+            }
+            return;
+        }
+        Long taskId = trainTaskId.value();
+        if (o.error != null || taskId == null || o.taskId != taskId) {
+            int failures = (trainFailures.value() == null ? 0 : trainFailures.value()) + 1;
+            trainFailures.update(failures);
+            LOG.warn("[M3] Device {} training task {} failed ({} of {}): {}", device,
+                     o.taskId, failures, MAX_FAILURES, o.error == null ? "stale task id" : o.error.toString());
+            if (failures < MAX_FAILURES) {
+                submitTraining(key, device, ctx);
+            } else {
+                LOG.warn("[M3] Device {} REPORT: training failed {} times; the device stays in TRAINING",
+                         device, failures);
+            }
+            return;
+        }
+        applyOutcome(key, device, o);
+    }
+
 
     private void handleCollecting(AnnotatedRound round, Context ctx,
                                   Collector<M3ScoreRecord> out, long count,
@@ -346,120 +546,125 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         windowMaskBuffer.clear();
         windowOutlierBuffer.clear();
 
-        // 三段数据齐备 → 触发一次性同步训练与标定 / all three segments collected → trigger one-shot train + calibrate
+        // 三段数据齐备 → 把训练提交给训练执行器（补遗四）/ all three segments collected → submit training
         if (count >= trainRounds + esRounds + thRounds) {
-            trainAndCalibrate(device, ctx, out);
+            deviceName.update(device);
+            submitTraining(ctx.getCurrentKey(), device, ctx);
+            ctx.timerService().registerProcessingTimeTimer(
+                    ctx.timerService().currentProcessingTime() + pollIntervalSec * 1000L);
         }
     }
 
-    private void trainAndCalibrate(String device, Context ctx,
-                                   Collector<M3ScoreRecord> out) throws Exception {
+    /**
+     * 把三段窗口从状态复制成不可变快照，连同配置组成训练任务提交给训练执行器（只在任务线程上调用）。
+     * 三段窗口保留在状态里，直到结果写入状态为止，这样从检查点恢复后可以用同一份数据重新提交。
+     * Copy the three segments into an immutable snapshot and submit it; the segments stay in state until the
+     * result is applied, so a restore can resubmit from the same data.
+     */
+    private void submitTraining(String key, String device, Context ctx) throws Exception {
         statePhase.update(1);                          // 进入 TRAINING 相位 / enter TRAINING phase
         trainingCount.inc();
+        long taskId = trainTaskId.value() == null ? 1L : trainTaskId.value() + 1L;
+        trainTaskId.update(taskId);
+        trainSubmitMs.update(ctx.timerService().currentProcessingTime());
 
-        // 把状态里的扁平窗口读回并还原为 [窗口][时间步][通道] / read flat windows from state, restore to 3-D
+        // 把状态里的扁平窗口读回并还原为 [窗口][时间步][通道]（新数组即快照）/ restore to 3-D; new arrays = snapshot
         List<double[]> trainFlats = new ArrayList<>();
         for (double[] f : trainWindows.get()) trainFlats.add(f);
         List<byte[]> trainMaskFlats = new ArrayList<>();
         for (byte[] m : trainMasks.get()) trainMaskFlats.add(m);
-
         List<double[]> esFlats = new ArrayList<>();
         for (double[] f : earlyStopWindows.get()) esFlats.add(f);
-        List<byte[]> esMaskFlats = new ArrayList<>();
-        for (byte[] m : earlyStopMasks.get()) esMaskFlats.add(m);
-
-        double[][][] trainData = unflattenWindows(trainFlats);
-        boolean[][][] trainMaskData = unflattenMasks(trainMaskFlats);
-        double[][][] esData = unflattenWindows(esFlats);   // 早停集只需输入，掩码不参与选型 / early-stop needs inputs only
-
-        Long excluded = trainExcluded.value();
-        // 记下子任务编号：同一子任务上的设备只能依次训练，任务线程被占住的总时长是它们之和。
-        // The subtask index matters: devices sharing a subtask train one after another on its thread.
-        LOG.info("[M3] Device {} (subtask {}) entering TRAINING: {} train windows ({} excluded by outlier "
-                 + "sanitization), {} early-stop windows",
-                 device, getRuntimeContext().getIndexOfThisSubtask(), trainFlats.size(),
-                 excluded != null ? excluded : 0, esFlats.size());
-
-        // 训练单个模型（补遗三 §3：隐藏层宽度是全机队统一参数，冷启动不再自行搜索）。
-        // 训练本身交给 M3Training 这个纯函数，与离线网格 M3Grid 调用同一份实现，使补遗三 §6 的
-        // 等值核验有意义——两边的小批量大小、epoch 上限、早停判据由同一段代码决定，无法各自漂移。
-        // Train a single model via the shared pure function, so the online path and the offline grid
-        // cannot diverge — which is what makes the parity check of addendum 3 §6 meaningful.
-        M3Training.Config cfg = new M3Training.Config(
-                N_FEATURES, hiddenSize, windowLength, batchSize, maxEpochs,
-                earlyStopPatience, channelWeights, reverseTarget, learningRate, gradClip);
-        final String dev = device;
-        M3Training.Result trained;
-        try {
-            trained = M3Training.train(cfg, trainData, trainMaskData, esData,
-                    new M3Training.EpochListener() {
-                        @Override
-                        public void onEpoch(int epoch, double trainLoss, double esLoss,
-                                            double epochSeconds) {
-                            // 在线训练会长时间占住任务线程，逐 epoch 落日志是唯一能看到它还在推进的途径，
-                            // 也是补遗三 §4 要求记录「逐设备在算子内训练墙钟时间」（即处理时间下的训练耗时）的数据来源。
-                            // Per-epoch logging is the only visibility into in-operator training.
-                            LOG.info("[M3] Device {} training epoch {}/{}: train loss={}, "
-                                     + "early-stop loss={}, {}s",
-                                     dev, epoch, maxEpochs, trainLoss, esLoss, epochSeconds);
-                        }
-                    });
-        } catch (InterruptedException e) {
-            // 任务被取消（2026-10-01 裁决第三节第 1 条）：记一行日志后把中断交还给 Flink。相位停在 TRAINING，
-            // 但取消之后这个子任务不会再处理数据，恢复时状态回到上一个检查点，所以不需要另行回滚。
-            // Cancelled: log and hand the interruption back to Flink; the phase stays TRAINING, but the
-            // subtask processes nothing further and recovery restores the last checkpoint.
-            LOG.warn("[M3] Device {} training interrupted (task cancelled): {}", device, e.getMessage());
-            throw e;
-        }
-        lastTrainEpochs = trained.epochs;
-        lastTrainModels++;
-        LstmAutoEncoder bestModel = trained.model;
-
-        LOG.info("[M3] Device {} trained: hidden={}, window={}, batch={}, {} epochs "
-                 + "(last improvement at epoch {}, longest plateau {}), early-stop loss={}, {}s",
-                 device, hiddenSize, windowLength, batchSize, trained.epochs,
-                 trained.bestEpoch, trained.longestPlateau, trained.earlyStopLoss, trained.seconds);
-        // 2026-09-27 裁决书第二节：触到上限，或曾有接近耐心的平台（差不足五轮就会被停在平台中途），
-        // 都须上报设计会话——耐心 20 只在 E、G 的曲线上推出过。
-        // Ruling of 2026-09-27 §2: hitting the cap, or a plateau within five epochs of the patience,
-        // must be reported; the patience was derived from devices E and G only.
-        if (trained.epochs >= maxEpochs) {
-            LOG.warn("[M3] Device {} REPORT: training hit the epoch cap {} without early stopping",
-                     device, maxEpochs);
-        }
-        if (trained.longestPlateau >= earlyStopPatience - 5) {
-            LOG.warn("[M3] Device {} REPORT: longest plateau {} epochs is within 5 of the patience {}",
-                     device, trained.longestPlateau, earlyStopPatience);
-        }
-
-        selectedHidden.update(hiddenSize);             // 记住训练时的隐藏层宽度供在线复原 / hidden size used
-        trainedWindow.update(windowLength);            // 一并记住窗口长度，防止参数变更后静默错配 / and the window length
-
-        modelBytes.update(bestModel.serializeModel()); // 模型参数写入 Flink 状态 / persist model params to Flink state
-
-        statePhase.update(2);                          // 进入 CALIBRATING 相位 / enter CALIBRATING phase
-        calibrate(device, bestModel, ctx);
-
-        // 训练/早停集已用完，清空释放状态 / training & early-stop sets consumed, clear to free state
-        trainWindows.clear();
-        trainMasks.clear();
-        earlyStopWindows.clear();
-        earlyStopMasks.clear();
-
-        statePhase.update(3);                          // 进入 ONLINE 相位 / enter ONLINE phase
-        LOG.info("[M3] Device {} entering ONLINE", device);
-    }
-
-    private void calibrate(String device, LstmAutoEncoder ae, Context ctx) throws Exception {
         List<double[]> thFlats = new ArrayList<>();
         for (double[] f : threshWindows.get()) thFlats.add(f);
         List<byte[]> thMaskFlats = new ArrayList<>();
         for (byte[] m : threshMasks.get()) thMaskFlats.add(m);
 
-        double[][][] thData = unflattenWindows(thFlats);
-        boolean[][][] thMaskData = unflattenMasks(thMaskFlats);
+        Long excluded = trainExcluded.value();
+        // 记下子任务编号：同一子任务上的设备共用一个任务线程（代理键使每个子任务只承载一台设备）。
+        // The subtask index is logged; surrogate keys put one device on each subtask.
+        LOG.info("[M3] Device {} (subtask {}) entering TRAINING: {} train windows ({} excluded by outlier "
+                 + "sanitization), {} early-stop windows",
+                 device, getRuntimeContext().getIndexOfThisSubtask(), trainFlats.size(),
+                 excluded != null ? excluded : 0, esFlats.size());
 
+        // 训练单个模型（补遗三 §3：隐藏层宽度是全机队统一参数，冷启动不再自行搜索）。训练本身交给 M3Training
+        // 这个纯函数，与离线网格 M3Grid 调用同一份实现，使等值核验有意义。
+        // Train a single model via the shared pure function, so the online path and the offline grid cannot diverge.
+        M3Training.Config cfg = new M3Training.Config(
+                N_FEATURES, hiddenSize, windowLength, batchSize, maxEpochs,
+                earlyStopPatience, channelWeights, reverseTarget, learningRate, gradClip);
+        M3TrainExecutor.TrainTask task = new M3TrainExecutor.TrainTask(
+                key, device, taskId, M3TrainExecutor.Purpose.COLD_START, cfg, LstmAutoEncoder.SEED, zThreshold,
+                new M3TrainExecutor.SanitizeOptions(),
+                unflattenWindows(trainFlats), unflattenMasks(trainMaskFlats), unflattenWindows(esFlats),
+                unflattenWindows(thFlats), unflattenMasks(thMaskFlats));
+        final String dev = device;
+        executor.submit(task, (epoch, trainLoss, esLoss, epochSeconds) ->
+                // 逐 epoch 落日志是看到训练仍在推进的唯一途径，也是逐设备训练墙钟时间的数据来源。
+                // Per-epoch logging is the only visibility into training progress.
+                LOG.info("[M3] Device {} training epoch {}/{}: train loss={}, early-stop loss={}, {}s",
+                         dev, epoch, maxEpochs, trainLoss, esLoss, epochSeconds));
+        LOG.info("[M3] Device {} training task {} submitted to the executor", device, taskId);
+    }
+
+    /**
+     * 把训练结果写入状态并转为在线态（只在任务线程上调用）/ apply a result to state and go ONLINE (task thread).
+     */
+    private void applyOutcome(String key, String device, M3TrainExecutor.Outcome o) throws Exception {
+        lastApplyThread = Thread.currentThread();
+        lastTrainEpochs = o.result.epochs;
+        lastTrainModels++;
+        lastQueueWaitSec = o.queueWaitSec;
+        lastTrainWallSec = o.wallSec;
+
+        statePhase.update(2);                          // CALIBRATING：标定已在训练线程上完成 / calibrated already
+        selectedHidden.update(hiddenSize);             // 记住训练时的隐藏层宽度供在线复原 / hidden size used
+        trainedWindow.update(windowLength);            // 一并记住窗口长度，防止参数变更后静默错配 / and the window length
+        modelBytes.update(o.modelBytes);               // 模型参数写入 Flink 状态 / persist model params to Flink state
+        scorerBytes.update(o.scorerBytes);             // 评分器写入 Flink 状态 / persist the calibrated scorer
+
+        // 三段数据已用完，清空释放状态 / segments consumed, clear to free state
+        trainWindows.clear();
+        trainMasks.clear();
+        earlyStopWindows.clear();
+        earlyStopMasks.clear();
+        threshWindows.clear();
+        threshMasks.clear();
+
+        statePhase.update(3);                          // 进入 ONLINE 相位 / enter ONLINE phase
+        Integer pending = pendingSize.value();
+        LOG.info("[M3] Device {} result collected on the task thread (queue wait {}s, training+calibration {}s); "
+                 + "{} buffered rounds to drain", device, String.format("%.1f", o.queueWaitSec),
+                 String.format("%.1f", o.wallSec), pending == null ? 0 : pending);
+        LOG.info("[M3] Device {} entering ONLINE", device);
+    }
+
+    /** 训练结束的日志与两条上报判据（训练线程上调用）/ the "trained" log line and the two report rules. */
+    static void logTrained(String device, M3Training.Config cfg, M3Training.Result trained) {
+        LOG.info("[M3] Device {} trained: hidden={}, window={}, batch={}, {} epochs "
+                 + "(last improvement at epoch {}, longest plateau {}), early-stop loss={}, {}s",
+                 device, cfg.hiddenSize, cfg.windowLength, cfg.batchSize, trained.epochs,
+                 trained.bestEpoch, trained.longestPlateau, trained.earlyStopLoss, trained.seconds);
+        // 2026-09-27 裁决书第二节：触到上限，或曾有接近耐心的平台（差不足五轮就会被停在平台中途），
+        // 都须上报设计会话——耐心 20 只在 E、G 的曲线上推出过。
+        // Ruling of 2026-09-27 §2: hitting the cap, or a plateau within five epochs of the patience, is reported.
+        if (trained.epochs >= cfg.maxEpochs) {
+            LOG.warn("[M3] Device {} REPORT: training hit the epoch cap {} without early stopping",
+                     device, cfg.maxEpochs);
+        }
+        if (trained.longestPlateau >= cfg.patience - 5) {
+            LOG.warn("[M3] Device {} REPORT: longest plateau {} epochs is within 5 of the patience {}",
+                     device, trained.longestPlateau, cfg.patience);
+        }
+    }
+
+    /**
+     * 在阈值标定集上标定评分器（纯函数，训练线程上调用）：逐窗推理，拟合 WMSE 的 median/IQR 与协方差逆矩阵。
+     * Calibrate the scorer on the threshold set (pure function, called on the training thread).
+     */
+    static M3Scorer calibrate(LstmAutoEncoder ae, double[][][] thData, boolean[][][] thMaskData,
+                              double[] channelWeights, double zThreshold) {
         WeightedMseLoss lossCalc = new WeightedMseLoss(N_FEATURES, channelWeights);
         List<Double> wmseValues = new ArrayList<>();       // 标定集每窗口的 WMSE / per-window WMSE over the calibration set
         List<double[]> perChannelErrors = new ArrayList<>();   // 每窗口每通道 MSE / per-window per-channel MSE
@@ -470,7 +675,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
             activeChannels[c] = channelWeights == null || channelWeights[c] > 0;
         }
 
-        // 用选中的模型在标定集上逐窗推理，收集误差分布 / run the chosen model over the calibration set, collect the error distribution
+        // 用训练好的模型在标定集上逐窗推理，收集误差分布 / run the model over the calibration set
         for (int w = 0; w < thData.length; w++) {
             double[][] recon = ae.reconstruct(thData[w]);
             boolean[][] masks = thMaskData != null && thMaskData[w] != null ? thMaskData[w] : null;
@@ -480,20 +685,126 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         }
 
         M3Scorer scorer = new M3Scorer(zThreshold);
-        scorer.calibrate(wmseValues, perChannelErrors, activeChannels);   // 拟合 median/IQR 与协方差逆 / fit median/IQR & covariance inverse
+        scorer.calibrate(wmseValues, perChannelErrors, activeChannels);   // 拟合 median/IQR 与协方差逆 / fit
+        return scorer;
+    }
 
-        // 评分器整体 Java 序列化后写入 Flink 状态 / serialize the scorer and persist to Flink state
+    /** 评分器整体 Java 序列化（写入 Flink 状态用）/ Java-serialise the scorer for Flink state. */
+    static byte[] serializeScorer(M3Scorer scorer) throws IOException {
         java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
         try (java.io.ObjectOutputStream oos = new java.io.ObjectOutputStream(baos)) {
             oos.writeObject(scorer);
         }
-        scorerBytes.update(baos.toByteArray());
+        return baos.toByteArray();
+    }
 
-        LOG.info("[M3] Device {} calibrated: median={}, IQR={}, threshold={}",
-                 device, scorer.getMedian(), scorer.getIqr(), scorer.getThreshold());
+    /** 缓冲上限（轮）：校准段轮数加两天（补遗四第二节第 3 条）/ buffer cap: threshold days plus two days. */
+    int bufferCap() {
+        return (threshDays + 2) * roundsPerDay;
+    }
 
-        threshWindows.clear();                             // 标定集已用完，清空 / calibration set consumed, clear it
-        threshMasks.clear();
+    /**
+     * 把一轮追加到缓冲尾部；缓冲满则丢弃这一轮（丢最新，保证已缓冲部分从训练段结束处连续）并计数。
+     * Append a round; when full, drop it (newest) and count the overflow.
+     */
+    private void bufferRound(AnnotatedRound round, Context ctx, String device) throws Exception {
+        String key = ctx.getCurrentKey();
+        int size = pendingSize.value() == null ? 0 : pendingSize.value();
+        if (size >= bufferCap()) {
+            bufferOverflow.inc();
+            if (bufferOverflow.getCount() == 1) {
+                LOG.warn("[M3] Device {} REPORT: training buffer full at {} rounds; newest rounds are dropped",
+                         device, size);
+            }
+            return;
+        }
+        Long ts = ctx.timestamp();
+        long recordTs = ts != null ? ts : round.getWindowEnd() * 1000L;
+        pendingRounds.add(new BufferedRound(round, recordTs));
+        size++;
+        pendingSize.update(size);
+        if (size == 1) {
+            pendingHeadTs.update(recordTs);
+            holdHeadTs.put(key, recordTs);
+        }
+        bufferSizes.put(key, size);
+    }
+
+    /**
+     * 从缓冲头部取至多 drainBatch 轮按顺序送入在线评分；评分记录带回该轮自己的记录时间戳。
+     * Score up to drainBatch rounds from the head, in order; each output carries its round's own record timestamp.
+     */
+    private void drainBatch(Context ctx, Collector<M3ScoreRecord> out) throws Exception {
+        String key = ctx.getCurrentKey();
+        List<BufferedRound> all = new ArrayList<>();
+        for (BufferedRound b : pendingRounds.get()) all.add(b);
+        if (!drainStartMs.containsKey(key)) {
+            drainStartMs.put(key, System.currentTimeMillis());
+        }
+        int n = Math.min(drainBatch, all.size());
+        for (int i = 0; i < n; i++) {
+            BufferedRound b = all.get(i);
+            if (out instanceof TimestampedCollector) {
+                ((TimestampedCollector<M3ScoreRecord>) out).setAbsoluteTimestamp(b.recordTs);
+            }
+            handleOnline(b.round, ctx, out, b.round.getDevice());
+        }
+        List<BufferedRound> rest = new ArrayList<>(all.subList(n, all.size()));
+        pendingRounds.update(rest);
+        pendingSize.update(rest.size());
+        bufferSizes.put(key, rest.size());
+        if (rest.isEmpty()) {
+            pendingHeadTs.clear();
+            holdHeadTs.remove(key);
+            bufferSizes.remove(key);
+            Long started = drainStartMs.remove(key);
+            LOG.info("[M3] Device {} buffer drained in {}s", deviceName.value(),
+                     String.format("%.1f", (System.currentTimeMillis() - started) / 1000.0));
+        } else {
+            pendingHeadTs.update(rest.get(0).recordTs);
+            holdHeadTs.put(key, rest.get(0).recordTs);
+        }
+    }
+
+    /** 训练态的监测状态快照：相位与缓冲占用（windowEnd 取 -1 以区别于其余快照）/ status snapshot while training. */
+    private void emitStatusSnapshot(Context ctx, int phase) throws Exception {
+        MonitoringSnapshot snap = new MonitoringSnapshot();
+        snap.setDevice(deviceName.value());
+        long wm = ctx.timerService().currentWatermark();
+        snap.setTs(wm > 0 ? wm / 1000L : 0L);
+        snap.setWindowEnd(STATUS_SNAPSHOT_WINDOW_END);
+        snap.setM3Phase(phase);
+        Integer pending = pendingSize.value();
+        snap.setM3BufferRounds(pending == null ? 0 : pending);
+        ctx.output(m3MonitoringTag, snap);
+    }
+
+    /** 测试用：等待某个分键的训练线程完成（不取出结果）/ test hook: wait for a key's training to finish. */
+    void awaitTraining(String key, long timeoutMs) throws Exception {
+        executor.awaitDone(key, timeoutMs);
+    }
+
+    /** 测试用：某个分键当前的缓冲轮数 / test hook: buffered rounds of a key. */
+    int bufferedRounds(String key) {
+        Integer n = bufferSizes.get(key);
+        return n == null ? 0 : n;
+    }
+
+    /** 本子任务缓冲中最早一轮的记录时间戳；没有缓冲时为 Long.MAX_VALUE（供 M3Operator）。 */
+    long earliestBufferedTs() {
+        long min = Long.MAX_VALUE;
+        for (long ts : holdHeadTs.values()) {
+            min = Math.min(min, ts);
+        }
+        return min;
+    }
+
+    /** 从检查点恢复后由 M3Operator 逐分键回填缓冲的水位线保持与占用（任务线程）/ restore hold and size per key. */
+    void restoreBuffer(String key, Integer size, Long headTs) {
+        if (size != null && size > 0 && headTs != null) {
+            holdHeadTs.put(key, headTs);
+            bufferSizes.put(key, size);
+        }
     }
 
     private void handleOnline(AnnotatedRound round, Context ctx,
@@ -578,6 +889,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
             snap.setWindowEnd(round.getWindowEnd());
             snap.setM3ReconError(lr.wmse);
             snap.setM3PerChannelErrors(lr.perChannelMse);
+            snap.setM3Phase(3);
+            Integer buffered = bufferSizes.get(ctx.getCurrentKey());
+            snap.setM3BufferRounds(buffered == null ? 0 : buffered);   // 排空期间为本批开始前的占用 / pre-batch size
             ctx.output(m3MonitoringTag, snap);
         }
     }

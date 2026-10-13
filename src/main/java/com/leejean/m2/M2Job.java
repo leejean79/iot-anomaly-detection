@@ -14,8 +14,10 @@ import com.leejean.m1.RoundAssembler;
 import com.leejean.m3.AnnotatedRound;
 import com.leejean.m1.DeviceKeys;
 import com.leejean.m3.M3Function;
+import com.leejean.m3.M3Operator;
 import com.leejean.m3.M3ScoreRecord;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.runtime.state.storage.JobManagerCheckpointStorage;
@@ -75,13 +77,10 @@ public class M2Job {
         String outTopic = params.get("out-topic", "");
         String startupMode = params.get("start-offset", "earliest");
         int parallelism = params.getInt("parallelism", 8);
-        // 空闲时限：2026-10-05 裁决第三节第 1 条由 10 秒改为 3600 秒，须长于同一子任务上最长的同步训练时长；
-        // 10 秒时被训练阻塞的路径会被标为空闲，其余设备把水位线推过去，释放后的积压在点通道窗口处被当作
-        // 迟到全部丢弃（三月至四月运行丢了 615,474 轮）。生产环境中此值使真正离线的设备拖住全机队窗口一小时，
-        // 补遗四（训练移出任务线程）完成后改回 10 秒。
-        // Idle timeout raised from 10 s to 3600 s (ruling of 2026-10-05): at 10 s a path blocked by synchronous
-        // training was marked idle and its backlog was later dropped as late. Revert to 10 s after addendum 4.
-        long idleWallSec = params.getLong("idle-wall", 3600L);
+        // 空闲时限：验收期曾按 2026-10-05 裁决临时放到 3600 秒（同步训练会阻塞路径）；补遗四把训练移出任务线程后，
+        // 阻塞回到毫秒级，按补遗四第五节恢复生产值 60 秒。
+        // Idle timeout: temporarily 3600 s while training blocked the task thread; addendum 4 restores 60 s.
+        long idleWallSec = params.getLong("idle-wall", 60L);
         // 设备代理键（裁决第三节第 3 条）：八台设备各占一个子任务；空 = 用原始设备号作键（旧行为）。
         // Device surrogate keys (section 3.3): one device per subtask; empty = raw ids as keys (old behaviour).
         java.util.Map<String, String> surrogate = DeviceKeys.parse(params.get("device-surrogate-keys", ""));
@@ -117,12 +116,10 @@ public class M2Job {
         // keeps the job running past an akka.framesize breach so per-operator checkpoint sizes can be read live
         // in the Flink UI. The default of 0 keeps today's behaviour byte-for-byte unchanged.
         int ckptTolerableFailures = params.getInt("checkpoint-tolerable-failures", 0);
-        // checkpoint 超时（分钟），默认 10 即 Flink 默认值，保持现有行为。M3 验收阶段按 2026-09-30 裁决
-        // 传 60：冷启动训练同步占住任务线程，超时须覆盖训练时长，使训练期间挂起的那次 checkpoint 在
-        // 训练结束后正常完成，而不是失败；容忍次数同时保持很小（3），让真正的失败仍然可见。
-        // Checkpoint timeout in minutes; default 10 is Flink's own default. The M3 acceptance runs pass 60
-        // (ruling of 2026-09-30) so the checkpoint pending during the synchronous cold-start training
-        // completes afterwards instead of failing, while the tolerated failures stay small (3).
+        // checkpoint 超时（分钟），默认 10 即 Flink 默认值。验收期训练同步占住任务线程时曾临时传 60、120；
+        // 补遗四把训练移出任务线程后不再需要，按补遗四第五节恢复为 10。
+        // Checkpoint timeout in minutes; default 10 is Flink's own default. The acceptance runs temporarily
+        // passed 60 or 120 while training blocked the task thread; addendum 4 restores 10.
         int ckptTimeoutMin = params.getInt("checkpoint-timeout-min", 10);
         // M2 窗口与算法参数（占位默认；(R,k) 终值由探针交回设计会话裁决）
         int windowSec = params.getInt("window-sec", 3600);       // W
@@ -191,6 +188,11 @@ public class M2Job {
         // Rounds per day, shrunk ONLY for the short cold-start probe (addendum 3 step C); never passed in
         // production or acceptance runs. It changes M3's segmentation only, not M1's calibration.
         int m3RoundsPerDay = params.getInt("m3-rounds-per-day", M3Function.DEFAULT_ROUNDS_PER_DAY);
+        // 补遗四（训练移出任务线程）的三个参数：训练执行器线程数（每个任务管理器）、每次排空的轮数、训练态下查询
+        // 结果的处理时间间隔。/ Addendum 4: training threads per TaskManager, drain batch, result-poll interval.
+        int m3TrainThreads = params.getInt("train-threads", M3Function.DEFAULT_TRAIN_THREADS);
+        int m3DrainBatch = params.getInt("drain-batch", M3Function.DEFAULT_DRAIN_BATCH);
+        int m3PollIntervalSec = params.getInt("poll-interval-sec", M3Function.DEFAULT_POLL_INTERVAL_SEC);
 
         System.out.println("========================================");
         System.out.println("M2Job (M1+pMCOD joint)");
@@ -229,6 +231,8 @@ public class M2Job {
             System.out.println("M3 rounds/day:   " + m3RoundsPerDay
                     + (m3RoundsPerDay != M3Function.DEFAULT_ROUNDS_PER_DAY
                         ? "  [COLD-START PROBE MODE: segments are NOT real days; never use for acceptance]" : ""));
+            System.out.println("M3 async train:  threads=" + m3TrainThreads + " per TaskManager, drain batch="
+                    + m3DrainBatch + " rounds, poll interval=" + m3PollIntervalSec + " s (addendum 4)");
         }
         System.out.println("========================================");
 
@@ -380,13 +384,15 @@ public class M2Job {
                     .getSideOutput(m3AnnotatedTag)      // 取 PmcodFunction 的标注轮侧输出 / take the annotated-round side output
                     // 按设备分键：每设备一套独立状态机与模型 / key by device: one independent state machine & model per device
                     .keyBy(DeviceKeys.selector(surrogate, AnnotatedRound::getDevice))
-                    .process(new M3Function(
+                    // 自定义算子 M3Operator：训练与排空期间保持输出水位线（补遗四第二节第 3 条）
+                    // Custom operator holding the output watermark while training and draining (addendum 4)
+                    .transform("M3-LSTM-AE", TypeInformation.of(M3ScoreRecord.class), new M3Operator(new M3Function(
                             m3TrainDays, m3EarlyStopDays, m3ThreshDays,
                             m3WindowLength, m3ZThreshold, m3ChannelWeights,
                             m3MaxEpochs, m3EarlyStopPatience,
                             m3HiddenSize, m3BatchSize, m3ReverseTarget,
-                            m3LearningRate, m3GradClip, m3MonTag, m3RoundsPerDay))
-                    .name("M3-LSTM-AE");
+                            m3LearningRate, m3GradClip, m3MonTag, m3RoundsPerDay,
+                            m3TrainThreads, m3DrainBatch, m3PollIntervalSec)));
 
             // M3 上下文评分 → synergia-scores
             m3Scored.addSink(new FlinkKafkaProducer<>(scoresTopic,

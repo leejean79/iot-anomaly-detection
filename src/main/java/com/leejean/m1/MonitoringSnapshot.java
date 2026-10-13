@@ -51,6 +51,8 @@ public class MonitoringSnapshot implements Serializable {
     // M3-appended fields (handover §3 decision 7): contextual-channel reconstruction errors.
     private double m3ReconError;         // 窗口加权 MSE / window weighted MSE
     private double[] m3PerChannelErrors; // 每通道 MSE [5] / per-channel MSE
+    private int m3Phase;                 // 上下文通道相位（0 收集、1 训练、3 在线；补遗四）/ M3 phase
+    private long m3BufferRounds;         // 上下文通道训练缓冲占用（轮；补遗四）/ M3 training-buffer occupancy
 
     /** Jackson 反序列化需要无参构造 / No-arg constructor required by Jackson. */
     public MonitoringSnapshot() { }
@@ -168,6 +170,11 @@ public class MonitoringSnapshot implements Serializable {
     public void setM2ColdCleared(boolean m2ColdCleared) { this.m2ColdCleared = m2ColdCleared; }
 
     @JsonProperty
+    public int getM3Phase() { return m3Phase; }
+    public void setM3Phase(int m3Phase) { this.m3Phase = m3Phase; }
+    public long getM3BufferRounds() { return m3BufferRounds; }
+    public void setM3BufferRounds(long m3BufferRounds) { this.m3BufferRounds = m3BufferRounds; }
+
     public double getM3ReconError() { return m3ReconError; }
     public void setM3ReconError(double m3ReconError) { this.m3ReconError = m3ReconError; }
 

@@ -81,8 +81,12 @@ checks=(
     "com/leejean/m3/M3Function.class|excluded training window ending at round|在线算子记录剔除窗口（2026-10-02 裁决第二节）"
     "com/leejean/m3/M3Function.class|m3_inference_latency_ms|V-M3-6 推理时延指标（2026-10-02 裁决第五节）"
     "com/leejean/m2/M2Job.class|device-surrogate-keys|设备代理键，八台设备各占一个子任务（2026-10-05 裁决第三节第 3 条）"
-    "com/leejean/m2/M2Job.class|Idle timeout:|空闲时限改为 3600 秒并在启动横幅中打印（2026-10-05 裁决第三节第 1 条）"
+    "com/leejean/m2/M2Job.class|Idle timeout:|空闲时限在启动横幅中打印（补遗四起默认 60 秒）"
     "com/leejean/m1/RawCacheFunction.class|m1_guard_stuck_runs|重复值游程守卫（开发决策第十条）"
+    "com/leejean/m3/M3TrainExecutor.class|m3-train-|训练执行器，训练移出任务线程（补遗四）"
+    "com/leejean/m3/M3Operator.class|m3_watermark_hold_sec|输出水位线保持（补遗四第二节第 3 条）"
+    "com/leejean/m3/M3Function.class|m3_train_buffer_overflow|训练期间的有界缓冲（补遗四第二节第 3 条）"
+    "com/leejean/m2/M2Job.class|train-threads|训练执行器线程数参数（补遗四）"
 )
 
 fail=0

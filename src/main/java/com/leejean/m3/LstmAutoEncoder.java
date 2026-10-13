@@ -68,7 +68,7 @@ public class LstmAutoEncoder implements Serializable {
      * Whether the reconstruction target is the reversed window; default on, switchable for ablation.
      */
     private final boolean reverseTarget;
-    private static final long SEED = 42L;               // 固定随机种子，保证可复现 / fixed seed for reproducibility
+    static final long SEED = 42L;                       // 固定随机种子，保证可复现 / fixed seed for reproducibility
     /**
      * Adam 学习率。原为写死的 0.01（为旧的两层结构所定）；2026-09-22 的裁决书第三节明文解除
      * 「不改学习率」的边界，范围限于诊断及其后的选值，故改为构造参数。诊断期间默认保持 0.01；

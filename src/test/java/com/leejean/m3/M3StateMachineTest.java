@@ -2,7 +2,6 @@ package com.leejean.m3;
 
 import com.leejean.m1.Channels;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
 import org.apache.flink.streaming.util.KeyedOneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.junit.jupiter.api.DisplayName;
@@ -66,8 +65,12 @@ class M3StateMachineTest {
 
     private static OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> newHarness()
             throws Exception {
-        KeyedProcessOperator<String, AnnotatedRound, M3ScoreRecord> op =
-                new KeyedProcessOperator<>(newFunction());
+        return newHarness(newFunction());
+    }
+
+    private static OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> newHarness(M3Function fn)
+            throws Exception {
+        M3Operator op = new M3Operator(fn);
         KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h =
                 new KeyedOneInputStreamOperatorTestHarness<>(
                         op, AnnotatedRound::getDevice, TypeInformation.of(String.class));
@@ -93,6 +96,19 @@ class M3StateMachineTest {
         }
     }
 
+    /**
+     * 补遗四之后训练在训练线程上异步进行：等训练线程完成，再推进处理时间，让结果查询定时器收回结果并把训练期间
+     * 缓冲的轮排空。/ Training is asynchronous: wait for it, then advance processing time to collect and drain.
+     */
+    static void settle(OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> h, M3Function fn,
+                       String key) throws Exception {
+        fn.awaitTraining(key, 300_000L);
+        h.setProcessingTime(h.getProcessingTime() + M3Function.DEFAULT_POLL_INTERVAL_SEC * 1000L + 1);
+        for (int i = 0; i < 100_000 && fn.earliestBufferedTs() != Long.MAX_VALUE; i++) {
+            h.setProcessingTime(h.getProcessingTime() + 1);
+        }
+    }
+
     private static List<M3ScoreRecord> drain(
             OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> h) {
         List<M3ScoreRecord> out = new ArrayList<>();
@@ -109,14 +125,16 @@ class M3StateMachineTest {
     @DisplayName("相位跃迁：COLLECTING 期间不打分，喂满训练+早停+标定后进入 ONLINE 并开始打分")
     void everyPhaseTransitionHappensInOrder() throws Exception {
         Random rnd = new Random(42);
-        try (OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> h = newHarness()) {
+        M3Function fn = newFunction();
+        try (OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> h = newHarness(fn)) {
             // 相位 0（COLLECTING）：喂到差一轮就满，期间不应有任何评分输出。
             feed(h, "E", ROUNDS_TO_ONLINE - 1, 1_000_000L, rnd);
             assertTrue(drain(h).isEmpty(),
                     "COLLECTING/TRAINING/CALIBRATING 三个相位都不应产出评分记录");
 
-            // 再喂一轮触发 0→1（TRAINING）→2（CALIBRATING）→3（ONLINE）这条同步跃迁链。
+            // 再喂一轮触发 0→1（TRAINING）；训练线程完成后由结果查询定时器收回，经 2（CALIBRATING）进入 3（ONLINE）。
             feed(h, "E", 1, 1_000_000L + (ROUNDS_TO_ONLINE - 1) * 10L, rnd);
+            settle(h, fn, "E");
 
             // 相位 3（ONLINE）：此后每一轮都应产出评分记录。
             int before = drain(h).size();
@@ -131,9 +149,11 @@ class M3StateMachineTest {
     @DisplayName("设备隔离：一台设备喂满并进入 ONLINE，不会让另一台设备提前开始打分")
     void devicesAdvanceIndependently() throws Exception {
         Random rnd = new Random(7);
-        try (OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> h = newHarness()) {
+        M3Function fn = newFunction();
+        try (OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> h = newHarness(fn)) {
             // E 喂满并越过跃迁点；G 只喂少量轮。
             feed(h, "E", ROUNDS_TO_ONLINE + WINDOW_LENGTH + 5, 1_000_000L, rnd);
+            settle(h, fn, "E");
             feed(h, "G", ROUNDS_PER_DAY, 1_000_000L, rnd);
 
             List<M3ScoreRecord> recs = drain(h);
@@ -156,11 +176,12 @@ class M3StateMachineTest {
                 weights, maxEpochs, 1, HIDDEN_SIZE, BATCH_SIZE, true, 0.001, 1.0, null, ROUNDS_PER_DAY);
         KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h =
                 new KeyedOneInputStreamOperatorTestHarness<>(
-                        new KeyedProcessOperator<>(fn), AnnotatedRound::getDevice,
+                        new M3Operator(fn), AnnotatedRound::getDevice,
                         TypeInformation.of(String.class));
         h.open();
         try {
             feed(h, "E", ROUNDS_TO_ONLINE + WINDOW_LENGTH + 2, 1_000_000L, rnd);
+            settle(h, fn, "E");
             assertFalse(drain(h).isEmpty(), "应已进入 ONLINE");
             // 精确断言：实际跑完的 epoch 数必须小于 maxEpochs，否则早停没有生效。
             // 用 epoch 数而不是墙钟耗时，避免在慢机器上假失败。
@@ -180,8 +201,10 @@ class M3StateMachineTest {
         org.apache.flink.runtime.checkpoint.OperatorSubtaskState snapshot;
         List<M3ScoreRecord> beforeRestore;
 
-        try (OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> h = newHarness()) {
+        M3Function fn = newFunction();
+        try (OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> h = newHarness(fn)) {
             feed(h, "E", ROUNDS_TO_ONLINE + WINDOW_LENGTH + 5, 1_000_000L, rnd);
+            settle(h, fn, "E");
             beforeRestore = drain(h);
             assertFalse(beforeRestore.isEmpty(), "快照之前应已进入 ONLINE 并产出评分");
             snapshot = h.snapshot(1L, 1L);
@@ -189,8 +212,8 @@ class M3StateMachineTest {
 
         // 用一个全新的算子实例恢复：若权重与阈值没有随状态存活，恢复后的实例会退回 COLLECTING、
         // 需要重新喂满几百轮才会打分；断言「恢复后立刻能打分」即可把这一点区分开。
-        KeyedProcessOperator<String, AnnotatedRound, M3ScoreRecord> op2 =
-                new KeyedProcessOperator<>(newFunction());
+        M3Operator op2 =
+                new M3Operator(newFunction());
         try (KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h2 =
                      new KeyedOneInputStreamOperatorTestHarness<>(
                              op2, AnnotatedRound::getDevice, TypeInformation.of(String.class))) {
@@ -227,10 +250,11 @@ class M3StateMachineTest {
                 weights, MAX_EPOCHS, PATIENCE, HIDDEN_SIZE, BATCH_SIZE, true, 0.001, 1.0, null, ROUNDS_PER_DAY);
         try (KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h =
                      new KeyedOneInputStreamOperatorTestHarness<>(
-                             new KeyedProcessOperator<>(fn), AnnotatedRound::getDevice,
+                             new M3Operator(fn), AnnotatedRound::getDevice,
                              TypeInformation.of(String.class))) {
             h.open();
             feed(h, "E", ROUNDS_TO_ONLINE + WINDOW_LENGTH + 2, 1_000_000L, new Random(21));
+            settle(h, fn, "E");
             assertFalse(drain(h).isEmpty(), "应已进入 ONLINE 并产出评分");
             assertEquals(1, fn.lastTrainModels,
                     "冷启动应当只训练一个模型，实测训练了 " + fn.lastTrainModels
@@ -244,8 +268,10 @@ class M3StateMachineTest {
         Random rnd = new Random(7);
         org.apache.flink.runtime.checkpoint.OperatorSubtaskState snapshot;
 
-        try (OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> h = newHarness()) {
+        M3Function fn = newFunction();
+        try (OneInputStreamOperatorTestHarness<AnnotatedRound, M3ScoreRecord> h = newHarness(fn)) {
             feed(h, "E", ROUNDS_TO_ONLINE + WINDOW_LENGTH + 5, 1_000_000L, rnd);
+            settle(h, fn, "E");
             assertFalse(drain(h).isEmpty(), "快照之前应已进入 ONLINE");
             snapshot = h.snapshot(1L, 1L);
         }
@@ -260,7 +286,7 @@ class M3StateMachineTest {
                 true, 0.001, 1.0, null, ROUNDS_PER_DAY);
         try (KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h2 =
                      new KeyedOneInputStreamOperatorTestHarness<>(
-                             new KeyedProcessOperator<>(mismatched), AnnotatedRound::getDevice,
+                             new M3Operator(mismatched), AnnotatedRound::getDevice,
                              TypeInformation.of(String.class))) {
             h2.setup();
             h2.initializeState(snapshot);
