@@ -133,6 +133,15 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 不允许在回答中只丢出一段脚本而不附使用说明,即便该脚本看起来"显而易见"。
 
+## 7. 不迎合约定(No Fitting to Expectations)
+
+本约定出自 2026-10-13 裁决第三节，由用户于同日确认生效。
+
+**凡是检测结果与期望不符，且不符之处能归因到数据的真实现场条件，一律登记为数据事实并进入论文证据案例清单（开发设计日志第十节）；不得为迎合期望修改算法、判据、门槛或框架。** 具体要求：
+
+- 只有当不符之处归因到实现缺陷（等值核验失败、重放断言失败、代码错误）时，才修改代码。
+- 发现结果与期望不符时，先查明原因并如实报告给设计会话，由设计会话裁决；不得自行调整参数、判据或口径去贴近期望值。
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
