@@ -114,27 +114,41 @@ bash deploy/scripts/syn-upload-m1.sh --jar-only
 
 ## 第二节：五次运行
 
-### 一键执行（推荐）
+### 一键执行（推荐，在 master 上无人值守运行）
 
-第一节的三步完成后，用一条命令依次跑完五次运行，并在最后生成第三节的汇总报告。脚本按下面第四步至第十步的
-同样流程逐次执行，扰动在启动重放后立即进入等待，不会错过。
+第一节的三步完成后，用一条命令把五次运行交给 master 上的 tmux 会话依次执行，最后生成第三节的汇总报告。提交后本地
+Mac 可以关机；全部跑完后再用一条命令把结果拉回本地。脚本按下面第四步至第十步的同样流程逐次执行，扰动在启动重放后
+立即进入等待，不会错过。
 
-**执行环境**：本地 Mac，仓库根目录。**前置条件**：第一节已完成；集群上没有任何作业在运行。
+**一次性准备（只做一次）**：让 master 能用 `fa-master`、`fa-worker1`、`fa-worker2` 三个别名登录三台机器（强杀任务
+管理器与收集日志要登录 worker）。脚本在 master 上生成一把只供本项目编排使用的新密钥，把公钥加入三台机器的
+`~/.ssh/authorized_keys`，并在 master 的 `~/.ssh/config` 写入走内网地址的三个别名；不复制 Mac 上的任何私钥。
 
 ```bash
-bash deploy/scripts/syn-m3-a4-stepc.sh start     # 立即返回，编排在后台运行，约四个半小时
-bash deploy/scripts/syn-m3-a4-stepc.sh status    # 随时查看进度
+bash deploy/scripts/syn-m3-a4-stepc.sh setup-master
+```
+
+期望产出：依次打印「已授权到 fa-master / fa-worker1 / fa-worker2」，连通性测试列出三台机器的主机名与容器名，最后
+打印「全部通过，可以执行 start」。退出码 4 表示测试未通过（多半是 master 到 worker 的内网 22 端口未放行），请把输出
+发给我。
+
+**执行环境**：本地 Mac，仓库根目录。**前置条件**：第一节已完成；集群上没有任何作业在运行；setup-master 已通过。
+
+```bash
+bash deploy/scripts/syn-m3-a4-stepc.sh start     # 立即返回；之后 Mac 可以关机，约四个半小时跑完
+bash deploy/scripts/syn-m3-a4-stepc.sh status    # 任何时候开机查看进度
+bash deploy/scripts/syn-m3-a4-stepc.sh fetch     # 跑完后把 docs/m3_a4 拉回本地
 bash deploy/scripts/syn-m3-a4-stepc.sh stop      # 需要中止时执行
 ```
 
-**期望产出**：`start` 打印「已在后台启动」，之后本地终端可以关闭，但全程 Mac 须接电源、不睡眠、不断网（扰动与
-收集要从 Mac 发起）。`status` 打印 `docs/m3_a4/progress.txt` 的最后几行和 master 上采样的最新记录；每次运行会依次
-记下「开始、作业已提交、采样与重放已启动、（扰动完成）、重放结束、已排空、完成」。全部完成后最后一行是「全部完成」
-和一条提交命令，`docs/m3_a4/stepc_report.md` 已生成，执行那条提交命令即可。
+**期望产出**：`start` 打印「已在 master 的 tmux 会话 syn-m3-a4-stepc 中启动……本地 Mac 现在可以关机」。`status`
+打印 master 上 `docs/m3_a4/progress.txt` 的最后几行；每次运行依次记下「开始、作业已提交、采样与重放已启动、（扰动
+完成）、重放结束、已排空、完成」。全部完成后最后一行是「全部完成」，并提示先 `fetch` 再提交。`fetch` 之后本地
+`docs/m3_a4/` 下有五个 `stepc_<标签>/` 目录与 `stepc_report.md`。
 
-**常见失败**：某次运行失败时，脚本取消该次作业、停止重放、取回已有采样，在进度里写明失败的运行与步骤并停止；
-把 `progress.txt` 与对应目录里的日志发给我，排查后用 `start --runs <剩下的标签>`（例如 `--runs kill,cancel`）续跑。
-退出码 3 表示已有编排在运行。
+**常见失败**：某次运行失败时，编排取消该次作业、停止重放、取回已有采样，在进度里写明失败的运行与步骤并停止；
+先 `fetch`，把 `progress.txt` 与对应目录里的日志发给我，排查后用 `start --runs <剩下的标签>` 续跑。退出码 2 表示
+还没有执行 setup-master；退出码 3 表示已有编排在运行。
 
 下面第四步至第十步是同一流程的手动版本，一键执行时不需要再做。
 
