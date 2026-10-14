@@ -78,8 +78,9 @@ public class M2Job {
         String startupMode = params.get("start-offset", "earliest");
         int parallelism = params.getInt("parallelism", 8);
         // 空闲时限：验收期曾按 2026-10-05 裁决临时放到 3600 秒（同步训练会阻塞路径）；补遗四把训练移出任务线程后，
-        // 阻塞回到毫秒级，按补遗四第五节恢复生产值 60 秒。
-        // Idle timeout: temporarily 3600 s while training blocked the task thread; addendum 4 restores 60 s.
+        // 阻塞回到毫秒级，按补遗四第五节恢复生产值 60 秒。它是墙钟常量，生产与重放相同，不按倍速换算（0.83 版裁决第三节）。
+        // Idle timeout: temporarily 3600 s while training blocked the task thread; addendum 4 restores 60 s, a wall-clock
+        // constant that is not scaled by the replay speed.
         long idleWallSec = params.getLong("idle-wall", 60L);
         // 设备代理键（裁决第三节第 3 条）：八台设备各占一个子任务；空 = 用原始设备号作键（旧行为）。
         // Device surrogate keys (section 3.3): one device per subtask; empty = raw ids as keys (old behaviour).

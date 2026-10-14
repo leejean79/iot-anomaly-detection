@@ -11,7 +11,8 @@ watermark samples, plus a bit-exact comparison of the killed run against its uni
      python3 deploy/scripts/m3_a4_stepc_report.py \\
          --runs t1=docs/m3_a4/stepc_t1,t2=docs/m3_a4/stepc_t2,t4=docs/m3_a4/stepc_t4,kill=docs/m3_a4/stepc_kill \\
          --compare kill:t2 --cancel-log docs/m3_a4/stepc_cancel/cancel.txt --out docs/m3_a4/stepc_report.md
-   --runs 逗号分隔的「标签=目录」；--compare 「被比较:参照」，可省略；--cancel-log 取消计时的输出，可省略。
+   --runs 逗号分隔的「标签=目录」；--compare 「被比较:参照」，可省略；--cancel-log 取消计时的输出，可省略；
+   --buffer-cap 缓冲上限（轮），默认 7776（步骤 C：9 × 864），用于给出缓冲峰值占上限的比例。
 3. 前置条件 / Preconditions: 每个目录里有 syn-m3-march-collect.sh 生成的 m3_tm_log.txt 与 m3_scores.jsonl、
    syn-m3-coldstart-watch.sh 生成的 ckpt_timeline.csv、m3_a4_watch.py 生成的 wm_buffer.csv（缺哪个就跳过哪一节）。
 4. 期望产出 / Expected output: --out 指定的 Markdown 文件，五节分别对应步骤 C 的五件事；终端打印同样内容。
@@ -180,6 +181,8 @@ def main():
     ap.add_argument("--compare", default="")
     ap.add_argument("--cancel-log", default="")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--buffer-cap", type=int, default=7776,
+                    help="缓冲上限（轮）：(标定天数 + 2) × 每天折合轮数，步骤 C 为 9 × 864 = 7776")
     a = ap.parse_args()
     runs = []
     for item in a.runs.split(","):
@@ -210,18 +213,19 @@ def main():
             "是" if ok else "否", c["failed"], c["restarts"]))
 
     L += ["", "## 二、水位线与缓冲", "",
-          "| 运行 | 子任务 | 训练期间输入水位线最长停滞（墙钟秒） | 缓冲峰值（轮） | 输出水位线保持时长（秒） |",
-          "| --- | --- | --- | --- | --- |"]
+          "| 运行 | 子任务 | 训练期间输入水位线最长停滞（墙钟秒） | 缓冲峰值（轮） | 峰值占上限 %d 轮的比例 | 输出水位线保持时长（秒） |" % a.buffer_cap,
+          "| --- | --- | --- | --- | --- | --- |"]
     for tag, (d, dev, hold, threads) in parsed.items():
         w = wm_section(os.path.join(d, "wm_buffer.csv"), dev)
         if not w:
-            L.append("| %s | 无数据 | | | |" % tag)
+            L.append("| %s | 无数据 | | | | |" % tag)
             continue
         for sub in sorted(set(w["stall"]) | set(w["peak"])):
-            L.append("| %s | %d | %s | %d | %s |" % (
+            L.append("| %s | %d | %s | %d | %.1f%% | %s |" % (
                 tag, sub, "%.0f" % w["stall"][sub] if sub in w["stall"] else "-", w["peak"].get(sub, 0),
+                100.0 * w["peak"].get(sub, 0) / a.buffer_cap,
                 "、".join("%.1f" % x for x in hold.get(sub, [])) or "-"))
-        L.append("| %s | 缓冲溢出计数（最大） | %d | | |" % (tag, w["overflow"]))
+        L.append("| %s | 缓冲溢出计数（最大） | %d | | | |" % (tag, w["overflow"]))
 
     L += ["", "## 三、逐设备训练（含排队等待）与排空", "",
           "| 运行 | 设备 | 子任务 | 训练线程 | 排队等待（秒） | 训练秒数 | 轮数 | 提交到收回（秒） | 收回时缓冲轮数 | 排空（秒） | 重新提交 |",

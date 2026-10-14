@@ -698,7 +698,11 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         return baos.toByteArray();
     }
 
-    /** 缓冲上限（轮）：校准段轮数加两天（补遗四第二节第 3 条）/ buffer cap: threshold days plus two days. */
+    /**
+     * 缓冲上限（轮）：标定天数加两天，即九天事件时间（0.83 版裁决第二节）。生产中它是内存上限（每台约八兆）；
+     * 重放中它与训练时长一起决定倍速上限。/ Buffer cap: nine days of event time; a memory cap in production,
+     * and together with training time it bounds the replay speed.
+     */
     int bufferCap() {
         return (threshDays + 2) * roundsPerDay;
     }
