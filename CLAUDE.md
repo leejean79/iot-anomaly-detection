@@ -139,7 +139,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - 凡是要持续运行几分钟以上的监控、采样、轮询脚本，一律放到集群 master 的 tmux 会话里运行（参照 `deploy/scripts/syn-m3-watch.sh` 的 `start`、`status`、`stop` 三个子命令），与本地 Mac 是否开着终端、是否睡眠无关；作业取消或结束后脚本自行退出，结果文件留在 master 上，由 `stop` 一次取回到本地。
 - 新的监控项优先并入 `syn-m3-watch.sh` 的同一个 tmux 会话（增加一个窗口），而不是另起一个需要单独守候的终端；脚本须支持 `SYN_ON_MASTER=1`，在 master 上直接访问 REST 接口，在本地则经 `ssh fa-master`。
 - 运行期间需要跨主机的变量（如作业编号、提交时刻）存进文件（例如 `docs/m3_a4/current_run.env`），用户在任何新终端里 `source` 即可继续，不依赖原来的终端。
-- 必须从本地 Mac 发起、又要等待较久的动作（例如等训练开始后再扰动），改为 `caffeinate -i nohup … &` 后台启动，并在说明里写明 Mac 须接电源、不睡眠、不断网，以及回来后查看结果的命令。
+- 多步骤、跨多次运行的实验编排（含等待训练后再扰动、收集结果等）默认整体放到 master 的 tmux 会话里执行（参照 `deploy/scripts/syn-m3-a4-stepc.sh` 的 `setup-master`、`start`、`status`、`fetch`、`stop`），提交后本地 Mac 可以关机，跑完后用 `fetch` 把结果拉回本地；只有确实无法在 master 上执行的动作才从 Mac 发起，此时用 `caffeinate -i nohup … &` 后台启动，并写明 Mac 须接电源、不睡眠、不断网。
 - 运行手册里要写清用户只需要在场的时刻（开头启动、结尾收集），以及中途查看进度的单条命令。
 
 ## 7. 不迎合约定(No Fitting to Expectations)
