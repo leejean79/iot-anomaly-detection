@@ -206,6 +206,10 @@ bash deploy/scripts/syn-replay.sh status
 **期望产出**：重放在 master 的 tmux 会话里运行，约 48 分钟后日志打印 `Finished.` 与 `rc=0`
 （查看：`ssh fa-master "grep -E 'Finished|rc=' /opt/fa-iforest/syn-replay.log | tail -3"`）。
 
+**`kill` 与 `cancel` 两次运行**：执行完上面两条命令后，**不要离开，紧接着在同一个终端执行第九步的后台命令**。
+扰动脚本自己会等到训练开始再动手；如果等训练开始后再去启动它，训练很可能已经结束（短重放的训练只有 30 至
+100 秒），这次运行就失去了扰动。
+
 ### 第八步：观察训练（可选，另开终端）
 
 ```bash
@@ -219,7 +223,7 @@ submitted to the executor`、`training started on m3-train-K after Xs in the exe
 `entering ONLINE`、`buffer drained in Xs`，以及 `Output watermark hold released after Xs (subtask N)`。线程数为
 一时，同一任务管理器上的设备在 `training started` 前会排队；`t4` 时四台同时开始。出现 `REPORT` 的行要记下来。
 
-### 第九步：扰动（只在 `kill` 与 `cancel` 两次运行中执行）
+### 第九步：扰动（只在 `kill` 与 `cancel` 两次运行中执行，紧接第七步，不要等）
 
 **执行环境**：本地 Mac，仓库根目录。**前置条件**：第七步的重放已启动。脚本会自己等到第一台设备开始训练（120 倍
 时约 26 分钟），再等 15 秒后动手，所以在启动重放后立即用下面的后台方式启动即可，本地终端随后可以关闭；但这段
@@ -250,6 +254,16 @@ cat docs/m3_a4/stepc_$RUN/$RUN.txt
 
 **常见失败**：退出码 3 表示集群上还有其他作业，脚本没有做任何扰动，请告诉我；退出码 5 表示取消 120 秒后仍未
 完成，或强杀后 300 秒作业仍未恢复，请把 `ssh fa-master "docker logs --tail 200 jobmanager"` 的输出发给我。
+
+**如果第九步错过了**（重放已经结束，或训练已经全部完成才想起来）：这次运行没有扰动，不能回答它要回答的问题，
+须从第四步重做这一次。重做之前按下面处理当前作业：
+
+- 若错过的是 `kill`：这次运行与 `t2` 参数完全相同、只是没有扰动，可以作为第二次 `t2` 收下，用来核对「同样输入的
+  两次运行逐位相同」。做法是 `source docs/m3_a4/current_run.env` 之后执行 `RUN=t2b`，再照常执行第十步，
+  结果落在 `docs/m3_a4/stepc_t2b/`。
+- 若错过的是 `cancel`：这次运行是 600 倍速，缓冲可能溢出，结果不收；直接执行
+  `ssh fa-master "docker exec jobmanager flink cancel $JID"`、`bash deploy/scripts/syn-m3-watch.sh stop --out-dir /tmp/cancel_missed`
+  与 `bash deploy/scripts/syn-replay.sh stop`。
 
 ### 第十步：确认排空、收集结果、取消作业
 
