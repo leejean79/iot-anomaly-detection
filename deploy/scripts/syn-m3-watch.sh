@@ -9,7 +9,9 @@
 # Mac 一旦睡眠、断网或换了出口 IP，记录就会中断；放在 master 的 tmux 里则与本地完全无关（重放器也是这样
 # 运行的）。两个监测脚本：
 #   syn-m3-coldstart-watch.sh  检查点时间线、重启次数，统计悬挂的检查点自动取回明细；
-#   syn-ckpt-watch.sh          逐算子与逐子任务的检查点大小（裁决要求的检查点峰值）。
+#   syn-ckpt-watch.sh          逐算子与逐子任务的检查点大小（裁决要求的检查点峰值）；
+#   m3_a4_watch.py             补遗四：逐子任务的输入与输出水位线、训练缓冲占用与溢出（作业里没有补遗四之后的
+#                              M3-LSTM-AE 算子时，这一个窗口会自行退出，不影响另两个）。
 # Why master: the monitoring spans well over an hour; on the Mac it would stop whenever the Mac sleeps,
 # loses network or changes its exit IP. In a tmux session on master it is independent of the Mac.
 #
@@ -24,7 +26,8 @@
 # 4. 期望产出 / Expected output:
 #      start  打印「监测已在 master 的 tmux 会话 syn-m3-watch 中启动」。
 #      status 打印两个监测是否仍在运行、各自记录的最后几行、已进入在线的设备数、是否出现 REPORT、重放器状态。
-#      stop   结束会话，把 ckpt_timeline.csv、ckpt_sizes.csv、ckpt_stale_*.json（若有）与两份日志拉回 --out-dir。
+#      stop   结束会话，把 ckpt_timeline.csv、ckpt_sizes.csv、wm_buffer.csv、ckpt_stale_*.json（若有）与三份日志
+#             拉回 --out-dir。
 # 5. 失败兜底 / Failure fallback: master 缺少 python3 或 tmux 时 start 退出码 2，并给出在本地 Mac 上
 #    用 caffeinate 后台运行的替代命令；会话已存在时退出码 3（先 stop）；作业取消或结束后两个监测会自行退出，
 #    stop 照常取回已记录的部分。
@@ -68,7 +71,7 @@ case "$CMD" in
             exit 3
         fi
         ssh fa-master "rm -rf $RD && mkdir -p $RD/scripts"
-        scp -q "$SCRIPT_DIR/syn-m3-coldstart-watch.sh" "$SCRIPT_DIR/syn-ckpt-watch.sh" "fa-master:$RD/scripts/"
+        scp -q "$SCRIPT_DIR/syn-m3-coldstart-watch.sh" "$SCRIPT_DIR/syn-ckpt-watch.sh" "$SCRIPT_DIR/m3_a4_watch.py" "fa-master:$RD/scripts/"
         # 两个监测脚本按自身位置找上一级目录里的 .env，因此把本地 .env 放到 $RD 下。
         # The scripts source ../.env relative to themselves, so the local .env goes to $RD.
         scp -q "$DEPLOY_DIR/.env" "fa-master:$RD/.env"
@@ -78,6 +81,7 @@ case "$CMD" in
 printf 'JID=%s\nSINCE=%s\n' '$JID' '$SINCE' > $RD/meta.env
 tmux new-session -d -s $SESSION -n timeline "SYN_ON_MASTER=1 bash $RD/scripts/syn-m3-coldstart-watch.sh --jid $JID --out $RD/ckpt_timeline.csv 2>&1 | tee -a $RD/timeline.log"
 tmux new-window -t $SESSION -n sizes "SYN_ON_MASTER=1 bash $RD/scripts/syn-ckpt-watch.sh --jid $JID --interval 20 --framesize-mb $FRAME_MB --out $RD/ckpt_sizes.csv 2>&1 | tee -a $RD/sizes.log"
+tmux new-window -t $SESSION -n wm "SYN_ON_MASTER=1 python3 $RD/scripts/m3_a4_watch.py --jid $JID --out $RD/wm_buffer.csv 2>&1 | tee -a $RD/wm.log"
 EOF
         scp -q "$LAUNCH" "fa-master:$RD/launch.sh"; rm -f "$LAUNCH"
         ssh fa-master "bash $RD/launch.sh"
@@ -101,6 +105,8 @@ EOF
         ssh fa-master "tail -n 2 $RD/timeline.log 2>/dev/null; ls $RD/ckpt_stale_*.json 2>/dev/null | sed 's/^/统计悬挂明细：/'"
         echo "== 检查点大小（最后 3 行）=="
         ssh fa-master "tail -n 3 $RD/sizes.log 2>/dev/null"
+        echo "== 水位线与训练缓冲（最后 1 行，补遗四）=="
+        ssh fa-master "tail -n 1 $RD/wm.log 2>/dev/null"
         echo "== M3 冷启动进度 =="
         TR=0; ON=0; RP=0
         for pair in "fa-worker1 taskmanager-2" "fa-worker2 taskmanager-3"; do
@@ -119,14 +125,15 @@ EOF
         ssh fa-master "tmux kill-session -t $SESSION 2>/dev/null; true"
         mkdir -p "$OUT_DIR"
         scp -q "fa-master:$RD/ckpt_timeline.csv" "fa-master:$RD/ckpt_sizes.csv" \
-            "fa-master:$RD/timeline.log" "fa-master:$RD/sizes.log" "$OUT_DIR/" \
+            "fa-master:$RD/timeline.log" "fa-master:$RD/sizes.log" \
+            "fa-master:$RD/wm_buffer.csv" "fa-master:$RD/wm.log" "$OUT_DIR/" \
             || echo "[watch] ⚠ 部分文件没有取回，请检查 master 上的 $RD" >&2
         scp -q "fa-master:$RD/ckpt_stale_*.json" "$OUT_DIR/" 2>/dev/null \
             && echo "[watch] 取回了统计悬挂检查点的明细" || true
         scp -q "fa-master:$RD/ckpt_inspect_*.json" "$OUT_DIR/" 2>/dev/null \
             && echo "[watch] 取回了长时间进行中的检查点明细" || true
         echo "[watch] 监测已停止，结果在 ${OUT_DIR}："
-        ls -l "$OUT_DIR" | grep -E 'ckpt_|\.log' | sed 's/^/        /'
+        ls -l "$OUT_DIR" | grep -E 'ckpt_|wm_|\.log' | sed 's/^/        /'
         ;;
     *)
         echo "用法 / usage: $0 start --jid <JobID> --since <UTC 时刻> | status | stop --out-dir <目录>" >&2

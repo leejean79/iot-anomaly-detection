@@ -154,6 +154,7 @@ bash deploy/scripts/syn-submit-m2.sh --extra "--m3-enabled true
     --idle-wall 60 --train-threads $THREADS" 2>&1 | tee docs/m3_a4/stepc_$RUN/submit.log
 grep -E 'Idle timeout|Ckpt|M3 rounds|M3 async|Device subtasks' docs/m3_a4/stepc_$RUN/submit.log
 JID=$(grep -oE 'JobID [a-f0-9]{32}' docs/m3_a4/stepc_$RUN/submit.log | awk '{print $2}' | head -1); echo "JID=$JID"
+printf 'RUN=%s\nTHREADS=%s\nSINCE=%s\nJID=%s\n' "$RUN" "$THREADS" "$SINCE" "$JID" > docs/m3_a4/current_run.env
 ```
 
 **期望产出**：
@@ -166,25 +167,32 @@ JID=$(grep -oE 'JobID [a-f0-9]{32}' docs/m3_a4/stepc_$RUN/submit.log | awk '{pri
 - 最后打印 `M2Job is RUNNING (JobID …)`，`JID` 打印出同一个编号。
 
 **常见失败**：60 秒内没有进入 RUNNING 时，用 `ssh fa-master "docker exec jobmanager flink list"` 查看。
-`RUN`、`THREADS`、`SINCE`、`JID` 只在当前终端有效，下面几步在同一个终端执行，另开的终端要把值抄过去。
+最后一条命令把 `RUN`、`THREADS`、`SINCE`、`JID` 存进 `docs/m3_a4/current_run.env`。此后可以关掉终端；回来时在
+任何新终端里先执行 `source docs/m3_a4/current_run.env`，下面各步的命令就能直接使用这四个变量。
 
-### 第六步：启动两个采样（各开一个终端，一直开着）
+### 第六步：在 master 上启动采样（无人值守，本地终端可以关闭）
 
-**执行环境**：本地 Mac，仓库根目录。**前置条件**：第五步的作业处于 RUNNING。
+**执行环境**：本地 Mac，仓库根目录。**前置条件**：第五步的作业处于 RUNNING；master 上没有名为 `syn-m3-watch`
+的 tmux 会话（上一次运行已在第十步 `stop`）。
 
 ```bash
-# 终端二：检查点时间线（每 15 秒一行）
-bash deploy/scripts/syn-m3-coldstart-watch.sh --jid <JID> --out docs/m3_a4/stepc_<RUN>/ckpt_timeline.csv
-# 终端三：水位线与缓冲（每 10 秒一行）
-python3 deploy/scripts/m3_a4_watch.py --jid <JID> --out docs/m3_a4/stepc_<RUN>/wm_buffer.csv
+source docs/m3_a4/current_run.env
+bash deploy/scripts/syn-m3-watch.sh start --jid $JID --since $SINCE
+bash deploy/scripts/syn-m3-watch.sh status      # 随时查看，不需要一直开着
 ```
 
-**期望产出**：终端二与以前相同；训练期间「进行中」的检查点应当在几秒内完成，不再出现长时间挂起。终端三每次
-采样打印八个子任务的「缓冲 N 保持 Xs 入 <输入水位线> 出 <输出水位线>」；训练开始前缓冲都是 0，输入与输出
-水位线相同；训练期间缓冲增长、输入水位线继续推进，输出水位线停在缓冲头；排空后两者重新一致。
+三个采样在 master 的 tmux 会话里运行，与本地 Mac 是否开着终端、是否睡眠都无关：检查点时间线（每 15 秒）、检查点
+大小（每 20 秒）、水位线与训练缓冲（每 10 秒，补遗四新增）。作业取消或结束后它们会自行退出，第十步用 `stop`
+取回结果。
 
-**常见失败**：终端三提示「指标尚未出现」时，等作业处理第一批数据后会自动出现；退出码 2 表示 jar 不是补遗四
-之后的版本或 `JID` 不对。
+**期望产出**：`start` 打印「监测已在 master 的 tmux 会话 syn-m3-watch 中启动」。`status` 打印三段最新记录、已进入
+训练与在线的设备数、重放器状态。其中「水位线与训练缓冲」一行列出八个子任务的「缓冲 N 保持 Xs 入 <输入水位线>
+出 <输出水位线>」：训练开始前缓冲都是 0，输入与输出水位线相同；训练期间缓冲增长、输入水位线继续推进、输出水位线
+停在缓冲头；排空后两者重新一致。训练期间「进行中」的检查点应当在几秒内完成，不再长时间挂起。
+
+**常见失败**：退出码 3 表示上一次的会话还在，先执行 `bash deploy/scripts/syn-m3-watch.sh stop --out-dir /tmp/old_watch`；
+退出码 2 表示 master 缺少 python3、tmux 或 curl，请把输出发给我。「水位线与训练缓冲」一行暂时为空属正常，作业
+处理第一批数据后才有指标。
 
 ### 第七步：启动重放
 
@@ -213,14 +221,21 @@ submitted to the executor`、`training started on m3-train-K after Xs in the exe
 
 ### 第九步：扰动（只在 `kill` 与 `cancel` 两次运行中执行）
 
-**执行环境**：本地 Mac，仓库根目录。**前置条件**：第七步的重放已启动。脚本会自己等到第一台设备开始训练，再
-等 15 秒后动手，所以可以在启动重放后立即执行。
+**执行环境**：本地 Mac，仓库根目录。**前置条件**：第七步的重放已启动。脚本会自己等到第一台设备开始训练（120 倍
+时约 26 分钟），再等 15 秒后动手，所以在启动重放后立即用下面的后台方式启动即可，本地终端随后可以关闭；但这段
+时间里 Mac 必须接着电源、不睡眠、不断网（`caffeinate -i` 阻止空闲睡眠，合上屏幕仍会睡眠），因为扰动要从 Mac
+登录到 worker 执行。
 
 ```bash
+source docs/m3_a4/current_run.env
 # 只在 RUN=kill 时执行：
-bash deploy/scripts/syn-m3-a4-disrupt.sh kill --jid $JID --since $SINCE --out docs/m3_a4/stepc_kill/kill.txt
+caffeinate -i nohup bash deploy/scripts/syn-m3-a4-disrupt.sh kill --jid $JID --since $SINCE \
+    --out docs/m3_a4/stepc_kill/kill.txt > /tmp/a4_disrupt.log 2>&1 &
 # 只在 RUN=cancel 时执行：
-bash deploy/scripts/syn-m3-a4-disrupt.sh cancel --jid $JID --since $SINCE --out docs/m3_a4/stepc_cancel/cancel.txt
+caffeinate -i nohup bash deploy/scripts/syn-m3-a4-disrupt.sh cancel --jid $JID --since $SINCE \
+    --out docs/m3_a4/stepc_cancel/cancel.txt > /tmp/a4_disrupt.log 2>&1 &
+# 回来后查看结果：
+cat docs/m3_a4/stepc_$RUN/$RUN.txt
 ```
 
 **期望产出**：
@@ -229,7 +244,8 @@ bash deploy/scripts/syn-m3-a4-disrupt.sh cancel --jid $JID --since $SINCE --out 
   之后日志里应出现 `is in TRAINING without a model and nothing in flight (restored from a checkpoint): resubmitting`，
   该设备重新训练并最终进入在线。作业恢复后继续第十步，与其他运行相同。
 - `cancel`：打印「取消端到端 N 秒（要求不超过 30 秒）」与该任务管理器日志里的 `training interrupted` 和
-  `Training executor shut down` 两行。`cancel` 这次运行到此结束：停掉两个采样（Ctrl+C），执行
+  `Training executor shut down` 两行。`cancel` 这次运行到此结束：执行
+  `bash deploy/scripts/syn-m3-watch.sh stop --out-dir docs/m3_a4/stepc_cancel` 与
   `bash deploy/scripts/syn-replay.sh stop`，然后直接跳到下一次运行的第四步。
 
 **常见失败**：退出码 3 表示集群上还有其他作业，脚本没有做任何扰动，请告诉我；退出码 5 表示取消 120 秒后仍未
@@ -241,20 +257,23 @@ bash deploy/scripts/syn-m3-a4-disrupt.sh cancel --jid $JID --since $SINCE --out 
 （或收回时缓冲为 0）。
 
 ```bash
+source docs/m3_a4/current_run.env
 bash deploy/scripts/syn-m2-metrics.sh > /tmp/a4_t1.txt; sleep 120
 bash deploy/scripts/syn-m2-metrics.sh > /tmp/a4_t2.txt
 diff /tmp/a4_t1.txt /tmp/a4_t2.txt && echo "已排空"
 bash deploy/scripts/syn-m3-march-collect.sh --out-dir docs/m3_a4/stepc_$RUN --since $SINCE
 grep -c 'buffer drained\|result collected' docs/m3_a4/stepc_$RUN/m3_tm_log.txt
 ssh fa-master "docker exec jobmanager flink cancel $JID"
+bash deploy/scripts/syn-m3-watch.sh stop --out-dir docs/m3_a4/stepc_$RUN
 rm -f docs/m3_a4/stepc_$RUN/scores.jsonl
 ssh fa-master 'rm -rf /opt/fa-iforest/m3march'
 ```
 
-收集完成后，在终端二、终端三按 Ctrl+C 停止两个采样（作业取消后它们也会自行退出）。
+`syn-m3-watch.sh stop` 把 `ckpt_timeline.csv`、`ckpt_sizes.csv`、`wm_buffer.csv` 与三份日志取回到本次运行的目录，
+第三节的汇总脚本直接读取它们。
 
-**期望产出**：打印「已排空」；`docs/m3_a4/stepc_<RUN>/collect_summary.txt` 中「M3 训练完成的设备数」为 8
-（`kill` 运行中被重新训练的设备会多一行 `trained:`，计数可能为 9 或更多）；倒数第五条命令打印的计数至少为 8。
+**期望产出**：打印「已排空」；`docs/m3_a4/stepc_<RUN>/` 下有 `ckpt_timeline.csv` 与 `wm_buffer.csv`；`docs/m3_a4/stepc_<RUN>/collect_summary.txt` 中「M3 训练完成的设备数」为 8
+（`kill` 运行中被重新训练的设备会多一行 `trained:`，计数可能为 9 或更多）；`grep -c` 那一条打印的计数至少为 8。
 
 **常见失败**：两次读数不同说明作业仍在追赶，再等两分钟重复前三条；收集到的训练设备少于 8 时先不要取消作业，
 把 `collect_summary.txt` 发给我。

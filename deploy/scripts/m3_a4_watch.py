@@ -7,9 +7,12 @@ Samples, per subtask of the M3 operator, the input and output watermarks, traini
 duration and buffer-overflow count, for addendum 4 step C item 2 and full-replay item A4-3.
 
 ---------------------------- 脚本交付五要素 ----------------------------
-1. 执行环境 / Environment: 本地 Mac，仓库根目录，python3；ssh 别名 fa-master 可用；deploy/.env 中有 NODE_MASTER_IP。
+1. 执行环境 / Environment: 通常不直接调用，而由 `syn-m3-watch.sh start` 放到 master 的 tmux 会话里运行
+   （环境变量 SYN_ON_MASTER=1，直接 curl），本地终端可以关闭。也可在本地 Mac 仓库根目录直接运行（经 ssh fa-master）。
+   两种方式都需要 python3 与 deploy/.env 中的 NODE_MASTER_IP。
 2. 调用命令 / Invocation:
-     python3 deploy/scripts/m3_a4_watch.py --jid <JobID> --out docs/m3_a4/stepc_t2/wm_buffer.csv
+     bash deploy/scripts/syn-m3-watch.sh start --jid <JobID> --since <UTC 时刻>   # 推荐：随另两个监测一起在 master 上运行
+     python3 deploy/scripts/m3_a4_watch.py --jid <JobID> --out docs/m3_a4/stepc_t2/wm_buffer.csv   # 本地前台运行
      可选：--interval 10（采样间隔秒，默认 10）；--duration 0（采样总时长秒，0 表示直到作业结束）。
 3. 前置条件 / Preconditions: 作业已提交且为 RUNNING，作业里有名为 M3-LSTM-AE 的算子（补遗四之后的 jar）。
 4. 期望产出 / Expected output: 每次采样在终端打印一行（各子任务的缓冲轮数、保持秒数、输入与输出水位线的
@@ -44,9 +47,12 @@ def env_value(name):
 
 
 def rest(base, path):
+    # 在 master 上运行（由 syn-m3-watch.sh 放进 tmux）时直接 curl，在本地 Mac 上经 ssh。
+    # On master (launched by syn-m3-watch.sh in tmux) curl directly; on the Mac go through ssh.
+    cmd = "curl -s --max-time 20 '%s%s'" % (base, path)
+    argv = ["bash", "-c", cmd] if os.environ.get("SYN_ON_MASTER") == "1" else ["ssh", "fa-master", cmd]
     try:
-        out = subprocess.run(["ssh", "fa-master", "curl -s --max-time 20 '%s%s'" % (base, path)],
-                             capture_output=True, text=True, timeout=60).stdout
+        out = subprocess.run(argv, capture_output=True, text=True, timeout=60).stdout
         return json.loads(out) if out.strip() else None
     except (subprocess.TimeoutExpired, ValueError):
         return None
