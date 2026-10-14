@@ -2,6 +2,11 @@
 
 版本：2026-10-13。依据交接文档 `docs/handover/handover_m3_addendum4_async_training_zh.md`（开发设计日志 0.82 版）。
 
+## 开跑前提
+
+请先把 `docs/reports/m3_addendum4_issues_for_decision.md` 转给设计会话。其中第一点（校准放在训练线程上）会影响代码
+与步骤 C 的有效性，**须在本手册开跑之前得到裁决**；第二、三点只影响全量重放，不阻塞步骤 C。
+
 ## 这次要做什么
 
 补遗四把上下文异常检测模块（M3）的冷启动训练从 Flink 任务线程移到专用的训练线程上。代码已经完成，
