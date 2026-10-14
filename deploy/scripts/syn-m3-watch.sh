@@ -67,7 +67,9 @@ case "$CMD" in
             exit 2
         fi
         if ssh fa-master "tmux has-session -t $SESSION 2>/dev/null"; then
-            echo "ERROR: master 上已有 tmux 会话 ${SESSION}。先执行 stop 取回上一次的结果。" >&2
+            OLD="$(ssh fa-master "sed -n 's/^JID=//p' $RD/meta.env 2>/dev/null")"
+            echo "ERROR: master 上已有 tmux 会话 ${SESSION}，属于作业 ${OLD:-（未知）}。" >&2
+            echo "       先取回它的结果再启动：bash $0 stop --out-dir <上一次运行的目录，不确定时用 /tmp/m3watch_old>" >&2
             exit 3
         fi
         ssh fa-master "rm -rf $RD && mkdir -p $RD/scripts"
