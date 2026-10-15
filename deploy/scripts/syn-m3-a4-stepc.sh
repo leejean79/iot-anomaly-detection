@@ -140,7 +140,7 @@ Host fa-master fa-worker1 fa-worker2
         # 把 deploy/ 复制到 master 的仓库副本；副本里的 .env 让 REST 地址走内网（master 访问自己的公网地址可能不通）。
         # Copy deploy/ to the repo copy on master; its .env points REST calls at the private address.
         ssh fa-master "mkdir -p $RREPO && rm -rf $RREPO/deploy"
-        tar czf - deploy | ssh fa-master "tar xzf - -C $RREPO && echo 'NODE_MASTER_PUBLIC_IP=$NODE_MASTER_IP' >> $RREPO/deploy/.env"
+        COPYFILE_DISABLE=1 tar czf - deploy | ssh fa-master "tar --warning=no-unknown-keyword -xzf - -C $RREPO && echo 'NODE_MASTER_PUBLIC_IP=$NODE_MASTER_IP' >> $RREPO/deploy/.env"
         ssh fa-master "cd $RREPO && tmux new-session -d -s $TSESSION 'SYN_STEPC_ON_MASTER=1 bash deploy/scripts/syn-m3-a4-stepc.sh start --runs $RUNS; sleep 5; while [ -f docs/m3_a4/stepc_all.pid ] && kill -0 \$(cat docs/m3_a4/stepc_all.pid) 2>/dev/null; do sleep 30; done'"
         sleep 5
         remote_alive && echo "[stepc] 已在 master 的 tmux 会话 $TSESSION 中启动，依次运行：$RUNS。本地 Mac 现在可以关机。" \
