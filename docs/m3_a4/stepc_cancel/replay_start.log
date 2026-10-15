@@ -1,0 +1,19 @@
+====================================
+[replay] 已在 master 的 tmux 会话 'syn-replay' 中启动（Mac 断连不影响，控制台在此立即返回）。
+  数据集(host)=/opt/fa-iforest/datasets/synergia/files_csv  topic=synergia-source
+  参数:  --speedup 600 --start 2022-03-01 --end 2022-03-05
+  观看:   bash /opt/fa-iforest/stepc/repo/deploy/scripts/syn-replay.sh attach     （Ctrl+B 然后 D 脱离，不停重放）
+  日志:   bash /opt/fa-iforest/stepc/repo/deploy/scripts/syn-replay.sh logs       （或 ssh 到 master: tail -f /opt/fa-iforest/syn-replay.log）
+  状态:   bash /opt/fa-iforest/stepc/repo/deploy/scripts/syn-replay.sh status ；  停止: bash /opt/fa-iforest/stepc/repo/deploy/scripts/syn-replay.sh stop
+====================================
+[启动自检 / launch self-check]
+  tmux 会话存活 / session alive
+  | Segment:       [1646092800, 1646438400] (epoch seconds)
+  | Data files:    3471 (csv-named=3471, sniffed non-.csv=0, skipped non-data=2)
+  | Strict names:  false
+  | Mode:          PRODUCE
+  | Injection:     OFF
+  | ========================================
+  | WARNING: sun.reflect.Reflection.getCallerClass is not supported. This will impact performance.
+  | [preflight] topic 'synergia-source' 分区数 = 8 (>= 8) OK
+  （若上面报错，多半是镜像名/挂载/端口问题；修正后重跑 start）

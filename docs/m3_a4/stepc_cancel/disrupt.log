@@ -1,0 +1,10 @@
+模式：cancel；作业 30c262e0c0a6b87ec1f86d30b13bafa3；等待日志里出现 training started（最长 3600s）
+看到训练开始：设备 A，fa-worker1 / taskmanager-2；15s 后动手
+取消开始：2026-10-15T05:26:46Z
+Cancelling job 30c262e0c0a6b87ec1f86d30b13bafa3.
+Cancelled job 30c262e0c0a6b87ec1f86d30b13bafa3.
+取消端到端 6.0 秒（要求不超过 30 秒）
+taskmanager-2 日志中的中断与关闭记录：
+2026-10-15 05:26:49,531 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Training executor shut down
+2026-10-15 05:26:49,743 WARN  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device A training interrupted: M3 training interrupted after epoch 14
+2026-10-15 05:26:50,043 WARN  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device D training interrupted: M3 training interrupted after epoch 14

@@ -1,0 +1,50 @@
+[preflight] topic 'synergia-source' 分区数 = 8 OK
+====================================
+[submit] M2Job  main=com.leejean.m2.M2Job  p=8  W=3600s S=60s R=1.0 k=10  start=earliest
+====================================
+[preflight] 无并行的 M1/M2 作业 OK / no competing M1/M2 job
+====================================
+========================================
+M2Job (M1+pMCOD joint)
+Brokers:         172.16.0.162:9092,172.16.0.163:9092,172.16.0.164:9092
+Source topic:    synergia-source
+Scores topic:    synergia-scores
+Monitoring topic:synergia-monitoring
+Start offset:    earliest
+Parallelism:     8
+Idle timeout:    60 s
+Calib days:      7 (rounds/day=8640)
+Warmup rounds:   8640 (explicit --warmup-rounds)
+Relative guard:  OFF (default)
+Ckpt max state:  128 MB/subtask (memory-backed)
+Ckpt akka.framesize: 256.0 MB
+Ckpt effective ceiling: 128.0 MB  [由 --checkpoint-max-state-mb 决定 / bound by --checkpoint-max-state-mb]
+Ckpt interval/timeout: 30000 ms / 10 min
+Ckpt tolerable failures: 3  (job restarts on consecutive failure no. 4)
+Stuck guard:     OFF (no --stuck-run-thresholds)
+Stuck floors:    none
+Window W/S:      3600s / 60s
+MCOD R/k:        1.0 / 10  per-device R={A=1.0, B=1.0, C=1.0, D=0.75, E=1.0, F=1.0, G=1.5, H=1.0}
+M3 enabled:      true
+M3 train/es/th:  7d/2d/7d
+M3 window:       60 rounds
+M3 z-threshold:  2.22
+M3 max epochs:   300 (patience=20)
+M3 hidden size:  60  (fleet-wide, fixed from the offline grid)
+M3 batch size:   64   (must match the offline grid)
+M3 reverse tgt:  true (reversed reconstruction target)
+M3 learning rate:0.001 (Adam)
+M3 grad clip:    39072.0 (L2 per layer; 0 = disabled)
+M3 rounds/day:   864  [COLD-START PROBE MODE: segments are NOT real days; never use for acceptance]
+M3 async train:  threads=4 per TaskManager, drain batch=200 rounds, poll interval=30 s (addendum 4)
+========================================
+Device subtasks: {A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7} (surrogate keys, maxParallelism=128)
+WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.flink.api.java.ClosureCleaner (file:/opt/flink/lib/flink-dist_2.12-1.13.6.jar) to field java.util.Properties.serialVersionUID
+WARNING: Please consider reporting this to the maintainers of org.apache.flink.api.java.ClosureCleaner
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+Job has been submitted with JobID dfdb23621381ba83d22b71fd687bd1f3
+[wait] M2Job (dfdb23621381ba83d22b71fd687bd1f3) to be RUNNING ...
+  M2Job is RUNNING (JobID dfdb23621381ba83d22b71fd687bd1f3)
+下一步 / Next: bash /opt/fa-iforest/stepc/repo/deploy/scripts/syn-replay.sh --speedup 600 --start <day> --end <day>

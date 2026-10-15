@@ -1,0 +1,12 @@
+[collect] 转储 synergia-scores 与 synergia-monitoring（各最多 5000000 条）……
+[collect] synergia-scores：3914 行 → master:/opt/fa-iforest/m3march/scores.jsonl
+[collect] synergia-monitoring：82353 行 → master:/opt/fa-iforest/m3march/monitoring.jsonl
+[collect] ⚠ master 上没有 /opt/fa-iforest/replay-state/inject-truth.csv：重放没有带 --inject-file，或 replay-state 已被清理。
+收集时间：2026-10-15 11:27:03 CST
+scores 行数：3914
+其中上下文通道（m3_context）：1531
+monitoring 行数（留在 master）：82353
+/opt/fa-iforest/stepc/repo/deploy/scripts/syn-m3-march-collect.sh: line 98: docs/m3_a4/stepc_t2/inject-truth.csv: No such file or directory
+注入真值行数（含表头）：0
+M3 训练完成的设备数：8
+REPORT 警告数：0

@@ -1,0 +1,757 @@
+wall_clock,ckpt_id,ckpt_status,operator,state_size_bytes,state_size_mb,acked_subtasks,max_subtask_bytes,max_subtask_mb
+2026-10-15 11:28:45,1,IN_PROGRESS,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:28:45,1,IN_PROGRESS,"RobustScaler",46128,0.044,8,5766,0.005
+2026-10-15 11:28:45,1,IN_PROGRESS,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:28:45,1,IN_PROGRESS,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",38328,0.037,8,4791,0.005
+2026-10-15 11:28:45,1,IN_PROGRESS,"RoundAssembler -> AlignEventTime",34024,0.032,8,4253,0.004
+2026-10-15 11:28:45,1,IN_PROGRESS,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",19144,0.018,8,2393,0.002
+2026-10-15 11:28:45,1,IN_PROGRESS,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:29:25,2,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:29:25,2,COMPLETED,"RobustScaler",112444,0.107,8,14070,0.013
+2026-10-15 11:29:25,2,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:29:25,2,COMPLETED,"RoundAssembler -> AlignEventTime",46245,0.044,8,5825,0.006
+2026-10-15 11:29:25,2,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:29:25,2,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:29:25,2,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:29:45,3,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:29:45,3,COMPLETED,"RobustScaler",227324,0.217,8,28430,0.027
+2026-10-15 11:29:45,3,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:29:45,3,COMPLETED,"RoundAssembler -> AlignEventTime",46528,0.044,8,5825,0.006
+2026-10-15 11:29:45,3,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:29:45,3,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:29:45,3,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:30:26,4,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:30:26,4,COMPLETED,"RobustScaler",341924,0.326,8,42790,0.041
+2026-10-15 11:30:26,4,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:30:26,4,COMPLETED,"RoundAssembler -> AlignEventTime",47517,0.045,8,5967,0.006
+2026-10-15 11:30:26,4,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:30:26,4,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:30:26,4,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:30:46,5,COMPLETED,"RobustScaler",456924,0.436,8,57150,0.055
+2026-10-15 11:30:46,5,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:30:46,5,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:30:46,5,COMPLETED,"RoundAssembler -> AlignEventTime",47094,0.045,8,5967,0.006
+2026-10-15 11:30:46,5,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:30:46,5,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:30:46,5,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:31:26,6,COMPLETED,"RobustScaler",571884,0.545,8,71510,0.068
+2026-10-15 11:31:26,6,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:31:26,6,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:31:26,6,COMPLETED,"RoundAssembler -> AlignEventTime",46952,0.045,8,5967,0.006
+2026-10-15 11:31:26,6,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:31:26,6,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:31:26,6,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:31:47,7,COMPLETED,"RobustScaler",687164,0.655,8,85950,0.082
+2026-10-15 11:31:47,7,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:31:47,7,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:31:47,7,COMPLETED,"RoundAssembler -> AlignEventTime",45962,0.044,8,5813,0.006
+2026-10-15 11:31:47,7,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:31:47,7,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:31:47,7,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:32:27,8,COMPLETED,"RobustScaler",801924,0.765,8,100270,0.096
+2026-10-15 11:32:27,8,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:32:27,8,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:32:27,8,COMPLETED,"RoundAssembler -> AlignEventTime",46245,0.044,8,5825,0.006
+2026-10-15 11:32:27,8,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:32:27,8,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:32:27,8,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:32:47,9,COMPLETED,"RobustScaler",916764,0.874,8,114630,0.109
+2026-10-15 11:32:47,9,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:32:47,9,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:32:47,9,COMPLETED,"RoundAssembler -> AlignEventTime",46528,0.044,8,5825,0.006
+2026-10-15 11:32:47,9,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:32:47,9,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:32:47,9,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:33:28,10,COMPLETED,"RobustScaler",1031444,0.984,8,128990,0.123
+2026-10-15 11:33:28,10,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:33:28,10,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:33:28,10,COMPLETED,"RoundAssembler -> AlignEventTime",47375,0.045,8,5967,0.006
+2026-10-15 11:33:28,10,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:33:28,10,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:33:28,10,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:33:48,11,COMPLETED,"RobustScaler",1146404,1.093,8,143350,0.137
+2026-10-15 11:33:48,11,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:33:48,11,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:33:48,11,COMPLETED,"RoundAssembler -> AlignEventTime",46811,0.045,8,5967,0.006
+2026-10-15 11:33:48,11,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:33:48,11,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:33:48,11,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:34:28,12,COMPLETED,"RobustScaler",1261724,1.203,8,157790,0.150
+2026-10-15 11:34:28,12,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:34:28,12,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:34:28,12,COMPLETED,"RoundAssembler -> AlignEventTime",45680,0.044,8,5813,0.006
+2026-10-15 11:34:28,12,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:34:28,12,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:34:28,12,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:34:49,13,COMPLETED,"RobustScaler",1376564,1.313,8,172150,0.164
+2026-10-15 11:34:49,13,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:34:49,13,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:34:49,13,COMPLETED,"RoundAssembler -> AlignEventTime",45962,0.044,8,5813,0.006
+2026-10-15 11:34:49,13,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:34:49,13,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:34:49,13,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:35:29,14,COMPLETED,"RobustScaler",1491284,1.422,8,186470,0.178
+2026-10-15 11:35:29,14,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:35:29,14,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:35:29,14,COMPLETED,"RoundAssembler -> AlignEventTime",46387,0.044,8,5825,0.006
+2026-10-15 11:35:29,14,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:35:29,14,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:35:29,14,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:35:49,15,COMPLETED,"RobustScaler",1606124,1.532,8,200830,0.192
+2026-10-15 11:35:49,15,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:35:49,15,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:35:49,15,COMPLETED,"RoundAssembler -> AlignEventTime",46669,0.045,8,5954,0.006
+2026-10-15 11:35:49,15,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:35:49,15,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:35:49,15,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:36:30,16,COMPLETED,"RobustScaler",1720804,1.641,8,215190,0.205
+2026-10-15 11:36:30,16,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:36:30,16,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:36:30,16,COMPLETED,"RoundAssembler -> AlignEventTime",47376,0.045,8,5967,0.006
+2026-10-15 11:36:30,16,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:36:30,16,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:36:30,16,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:36:50,17,COMPLETED,"RobustScaler",1834244,1.749,8,229550,0.219
+2026-10-15 11:36:50,17,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:36:50,17,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:36:50,17,COMPLETED,"RoundAssembler -> AlignEventTime",47234,0.045,8,5967,0.006
+2026-10-15 11:36:50,17,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:36:50,17,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 11:36:50,17,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:37:30,18,COMPLETED,"RobustScaler",1949604,1.859,8,243990,0.233
+2026-10-15 11:37:30,18,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:37:30,18,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:37:30,18,COMPLETED,"RoundAssembler -> AlignEventTime",45398,0.043,8,5683,0.005
+2026-10-15 11:37:30,18,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:37:30,18,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:37:30,18,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:37:51,19,COMPLETED,"RobustScaler",2064204,1.969,8,258350,0.246
+2026-10-15 11:37:51,19,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:37:51,19,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:37:51,19,COMPLETED,"RoundAssembler -> AlignEventTime",46245,0.044,8,5825,0.006
+2026-10-15 11:37:51,19,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:37:51,19,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:37:51,19,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:38:31,20,COMPLETED,"RobustScaler",2178964,2.078,8,272710,0.260
+2026-10-15 11:38:31,20,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:38:31,20,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:38:31,20,COMPLETED,"RoundAssembler -> AlignEventTime",46528,0.044,8,5825,0.006
+2026-10-15 11:38:31,20,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:38:31,20,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:38:31,20,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:38:51,21,COMPLETED,"RobustScaler",2293764,2.188,8,287064,0.274
+2026-10-15 11:38:51,21,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:38:51,21,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:38:51,21,COMPLETED,"RoundAssembler -> AlignEventTime",47093,0.045,8,5967,0.006
+2026-10-15 11:38:51,21,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:38:51,21,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:38:51,21,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:39:32,22,COMPLETED,"RobustScaler",2408644,2.297,8,301424,0.287
+2026-10-15 11:39:32,22,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:39:32,22,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:39:32,22,COMPLETED,"RoundAssembler -> AlignEventTime",47234,0.045,8,5967,0.006
+2026-10-15 11:39:32,22,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:39:32,22,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:39:32,22,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:39:52,23,COMPLETED,"RobustScaler",2524204,2.407,8,315864,0.301
+2026-10-15 11:39:52,23,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:39:52,23,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:39:52,23,COMPLETED,"RoundAssembler -> AlignEventTime",45257,0.043,8,5683,0.005
+2026-10-15 11:39:52,23,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:39:52,23,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:39:52,23,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:40:32,24,COMPLETED,"RobustScaler",2638924,2.517,8,330190,0.315
+2026-10-15 11:40:32,24,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:40:32,24,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:40:32,24,COMPLETED,"RoundAssembler -> AlignEventTime",45963,0.044,8,5825,0.006
+2026-10-15 11:40:32,24,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:40:32,24,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:40:32,24,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:40:53,25,COMPLETED,"RobustScaler",2753804,2.626,8,344550,0.329
+2026-10-15 11:40:53,25,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:40:53,25,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",111400,0.106,8,13925,0.013
+2026-10-15 11:40:53,25,COMPLETED,"RoundAssembler -> AlignEventTime",46105,0.044,8,5825,0.006
+2026-10-15 11:40:53,25,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",44896,0.043,8,5612,0.005
+2026-10-15 11:40:53,25,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:40:53,25,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:41:33,26,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",7961705,7.593,8,1027314,0.980
+2026-10-15 11:41:33,26,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:41:33,26,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",155678,0.148,8,19897,0.019
+2026-10-15 11:41:33,26,COMPLETED,"RoundAssembler -> AlignEventTime",46952,0.045,8,5967,0.006
+2026-10-15 11:41:33,26,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:41:33,26,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:41:33,26,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:41:53,27,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10789471,10.290,8,1351617,1.289
+2026-10-15 11:41:53,27,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:41:53,27,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",285338,0.272,8,36091,0.034
+2026-10-15 11:41:53,27,COMPLETED,"RoundAssembler -> AlignEventTime",47234,0.045,8,5967,0.006
+2026-10-15 11:41:53,27,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:41:53,27,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:41:53,27,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:42:34,28,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10584947,10.095,8,1353370,1.291
+2026-10-15 11:42:34,28,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:42:34,28,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",414398,0.395,8,52124,0.050
+2026-10-15 11:42:34,28,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:42:34,28,COMPLETED,"RoundAssembler -> AlignEventTime",45257,0.043,8,5683,0.005
+2026-10-15 11:42:34,28,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 11:42:34,28,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:42:54,29,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10884996,10.381,8,1362998,1.300
+2026-10-15 11:42:54,29,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",544658,0.519,8,68526,0.065
+2026-10-15 11:42:54,29,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:42:54,29,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:42:54,29,COMPLETED,"RoundAssembler -> AlignEventTime",45398,0.043,8,5683,0.005
+2026-10-15 11:42:54,29,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:42:54,29,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:43:14,30,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10882592,10.378,8,1389167,1.325
+2026-10-15 11:43:14,30,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",674156,0.643,8,84720,0.081
+2026-10-15 11:43:14,30,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:43:14,30,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:43:14,30,COMPLETED,"RoundAssembler -> AlignEventTime",45964,0.044,8,5825,0.006
+2026-10-15 11:43:14,30,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:43:14,30,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:43:55,31,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10840590,10.338,8,1379110,1.315
+2026-10-15 11:43:55,31,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",803816,0.767,8,100921,0.096
+2026-10-15 11:43:55,31,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:43:55,31,COMPLETED,"RoundAssembler -> AlignEventTime",46669,0.045,8,5954,0.006
+2026-10-15 11:43:55,31,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:43:55,31,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:43:55,31,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:44:15,32,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10828428,10.327,8,1375733,1.312
+2026-10-15 11:44:15,32,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",933422,0.890,8,117115,0.112
+2026-10-15 11:44:15,32,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:44:15,32,COMPLETED,"RoundAssembler -> AlignEventTime",47093,0.045,8,5967,0.006
+2026-10-15 11:44:15,32,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:44:15,32,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:44:15,32,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:44:55,33,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10806415,10.306,8,1361587,1.299
+2026-10-15 11:44:55,33,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",1063082,1.014,8,133309,0.127
+2026-10-15 11:44:55,33,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:44:55,33,COMPLETED,"RoundAssembler -> AlignEventTime",47376,0.045,8,5967,0.006
+2026-10-15 11:44:55,33,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:44:55,33,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:44:55,33,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:45:16,34,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10927735,10.422,8,1400513,1.336
+2026-10-15 11:45:16,34,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",1192742,1.137,8,149550,0.143
+2026-10-15 11:45:16,34,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:45:16,34,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:45:16,34,COMPLETED,"RoundAssembler -> AlignEventTime",45257,0.043,8,5683,0.005
+2026-10-15 11:45:16,34,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:45:16,34,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:45:56,35,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10876668,10.373,8,1361745,1.299
+2026-10-15 11:45:56,35,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",1322348,1.261,8,165744,0.158
+2026-10-15 11:45:56,35,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:45:56,35,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:45:56,35,COMPLETED,"RoundAssembler -> AlignEventTime",45540,0.043,8,5825,0.006
+2026-10-15 11:45:56,35,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:45:56,35,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:46:16,36,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10943671,10.437,8,1399835,1.335
+2026-10-15 11:46:16,36,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",1441122,1.374,8,181945,0.174
+2026-10-15 11:46:16,36,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:46:16,36,COMPLETED,"RoundAssembler -> AlignEventTime",46669,0.045,8,5954,0.006
+2026-10-15 11:46:16,36,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:46:16,36,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:46:16,36,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:46:57,37,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10834387,10.332,8,1394029,1.329
+2026-10-15 11:46:57,37,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",1556972,1.485,8,198139,0.189
+2026-10-15 11:46:57,37,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:46:57,37,COMPLETED,"RoundAssembler -> AlignEventTime",47092,0.045,8,5954,0.006
+2026-10-15 11:46:57,37,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:46:57,37,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:46:57,37,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:47:17,38,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10792470,10.293,8,1373398,1.310
+2026-10-15 11:47:17,38,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",1678454,1.601,8,214380,0.204
+2026-10-15 11:47:17,38,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:47:17,38,COMPLETED,"RoundAssembler -> AlignEventTime",47799,0.046,8,6095,0.006
+2026-10-15 11:47:17,38,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:47:17,38,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:47:17,38,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:47:57,39,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10246767,9.772,8,1415107,1.350
+2026-10-15 11:47:57,39,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",1800900,1.717,8,230898,0.220
+2026-10-15 11:47:57,39,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:47:57,39,COMPLETED,"RoundAssembler -> AlignEventTime",47516,0.045,8,5967,0.006
+2026-10-15 11:47:57,39,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:47:57,39,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 11:47:57,39,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:48:18,40,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10945581,10.439,8,1446884,1.380
+2026-10-15 11:48:18,40,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",1922336,1.833,8,246768,0.235
+2026-10-15 11:48:18,40,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:48:18,40,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:48:18,40,COMPLETED,"RoundAssembler -> AlignEventTime",45398,0.043,8,5683,0.005
+2026-10-15 11:48:18,40,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:48:18,40,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:48:58,41,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10873902,10.370,8,1426546,1.360
+2026-10-15 11:48:58,41,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",2050368,1.955,8,262969,0.251
+2026-10-15 11:48:58,41,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:48:58,41,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:48:58,41,COMPLETED,"RoundAssembler -> AlignEventTime",45963,0.044,8,5825,0.006
+2026-10-15 11:48:58,41,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:48:58,41,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:49:18,42,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10526207,10.039,8,1458452,1.391
+2026-10-15 11:49:18,42,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",2161034,2.061,8,278562,0.266
+2026-10-15 11:49:18,42,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:49:18,42,COMPLETED,"RoundAssembler -> AlignEventTime",45965,0.044,8,5967,0.006
+2026-10-15 11:49:18,42,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:49:18,42,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",26244,0.025,8,3375,0.003
+2026-10-15 11:49:18,42,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:49:59,43,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10592781,10.102,8,1369323,1.306
+2026-10-15 11:49:59,43,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",2290106,2.184,8,295422,0.282
+2026-10-15 11:49:59,43,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:49:59,43,COMPLETED,"RoundAssembler -> AlignEventTime",46952,0.045,8,5967,0.006
+2026-10-15 11:49:59,43,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:49:59,43,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:49:59,43,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:50:19,44,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10327010,9.849,8,1359330,1.296
+2026-10-15 11:50:19,44,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",2420748,2.309,8,311940,0.297
+2026-10-15 11:50:19,44,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:50:19,44,COMPLETED,"RoundAssembler -> AlignEventTime",46952,0.045,8,5967,0.006
+2026-10-15 11:50:19,44,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:50:19,44,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 11:50:19,44,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:50:59,45,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10597540,10.107,8,1344335,1.282
+2026-10-15 11:50:59,45,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",2550300,2.432,8,328188,0.313
+2026-10-15 11:50:59,45,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:50:59,45,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:50:59,45,COMPLETED,"RoundAssembler -> AlignEventTime",45257,0.043,8,5683,0.005
+2026-10-15 11:50:59,45,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:50:59,45,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:51:20,46,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10887140,10.383,8,1382374,1.318
+2026-10-15 11:51:20,46,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",2677368,2.553,8,344058,0.328
+2026-10-15 11:51:20,46,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:51:20,46,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:51:20,46,COMPLETED,"RoundAssembler -> AlignEventTime",45821,0.044,8,5813,0.006
+2026-10-15 11:51:20,46,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:51:20,46,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:52:00,47,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10846490,10.344,8,1369006,1.306
+2026-10-15 11:52:00,47,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",2806920,2.677,8,360252,0.344
+2026-10-15 11:52:00,47,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:52:00,47,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:52:00,47,COMPLETED,"RoundAssembler -> AlignEventTime",46387,0.044,8,5825,0.006
+2026-10-15 11:52:00,47,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:52:00,47,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:52:20,48,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10810122,10.309,8,1363889,1.301
+2026-10-15 11:52:20,48,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",2936710,2.801,8,376464,0.359
+2026-10-15 11:52:20,48,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:52:20,48,COMPLETED,"RoundAssembler -> AlignEventTime",46951,0.045,8,5954,0.006
+2026-10-15 11:52:20,48,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:52:20,48,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:52:20,48,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:53:01,49,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10540048,10.052,8,1389266,1.325
+2026-10-15 11:53:01,49,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",3064220,2.922,8,392658,0.374
+2026-10-15 11:53:01,49,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:53:01,49,COMPLETED,"RoundAssembler -> AlignEventTime",47376,0.045,8,6095,0.006
+2026-10-15 11:53:01,49,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:53:01,49,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:53:01,49,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:53:21,50,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10460710,9.976,8,1318183,1.257
+2026-10-15 11:53:21,50,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",3196202,3.048,8,409176,0.390
+2026-10-15 11:53:21,50,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:53:21,50,COMPLETED,"RoundAssembler -> AlignEventTime",47093,0.045,8,5967,0.006
+2026-10-15 11:53:21,50,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:53:21,50,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:53:21,50,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:54:01,51,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10896695,10.392,8,1370270,1.307
+2026-10-15 11:54:01,51,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",3323162,3.169,8,425046,0.405
+2026-10-15 11:54:01,51,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:54:01,51,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:54:01,51,COMPLETED,"RoundAssembler -> AlignEventTime",45398,0.043,8,5683,0.005
+2026-10-15 11:54:01,51,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:54:01,51,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:54:22,52,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10844336,10.342,8,1365672,1.302
+2026-10-15 11:54:22,52,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",3452714,3.293,8,441294,0.421
+2026-10-15 11:54:22,52,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:54:22,52,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:54:22,52,COMPLETED,"RoundAssembler -> AlignEventTime",46245,0.044,8,5825,0.006
+2026-10-15 11:54:22,52,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:54:22,52,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:55:02,53,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10847831,10.345,8,1364489,1.301
+2026-10-15 11:55:02,53,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",3582374,3.416,8,457488,0.436
+2026-10-15 11:55:02,53,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:55:02,53,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:55:02,53,COMPLETED,"RoundAssembler -> AlignEventTime",46528,0.044,8,5825,0.006
+2026-10-15 11:55:02,53,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:55:02,53,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:55:22,54,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10851365,10.349,8,1385502,1.321
+2026-10-15 11:55:22,54,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",3711872,3.540,8,473682,0.452
+2026-10-15 11:55:22,54,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:55:22,54,COMPLETED,"RoundAssembler -> AlignEventTime",46952,0.045,8,5967,0.006
+2026-10-15 11:55:22,54,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:55:22,54,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:55:22,54,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:56:03,55,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10443746,9.960,8,1318597,1.258
+2026-10-15 11:56:03,55,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",3843908,3.666,8,490200,0.467
+2026-10-15 11:56:03,55,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:56:03,55,COMPLETED,"RoundAssembler -> AlignEventTime",47235,0.045,8,5967,0.006
+2026-10-15 11:56:03,55,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:56:03,55,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 11:56:03,55,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:56:23,56,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10857926,10.355,8,1402661,1.338
+2026-10-15 11:56:23,56,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",3970868,3.787,8,506070,0.483
+2026-10-15 11:56:23,56,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:56:23,56,COMPLETED,"RoundAssembler -> AlignEventTime",47093,0.045,8,5967,0.006
+2026-10-15 11:56:23,56,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:56:23,56,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:56:23,56,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:57:03,57,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10896372,10.392,8,1383237,1.319
+2026-10-15 11:57:03,57,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4100474,3.911,8,522318,0.498
+2026-10-15 11:57:03,57,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:57:03,57,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:57:03,57,COMPLETED,"RoundAssembler -> AlignEventTime",45962,0.044,8,5813,0.006
+2026-10-15 11:57:03,57,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:57:03,57,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:57:24,58,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10908696,10.403,8,1382393,1.318
+2026-10-15 11:57:24,58,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4230026,4.034,8,538512,0.514
+2026-10-15 11:57:24,58,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:57:24,58,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:57:24,58,COMPLETED,"RoundAssembler -> AlignEventTime",46387,0.044,8,5825,0.006
+2026-10-15 11:57:24,58,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:57:24,58,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:58:04,59,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10750367,10.252,8,1368372,1.305
+2026-10-15 11:58:04,59,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4356924,4.155,8,554706,0.529
+2026-10-15 11:58:04,59,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:58:04,59,COMPLETED,"RoundAssembler -> AlignEventTime",46810,0.045,8,5954,0.006
+2026-10-15 11:58:04,59,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:58:04,59,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:58:04,59,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:58:24,60,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10496163,10.010,8,1393578,1.329
+2026-10-15 11:58:24,60,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4481762,4.274,8,570900,0.544
+2026-10-15 11:58:24,60,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:58:24,60,COMPLETED,"RoundAssembler -> AlignEventTime",47094,0.045,8,5967,0.006
+2026-10-15 11:58:24,60,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:58:24,60,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:58:24,60,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:58:45,61,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10575424,10.086,8,1389178,1.325
+2026-10-15 11:58:45,61,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4608714,4.395,8,587094,0.560
+2026-10-15 11:58:45,61,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:58:45,61,COMPLETED,"RoundAssembler -> AlignEventTime",47234,0.045,8,5967,0.006
+2026-10-15 11:58:45,61,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:58:45,61,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:58:45,61,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:59:25,62,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10896491,10.392,8,1379523,1.316
+2026-10-15 11:59:25,62,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4738320,4.519,8,603342,0.575
+2026-10-15 11:59:25,62,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:59:25,62,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:59:25,62,COMPLETED,"RoundAssembler -> AlignEventTime",45398,0.043,8,5683,0.005
+2026-10-15 11:59:25,62,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 11:59:25,62,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 11:59:45,63,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10730528,10.233,8,1436115,1.370
+2026-10-15 11:59:45,63,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4842798,4.618,8,616828,0.588
+2026-10-15 11:59:45,63,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 11:59:45,63,COMPLETED,"RoundAssembler -> AlignEventTime",95419,0.091,8,13351,0.013
+2026-10-15 11:59:45,63,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 11:59:45,63,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",24548,0.023,8,3132,0.003
+2026-10-15 11:59:45,63,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:00:26,64,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",11657649,11.118,8,1625519,1.550
+2026-10-15 12:00:26,64,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4960538,4.731,8,633346,0.604
+2026-10-15 12:00:26,64,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:00:26,64,COMPLETED,"RoundAssembler -> AlignEventTime",62495,0.060,8,8381,0.008
+2026-10-15 12:00:26,64,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:00:26,64,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",33028,0.031,8,4347,0.004
+2026-10-15 12:00:26,64,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:00:46,65,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",11208172,10.689,8,1560310,1.488
+2026-10-15 12:00:46,65,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",5130954,4.893,8,658296,0.628
+2026-10-15 12:00:46,65,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:00:46,65,COMPLETED,"RoundAssembler -> AlignEventTime",88360,0.084,8,12722,0.012
+2026-10-15 12:00:46,65,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:00:46,65,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",28668,0.027,8,3861,0.004
+2026-10-15 12:00:46,65,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:01:26,66,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",9979015,9.517,8,1393820,1.329
+2026-10-15 12:01:26,66,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",5358384,5.110,8,698390,0.666
+2026-10-15 12:01:26,66,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:01:26,66,COMPLETED,"RoundAssembler -> AlignEventTime",46951,0.045,8,5954,0.006
+2026-10-15 12:01:26,66,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:01:26,66,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:01:26,66,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:01:47,67,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",9804350,9.350,8,1348134,1.286
+2026-10-15 12:01:47,67,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",5220084,4.978,8,730964,0.697
+2026-10-15 12:01:47,67,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:01:47,67,COMPLETED,"RoundAssembler -> AlignEventTime",54728,0.052,8,7387,0.007
+2026-10-15 12:01:47,67,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:01:47,67,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:01:47,67,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:02:27,68,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10022917,9.559,8,1365498,1.302
+2026-10-15 12:02:27,68,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",5108826,4.872,8,765037,0.730
+2026-10-15 12:02:27,68,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:02:27,68,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:02:27,68,COMPLETED,"RoundAssembler -> AlignEventTime",46528,0.044,8,5825,0.006
+2026-10-15 12:02:27,68,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:02:27,68,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:02:47,69,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",9836281,9.381,8,1336039,1.274
+2026-10-15 12:02:47,69,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4981241,4.750,8,659148,0.629
+2026-10-15 12:02:47,69,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:02:47,69,COMPLETED,"RoundAssembler -> AlignEventTime",50768,0.048,8,6535,0.006
+2026-10-15 12:02:47,69,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:02:47,69,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:02:47,69,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:03:28,70,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",11671026,11.130,8,1608806,1.534
+2026-10-15 12:03:28,70,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4940327,4.711,8,617882,0.589
+2026-10-15 12:03:28,70,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:03:28,70,COMPLETED,"RoundAssembler -> AlignEventTime",65603,0.063,8,8774,0.008
+2026-10-15 12:03:28,70,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:03:28,70,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",31332,0.030,8,4104,0.004
+2026-10-15 12:03:28,70,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:03:48,71,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10667106,10.173,8,1370120,1.307
+2026-10-15 12:03:48,71,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941281,4.712,8,619101,0.590
+2026-10-15 12:03:48,71,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:03:48,71,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:03:48,71,COMPLETED,"RoundAssembler -> AlignEventTime",46245,0.044,8,5825,0.006
+2026-10-15 12:03:48,71,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:03:48,71,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:04:28,72,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10890642,10.386,8,1372391,1.309
+2026-10-15 12:04:28,72,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4940486,4.712,8,619048,0.590
+2026-10-15 12:04:28,72,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:04:28,72,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:04:28,72,COMPLETED,"RoundAssembler -> AlignEventTime",45963,0.044,8,5825,0.006
+2026-10-15 12:04:28,72,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:04:28,72,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:04:48,73,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10862022,10.359,8,1382003,1.318
+2026-10-15 12:04:48,73,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4939161,4.710,8,619048,0.590
+2026-10-15 12:04:48,73,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:04:48,73,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:04:48,73,COMPLETED,"RoundAssembler -> AlignEventTime",46528,0.044,8,5825,0.006
+2026-10-15 12:04:48,73,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:04:48,73,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:05:29,74,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10607378,10.116,8,1360099,1.297
+2026-10-15 12:05:29,74,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4938525,4.710,8,618995,0.590
+2026-10-15 12:05:29,74,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:05:29,74,COMPLETED,"RoundAssembler -> AlignEventTime",47093,0.045,8,5967,0.006
+2026-10-15 12:05:29,74,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:05:29,74,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:05:29,74,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:05:49,75,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10823216,10.322,8,1363652,1.300
+2026-10-15 12:05:49,75,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4938154,4.709,8,618889,0.590
+2026-10-15 12:05:49,75,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:05:49,75,COMPLETED,"RoundAssembler -> AlignEventTime",47092,0.045,8,5954,0.006
+2026-10-15 12:05:49,75,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:05:49,75,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:05:49,75,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:06:29,76,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10502637,10.016,8,1368952,1.306
+2026-10-15 12:06:29,76,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4940327,4.711,8,619260,0.591
+2026-10-15 12:06:29,76,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:06:29,76,COMPLETED,"RoundAssembler -> AlignEventTime",46952,0.045,8,5967,0.006
+2026-10-15 12:06:29,76,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:06:29,76,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:06:29,76,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:06:50,77,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10585545,10.095,8,1334530,1.273
+2026-10-15 12:06:50,77,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4940009,4.711,8,619260,0.591
+2026-10-15 12:06:50,77,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:06:50,77,COMPLETED,"RoundAssembler -> AlignEventTime",50908,0.049,8,6535,0.006
+2026-10-15 12:06:50,77,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:06:50,77,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:06:50,77,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:07:30,78,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10755726,10.257,8,1367782,1.304
+2026-10-15 12:07:30,78,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4937253,4.709,8,618783,0.590
+2026-10-15 12:07:30,78,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:07:30,78,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:07:30,78,COMPLETED,"RoundAssembler -> AlignEventTime",46528,0.044,8,5825,0.006
+2026-10-15 12:07:30,78,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:07:30,78,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:07:50,79,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10768381,10.270,8,1362321,1.299
+2026-10-15 12:07:50,79,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4939161,4.710,8,619048,0.590
+2026-10-15 12:07:50,79,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:07:50,79,COMPLETED,"RoundAssembler -> AlignEventTime",46952,0.045,8,5967,0.006
+2026-10-15 12:07:50,79,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:07:50,79,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:07:50,79,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:08:31,80,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10894717,10.390,8,1370838,1.307
+2026-10-15 12:08:31,80,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4938790,4.710,8,618995,0.590
+2026-10-15 12:08:31,80,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:08:31,80,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:08:31,80,COMPLETED,"RoundAssembler -> AlignEventTime",46104,0.044,8,5825,0.006
+2026-10-15 12:08:31,80,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:08:31,80,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:08:51,81,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10895315,10.391,8,1389293,1.325
+2026-10-15 12:08:51,81,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4938260,4.709,8,618942,0.590
+2026-10-15 12:08:51,81,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:08:51,81,COMPLETED,"RoundAssembler -> AlignEventTime",46952,0.045,8,5967,0.006
+2026-10-15 12:08:51,81,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:08:51,81,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:08:51,81,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:09:31,82,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10777294,10.278,8,1379953,1.316
+2026-10-15 12:09:31,82,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4937094,4.708,8,618412,0.590
+2026-10-15 12:09:31,82,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:09:31,82,COMPLETED,"RoundAssembler -> AlignEventTime",47375,0.045,8,5967,0.006
+2026-10-15 12:09:31,82,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:09:31,82,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:09:31,82,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:09:52,83,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10879819,10.376,8,1377489,1.314
+2026-10-15 12:09:52,83,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4936617,4.708,8,618359,0.590
+2026-10-15 12:09:52,83,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:09:52,83,COMPLETED,"RoundAssembler -> AlignEventTime",47093,0.045,8,5967,0.006
+2026-10-15 12:09:52,83,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:09:52,83,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:09:52,83,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:10:32,84,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10907197,10.402,8,1380814,1.317
+2026-10-15 12:10:32,84,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4936299,4.708,8,618359,0.590
+2026-10-15 12:10:32,84,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:10:32,84,COMPLETED,"RoundAssembler -> AlignEventTime",46952,0.045,8,5967,0.006
+2026-10-15 12:10:32,84,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:10:32,84,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:10:32,84,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:10:52,85,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10714076,10.218,8,1473545,1.405
+2026-10-15 12:10:52,85,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4948754,4.719,8,619379,0.591
+2026-10-15 12:10:52,85,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:10:52,85,COMPLETED,"RoundAssembler -> AlignEventTime",61646,0.059,8,8097,0.008
+2026-10-15 12:10:52,85,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:10:52,85,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:10:52,85,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:11:33,86,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10819093,10.318,8,1410903,1.346
+2026-10-15 12:11:33,86,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4940009,4.711,8,619326,0.591
+2026-10-15 12:11:33,86,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:11:33,86,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:11:33,86,COMPLETED,"RoundAssembler -> AlignEventTime",46387,0.044,8,5825,0.006
+2026-10-15 12:11:33,86,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:11:33,86,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:11:53,87,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",11412751,10.884,8,1531252,1.460
+2026-10-15 12:11:53,87,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4946369,4.717,8,619101,0.590
+2026-10-15 12:11:53,87,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:11:53,87,COMPLETED,"RoundAssembler -> AlignEventTime",46811,0.045,8,5967,0.006
+2026-10-15 12:11:53,87,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:11:53,87,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",27940,0.027,8,3618,0.003
+2026-10-15 12:11:53,87,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:12:33,88,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10565762,10.076,8,1448159,1.381
+2026-10-15 12:12:33,88,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4940327,4.711,8,619366,0.591
+2026-10-15 12:12:33,88,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:12:33,88,COMPLETED,"RoundAssembler -> AlignEventTime",46670,0.045,8,5967,0.006
+2026-10-15 12:12:33,88,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:12:33,88,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:12:33,88,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:12:54,89,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10481182,9.996,8,1374643,1.311
+2026-10-15 12:12:54,89,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4938242,4.709,8,619313,0.591
+2026-10-15 12:12:54,89,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:12:54,89,COMPLETED,"RoundAssembler -> AlignEventTime",47233,0.045,8,5954,0.006
+2026-10-15 12:12:54,89,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:12:54,89,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:12:54,89,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:13:34,90,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10705627,10.210,8,1412297,1.347
+2026-10-15 12:13:34,90,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4938949,4.710,8,619049,0.590
+2026-10-15 12:13:34,90,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:13:34,90,COMPLETED,"RoundAssembler -> AlignEventTime",53311,0.051,8,6961,0.007
+2026-10-15 12:13:34,90,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:13:34,90,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",22851,0.022,8,2889,0.003
+2026-10-15 12:13:34,90,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:13:54,91,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10993025,10.484,8,1413387,1.348
+2026-10-15 12:13:54,91,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941667,4.713,8,619366,0.591
+2026-10-15 12:13:54,91,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:13:54,91,COMPLETED,"RoundAssembler -> AlignEventTime",46106,0.044,8,5967,0.006
+2026-10-15 12:13:54,91,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:13:54,91,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",24548,0.023,8,3132,0.003
+2026-10-15 12:13:54,91,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:14:35,92,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10531439,10.044,8,1363182,1.300
+2026-10-15 12:14:35,92,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4942235,4.713,8,619261,0.591
+2026-10-15 12:14:35,92,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:14:35,92,COMPLETED,"RoundAssembler -> AlignEventTime",47234,0.045,8,5967,0.006
+2026-10-15 12:14:35,92,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:14:35,92,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:14:35,92,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:14:55,93,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10971735,10.463,8,1396686,1.332
+2026-10-15 12:14:55,93,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941917,4.713,8,619208,0.591
+2026-10-15 12:14:55,93,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:14:55,93,COMPLETED,"RoundAssembler -> AlignEventTime",46951,0.045,8,5954,0.006
+2026-10-15 12:14:55,93,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:14:55,93,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:14:55,93,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:15:15,94,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10940287,10.433,8,1373629,1.310
+2026-10-15 12:15:15,94,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941493,4.713,8,619155,0.590
+2026-10-15 12:15:15,94,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:15:15,94,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:15:15,94,COMPLETED,"RoundAssembler -> AlignEventTime",46104,0.044,8,5825,0.006
+2026-10-15 12:15:15,94,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:15:15,94,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:15:56,95,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10825704,10.324,8,1362084,1.299
+2026-10-15 12:15:56,95,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4940274,4.711,8,619102,0.590
+2026-10-15 12:15:56,95,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:15:56,95,COMPLETED,"RoundAssembler -> AlignEventTime",46951,0.045,8,5954,0.006
+2026-10-15 12:15:56,95,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:15:56,95,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:15:56,95,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:16:16,96,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10848254,10.346,8,1361942,1.299
+2026-10-15 12:16:16,96,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4939797,4.711,8,619049,0.590
+2026-10-15 12:16:16,96,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:16:16,96,COMPLETED,"RoundAssembler -> AlignEventTime",47376,0.045,8,5967,0.006
+2026-10-15 12:16:16,96,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:16:16,96,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:16:16,96,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:16:56,97,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10919730,10.414,8,1382282,1.318
+2026-10-15 12:16:56,97,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4939355,4.711,8,618943,0.590
+2026-10-15 12:16:56,97,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:16:56,97,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:16:56,97,COMPLETED,"RoundAssembler -> AlignEventTime",46387,0.044,8,5825,0.006
+2026-10-15 12:16:56,97,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",23094,0.022,8,2889,0.003
+2026-10-15 12:16:56,97,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:17:17,98,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10441251,9.958,8,1328381,1.267
+2026-10-15 12:17:17,98,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941175,4.712,8,618094,0.589
+2026-10-15 12:17:17,98,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:17:17,98,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:17:17,98,COMPLETED,"RoundAssembler -> AlignEventTime",44833,0.043,8,5683,0.005
+2026-10-15 12:17:17,98,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:17:17,98,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:17:57,99,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10441251,9.958,8,1328381,1.267
+2026-10-15 12:17:57,99,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941175,4.712,8,618094,0.589
+2026-10-15 12:17:57,99,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:17:57,99,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:17:57,99,COMPLETED,"RoundAssembler -> AlignEventTime",44833,0.043,8,5683,0.005
+2026-10-15 12:17:57,99,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:17:57,99,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:18:17,100,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10491231,10.005,8,1334301,1.272
+2026-10-15 12:18:17,100,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941175,4.712,8,618094,0.589
+2026-10-15 12:18:17,100,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:18:17,100,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:18:17,100,COMPLETED,"RoundAssembler -> AlignEventTime",43844,0.042,8,5541,0.005
+2026-10-15 12:18:17,100,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:18:17,100,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:18:58,101,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10491231,10.005,8,1334301,1.272
+2026-10-15 12:18:58,101,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941175,4.712,8,618094,0.589
+2026-10-15 12:18:58,101,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:18:58,101,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:18:58,101,COMPLETED,"RoundAssembler -> AlignEventTime",43844,0.042,8,5541,0.005
+2026-10-15 12:18:58,101,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:18:58,101,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:19:18,102,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10491231,10.005,8,1334301,1.272
+2026-10-15 12:19:18,102,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941175,4.712,8,618094,0.589
+2026-10-15 12:19:18,102,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:19:18,102,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:19:18,102,COMPLETED,"RoundAssembler -> AlignEventTime",43844,0.042,8,5541,0.005
+2026-10-15 12:19:18,102,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:19:18,102,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:19:58,103,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10491231,10.005,8,1334301,1.272
+2026-10-15 12:19:58,103,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941175,4.712,8,618094,0.589
+2026-10-15 12:19:58,103,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:19:58,103,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:19:58,103,COMPLETED,"RoundAssembler -> AlignEventTime",43844,0.042,8,5541,0.005
+2026-10-15 12:19:58,103,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:19:58,103,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:20:19,104,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10491231,10.005,8,1334301,1.272
+2026-10-15 12:20:19,104,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941175,4.712,8,618094,0.589
+2026-10-15 12:20:19,104,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:20:19,104,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:20:19,104,COMPLETED,"RoundAssembler -> AlignEventTime",43844,0.042,8,5541,0.005
+2026-10-15 12:20:19,104,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:20:19,104,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:20:59,105,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10491231,10.005,8,1334301,1.272
+2026-10-15 12:20:59,105,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941175,4.712,8,618094,0.589
+2026-10-15 12:20:59,105,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:20:59,105,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:20:59,105,COMPLETED,"RoundAssembler -> AlignEventTime",43844,0.042,8,5541,0.005
+2026-10-15 12:20:59,105,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:20:59,105,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:21:19,106,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10491231,10.005,8,1334301,1.272
+2026-10-15 12:21:19,106,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941175,4.712,8,618094,0.589
+2026-10-15 12:21:19,106,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:21:19,106,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:21:19,106,COMPLETED,"RoundAssembler -> AlignEventTime",43844,0.042,8,5541,0.005
+2026-10-15 12:21:19,106,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:21:19,106,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:22:00,107,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10491231,10.005,8,1334301,1.272
+2026-10-15 12:22:00,107,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941175,4.712,8,618094,0.589
+2026-10-15 12:22:00,107,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:22:00,107,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:22:00,107,COMPLETED,"RoundAssembler -> AlignEventTime",43844,0.042,8,5541,0.005
+2026-10-15 12:22:00,107,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:22:00,107,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001
+2026-10-15 12:22:20,108,COMPLETED,"Pmcod -> (Sink: Kafka Sink [synergia-scores], Sink: Kafka Sink [synergia-monitoring / M2], M2LateDrops)",10491231,10.005,8,1334301,1.272
+2026-10-15 12:22:20,108,COMPLETED,"M3-LSTM-AE -> (Sink: Kafka Sink [synergia-scores / M3], Sink: Kafka Sink [synergia-monitoring / M3])",4941175,4.712,8,618094,0.589
+2026-10-15 12:22:20,108,COMPLETED,"RawCache -> (Sink: Kafka Sink [synergia-m1-out], M2Gate)",422684,0.403,8,52837,0.050
+2026-10-15 12:22:20,108,COMPLETED,"RobustScaler",47300,0.045,8,5917,0.006
+2026-10-15 12:22:20,108,COMPLETED,"RoundAssembler -> AlignEventTime",43844,0.042,8,5541,0.005
+2026-10-15 12:22:20,108,COMPLETED,"MonitoringAggregator -> Sink: Kafka Sink [synergia-monitoring / M1]",21156,0.020,8,2646,0.003
+2026-10-15 12:22:20,108,COMPLETED,"Source: Custom Source -> Kafka Source [synergia-source] -> RawLineParser",8560,0.008,8,1070,0.001

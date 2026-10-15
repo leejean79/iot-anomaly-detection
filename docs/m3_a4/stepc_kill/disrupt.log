@@ -1,0 +1,7 @@
+模式：kill；作业 df5559efc921f4b2a6fed517a7965712；等待日志里出现 training started（最长 3600s）
+看到训练开始：设备 C，fa-worker1 / taskmanager-2；15s 后动手
+强杀 taskmanager-2：2026-10-15T04:56:07Z
+taskmanager-2
+taskmanager-2
+容器已重新启动：2026-10-15T04:56:08Z；等待作业重新 RUNNING
+作业已重新 RUNNING：2026-10-15T04:56:56Z；重启计数 [{"id":"numRestarts","value":"2"}]
