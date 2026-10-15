@@ -49,6 +49,8 @@ def ts(s):
 
 # 任务管理器容器的日志是世界协调时，两个采样脚本记的是本机时间；日志时刻加上本机时区偏移后再比较。
 # TaskManager logs are UTC while both watchers record local time; shift log times by the local offset.
+# 默认取运行本脚本那台机器的时区偏移（编排在 master 上运行时，采样与汇总都在 master 上，偏移一致）；在别处重算时用
+# --tz-offset-hours 指定采样所在机器的偏移（master 为 +8）。/ defaults to this host's offset; override when recomputing elsewhere.
 LOCAL_OFFSET = timedelta(minutes=round((datetime.now() - datetime.utcnow()).total_seconds() / 60))
 
 
@@ -84,7 +86,7 @@ def parse_log(path):
                     elif k == "calibrated":
                         d["median"], d["iqr"], d["thr"] = m.group(3), m.group(4), m.group(5)
                     elif k == "collected":
-                        d["buffered"] = int(m.group(3))
+                        d["buffered"] = max(d.get("buffered", 0), int(m.group(3)))
                     elif k == "drained":
                         d["drainsec"] = float(m.group(3))
                     elif k == "resubmit":
@@ -183,7 +185,12 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--buffer-cap", type=int, default=7776,
                     help="缓冲上限（轮）：(标定天数 + 2) × 每天折合轮数，步骤 C 为 9 × 864 = 7776")
+    ap.add_argument("--tz-offset-hours", type=float, default=None,
+                    help="采样（ckpt_timeline、wm_buffer）所在机器相对世界协调时的偏移，默认取本机")
     a = ap.parse_args()
+    global LOCAL_OFFSET
+    if a.tz_offset_hours is not None:
+        LOCAL_OFFSET = timedelta(hours=a.tz_offset_hours)
     runs = []
     for item in a.runs.split(","):
         tag, d = item.split("=", 1)
@@ -220,12 +227,21 @@ def main():
         if not w:
             L.append("| %s | 无数据 | | | | |" % tag)
             continue
-        for sub in sorted(set(w["stall"]) | set(w["peak"])):
+        # 缓冲只在训练期间增长、收回结果时达到最大，所以日志里「收回时缓冲轮数」就是峰值；与采样峰值取较大者
+        # （采样每 10 秒一次，且早期版本的采样脚本漏采部分子任务）。/ the log's buffered-at-collection is the peak.
+        logpeak = collections.defaultdict(int)
+        for x in dev.values():
+            if "subtask" in x:
+                logpeak[x["subtask"]] = max(logpeak[x["subtask"]], x.get("buffered", 0))
+        for sub in sorted(set(w["stall"]) | set(w["peak"]) | set(logpeak)):
+            pk = max(w["peak"].get(sub, 0), logpeak.get(sub, 0))
             L.append("| %s | %d | %s | %d | %.1f%% | %s |" % (
-                tag, sub, "%.0f" % w["stall"][sub] if sub in w["stall"] else "-", w["peak"].get(sub, 0),
-                100.0 * w["peak"].get(sub, 0) / a.buffer_cap,
+                tag, sub, "%.0f" % w["stall"][sub] if sub in w["stall"] else "-", pk,
+                100.0 * pk / a.buffer_cap,
                 "、".join("%.1f" % x for x in hold.get(sub, [])) or "-"))
-        L.append("| %s | 缓冲溢出计数（最大） | %d | | | |" % (tag, w["overflow"]))
+        full = sum(1 for line in open(os.path.join(d, "m3_tm_log.txt"), encoding="utf-8", errors="replace")
+                   if "training buffer full" in line) if os.path.exists(os.path.join(d, "m3_tm_log.txt")) else 0
+        L.append("| %s | 缓冲溢出（采样计数最大值 / 日志中「buffer full」上报行数） | %d / %d | | | |" % (tag, w["overflow"], full))
 
     L += ["", "## 三、逐设备训练（含排队等待）与排空", "",
           "| 运行 | 设备 | 子任务 | 训练线程 | 排队等待（秒） | 训练秒数 | 轮数 | 提交到收回（秒） | 收回时缓冲轮数 | 排空（秒） | 重新提交 |",

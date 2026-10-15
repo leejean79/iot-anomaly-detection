@@ -94,13 +94,17 @@ def main():
     if new:
         f.write("wall_clock,subtask,input_wm_ms,output_wm_ms,buffer_rounds,hold_sec,overflow\n")
     print("[a4-watch] 作业 %s，算子 %s，每 %ds 采样 → %s（Ctrl+C 结束）" % (a.jid, vid, a.interval, a.out))
-    ids, misses, start = [], 0, time.time()
+    ids, misses, start, polls = [], 0, time.time(), 0
+    expected = len(COLS) * next(v.get("parallelism", 8) for v in job["vertices"] if v["id"] == vid)
     while True:
         if a.duration and time.time() - start >= a.duration:
             return 0
-        if not ids:
+        # 指标名单在作业刚启动时可能只出现一部分子任务（REST 指标缓存是逐个任务管理器异步更新的），所以名单不全时
+        # 每次都重新获取，齐全后每 30 次采样刷新一次。/ refetch the id list until all subtasks appear, then every 30 polls.
+        polls += 1
+        if len(ids) < expected or polls % 30 == 0:
             avail = rest(base, "/jobs/%s/vertices/%s/metrics" % (a.jid, vid)) or []
-            ids = [m["id"] for m in avail if WANT.match(m.get("id", ""))]
+            ids = [m["id"] for m in avail if WANT.match(m.get("id", ""))] or ids
             if not ids:
                 print("[a4-watch] 指标尚未出现，%ds 后重试" % a.interval)
         vals = {}
