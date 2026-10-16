@@ -29,9 +29,11 @@ import m3_a4_stepc_report as base  # noqa: E402  共用日志与时间线的解�
 
 
 def ckpt_split(rows, dev):
-    """把检查点按「训练期间」与「其余时段」分开 / split checkpoints into the training window and the rest."""
+    """把检查点按「训练与排空期间」与「其余时段」分开（排空期间缓冲仍非空，属于训练造成的保持时段）。
+    Split checkpoints into the training-and-draining window and the rest."""
     starts = [d["enter"] for d in dev.values() if "enter" in d]
-    ends = [d.get("collected") or d.get("trained") for d in dev.values()]
+    ends = [(d["collected"] + timedelta(seconds=d.get("drainsec", 0.0))) if "collected" in d
+            else d.get("trained") for d in dev.values()]
     ends = [e for e in ends if e]
     t0, t1 = (min(starts), max(ends)) if starts and ends else (None, None)
     seen, train, other = set(), [], []
@@ -41,6 +43,7 @@ def ckpt_split(rows, dev):
             continue
         seen.add(cid)
         when = base.ts(r["wall_clock"][:10] + " " + at) if at else base.ts(r["wall_clock"])
+        when -= timedelta(seconds=float(e2e))         # 按触发时刻归类 / classify by trigger time
         (train if t0 and t0 <= when <= t1 else other).append(float(e2e))
     failed = max((int(r["failed"]) for r in rows if r.get("failed", "").isdigit()), default=0)
     restarts = max((int(r["num_restarts"]) for r in rows if r.get("num_restarts", "").isdigit()), default=0)
@@ -87,10 +90,10 @@ def main():
     rtr, rot, _, _ = ckpt_split(base.read_ckpt(os.path.join(a.ref, "ckpt_timeline.csv")), rdev)
     over = [x for x in tr if x > a.ckpt_interval_sec]
     ok1 = bool(tr) and not over and failed == 0 and restarts == 0
-    L += ["| 运行 | 训练期间 | 其余时段 |", "| --- | --- | --- |",
+    L += ["| 运行 | 训练与排空期间 | 其余时段 |", "| --- | --- | --- |",
           "| 本次 | %s | %s |" % (dist(tr), dist(ot)),
           "| 注入运行 | %s | %s |" % (dist(rtr), dist(rot)), "",
-          "检查点失败 %d 次，作业重启 %d 次；训练期间超过检查点间隔 %.0f 秒的检查点 %d 次。判定：%s。" % (
+          "检查点失败 %d 次，作业重启 %d 次；训练与排空期间超过检查点间隔 %.0f 秒的检查点 %d 次。判定：%s。" % (
               failed, restarts, a.ckpt_interval_sec, len(over), "通过" if ok1 else "**未通过**"), ""]
 
     # ---- A4-2 ----
