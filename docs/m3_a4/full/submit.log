@@ -1,0 +1,50 @@
+[preflight] topic 'synergia-source' 分区数 = 8 OK
+====================================
+[submit] M2Job  main=com.leejean.m2.M2Job  p=8  W=3600s S=60s R=1.0 k=10  start=earliest
+====================================
+[preflight] 无并行的 M1/M2 作业 OK / no competing M1/M2 job
+====================================
+========================================
+M2Job (M1+pMCOD joint)
+Brokers:         172.16.0.162:9092,172.16.0.163:9092,172.16.0.164:9092
+Source topic:    synergia-source
+Scores topic:    synergia-scores
+Monitoring topic:synergia-monitoring
+Start offset:    earliest
+Parallelism:     8
+Idle timeout:    60 s
+Calib days:      7 (rounds/day=8640)
+Warmup rounds:   60480 (from --calib-days)
+Relative guard:  OFF (default)
+Ckpt max state:  128 MB/subtask (memory-backed)
+Ckpt akka.framesize: 256.0 MB
+Ckpt effective ceiling: 128.0 MB  [由 --checkpoint-max-state-mb 决定 / bound by --checkpoint-max-state-mb]
+Ckpt interval/timeout: 30000 ms / 10 min
+Ckpt tolerable failures: 3  (job restarts on consecutive failure no. 4)
+Stuck guard:     ON  rounds T/H/P/G/L: A=108/10/50/508/6296 B=88/10/48/906/6978 C=54/8/46/480/8908 D=76/8/42/762/4140 E=92/8/50/730/228 F=100/10/44/530/262 G=76/8/44/500/6582 H=80/10/48/1046/3158
+Stuck floors:    A.Light=[0.0, 1.0, 5.0, 9.0, 10.0, 11.0, 14.0, 22.0, 24.0] B.Gas=[500.0] B.Light=[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 12.0, 14.0, 19.0] C.Light=[0.0, 1.0, 6.0] D.Gas=[500.0] D.Light=[0.0, 1.0, 2.0, 6.0, 9.0, 22.0] E.Gas=[500.0] E.Light=[1.0, 2.0] F.Light=[0.0, 1.0, 3.0, 4.0] G.Light=[1.0, 2.0, 10.0, 14.0] H.Gas=[500.0] H.Light=[0.0, 1.0, 2.0]
+Window W/S:      3600s / 60s
+MCOD R/k:        1.0 / 10  per-device R={A=1.0, B=1.0, C=1.0, D=0.75, E=1.0, F=1.0, G=1.5, H=1.0}
+M3 enabled:      true
+M3 train/es/th:  7d/2d/7d
+M3 window:       60 rounds
+M3 z-threshold:  2.22
+M3 max epochs:   300 (patience=20)
+M3 hidden size:  60  (fleet-wide, fixed from the offline grid)
+M3 batch size:   64   (must match the offline grid)
+M3 reverse tgt:  true (reversed reconstruction target)
+M3 learning rate:0.001 (Adam)
+M3 grad clip:    39072.0 (L2 per layer; 0 = disabled)
+M3 rounds/day:   8640
+M3 async train:  threads=2 per TaskManager, drain batch=200 rounds, poll interval=30 s (addendum 4)
+========================================
+Device subtasks: {A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7} (surrogate keys, maxParallelism=128)
+WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.flink.api.java.ClosureCleaner (file:/opt/flink/lib/flink-dist_2.12-1.13.6.jar) to field java.util.Properties.serialVersionUID
+WARNING: Please consider reporting this to the maintainers of org.apache.flink.api.java.ClosureCleaner
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+Job has been submitted with JobID 9218af22dbcbac142a310f7696214bbf
+[wait] M2Job (9218af22dbcbac142a310f7696214bbf) to be RUNNING ...
+  M2Job is RUNNING (JobID 9218af22dbcbac142a310f7696214bbf)
+下一步 / Next: bash /opt/fa-iforest/a4full/repo/deploy/scripts/syn-replay.sh --speedup 600 --start <day> --end <day>
