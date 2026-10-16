@@ -362,3 +362,45 @@ bash deploy/scripts/syn-reset-env.sh
 
 **常见失败**：汇总脚本退出码 2 表示某个目录不存在；某次运行在表里显示「无训练记录」，说明收集时的 `SINCE`
 晚于提交时刻或日志被截断，请告诉我。
+
+---
+
+## 第四节：全量重放（A4-1 至 A4-5，2026-10-16 裁决后）
+
+依据交接文档第四节第 2 条（10 月 14 日、15 日修订）与 0.84 版裁决：注入运行的完全重复，单段重放 2022-03-01 至 05-01，
+设备 E 按 `docs/m3_inject_spec.txt` 注入，生产配置（空闲时限 60 秒墙钟、检查点超时 10 分钟、训练线程数 2），守卫阈值写入配置，
+**倍速 150**（按「重放倍速的硬约束」公式取保守值：777,600 ÷ 约 2,580 ÷ 2 ≈ 150）。A4-1 的检查点判据为训练期间每一次检查点的
+端到端时长不超过检查点间隔 30 秒。
+
+整个流程由 `deploy/scripts/syn-m3-a4-full.sh` 在 master 的 tmux 会话里无人值守地执行：预检（任务管理器进程总量 5120 兆；摘录步骤 C
+强杀时段的作业管理器日志）→ 复位 → 提交（核对启动横幅里守卫为 ON）→ 启动采样 → 单段重放 → 等重放结束并排空 → 七条断言 →
+收集、性能与迟到丢弃 → 守卫在线核对（A4-4）→ 取消作业 → 与注入运行逐位比较（A4-2）→ 汇总报告（A4-1、A4-3、A4-5）→ 复位。
+
+**执行环境**：本地 Mac，仓库根目录。
+
+**前置条件**：
+
+1. `git pull --rebase origin dev-claude`。
+2. 已执行过 `bash deploy/scripts/syn-m3-a4-stepc.sh setup-master`（步骤 C 时已做，不必重做）。
+3. jar 是最新的：`mvn clean package -DskipTests && bash deploy/scripts/check-jar.sh && bash deploy/scripts/syn-upload-m1.sh --jar-only`
+   （步骤 C 之后 Java 代码没有改动，若当时已上传可跳过）。
+4. 两台任务管理器已按 5120 兆重建（编排预检会核对，不满足时停止并提示执行 `syn-tm-recreate.sh`）。
+5. 集群上没有任何作业在运行。
+
+**调用命令**：
+
+```bash
+bash deploy/scripts/syn-m3-a4-full.sh start     # 立即返回；之后 Mac 可以关机，约 10.5 小时跑完
+bash deploy/scripts/syn-m3-a4-full.sh status    # 任何时候开机查看进度
+bash deploy/scripts/syn-m3-a4-full.sh fetch     # 跑完后把 docs/m3_a4/full 拉回本地
+bash deploy/scripts/syn-m3-a4-full.sh stop      # 需要中止时执行
+```
+
+**期望产出**：`status` 依次显示「预检」「作业已提交」「采样与单段重放已启动」「重放结束」「已排空」「七条断言」「收集完成」「逐位等值」
+各行，最后一行为「全部完成」。`fetch` 后本地 `docs/m3_a4/full/` 下有 `a4_full_report.md`（A4-1 至 A4-5 汇总）、`equality.md`、
+`guard_check.md`、`replay_verify.txt`、`perf/`、`late_drop/` 与收集的日志和评分；`docs/m3_a4/stepc_kill/jm_log_0455_0458.txt` 是步骤 C
+强杀时段的作业管理器日志摘录。然后执行 `git add -f docs/m3_a4 && git commit -m "data(m3): 补遗四全量重放结果" && git push origin dev-claude`。
+
+**常见失败**：任何一步失败时，编排取消作业、停止重放、取回已有采样，在 `progress.txt` 写明失败的步骤后停止；先 `fetch`，再把
+`docs/m3_a4/full/progress.txt` 与对应日志发给我。退出码 2 表示 setup-master 未完成，3 表示已有编排在运行。逐位等值出现不同时
+编排照常跑完，结论写在 `equality.md` 里，按交接文档 A4-2 属于缺陷，须上报。
