@@ -33,3 +33,12 @@
 [2026-10-15 13:27:00] == 运行 cancel 完成 ==
 [2026-10-15 13:28:20] 汇总报告已生成：docs/m3_a4/stepc_report.md
 [2026-10-15 13:28:20] 全部完成。请在 Mac 上执行：bash deploy/scripts/syn-m3-a4-stepc.sh fetch，然后 git add -f docs/m3_a4 && git commit -m "data(m3): 补遗四步骤 C 短重放预验证结果" && git push origin dev-claude
+[2026-10-17 10:01:27] 编排开始：fix
+[2026-10-17 10:01:27] == 运行 fix 开始：线程数 2，倍速 400，扰动 无 ==
+[2026-10-17 10:02:57] 作业已提交：417c5a184546ecd1e6c3997607f3017f（日志起点 2026-10-17T02:02:43Z）
+[2026-10-17 10:03:07] 采样与重放已启动
+[2026-10-17 10:18:14] 重放结束：[syn-replay] exit 2026-10-17 10:18:02 CST rc=0
+[2026-10-17 10:22:17] 已排空（8 台设备完成排空）
+[2026-10-17 10:24:30] 修正验证：**四项全部通过。**（详见 docs/m3_a4/stepc_fix/fix_check.md）
+[2026-10-17 10:24:30] == 运行 fix 完成：M3 训练完成的设备数：8 ==
+[2026-10-17 10:25:44] 全部完成。请在 Mac 上执行：bash deploy/scripts/syn-m3-a4-stepc.sh fetch，然后 git add -f docs/m3_a4/stepc_fix && git commit -m "data(m3): 排空缺陷修正后的步骤 C 验证结果" && git push origin dev-claude
