@@ -18,7 +18,7 @@ sampling interval of the fastest subtask; bit-exact equality with t2; one traini
      python3 deploy/scripts/m3_a4_fixcheck.py --run docs/m3_a4/stepc_fix --speed 400 \\
          --equality docs/m3_a4/stepc_fix/equality_t2.md --out docs/m3_a4/stepc_fix/fix_check.md
    可选：--tz-offset-hours 8（在时区不是 master 所在时区的机器上重算时指定）、--sample-sec 10、--poll-sec 30、
-   --max-ckpt-sec 1.0。
+   --max-ckpt-sec 1.0、--skip-snapshots（第四项不判定，只用于没有监测转储的反向对照，例如修正前的全量重放）。
 3. 前置条件 / Preconditions: --run 目录里有 m3_tm_log.txt、ckpt_history.csv（缺失时退回 ckpt_timeline.csv）、
    wm_buffer.csv、status_snapshots.csv（编排在删除监测转储之前从 master 统计），以及 --equality 指定的文件。
 4. 期望产出 / Expected output: --out 指定的 Markdown（四项判定与逐台明细），终端打印同样内容。
@@ -71,10 +71,11 @@ def main():
     ap.add_argument("--sample-sec", type=float, default=10.0)
     ap.add_argument("--poll-sec", type=float, default=30.0)
     ap.add_argument("--max-ckpt-sec", type=float, default=1.0)
+    ap.add_argument("--skip-snapshots", action="store_true")
     a = ap.parse_args()
     if a.tz_offset_hours is not None:
         base.LOCAL_OFFSET = timedelta(hours=a.tz_offset_hours)
-    need = ["m3_tm_log.txt", "wm_buffer.csv", "status_snapshots.csv"]
+    need = ["m3_tm_log.txt", "wm_buffer.csv"] + ([] if a.skip_snapshots else ["status_snapshots.csv"])
     miss = [f for f in need if not os.path.exists(os.path.join(a.run, f))] + \
         ([a.equality] if not os.path.exists(a.equality) else [])
     if miss:
@@ -130,9 +131,10 @@ def main():
 
     # 4. 训练态状态快照条数 / training status snapshots per device
     snaps = {}
-    with open(os.path.join(a.run, "status_snapshots.csv"), encoding="utf-8") as f:
-        for r in csv.DictReader(f):
-            snaps[r["device"]] = int(r["count"])
+    if not a.skip_snapshots:
+        with open(os.path.join(a.run, "status_snapshots.csv"), encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                snaps[r["device"]] = int(r["count"])
     rows4, bad4 = [], 0
     for d, x in sorted(dev.items()):
         if "enter" not in x or "collected" not in x:
@@ -140,10 +142,11 @@ def main():
         span = (x["collected"] - x["enter"]).total_seconds()
         exp = int(span // a.poll_sec)
         got = snaps.get(d, 0)
-        ok = abs(got - exp) <= 1
+        ok = a.skip_snapshots or abs(got - exp) <= 1
         bad4 += 0 if ok else 1
-        rows4.append("| %s | %.0f | %d | %d | %s |" % (d, span, exp, got, "相同" if ok else "**不符**"))
-    v4 = "通过" if rows4 and not bad4 else "**未通过**"
+        rows4.append("| %s | %.0f | %d | %s | %s |" % (d, span, exp, "—" if a.skip_snapshots else got,
+                                                        "未判定" if a.skip_snapshots else ("相同" if ok else "**不符**")))
+    v4 = "未判定（没有监测转储）" if a.skip_snapshots else ("通过" if rows4 and not bad4 else "**未通过**")
 
     L = ["# 排空缺陷修正的步骤 C 验证（0.86 版裁决第二节第 3 条）", "",
          "运行目录：`%s`；倍速 %g；检查点来源：%s。" % (a.run, a.speed, ck_src), "",
