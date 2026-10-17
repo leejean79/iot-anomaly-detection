@@ -404,3 +404,93 @@ bash deploy/scripts/syn-m3-a4-full.sh stop      # 需要中止时执行
 **常见失败**：任何一步失败时，编排取消作业、停止重放、取回已有采样，在 `progress.txt` 写明失败的步骤后停止；先 `fetch`，再把
 `docs/m3_a4/full/progress.txt` 与对应日志发给我。退出码 2 表示 setup-master 未完成，3 表示已有编排在运行。逐位等值出现不同时
 编排照常跑完，结论写在 `equality.md` 里，按交接文档 A4-2 属于缺陷，须上报。
+
+## 第五节：排空缺陷修正后的验证与全量重跑（2026-10-17 裁决，开发设计日志 0.86 版）
+
+0.86 版裁决认定上一次全量重放有效、数字入档，但上下文异常检测模块的收口要以修正后的代码为依据。顺序是：修正代码 → 构建上传 jar
+→ 步骤 C 验证（`fix` 运行）→ 四项通过后全量重跑。上一次的结果保留在 `docs/m3_a4/full/`，重跑写入 `docs/m3_a4/full_fix/`。
+
+**当前阻塞**：`fix` 运行的倍速等待设计会话裁定。裁决原文是 600 倍，但按步骤 C 的实测，600 倍下设备 C 的缓冲会溢出，见
+`docs/reports/m3_addendum4_fix_verify_speed_for_decision.md`。第一步不受阻塞，可以先做。
+
+### 第一步：构建、核对并上传新 jar（不受阻塞，现在即可执行）
+
+**执行环境**：本地 Mac，仓库根目录，JDK 11。
+
+```bash
+git pull --rebase origin dev-claude
+mvn clean package
+bash deploy/scripts/check-jar.sh
+bash deploy/scripts/syn-upload-m1.sh --jar-only
+```
+
+**前置条件**：集群上没有本项目的作业在运行（上传会替换 jobmanager 里的 jar）。
+
+**期望产出**：`mvn clean package` 运行全部 125 个单元测试并显示 `BUILD SUCCESS`；其中新增的 `oneTimerChainAndElementsDoNotDrain`
+就是这次修正的测试。`check-jar.sh` 全部 PASS，上传脚本显示 jar 已复制到 jobmanager。
+
+**常见失败**：单元测试失败时不要上传，把 `target/surefire-reports/` 下失败用例的 `.txt` 发给我。这次修正没有新增可供 `check-jar.sh`
+识别的标记，所以 jar 是否为新版只能靠 `mvn clean package` 保证；如果误用了旧 jar，`fix` 运行的第一、四项会判为未通过。
+
+### 第二步：步骤 C 验证（等倍速裁定后执行）
+
+**执行环境**：本地 Mac，仓库根目录。编排在 master 的 tmux 会话 `syn-m3-a4-stepc` 里运行，提交后 Mac 可以关机。
+
+**调用命令**（倍速与检查点间隔按裁定填写；下面是建议的甲方案）：
+
+```bash
+bash deploy/scripts/syn-m3-a4-stepc.sh start --runs fix --speed 400 --ckpt-ms 5000   # 立即返回，约 45 分钟跑完
+bash deploy/scripts/syn-m3-a4-stepc.sh status                                       # 随时查看进度
+bash deploy/scripts/syn-m3-a4-stepc.sh fetch                                        # 跑完后取回
+```
+
+- `--speed`：必填，倍速。
+- `--ckpt-ms`：可选，检查点间隔（毫秒），默认 30000。
+
+**前置条件**：第一步已完成；`setup-master` 以前已做过，不必重做；集群上没有任何作业在运行；本地有 `docs/m3_a4/stepc_t2/`（作为
+对照复制到 master）。
+
+**期望产出**：`status` 的最后一行依次出现「修正验证：……」与「全部完成」。`fetch` 后本地 `docs/m3_a4/stepc_fix/` 下有：
+
+- `fix_check.md`：四项核对与总判定，即排空期间每次检查点不超过 1 秒、排空中的输入水位线落后不超过 10 秒、与 t2 逐位相同、
+  训练态状态快照每台每 30 秒一条；
+- `equality_t2.md`：与 t2 的逐位比较；
+- `status_snapshots.csv`：训练态状态快照的逐台条数；
+- `ckpt_history.csv`：逐个检查点的触发与完成时刻。
+
+然后执行 `git add -f docs/m3_a4/stepc_fix && git commit -m "data(m3): 排空缺陷修正后的步骤 C 验证结果" && git push origin dev-claude`。
+
+**常见失败**：
+
+- 退出码 2：没有给 `--speed`，或 `setup-master` 未完成。
+- 退出码 3：已有编排在运行。
+- 某一步失败时，编排停止并在 `docs/m3_a4/progress.txt` 写明失败的步骤；先 `fetch`，再把 `progress.txt` 发给我。
+- `fix_check.md` 有「未通过」或「未覆盖」时，不要开始第三步，把结果推送给我。
+
+### 第三步：全量重跑（第二步四项全部通过后执行）
+
+**执行环境与调用命令**：与第四节相同：`bash deploy/scripts/syn-m3-a4-full.sh start`（倍速 150，约 10.5 小时无人值守），跑完后 `fetch`。
+
+**前置条件**：第二步四项全部通过；本地有上一次的 `docs/m3_a4/full/scores.jsonl` 与 `m3_tm_log.txt`（编排会复制到 master 作为第二个
+对照，缺少时 `start` 报错退出）。jar 用第一步上传的那个，不需要重新构建。
+
+**期望产出**：结果在 `docs/m3_a4/full_fix/`，包括：
+
+- `a4_full_report.md`：A4-1 至 A4-5 汇总；
+- `equality.md`：对照 10 月 9 日注入运行；
+- `equality_prev.md`：对照上一次全量重放（作业 `9218af22…`）；
+- `ckpt_history.csv`：逐个检查点。
+
+进度最后一行「逐位等值」应为两个「全部相同」。然后执行 `git add -f docs/m3_a4/full_fix && git commit -m "data(m3): 补遗四全量重放（排空缺陷修正后）结果" && git push origin dev-claude`。
+
+**常见失败**：与第四节相同。
+
+### 倍速公式的校准与注意事项（0.86 版裁决第二节第 4 条与第三节第 7 条）
+
+- 公式「倍速 ≤ 缓冲上限的事件时间 ÷ 最长（排队等待 + 训练）÷ 2」的结构已由全量重放证实：缓冲峰值约等于「提交到收回的秒数 ×
+  倍速 ÷ 每轮 10 秒」。例如 G 为 1,871 × 150 ÷ 10 ≈ 28,100 轮，实测 27,965 轮。
+- 按全量重放实测的最长「提交到收回」1,871 秒（训练线程数 2），全量数据的倍速上限约为 777,600 ÷ 1,894 ÷ 2 ≈ 205。原先用注入运行
+  的训练时长估计的 2,580 秒偏长 27%，因为注入运行是六台同时训练。全量重跑的目的是验证修正，倍速维持 150。
+- 设备在两台任务管理器之间的分配会影响排队时长。上一次全量重放中，taskmanager-3 分到了训练最慢的 D、E、F、G 四台，F 和 G 各排队
+  约 1,100 至 1,200 秒。这是代理键放置的副作用，不处理；估计倍速时应按最不利的分配计算排队时长。
+- 步骤 C（每天折合 864 轮，上限 7,776 轮）按 t2 的最长提交到收回 136 秒计，倍速上限（二倍余量）约 286；不留余量时约 572。

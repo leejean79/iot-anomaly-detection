@@ -102,6 +102,10 @@ def main():
     if eq:
         verdict = "全部相同" if "**全部相同。**" in eq else "**存在不同**"
         L += ["详见 `equality.md`。判定：%s。" % verdict, ""]
+        prev = read(os.path.join(a.run, "equality_prev.md"))   # 修正后的重跑：再与上一次全量重放比较（0.86 版裁决）
+        if prev:
+            L += ["与上一次全量重放（修正前，作业 `9218af22…`）的比较详见 `equality_prev.md`。判定：%s。" % (
+                "全部相同" if "**全部相同。**" in prev else "**存在不同**"), ""]
     else:
         L += ["没有 `equality.md`。", ""]
 

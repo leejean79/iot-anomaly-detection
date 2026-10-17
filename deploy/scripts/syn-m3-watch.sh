@@ -26,7 +26,7 @@
 # 4. 期望产出 / Expected output:
 #      start  打印「监测已在 master 的 tmux 会话 syn-m3-watch 中启动」。
 #      status 打印两个监测是否仍在运行、各自记录的最后几行、已进入在线的设备数、是否出现 REPORT、重放器状态。
-#      stop   结束会话，把 ckpt_timeline.csv、ckpt_sizes.csv、wm_buffer.csv、ckpt_stale_*.json（若有）与三份日志
+#      stop   结束会话，把 ckpt_timeline.csv、ckpt_history.csv、ckpt_sizes.csv、wm_buffer.csv、ckpt_stale_*.json（若有）与三份日志
 #             拉回 --out-dir。
 # 5. 失败兜底 / Failure fallback: master 缺少 python3 或 tmux 时 start 退出码 2，并给出在本地 Mac 上
 #    用 caffeinate 后台运行的替代命令；会话已存在时退出码 3（先 stop）；作业取消或结束后两个监测会自行退出，
@@ -130,6 +130,7 @@ EOF
             "fa-master:$RD/timeline.log" "fa-master:$RD/sizes.log" \
             "fa-master:$RD/wm_buffer.csv" "fa-master:$RD/wm.log" "$OUT_DIR/" \
             || echo "[watch] ⚠ 部分文件没有取回，请检查 master 上的 $RD" >&2
+        scp -q "fa-master:$RD/ckpt_history.csv" "$OUT_DIR/" 2>/dev/null || true
         scp -q "fa-master:$RD/ckpt_stale_*.json" "$OUT_DIR/" 2>/dev/null \
             && echo "[watch] 取回了统计悬挂检查点的明细" || true
         scp -q "fa-master:$RD/ckpt_inspect_*.json" "$OUT_DIR/" 2>/dev/null \

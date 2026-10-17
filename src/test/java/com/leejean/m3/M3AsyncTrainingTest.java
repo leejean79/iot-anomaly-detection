@@ -207,6 +207,45 @@ class M3AsyncTrainingTest {
         }
     }
 
+    @Test
+    @DisplayName("定时器链唯一：训练期间与排空期间每台设备始终只挂一个处理时间定时器；排空期间到达的元素只追加、不排空")
+    void oneTimerChainAndElementsDoNotDrain() throws Exception {
+        M3TrainExecutor.testGate = new CountDownLatch(1);
+        int batch = 2 * WINDOW;
+        M3Function f = fn(MAX_EPOCHS, batch);
+        int during = 4 * batch;                        // 训练期间到达的轮 / rounds arriving while training
+        List<AnnotatedRound> rs = rounds(TO_TRAINING + during + 1, 6);
+        try (KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h = harness(f)) {
+            h.open();
+            feed(h, rs, 0, TO_TRAINING);
+            assertEquals(1, h.numProcessingTimeTimers(), "提交训练时登记一个查询定时器");
+            // 训练期间元素与处理时间交替推进（每 7 秒一轮，跨过多个 30 秒查询周期）
+            // elements interleaved with processing time, crossing several 30 s poll intervals
+            for (int i = TO_TRAINING; i < TO_TRAINING + during; i++) {
+                h.setProcessingTime(h.getProcessingTime() + 7_000L);
+                feed(h, rs, i, i + 1);
+                assertEquals(1, h.numProcessingTimeTimers(), "训练期间第 " + (i - TO_TRAINING) + " 轮后定时器数应为 1");
+            }
+            M3TrainExecutor.testGate.countDown();
+            f.awaitTraining("E", 300_000L);
+            firePoll(h);                                   // 收回结果并排空第一批 / collect and drain batch 1
+            assertEquals(1, h.numProcessingTimeTimers(), "排空期间只挂排空节拍的一个定时器");
+            int buffered = f.bufferedRounds("E");
+            int scored = scores(h).size();
+            assertEquals(during - batch, buffered);
+            feed(h, rs, TO_TRAINING + during, TO_TRAINING + during + 1);
+            assertEquals(buffered + 1, f.bufferedRounds("E"), "排空期间到达的元素只追加到缓冲尾部");
+            assertEquals(scored, scores(h).size(), "排空期间到达的元素不得触发排空");
+            assertEquals(1, h.numProcessingTimeTimers(), "元素路径不得登记定时器");
+            while (f.bufferedRounds("E") > 0) {
+                h.setProcessingTime(h.getProcessingTime() + 1);
+                assertTrue(h.numProcessingTimeTimers() <= 1, "排空期间定时器数不得超过 1");
+            }
+            assertEquals(0, h.numProcessingTimeTimers(), "排空完毕后定时器链结束");
+            assertEquals((during + 1) / WINDOW, scores(h).size());
+        }
+    }
+
     private static long lastWatermark(
             KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h) {
         long wm = Long.MIN_VALUE;

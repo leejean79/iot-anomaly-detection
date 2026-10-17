@@ -2,13 +2,14 @@
 # ============================================================================
 # syn-m3-a4-full.sh
 # 补遗四全量重放（注入运行的完全重复，验收项 A4-1 至 A4-5）在 master 上无人值守地一键执行：
-#   预检（任务管理器 5120 兆、步骤 C 强杀那次的作业管理器日志摘录）→ 复位 → 以生产配置提交（守卫阈值写入配置）→ master 上
+#   预检（任务管理器 5120 兆）→ 复位 → 以生产配置提交（守卫阈值写入配置）→ master 上
 #   启动采样 → 单段重放 2022-03-01 至 05-01（设备 E 按原方案注入，默认 150 倍速）→ 等重放结束并排空 → 七条断言 → 收集、
-#   性能与迟到丢弃 → 守卫在线核对 → 取消作业 → 与注入运行逐位比较 → 生成汇总报告 → 复位。
+#   性能与迟到丢弃 → 守卫在线核对 → 取消作业 → 与注入运行、与上一次全量重放分别逐位比较 → 生成汇总报告 → 复位。
 # Runs the addendum-4 full replay (exact repeat of the injection run) unattended on master, then compares and reports.
 #
 # 依据：交接文档第四节第 2 条（10 月 14 日修订版）与 2026-10-16 裁决（开发设计日志 0.84 版）：倍速 150；A4-1 的检查点判据
-# 为训练期间每一次检查点的端到端时长不超过检查点间隔 30 秒。
+# 为训练期间每一次检查点的端到端时长不超过检查点间隔 30 秒。2026-10-17 裁决（0.86 版）：排空缺陷修正后重跑，结果写入
+# docs/m3_a4/full_fix/（上一次的 docs/m3_a4/full/ 保留，作为第二个对照），A4-2 同时与注入运行和上一次全量重放比较。
 #
 # ---------------------------- 脚本交付五要素 -------------------------------
 # 1. 执行环境 / Environment: 本地 Mac，仓库根目录；ssh 别名 fa-master、fa-worker1、fa-worker2 可用。整个编排在 master 的 tmux
@@ -17,14 +18,15 @@
 #      bash deploy/scripts/syn-m3-a4-full.sh start                 # 立即返回；约 10.5 小时跑完
 #      bash deploy/scripts/syn-m3-a4-full.sh start --speedup 150   # 倍速（默认 150，0.84 版裁决）
 #      bash deploy/scripts/syn-m3-a4-full.sh status                # 随时查看进度
-#      bash deploy/scripts/syn-m3-a4-full.sh fetch                 # 跑完后把 docs/m3_a4/full 拉回本地
+#      bash deploy/scripts/syn-m3-a4-full.sh fetch                 # 跑完后把 docs/m3_a4/full_fix 拉回本地
 #      bash deploy/scripts/syn-m3-a4-full.sh stop                  # 中止：停编排、停重放、取消本项目作业
 # 3. 前置条件 / Preconditions: 已执行过 `syn-m3-a4-stepc.sh setup-master`（master 能登录三台机器）；最新 jar 已构建核对并上传；
-#    两台任务管理器已按 5120 兆重建（预检会核对）；集群上没有任何作业在运行。
+#    两台任务管理器已按 5120 兆重建（预检会核对）；集群上没有任何作业在运行；本地有上一次的 docs/m3_a4/full/（作为对照复制到 master）。
 # 4. 期望产出 / Expected output: start 打印「已在 master 的 tmux 会话 syn-m3-a4-full 中启动」；status 显示进度；全部完成后
-#    fetch 到本地 docs/m3_a4/full/：a4_full_report.md（A4-1 至 A4-5 汇总）、equality.md（A4-2）、guard_check.md（A4-4）、
-#    replay_verify.txt（七条断言）、perf/、late_drop/、m3_tm_log.txt、scores.jsonl 等；另有 docs/m3_a4/stepc_kill/jm_log_0455_0458.txt。
-# 5. 失败兜底 / Failure fallback: 某一步失败时，编排取消作业、停止重放、取回已有采样，在 docs/m3_a4/full/progress.txt 写明失败
+#    fetch 到本地 docs/m3_a4/full_fix/：a4_full_report.md（A4-1 至 A4-5 汇总）、equality.md（A4-2，对照注入运行）、
+#    equality_prev.md（A4-2，对照上一次全量重放）、guard_check.md（A4-4）、replay_verify.txt（七条断言）、perf/、late_drop/、
+#    ckpt_history.csv（逐个检查点）、m3_tm_log.txt、scores.jsonl 等。
+# 5. 失败兜底 / Failure fallback: 某一步失败时，编排取消作业、停止重放、取回已有采样，在 docs/m3_a4/full_fix/progress.txt 写明失败
 #    的步骤后停止；先 fetch，再把 progress.txt 与对应日志发给我。退出码：2 参数错误或 setup-master 未完成；3 已有编排在运行。
 # ============================================================================
 set -uo pipefail
@@ -34,7 +36,8 @@ REPO_DIR="$(dirname "$DEPLOY_DIR")"
 set -a; source "$DEPLOY_DIR/.env"; set +a
 cd "$REPO_DIR" || exit 2
 
-DIR=docs/m3_a4/full
+DIR=docs/m3_a4/full_fix                     # 修正后的重跑（0.86 版裁决）；上一次的 docs/m3_a4/full 作为对照保留
+PREV=docs/m3_a4/full
 PROGRESS=$DIR/progress.txt
 LOG=$DIR/full.log
 PIDF=$DIR/full.pid
@@ -64,6 +67,8 @@ case "$CMD" in
             echo $! > "$PIDF"
             exit 0
         fi
+        [ -s "$PREV/scores.jsonl" ] && [ -s "$PREV/m3_tm_log.txt" ] \
+            || { echo "ERROR: 本地缺少上一次全量重放的 $PREV/scores.jsonl 或 m3_tm_log.txt（先 git pull）" >&2; exit 2; }
         ssh fa-master "test -f $RH/stepc.ready" \
             || { echo "ERROR: master 还不能登录三台机器，先执行：bash deploy/scripts/syn-m3-a4-stepc.sh setup-master" >&2; exit 2; }
         remote_alive && { echo "ERROR: master 上已有编排在运行。先 status 查看，或 stop 中止。" >&2; exit 3; }
@@ -73,6 +78,7 @@ case "$CMD" in
         ssh fa-master "mkdir -p $RREPO && rm -rf $RREPO/deploy $RREPO/docs"
         COPYFILE_DISABLE=1 tar czf - deploy docs/stuck_guard/thresholds.env docs/m3_inject_spec.txt docs/m3_marapr_eda_rounds.csv \
             docs/m3_inject/scores.jsonl docs/m3_inject/m3_tm_log.txt docs/m3_inject/ckpt_timeline.csv docs/m3_inject/perf/perf_summary.md \
+            $PREV/scores.jsonl $PREV/m3_tm_log.txt \
             | ssh fa-master "tar --warning=no-unknown-keyword -xzf - -C $RREPO && cd $RREPO && \
                 echo 'NODE_MASTER_PUBLIC_IP=$NODE_MASTER_IP' >> deploy/.env && grep '^SYN_STUCK_' docs/stuck_guard/thresholds.env >> deploy/.env"
         ssh fa-master "cd $RREPO && tmux new-session -d -s $TSESSION 'SYN_STEPC_ON_MASTER=1 bash deploy/scripts/syn-m3-a4-full.sh start --speedup $SPEED; sleep 5; while [ -f $DIR/full.pid ] && kill -0 \$(cat $DIR/full.pid) 2>/dev/null; do sleep 30; done'"
@@ -89,7 +95,7 @@ case "$CMD" in
         ;;
     fetch)
         remote_alive && echo "[full] 注意：master 上的编排仍在运行，现在取回的是部分结果。"
-        ssh fa-master "cd $RREPO && tar czf - $DIR \$(ls docs/m3_a4/stepc_kill/jm_log_0455_0458.txt 2>/dev/null)" | tar xzf - -C "$REPO_DIR" \
+        ssh fa-master "cd $RREPO && tar czf - $DIR" | tar xzf - -C "$REPO_DIR" \
             && echo "[full] 已取回到本地 $DIR/：" && ls "$DIR" | sed 's/^/       /'
         ;;
     stop)
@@ -139,14 +145,7 @@ drained_devices() {
 
 prog "== 全量重放开始：倍速 $SPEED，训练线程数 2，空闲时限 60 秒，检查点超时 10 分钟 =="
 
-# 预检一：步骤 C 强杀那次（2026-10-15 04:55 至 04:58 UTC）的作业管理器日志摘录（0.84 版裁决第三节第二点，尽力而为）
-mkdir -p docs/m3_a4/stepc_kill
-ssh fa-master "docker logs --since 2026-10-15T04:55:00Z --until 2026-10-15T04:58:00Z jobmanager 2>&1" \
-    | grep -E 'switched from|Restarting|restart|failover|Caused by|heartbeat|TaskManager|NoResourceAvailable' \
-    > docs/m3_a4/stepc_kill/jm_log_0455_0458.txt 2>/dev/null
-prog "预检：步骤 C 强杀时段的作业管理器日志摘录 $(wc -l < docs/m3_a4/stepc_kill/jm_log_0455_0458.txt | tr -d ' ') 行（0 行表示作业管理器容器此后重建过，日志已不在）"
-
-# 预检二：两台任务管理器的进程总量必须是 TM_HEAP_MB（交接文档第五节，5120 兆）
+# 预检：两台任务管理器的进程总量必须是 TM_HEAP_MB（交接文档第五节，5120 兆）
 MEM=$(REST="$REST" python3 -c '
 import json, os, subprocess
 def get(path):
@@ -216,10 +215,13 @@ ssh fa-master "docker exec jobmanager flink cancel $JID" >/dev/null 2>&1
 bash "$SCRIPT_DIR/syn-m3-watch.sh" stop --out-dir "$DIR" >/dev/null 2>&1
 python3 "$SCRIPT_DIR/m3_a4_equality.py" --run "$DIR" --ref docs/m3_inject --out "$DIR/equality.md" > /dev/null 2>&1
 ERC=$?
+python3 "$SCRIPT_DIR/m3_a4_equality.py" --run "$DIR" --ref "$PREV" --ref-label "上一次全量重放（修正前）" \
+    --out "$DIR/equality_prev.md" > /dev/null 2>&1
+PRC=$?
 python3 "$SCRIPT_DIR/m3_a4_full_report.py" --run "$DIR" --ref docs/m3_inject --out "$DIR/a4_full_report.md" > /dev/null 2>&1
-prog "逐位等值：$( [ $ERC -eq 0 ] && echo 全部相同 || echo "存在不同（退出码 $ERC，见 equality.md）" )；汇总报告已生成：$DIR/a4_full_report.md"
+prog "逐位等值：对照注入运行 $( [ $ERC -eq 0 ] && echo 全部相同 || echo "存在不同（退出码 $ERC，见 equality.md）" )；对照上一次全量重放 $( [ $PRC -eq 0 ] && echo 全部相同 || echo "存在不同（退出码 $PRC，见 equality_prev.md）" )；汇总报告已生成：$DIR/a4_full_report.md"
 
 ssh fa-master "rm -rf $RH/m3march"
 bash "$SCRIPT_DIR/syn-reset-env.sh" --yes > "$DIR/reset_final.log" 2>&1
 rm -f "$PIDF"
-prog "全部完成。请在 Mac 上执行：bash deploy/scripts/syn-m3-a4-full.sh fetch，然后 git add -f docs/m3_a4 && git commit -m \"data(m3): 补遗四全量重放结果\" && git push origin dev-claude"
+prog "全部完成。请在 Mac 上执行：bash deploy/scripts/syn-m3-a4-full.sh fetch，然后 git add -f $DIR && git commit -m \"data(m3): 补遗四全量重放（排空缺陷修正后）结果\" && git push origin dev-claude"

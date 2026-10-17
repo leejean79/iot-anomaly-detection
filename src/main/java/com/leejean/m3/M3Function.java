@@ -370,23 +370,26 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         count++;                                       // 本轮计入总数 / this round counts toward the total
         roundCount.update(count);
 
-        // COLLECTING 收集三段数据；TRAINING 期间到达的轮入缓冲；ONLINE 时缓冲非空则追加到尾部并排空一批，
-        // 缓冲为空则直接评分。CALIBRATING 只是任务线程上的瞬态，不会在此看到。
-        // COLLECTING collects; rounds arriving in TRAINING are buffered; in ONLINE a non-empty buffer is appended
-        // to and drained by one batch, otherwise the round is scored directly.
+        // COLLECTING 收集三段数据；TRAINING 期间到达的轮入缓冲并查询一次结果槽；ONLINE 时缓冲非空则只追加到
+        // 尾部，缓冲为空则直接评分。元素路径不排空、不登记定时器：排空与查询只由每台设备唯一的一条定时器链推进，
+        // 使批与批之间任务线程能处理输入与检查点屏障（2026-10-17 裁决，开发设计日志 0.86 版第四节）。
+        // CALIBRATING 只是任务线程上的瞬态，不会在此看到。
+        // COLLECTING collects; in TRAINING a round is buffered and the result slot polled; in ONLINE a non-empty
+        // buffer is only appended to, otherwise the round is scored directly. The element path never drains and
+        // never registers timers: one timer chain per device drives polling and draining, so input and checkpoint
+        // barriers are processed between batches.
         switch (phase) {
             case 0:
                 handleCollecting(round, ctx, out, count, device);
                 break;
             case 1:
                 bufferRound(round, ctx, device);
-                advance(ctx, out);
+                pollTraining(ctx);                     // 结果就绪则转为在线；排空由定时器链开始 / drain starts on the timer
                 break;
             case 3:
                 Integer pending = pendingSize.value();
                 if (pending != null && pending > 0) {
                     bufferRound(round, ctx, device);
-                    advance(ctx, out);
                 } else {
                     handleOnline(round, ctx, out, device);
                 }
@@ -418,9 +421,10 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     }
 
     /**
-     * 推进训练与排空（只在任务线程上调用）：训练态查询结果，结果就绪则写入状态并转为在线态；在线态缓冲非空则
-     * 排空一批；最后按相位登记下一次定时器。
-     * Advance training and draining on the task thread, then register the next timer for the phase.
+     * 推进训练与排空（只在定时器回调中调用，即每台设备唯一的定时器链）：训练态查询结果，结果就绪则写入状态并
+     * 转为在线态；在线态缓冲非空则排空一批；最后按相位续登下一次定时器。链由提交训练时的那次登记开始。
+     * Advance training and draining from the timer callback only (one timer chain per device, started when
+     * training is submitted), then re-register the next timer for the phase.
      */
     private void advance(Context ctx, Collector<M3ScoreRecord> out) throws Exception {
         Integer phase = statePhase.value();

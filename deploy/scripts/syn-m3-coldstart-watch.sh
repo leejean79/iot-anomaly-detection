@@ -110,6 +110,25 @@ row = [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), state, str(restart
        str(lf.get("id", "")), fmt(lf.get("failure_timestamp")), reason]
 with open(out, "a", encoding="utf-8") as f:
     f.write(",".join(row) + "\n")
+# 逐个记下已结束的检查点（REST 的 history 保留最近十个，按编号去重），带毫秒的触发与确认时刻（本机时间）。
+# 检查点间隔短于采样间隔时，上面的时间线只记得到最近一个；这份记录不漏（0.86 版裁决的排空验证要用）。
+# Every finished checkpoint from the REST history (last ten), deduplicated by id, with millisecond times.
+import os
+hist = os.path.join(os.path.dirname(out), "ckpt_history.csv")
+fmt_ms = lambda ms: datetime.datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] if ms else ""
+seen = set()
+if os.path.exists(hist):
+    with open(hist, encoding="utf-8") as f:
+        seen = {line.split(",", 1)[0] for line in f}
+with open(hist, "a", encoding="utf-8") as f:
+    if not seen:
+        f.write("id,status,trigger_time,latest_ack_time,end_to_end_sec\n")
+    for h in sorted(ck.get("history") or [], key=lambda h: h.get("id", 0)):
+        if h.get("status") in ("COMPLETED", "FAILED") and str(h.get("id")) not in seen:
+            e2e = h.get("end_to_end_duration")
+            f.write("%s,%s,%s,%s,%s\n" % (h.get("id"), h["status"], fmt_ms(h.get("trigger_timestamp")),
+                                          fmt_ms(h.get("latest_ack_timestamp")),
+                                          "%.3f" % (e2e / 1000) if e2e is not None else ""))
 # 统计悬挂：挂起编号小于最近完成编号（最大并发为 1，它在协调器里已不再挂起）。交给外层脚本在作业运行时
 # 取回明细，按 2026-09-30 裁决把推断变成证据。/ Stale pending id: let the caller fetch its details now.
 stale = pend_id and lc.get("id") is not None and int(lc["id"]) > int(pend_id)
