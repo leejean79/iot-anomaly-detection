@@ -410,6 +410,9 @@ bash deploy/scripts/syn-m3-a4-full.sh stop      # 需要中止时执行
 0.86 版裁决认定上一次全量重放有效、数字入档，但上下文异常检测模块的收口要以修正后的代码为依据。顺序是：修正代码 → 构建上传 jar
 → 步骤 C 验证（`fix` 运行）→ 四项通过后全量重跑。上一次的结果保留在 `docs/m3_a4/full/`，重跑写入 `docs/m3_a4/full_fix/`。
 
+**执行结果**（2026-10-17）：第二步四项全部通过（`docs/m3_a4/stepc_fix/fix_check.md`），第三步全量重跑 A4-1 至 A4-5 全部通过
+（`docs/m3_a4/full_fix/a4_full_report.md`），详见补遗四报告第三节。
+
 **倍速已裁定**（2026-10-17，开发设计日志 0.87 版）：`fix` 运行用 400 倍速、检查点间隔 5 秒，只用于这次验证；全量重跑仍用
 150 倍速、30 秒间隔。0.86 版原写的 600 倍会使设备 C 的缓冲溢出，见 `docs/reports/m3_addendum4_fix_verify_speed_for_decision.md`。
 
