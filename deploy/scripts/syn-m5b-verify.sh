@@ -78,6 +78,12 @@ case "$CMD" in
     status)
         echo "== master 上的编排：$(remote_alive && echo 运行中 || echo 未运行) =="
         ssh fa-master "tail -n 15 $RREPO/$PROGRESS 2>/dev/null || echo '（还没有进度记录）'"
+        if ! remote_alive; then
+            # 未运行时给出诊断：仓库副本、编排日志末尾与 master 上的 tmux 会话 / diagnostics when not running
+            echo "== 诊断（未运行时）=="
+            ssh fa-master "ls -ld $RREPO $RREPO/$DIR 2>&1; echo '-- verify.log 末尾 --'; tail -n 20 $RREPO/$LOG 2>&1; \
+                echo '-- tmux 会话 --'; tmux ls 2>&1; echo '-- stepc.ready --'; ls -l $RH/stepc.ready 2>&1"
+        fi
         echo
         bash "$SCRIPT_DIR/syn-m3-watch.sh" status 2>/dev/null | head -n 20
         ;;
