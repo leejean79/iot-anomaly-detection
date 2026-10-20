@@ -18,6 +18,7 @@
 #    会话 syn-m5b-verify 里运行，start 之后本地 Mac 可以关机。
 # 2. 调用命令 / Invocation:
 #      bash deploy/scripts/syn-m5b-verify.sh start     # 立即返回；两次运行合计约 2 至 3 小时
+#      bash deploy/scripts/syn-m5b-verify.sh start --runs off   # 只补跑关闭性能层的一次并做核对（打开的一次已有结果时）
 #      bash deploy/scripts/syn-m5b-verify.sh status    # 随时查看进度
 #      bash deploy/scripts/syn-m5b-verify.sh fetch     # 跑完后把 docs/m5b/verify 拉回本地
 #      bash deploy/scripts/syn-m5b-verify.sh stop      # 中止：停编排、停重放、取消本项目作业
@@ -46,6 +47,14 @@ ON_MASTER="${SYN_STEPC_ON_MASTER:-0}"
 SPEED=120
 SPEC=docs/m5b/verify_inject_spec.txt
 CMD="${1:-}"; shift || true
+RUNS=on,off
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --runs) RUNS="$2"; shift 2 ;;
+        *) echo "ERROR: 未知参数 $1" >&2; exit 2 ;;
+    esac
+done
+[[ "$RUNS" =~ ^(on,off|on|off)$ ]] || { echo "ERROR: --runs 只能是 on,off、on 或 off" >&2; exit 2; }
 
 prog() { echo "[$(date '+%F %T')] $*" | tee -a "$PROGRESS"; }
 alive() { [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; }
@@ -56,7 +65,7 @@ case "$CMD" in
         if [ "$ON_MASTER" = 1 ]; then
             alive && { echo "ERROR: 已有编排在运行（PID $(cat "$PIDF")）。" >&2; exit 3; }
             mkdir -p "$DIR"
-            nohup bash "$SCRIPT_DIR/$(basename "$0")" run >> "$LOG" 2>&1 &
+            nohup bash "$SCRIPT_DIR/$(basename "$0")" run --runs "$RUNS" >> "$LOG" 2>&1 &
             echo $! > "$PIDF"
             exit 0
         fi
@@ -68,7 +77,7 @@ case "$CMD" in
         # Copy only tracked files (plus .env and the spec) so untracked large or special files cannot stall the copy.
         FILES=$(git ls-files deploy m5b; echo deploy/.env; echo "$SPEC")
         echo "[m5b] 2/4 复制 $(echo "$FILES" | wc -l | tr -d ' ') 个文件到 master 的 $RREPO ……"
-        ssh fa-master "mkdir -p $RREPO && rm -rf $RREPO/deploy $RREPO/docs $RREPO/m5b"
+        ssh fa-master "mkdir -p $RREPO && rm -rf $RREPO/deploy $RREPO/m5b"     # docs/ 保留，里面可能有上一次运行的结果 / keep earlier results
         # shellcheck disable=SC2086
         COPYFILE_DISABLE=1 tar czf - $FILES \
             | ssh fa-master "tar --warning=no-unknown-keyword -xzf - -C $RREPO && cd $RREPO && \
@@ -77,17 +86,20 @@ case "$CMD" in
             || { echo "ERROR: 复制到 master 失败（见上方 tar 或 ssh 的报错）。" >&2; exit 1; }
         ssh fa-master "test -f $RREPO/deploy/scripts/syn-m5b-verify.sh && test -f $RREPO/$SPEC && test -f $RREPO/m5b/compare_events.py" \
             || { echo "ERROR: master 上的仓库副本不完整，请把 ssh fa-master 'find $RREPO -maxdepth 3 | head -50' 的输出发给我。" >&2; exit 1; }
+        # 进度文件是追加的，只看本次启动之后新写的行 / progress is appended; look only at lines written by this start
+        N0=$(ssh fa-master "cat $RREPO/$PROGRESS 2>/dev/null | wc -l" | tr -d ' ')
+        NEW="tail -n +$((N0 + 1)) $RREPO/$PROGRESS 2>/dev/null"
         echo "[m5b] 3/4 在 master 上启动 tmux 会话 $TSESSION ……"
-        ssh fa-master "cd $RREPO && tmux new-session -d -s $TSESSION 'SYN_STEPC_ON_MASTER=1 bash deploy/scripts/syn-m5b-verify.sh start; sleep 5; while [ -f $DIR/verify.pid ] && kill -0 \$(cat $DIR/verify.pid) 2>/dev/null; do sleep 30; done'" \
+        ssh fa-master "cd $RREPO && tmux new-session -d -s $TSESSION 'SYN_STEPC_ON_MASTER=1 bash deploy/scripts/syn-m5b-verify.sh start --runs $RUNS; sleep 5; while [ -f $DIR/verify.pid ] && kill -0 \$(cat $DIR/verify.pid) 2>/dev/null; do sleep 30; done'" \
             || { echo "ERROR: tmux 会话创建失败（见上方报错）。" >&2; exit 1; }
         echo "[m5b] 4/4 等待第一行进度……"
         for _ in $(seq 1 12); do
-            ssh fa-master "test -s $RREPO/$PROGRESS" && break
+            [ -n "$(ssh fa-master "$NEW")" ] && break
             sleep 5
         done
-        if ssh fa-master "test -s $RREPO/$PROGRESS"; then
-            ssh fa-master "tail -n 3 $RREPO/$PROGRESS"
-            if ssh fa-master "grep -q '失败' $RREPO/$PROGRESS"; then
+        if [ -n "$(ssh fa-master "$NEW")" ]; then
+            ssh fa-master "$NEW | tail -n 3"
+            if ssh fa-master "$NEW | grep -q '失败'"; then
                 echo "ERROR: 编排已经失败（见上方进度）。请执行 bash $0 fetch，把 $DIR/ 下的 progress.txt 与相应日志发给我。" >&2
                 exit 1
             fi
@@ -167,7 +179,7 @@ drained_devices() {
 run_one() {
     RUN="$1"; local m5b_args="$2"; local R="$DIR/$RUN"; JID=""
     rm -rf "$R"; mkdir -p "$R"
-    prog "== 运行 $RUN 开始：倍速 $SPEED，性能层 $( [ -n "$m5b_args" ] && echo 打开 || echo 关闭 ) =="
+    prog "== 运行 $RUN 开始：倍速 $SPEED，性能层 $( [ "$RUN" = on ] && echo 打开 || echo 关闭 ) =="
     bash "$SCRIPT_DIR/syn-reset-env.sh" --yes > "$R/reset.log" 2>&1 || fail "复位未通过（见 $R/reset.log）"
     bash "$SCRIPT_DIR/syn-create-topics.sh" > "$R/topics.log" 2>&1 || fail "创建 topic 失败（见 $R/topics.log）"
     SINCE=$(ssh fa-master date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -176,8 +188,11 @@ run_one() {
     [ -n "$JID" ] || fail "提交输出里没有 JobID"
     printf 'RUN=%s\nSINCE=%s\nJID=%s\n' "$RUN" "$SINCE" "$JID" > "$R/run.env"
     prog "作业已提交：$JID；$(grep -E 'M5b enabled' "$R/submit.log" | tr -s ' ')"
-    if [ -n "$m5b_args" ]; then
+    # 启动横幅须与本次运行的开关一致 / the banner must match this run's switch
+    if [ "$RUN" = on ]; then
         grep -q 'M5b enabled:     true' "$R/submit.log" || fail "启动横幅里性能层不是打开状态（jar 可能是旧的，见 $R/submit.log）"
+    else
+        grep -q 'M5b enabled:     false' "$R/submit.log" || fail "启动横幅里性能层不是关闭状态（见 $R/submit.log）"
     fi
     # 两次运行都采样，检查点体积的差即性能层的检查点增量（V-M5b-5）/ sample both runs for the checkpoint increment
     bash "$SCRIPT_DIR/syn-m3-watch.sh" stop --out-dir /tmp/m5bwatch_leftover >/dev/null 2>&1
@@ -203,7 +218,7 @@ run_one() {
     done
     prog "重放结束并排空（$N 台设备完成排空）"
     bash "$SCRIPT_DIR/syn-m3-march-collect.sh" --out-dir "$R" --since "$SINCE" > "$R/collect.log" 2>&1 || fail "收集失败（见 $R/collect.log）"
-    if [ -n "$m5b_args" ]; then
+    if [ "$RUN" = on ]; then
         ssh fa-master "docker exec kafka-1 kafka-console-consumer.sh --bootstrap-server $BROKERS --topic synergia-drift \
             --from-beginning --timeout-ms 60000 2>/dev/null" > "$R/drift.jsonl" || true
         prog "漂移事件转储：$(wc -l < "$R/drift.jsonl" | tr -d ' ') 条"
@@ -214,9 +229,11 @@ run_one() {
     prog "== 运行 $RUN 完成：$(grep -E '训练完成的设备数' "$R/collect_summary.txt" 2>/dev/null) =="
 }
 
-prog "== 编排开始：两次短重放（打开与关闭性能层），设备 E 注入 12 小时温度阶跃 =="
-run_one on "--m5b-enabled true $M5B"
-run_one off "--m5b-enabled false"
+prog "== 编排开始：运行 $RUNS（on 打开性能层、off 关闭），设备 E 注入 12 小时温度阶跃 =="
+[[ ",$RUNS," == *",on,"* ]] && run_one on "--m5b-enabled true $M5B"
+[ -s "$DIR/on/drift.jsonl" ] && [ -s "$DIR/on/m3_scores.jsonl" ] && [ -s "$DIR/on/scores.jsonl" ] \
+    || fail "没有打开性能层那次运行的结果（$DIR/on/ 下缺 drift.jsonl、m3_scores.jsonl 或 scores.jsonl），请用 start 跑全部两次"
+[[ ",$RUNS," == *",off,"* ]] && run_one off "--m5b-enabled false"
 bash "$SCRIPT_DIR/syn-reset-env.sh" --yes > "$DIR/reset_final.log" 2>&1
 
 # ---- 核对 / checks ----
