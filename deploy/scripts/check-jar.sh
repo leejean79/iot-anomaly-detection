@@ -96,7 +96,7 @@ checks=(
 fail=0
 for row in "${checks[@]}"; do
     cls="${row%%|*}"; rest="${row#*|}"; tok="${rest%%|*}"; desc="${rest#*|}"
-    n=$(unzip -p "$JAR" "$cls" 2>/dev/null | grep -a -c "$tok" 2>/dev/null || echo 0)
+    n=$(unzip -p "$JAR" "$cls" 2>/dev/null | LC_ALL=C grep -a -c -F "$tok" 2>/dev/null || echo 0)
     n=$(echo "$n" | tr -d '[:space:]')
     if [ "${n:-0}" -gt 0 ]; then
         printf "  [PASS] %-22s in %-40s — %s\n" "$tok" "$(basename "$cls")" "$desc"
