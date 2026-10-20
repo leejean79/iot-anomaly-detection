@@ -87,6 +87,10 @@ checks=(
     "com/leejean/m3/M3Operator.class|m3_watermark_hold_sec|输出水位线保持（补遗四第二节第 3 条）"
     "com/leejean/m3/M3Function.class|m3_train_buffer_overflow|训练期间的有界缓冲（补遗四第二节第 3 条）"
     "com/leejean/m2/M2Job.class|train-threads|训练执行器线程数参数（补遗四）"
+    "com/leejean/m5/M5bFunction.class|tables built in|性能层漂移监测算子（M5b 阶段）"
+    "com/leejean/m5/DriftGate.class|持续性核对的 K 不得小于|持续性核对只用候选之后的元素（0.94 版第六条）"
+    "com/leejean/m5/OptWinOfflineRunner.class|time-col|Java 离线运行器（V-M5b-3 离线与在线等值）"
+    "com/leejean/m2/M2Job.class|m5b-enabled|性能层开关参数（M5b 阶段，默认关闭）"
 )
 
 fail=0

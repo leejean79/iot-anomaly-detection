@@ -194,6 +194,17 @@ public class M2Job {
         int m3TrainThreads = params.getInt("train-threads", M3Function.DEFAULT_TRAIN_THREADS);
         int m3DrainBatch = params.getInt("drain-batch", M3Function.DEFAULT_DRAIN_BATCH);
         int m3PollIntervalSec = params.getInt("poll-interval-sec", M3Function.DEFAULT_POLL_INTERVAL_SEC);
+        // ---- M5b 性能层漂移监测（M5b 交接文档第三节「作业参数」；默认关闭，打开须同时开启 M3）----
+        // M5b performance-layer drift monitoring (off by default; requires M3).
+        boolean m5bEnabled = params.getBoolean("m5b-enabled", false);
+        double m5bConfidence = params.getDouble("m5b-confidence", 0.99);
+        double m5bRobustness = params.getDouble("m5b-robustness", 0.5);
+        com.leejean.m5.M5bFunction.Granularity m5bGranularity = "hourly".equals(params.get("m5b-granularity", "10min"))
+                ? com.leejean.m5.M5bFunction.Granularity.HOURLY : com.leejean.m5.M5bFunction.Granularity.TEN_MINUTES;
+        // 窗上限默认十四天的元素数：十分钟粒度 2016，小时粒度 336 / default: fourteen days of elements
+        int m5bWMax = params.getInt("m5b-wmax", m5bGranularity == com.leejean.m5.M5bFunction.Granularity.HOURLY ? 336 : 2016);
+        int m5bK = params.getInt("m5b-k", 36);
+        String driftTopic = params.get("drift-topic", "synergia-drift");
 
         System.out.println("========================================");
         System.out.println("M2Job (M1+pMCOD joint)");
@@ -234,6 +245,11 @@ public class M2Job {
                         ? "  [COLD-START PROBE MODE: segments are NOT real days; never use for acceptance]" : ""));
             System.out.println("M3 async train:  threads=" + m3TrainThreads + " per TaskManager, drain batch="
                     + m3DrainBatch + " rounds, poll interval=" + m3PollIntervalSec + " s (addendum 4)");
+        }
+        System.out.println("M5b enabled:     " + (m5bEnabled && m3Enabled));
+        if (m5bEnabled && m3Enabled) {
+            System.out.println("M5b OPTWIN:      confidence=" + m5bConfidence + " robustness=" + m5bRobustness
+                    + " wmax=" + m5bWMax + " granularity=" + m5bGranularity + " K=" + m5bK + " -> " + driftTopic);
         }
         System.out.println("========================================");
 
@@ -407,6 +423,25 @@ public class M2Job {
                             new MonitoringSerializationSchema(monitoringTopic),
                             producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
                     .name("Kafka Sink [" + monitoringTopic + " / M3]");
+
+            // M5b 性能层：接在 M3 之后、同一作业、同一代理键，消费评分窗，事件写 synergia-drift，快照并入 synergia-monitoring
+            // M5b: after M3 in the same job with the same surrogate keys; events to synergia-drift, snapshots to monitoring
+            if (m5bEnabled) {
+                OutputTag<MonitoringSnapshot> m5bMonTag = new OutputTag<MonitoringSnapshot>("m5b-monitoring") { };
+                SingleOutputStreamOperator<com.leejean.m5.DriftEvent> drift = m3Scored
+                        .keyBy(DeviceKeys.selector(surrogate, M3ScoreRecord::getDevice))
+                        .process(new com.leejean.m5.M5bFunction(m5bConfidence, m5bRobustness, m5bWMax, m5bK,
+                                m5bGranularity, m5bMonTag))
+                        .name("M5b-OPTWIN");
+                drift.addSink(new FlinkKafkaProducer<>(driftTopic, new DriftEventSerializationSchema(driftTopic),
+                                producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
+                        .name("Kafka Sink [" + driftTopic + " / M5b]");
+                drift.getSideOutput(m5bMonTag)
+                        .addSink(new FlinkKafkaProducer<>(monitoringTopic,
+                                new MonitoringSerializationSchema(monitoringTopic),
+                                producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
+                        .name("Kafka Sink [" + monitoringTopic + " / M5b]");
+            }
         }
 
         env.execute("M2Job - M1 ingestion/normalization + pMCOD + LSTM-AE contextual anomaly detection");
@@ -558,6 +593,28 @@ public class M2Job {
                 return new ProducerRecord<>(topic, null, e.getWindowEnd() * 1000L, key, value);
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to serialize M3ScoreRecord to JSON", ex);
+            }
+        }
+    }
+
+    /** M5b 漂移事件 → JSON 写入 synergia-drift；记录时间戳为事件时间（毫秒）/ drift event → JSON, stamped with event time. */
+    private static class DriftEventSerializationSchema implements KafkaSerializationSchema<com.leejean.m5.DriftEvent> {
+        private static final long serialVersionUID = 1L;
+        private final String topic;
+        private transient ObjectMapper mapper;
+        DriftEventSerializationSchema(String topic) {
+            this.topic = topic;
+        }
+        @Override
+        public ProducerRecord<byte[], byte[]> serialize(com.leejean.m5.DriftEvent e, @Nullable Long timestamp) {
+            if (mapper == null) {
+                mapper = new ObjectMapper();
+            }
+            try {
+                byte[] key = e.device == null ? null : e.device.getBytes(StandardCharsets.UTF_8);
+                return new ProducerRecord<>(topic, null, e.ts * 1000L, key, mapper.writeValueAsBytes(e));
+            } catch (Exception ex) {
+                throw new RuntimeException("Failed to serialize DriftEvent to JSON", ex);
             }
         }
     }

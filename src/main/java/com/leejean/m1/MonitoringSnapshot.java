@@ -54,6 +54,13 @@ public class MonitoringSnapshot implements Serializable {
     private int m3Phase;                 // 上下文通道相位（0 收集、1 训练、3 在线；补遗四）/ M3 phase
     private long m3BufferRounds;         // 上下文通道训练缓冲占用（轮；补遗四）/ M3 training-buffer occupancy
 
+    // ---- M5b 追加字段（M5b 交接文档决定四；windowEnd = -2 的快照才有意义）/ M5b fields (snapshots with windowEnd = -2) ----
+    private int m5bWindowLen;            // 检测器当前窗长 / detector window length
+    private long m5bLastCandidateTs;     // 最近一次候选的事件时间（秒）/ last candidate event time (s)
+    private long m5bLastConfirmTs;       // 最近一次确认的事件时间（秒）/ last confirmation event time (s)
+    private long m5bFWithoutRise;        // F 显著而均值未升高的累计次数（10 月 19 日裁决第二点）/ significant F without a rise
+    private long m5bTSkippedConstant;    // 两个子窗都为常数、不做 t 检验的累计次数（0.94 版第八条）/ t-test skipped, both constant
+
     /** Jackson 反序列化需要无参构造 / No-arg constructor required by Jackson. */
     public MonitoringSnapshot() { }
 
@@ -174,6 +181,22 @@ public class MonitoringSnapshot implements Serializable {
     public void setM3Phase(int m3Phase) { this.m3Phase = m3Phase; }
     public long getM3BufferRounds() { return m3BufferRounds; }
     public void setM3BufferRounds(long m3BufferRounds) { this.m3BufferRounds = m3BufferRounds; }
+
+    @JsonProperty
+    public int getM5bWindowLen() { return m5bWindowLen; }
+    public void setM5bWindowLen(int m5bWindowLen) { this.m5bWindowLen = m5bWindowLen; }
+    @JsonProperty
+    public long getM5bLastCandidateTs() { return m5bLastCandidateTs; }
+    public void setM5bLastCandidateTs(long m5bLastCandidateTs) { this.m5bLastCandidateTs = m5bLastCandidateTs; }
+    @JsonProperty
+    public long getM5bLastConfirmTs() { return m5bLastConfirmTs; }
+    public void setM5bLastConfirmTs(long m5bLastConfirmTs) { this.m5bLastConfirmTs = m5bLastConfirmTs; }
+    @JsonProperty
+    public long getM5bFWithoutRise() { return m5bFWithoutRise; }
+    public void setM5bFWithoutRise(long m5bFWithoutRise) { this.m5bFWithoutRise = m5bFWithoutRise; }
+    @JsonProperty
+    public long getM5bTSkippedConstant() { return m5bTSkippedConstant; }
+    public void setM5bTSkippedConstant(long m5bTSkippedConstant) { this.m5bTSkippedConstant = m5bTSkippedConstant; }
 
     public double getM3ReconError() { return m3ReconError; }
     public void setM3ReconError(double m3ReconError) { this.m3ReconError = m3ReconError; }
