@@ -1,0 +1,114 @@
+===== fa-worker1 / taskmanager-2 =====
+2026-10-20 12:31:31,482 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Training executor started: 2 thread(s) in this TaskManager, OMP_NUM_THREADS=1
+2026-10-20 12:43:55,216 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646179985
+2026-10-20 12:43:55,216 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646179999
+2026-10-20 12:43:56,817 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H excluded training window ending at round 1646180184
+2026-10-20 12:43:58,221 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B excluded training window ending at round 1646180343
+2026-10-20 12:48:40,872 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646214286
+2026-10-20 12:48:45,877 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646214888
+2026-10-20 12:48:55,987 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646216090
+2026-10-20 12:49:05,896 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646217293
+2026-10-20 12:49:10,801 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646217894
+2026-10-20 12:49:15,906 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646218496
+2026-10-20 12:49:25,916 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646219698
+2026-10-20 12:49:30,821 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646220299
+2026-10-20 12:49:41,431 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646221502
+2026-10-20 12:49:51,441 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646222705
+2026-10-20 12:49:56,246 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646223306
+2026-10-20 12:50:18,466 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646225711
+2026-10-20 12:50:31,378 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646227515
+2026-10-20 12:50:36,283 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646228117
+2026-10-20 12:50:41,388 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646228718
+2026-10-20 12:51:36,441 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646235342
+2026-10-20 12:51:41,345 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646235943
+2026-10-20 13:03:09,514 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G (subtask 6) entering TRAINING: 82 train windows (18 excluded by outlier sanitization), 29 early-stop windows
+2026-10-20 13:03:09,517 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D (subtask 3) entering TRAINING: 99 train windows (1 excluded by outlier sanitization), 29 early-stop windows
+2026-10-20 13:03:09,522 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training task 1 submitted to the executor
+2026-10-20 13:03:09,522 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device G training started on m3-train-1 after 0.0s in the executor queue (task 1, COLD_START)
+2026-10-20 13:03:09,523 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training task 1 submitted to the executor
+2026-10-20 13:03:09,524 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device D training started on m3-train-2 after 0.0s in the executor queue (task 1, COLD_START)
+2026-10-20 13:03:09,548 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 3)
+2026-10-20 13:03:09,548 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 6)
+2026-10-20 13:03:11,715 INFO  org.nd4j.nativeblas.NativeOpsHolder                          [] - Number of threads used for linear algebra: 1
+2026-10-20 13:03:11,721 INFO  org.nd4j.nativeblas.Nd4jBlas                                 [] - Number of threads used for OpenMP BLAS: 1
+2026-10-20 13:03:45,150 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G trained: hidden=60, window=60, batch=64, 29 epochs (last improvement at epoch 9, longest plateau 0), early-stop loss=0.45957483713594044, 35.626s
+2026-10-20 13:03:47,437 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D trained: hidden=60, window=60, batch=64, 29 epochs (last improvement at epoch 9, longest plateau 0), early-stop loss=0.49243954805279977, 37.912s
+2026-10-20 13:03:53,262 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device G calibrated: median=1.0315137290897267, IQR=0.3161594556354054, threshold=2.22
+2026-10-20 13:03:54,817 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device D calibrated: median=1.624210628446957, IQR=1.0532329045143152, threshold=2.22
+2026-10-20 13:03:54,915 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G result collected on the task thread (queue wait 0.0s, training+calibration 44.0s); 525 buffered rounds to drain
+2026-10-20 13:03:54,916 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G entering ONLINE
+2026-10-20 13:03:54,916 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D result collected on the task thread (queue wait 0.0s, training+calibration 45.3s); 531 buffered rounds to drain
+2026-10-20 13:03:54,916 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D entering ONLINE
+2026-10-20 13:03:59,920 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H (subtask 7) entering TRAINING: 99 train windows (1 excluded by outlier sanitization), 29 early-stop windows
+2026-10-20 13:03:59,924 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training task 1 submitted to the executor
+2026-10-20 13:03:59,924 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device H training started on m3-train-1 after 0.0s in the executor queue (task 1, COLD_START)
+2026-10-20 13:03:59,925 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 7)
+2026-10-20 13:04:11,335 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D buffer drained in 1.8s
+2026-10-20 13:04:11,335 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 61.8s (subtask 3)
+2026-10-20 13:04:11,347 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G buffer drained in 1.8s
+2026-10-20 13:04:11,347 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 61.8s (subtask 6)
+2026-10-20 13:04:28,221 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H trained: hidden=60, window=60, batch=64, 29 epochs (last improvement at epoch 9, longest plateau 0), early-stop loss=0.6689496396709664, 28.297s
+2026-10-20 13:04:33,323 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device H calibrated: median=1.90477603680765, IQR=0.7037567576119752, threshold=2.22
+2026-10-20 13:04:33,400 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H result collected on the task thread (queue wait 0.0s, training+calibration 33.4s); 275 buffered rounds to drain
+2026-10-20 13:04:33,401 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H entering ONLINE
+2026-10-20 13:05:00,526 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H buffer drained in 0.6s
+2026-10-20 13:05:00,526 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 60.6s (subtask 7)
+2026-10-20 13:05:05,444 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B (subtask 1) entering TRAINING: 99 train windows (1 excluded by outlier sanitization), 29 early-stop windows
+2026-10-20 13:05:05,447 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training task 1 submitted to the executor
+2026-10-20 13:05:05,448 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device B training started on m3-train-2 after 0.0s in the executor queue (task 1, COLD_START)
+2026-10-20 13:05:05,527 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 1)
+2026-10-20 13:05:39,983 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B trained: hidden=60, window=60, batch=64, 37 epochs (last improvement at epoch 17, longest plateau 0), early-stop loss=0.7592127944336485, 34.535s
+2026-10-20 13:05:45,170 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device B calibrated: median=1.638178316976766, IQR=0.2920511242394368, threshold=2.22
+2026-10-20 13:05:45,241 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B result collected on the task thread (queue wait 0.0s, training+calibration 39.7s); 318 buffered rounds to drain
+2026-10-20 13:05:45,241 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B entering ONLINE
+2026-10-20 13:06:05,940 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B buffer drained in 0.5s
+2026-10-20 13:06:05,940 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 60.4s (subtask 1)
+===== fa-worker2 / taskmanager-3 =====
+2026-10-20 12:31:31,734 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Training executor started: 2 thread(s) in this TaskManager, OMP_NUM_THREADS=1
+2026-10-20 12:43:55,289 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F excluded training window ending at round 1646179988
+2026-10-20 12:43:55,299 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646180001
+2026-10-20 12:43:55,307 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646180007
+2026-10-20 12:43:55,308 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646179980
+2026-10-20 12:48:55,912 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646216083
+2026-10-20 13:03:09,518 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C (subtask 2) entering TRAINING: 99 train windows (1 excluded by outlier sanitization), 29 early-stop windows
+2026-10-20 13:03:09,525 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training task 1 submitted to the executor
+2026-10-20 13:03:09,526 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device C training started on m3-train-1 after 0.0s in the executor queue (task 1, COLD_START)
+2026-10-20 13:03:09,530 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E (subtask 4) entering TRAINING: 99 train windows (1 excluded by outlier sanitization), 29 early-stop windows
+2026-10-20 13:03:09,534 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training task 1 submitted to the executor
+2026-10-20 13:03:09,534 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device E training started on m3-train-2 after 0.0s in the executor queue (task 1, COLD_START)
+2026-10-20 13:03:09,547 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A (subtask 0) entering TRAINING: 98 train windows (2 excluded by outlier sanitization), 29 early-stop windows
+2026-10-20 13:03:09,547 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 4)
+2026-10-20 13:03:09,548 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 2)
+2026-10-20 13:03:09,548 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F (subtask 5) entering TRAINING: 99 train windows (1 excluded by outlier sanitization), 29 early-stop windows
+2026-10-20 13:03:09,556 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training task 1 submitted to the executor
+2026-10-20 13:03:09,558 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training task 1 submitted to the executor
+2026-10-20 13:03:09,559 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 5)
+2026-10-20 13:03:09,559 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 0)
+2026-10-20 13:03:11,789 INFO  org.nd4j.nativeblas.NativeOpsHolder                          [] - Number of threads used for linear algebra: 1
+2026-10-20 13:03:11,795 INFO  org.nd4j.nativeblas.Nd4jBlas                                 [] - Number of threads used for OpenMP BLAS: 1
+2026-10-20 13:03:49,218 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E trained: hidden=60, window=60, batch=64, 29 epochs (last improvement at epoch 9, longest plateau 0), early-stop loss=0.5829296079150723, 39.683s
+2026-10-20 13:03:56,615 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device E calibrated: median=1.3331797902321958, IQR=0.5638121049076799, threshold=2.22
+2026-10-20 13:03:57,030 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device A training started on m3-train-2 after 47.5s in the executor queue (task 1, COLD_START)
+2026-10-20 13:03:59,876 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E result collected on the task thread (queue wait 0.0s, training+calibration 47.5s); 593 buffered rounds to drain
+2026-10-20 13:03:59,877 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E entering ONLINE
+2026-10-20 13:04:11,377 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E buffer drained in 1.8s
+2026-10-20 13:04:11,378 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 61.8s (subtask 4)
+2026-10-20 13:04:45,728 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A trained: hidden=60, window=60, batch=64, 35 epochs (last improvement at epoch 15, longest plateau 0), early-stop loss=0.39996668123834916, 48.698s
+2026-10-20 13:04:53,392 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device A calibrated: median=1.028747544516359, IQR=0.24413235599393568, threshold=2.22
+2026-10-20 13:04:53,399 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device F training started on m3-train-2 after 103.8s in the executor queue (task 1, COLD_START)
+2026-10-20 13:04:54,683 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A result collected on the task thread (queue wait 47.5s, training+calibration 56.4s); 1248 buffered rounds to drain
+2026-10-20 13:04:54,683 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A entering ONLINE
+2026-10-20 13:05:12,444 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A buffer drained in 2.9s
+2026-10-20 13:05:12,444 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 122.9s (subtask 0)
+2026-10-20 13:05:29,487 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C trained: hidden=60, window=60, batch=64, 104 epochs (last improvement at epoch 84, longest plateau 12), early-stop loss=18.398910563036747, 139.96s
+2026-10-20 13:05:29,616 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F trained: hidden=60, window=60, batch=64, 29 epochs (last improvement at epoch 9, longest plateau 0), early-stop loss=0.790702368952629, 36.217s
+2026-10-20 13:05:39,639 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device C calibrated: median=33.09669068825444, IQR=33.489802714243126, threshold=2.22
+2026-10-20 13:05:39,861 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device F calibrated: median=1.3885585330628005, IQR=0.261761810284602, threshold=2.22
+2026-10-20 13:05:40,243 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C result collected on the task thread (queue wait 0.0s, training+calibration 150.1s); 1801 buffered rounds to drain
+2026-10-20 13:05:40,243 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C entering ONLINE
+2026-10-20 13:05:40,243 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F result collected on the task thread (queue wait 103.8s, training+calibration 46.5s); 1806 buffered rounds to drain
+2026-10-20 13:05:40,243 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F entering ONLINE
+2026-10-20 13:06:12,425 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C buffer drained in 2.9s
+2026-10-20 13:06:12,425 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 182.9s (subtask 2)
+2026-10-20 13:06:12,471 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F buffer drained in 2.9s
+2026-10-20 13:06:12,471 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 182.9s (subtask 5)
