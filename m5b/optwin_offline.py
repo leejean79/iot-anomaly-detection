@@ -68,6 +68,7 @@ class Detector:
         self.wmax = wmax
         self.buf = [0.0] * (wmax + 1)
         self.f_without_rise = 0
+        self.t_skipped_constant = 0
         self.clear()
 
     def clear(self):
@@ -125,8 +126,12 @@ class Detector:
                 fired = "F"
             else:
                 self.f_without_rise += 1
-        if fired is None and denom > 0 and t_value > t.t_crit[self.n]:
-            fired = "T"
+        if fired is None:
+            if denom > 0:
+                if t_value > t.t_crit[self.n]:
+                    fired = "T"
+            else:
+                self.t_skipped_constant += 1
         if fired is None:
             return None
         alarm = dict(test=fired, window_len=self.n, hist_len=h, new_len=m, hist_mean=mean_h, hist_sd=sd_h,
@@ -140,6 +145,8 @@ class Gate:
     """与 DriftGate 逐步相同 / mirrors DriftGate."""
 
     def __init__(self, k, robustness):
+        if k < MEDIAN_SPAN:
+            raise ValueError("持续性核对的 K 不得小于 %d" % MEDIAN_SPAN)
         self.k, self.robustness = k, robustness
         self.last = []
         self.pending = False
@@ -150,22 +157,23 @@ class Gate:
 
     def on_element(self, device, ts, x, alarm):
         out = []
-        self.last.append(x)
-        if len(self.last) > MEDIAN_SPAN:
-            self.last.pop(0)
         if self.pending:
             self.seen += 1
-            med = _median(self.last)
-            if not (med > self.threshold):
-                out.append(self._gate_event(device, ts, "REVOKE", med))
-                self.pending = False
-            elif self.seen == self.k:
-                out.append(self._gate_event(device, ts, "CONFIRM", med))
-                self.pending = False
+            self.last.append(x)                  # 只用候选之后的元素 / post-candidate elements only
+            if len(self.last) > MEDIAN_SPAN:
+                self.last.pop(0)
+            if len(self.last) == MEDIAN_SPAN:    # 凑满六个之后才比较 / compare once six have arrived
+                med = _median(self.last)
+                if not (med > self.threshold):
+                    out.append(self._gate_event(device, ts, "REVOKE", med))
+                    self.pending = False
+                elif self.seen == self.k:
+                    out.append(self._gate_event(device, ts, "CONFIRM", med))
+                    self.pending = False
         if alarm is not None:
             out.append(_event(device, ts, "CANDIDATE", alarm, during_check=self.pending, candidate_ts=ts))
             if not self.pending:
-                self.pending, self.seen = True, 0
+                self.pending, self.seen, self.last = True, 0, []
                 self.reference = alarm["hist_median"]
                 self.threshold = self.reference + self.robustness * alarm["hist_sd"]
                 self.candidate_ts, self.origin = ts, alarm

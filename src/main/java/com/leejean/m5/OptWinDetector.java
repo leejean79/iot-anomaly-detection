@@ -11,7 +11,8 @@ import java.util.Arrays;
  *
  * <p>每来一个元素：放进滑动窗（超过窗上限就丢掉最旧的）；窗长不足 30 不检验；否则按常量表的切点把窗分成历史子窗与新子窗，
  * 先做方差的 F 检验，再做均值的韦尔奇 t 检验（式 4.2，分母用方差）。两个检验都只在新子窗均值高于历史子窗时报警（论文
- * 4.5.3 节）；F 检验显著而均值未升高时不报警、不清空，只计数。报警后清空滑动窗，触发元素不放回。
+ * 4.5.3 节）；F 检验显著而均值未升高时不报警、不清空，只计数；两个子窗都为常数时不做 t 检验、视为不显著，也计数。报警后
+ * 清空滑动窗，触发元素不放回。
  * Per element: append (dropping the oldest beyond wMax); no test below 30 elements; otherwise split at the tabulated cut,
  * F-test first, then the Welch t-test (Eq. 4.2, variances). Both alarm only when the new mean is higher (section 4.5.3);
  * a significant F with a non-increasing mean is only counted. After an alarm the window is emptied.
@@ -33,6 +34,7 @@ public final class OptWinDetector implements Serializable {
     private int h;                   // 历史子窗长度（窗头的 h 个元素）/ historical sub-window length
     private double sumH, sqH, sumN, sqN;
     private long fWithoutRise;       // F 显著而均值未升高的次数 / significant F without a mean rise
+    private long tSkippedConstant;   // 两个子窗都为常数、不做 t 检验的次数（0.94 版第八条）/ t-test skipped, both constant
 
     public OptWinDetector(int wMax) {
         if (wMax < OptWinTables.W_MIN) {
@@ -136,8 +138,14 @@ public final class OptWinDetector implements Serializable {
                 fWithoutRise++;
             }
         }
-        if (fired == null && denom > 0 && tValue > t.tCrit[n]) {
-            fired = "T";
+        if (fired == null) {
+            if (denom > 0) {
+                if (tValue > t.tCrit[n]) {
+                    fired = "T";
+                }
+            } else {
+                tSkippedConstant++;
+            }
         }
         if (fired == null) {
             return null;
@@ -185,5 +193,9 @@ public final class OptWinDetector implements Serializable {
 
     public long fWithoutRiseCount() {
         return fWithoutRise;
+    }
+
+    public long tSkippedConstantCount() {
+        return tSkippedConstant;
     }
 }

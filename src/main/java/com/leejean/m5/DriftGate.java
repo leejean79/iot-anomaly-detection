@@ -10,12 +10,14 @@ import java.util.List;
  * Persistence gate: turns raw detector alarms into candidate, confirmed and revoked drift. The instance is checkpointed state.
  *
  * <p>规则：检测器报警即发出候选。若此刻没有进行中的核对，就以报警时历史子窗的中位数为参照，门限 = 参照 + 鲁棒度 × 历史
- * 标准差，开始核对；此后的第 1 至第 K 个元素，每到一个元素就取最近六个元素（流上的最近六个，含候选之前的元素）的中位数，
- * 不高于门限即撤销，到第 K 个仍高于门限即确认。核对进行中出现的新候选照常发出，但不打断核对，参照与门限不变。
+ * 子窗样本标准差，开始核对。K 从候选之后的第一个元素起计数；只用候选之后的元素，凑满六个之后，每到一个元素就取候选之后
+ * 最近六个元素的中位数，不高于门限即撤销，到第 K 个仍高于门限即确认（0.94 版第六条：候选之前的元素属于漂移前的水平，
+ * 不得混入）。核对进行中出现的新候选照常发出，但不打断核对，参照与门限不变；确认或撤销之后状态清零。
  * Rule: every alarm is a candidate; if no check is running, start one with reference = historical median and
- * threshold = reference + robustness × historical sd; on each of the next K elements the median of the last six
- * stream elements must stay above the threshold (else revoke); at element K, confirm. Candidates during a running
- * check are emitted but do not restart it.
+ * threshold = reference + robustness × historical sample sd. K counts from the first element after the candidate;
+ * only post-candidate elements are used, and once six have arrived the median of the last six of them must stay
+ * above the threshold (else revoke); at element K, confirm. Candidates during a running check are emitted but do not
+ * restart it.
  *
  * <p>中位数与门限的浮点运算次序与 Python 参考实现逐步相同。/ Same floating-point order as the Python reference.
  */
@@ -27,7 +29,7 @@ public final class DriftGate implements Serializable {
 
     private final int k;
     private final double robustness;
-    private final double[] last = new double[MEDIAN_SPAN];
+    private final double[] last = new double[MEDIAN_SPAN];   // 候选之后最近六个元素 / last six post-candidate elements
     private int lastCount;
     private int lastHead;
     private boolean pending;
@@ -38,8 +40,8 @@ public final class DriftGate implements Serializable {
     private OptWinDetector.Alarm origin;
 
     public DriftGate(int k, double robustness) {
-        if (k < 1) {
-            throw new IllegalArgumentException("持续性核对的 K 必须为正");
+        if (k < MEDIAN_SPAN) {
+            throw new IllegalArgumentException("持续性核对的 K 不得小于 " + MEDIAN_SPAN);
         }
         this.k = k;
         this.robustness = robustness;
@@ -51,21 +53,23 @@ public final class DriftGate implements Serializable {
      */
     public List<DriftEvent> onElement(String device, long ts, double x, OptWinDetector.Alarm alarm) {
         List<DriftEvent> out = new ArrayList<>(2);
-        last[(lastHead + lastCount) % MEDIAN_SPAN] = x;
-        if (lastCount < MEDIAN_SPAN) {
-            lastCount++;
-        } else {
-            lastHead = (lastHead + 1) % MEDIAN_SPAN;
-        }
         if (pending) {
             seen++;
-            double med = median();
-            if (!(med > threshold)) {
-                out.add(gateEvent(device, ts, DriftEvent.Level.REVOKE, med));
-                pending = false;
-            } else if (seen == k) {
-                out.add(gateEvent(device, ts, DriftEvent.Level.CONFIRM, med));
-                pending = false;
+            last[(lastHead + lastCount) % MEDIAN_SPAN] = x;
+            if (lastCount < MEDIAN_SPAN) {
+                lastCount++;
+            } else {
+                lastHead = (lastHead + 1) % MEDIAN_SPAN;
+            }
+            if (lastCount == MEDIAN_SPAN) {               // 凑满六个之后才比较 / compare once six have arrived
+                double med = median();
+                if (!(med > threshold)) {
+                    out.add(gateEvent(device, ts, DriftEvent.Level.REVOKE, med));
+                    pending = false;
+                } else if (seen == k) {
+                    out.add(gateEvent(device, ts, DriftEvent.Level.CONFIRM, med));
+                    pending = false;
+                }
             }
         }
         if (alarm != null) {
@@ -73,6 +77,8 @@ public final class DriftGate implements Serializable {
             if (!pending) {
                 pending = true;
                 seen = 0;
+                lastCount = 0;
+                lastHead = 0;
                 reference = alarm.histMedian;
                 threshold = reference + robustness * alarm.histSd;
                 candidateTs = ts;

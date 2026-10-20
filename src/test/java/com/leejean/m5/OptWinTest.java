@@ -126,9 +126,9 @@ class OptWinTest {
     }
 
     @Test
-    @DisplayName("持续性核对：K 个元素内滑动中位数一直高于门限则确认；中途回落则撤销；核对中的新候选不打断")
+    @DisplayName("持续性核对：只用候选之后的元素，满六个才比较；K 个元素内一直高于门限则确认，回落则撤销；核对中的新候选不打断")
     void gateTransitions() {
-        DriftGate g = new DriftGate(3, 0.5);                 // 门限 = 0 + 0.5 × 2 = 1
+        DriftGate g = new DriftGate(6, 0.5);                 // 门限 = 0 + 0.5 × 2 = 1
         for (int i = 0; i < 6; i++) {
             assertTrue(g.onElement("X", i, 5.0, null).isEmpty());
         }
@@ -136,25 +136,40 @@ class OptWinTest {
         assertEquals(DriftEvent.Level.CANDIDATE, ev.get(0).level);
         assertFalse(ev.get(0).duringCheck);
         assertTrue(g.onElement("X", 7, 5.0, null).isEmpty());
-        ev = g.onElement("X", 8, 5.0, alarm(10.0, 1.0));       // 核对中的新候选 / candidate during the check
+        assertTrue(g.onElement("X", 8, 5.0, null).isEmpty());
+        ev = g.onElement("X", 9, 5.0, alarm(10.0, 1.0));       // 核对中的新候选 / candidate during the check
         assertEquals(1, ev.size());
         assertTrue(ev.get(0).duringCheck);
-        ev = g.onElement("X", 9, 5.0, null);
+        for (int i = 10; i < 12; i++) {
+            assertTrue(g.onElement("X", i, 5.0, null).isEmpty());
+        }
+        ev = g.onElement("X", 12, 5.0, null);                   // 候选之后第 6 个元素 = 第 K 个 / the K-th
         assertEquals(DriftEvent.Level.CONFIRM, ev.get(0).level, "第 K 个元素确认，参照与门限沿用第一个候选");
         assertEquals(1.0, ev.get(0).threshold, 0.0);
         assertEquals(6, ev.get(0).candidateTs);
+        assertEquals(6, ev.get(0).checkedElements);
+
+        DriftGate early = new DriftGate(36, 0.5);
+        early.onElement("Z", 0, 5.0, alarm(0.0, 2.0));
+        for (int i = 1; i <= 5; i++) {
+            assertTrue(early.onElement("Z", i, 0.0, null).isEmpty(), "候选之后不满六个元素时不比较，不得撤销");
+        }
+        ev = early.onElement("Z", 6, 0.0, null);
+        assertEquals(DriftEvent.Level.REVOKE, ev.get(0).level, "满六个后中位数 0 ≤ 门限 1，撤销");
+        assertEquals(6, ev.get(0).checkedElements);
 
         DriftGate r = new DriftGate(36, 0.5);
         for (int i = 0; i < 6; i++) {
-            r.onElement("Y", i, 5.0, null);
+            r.onElement("Y", i, 9.0, null);                     // 候选之前的高值不得混入 / pre-candidate values excluded
         }
         r.onElement("Y", 6, 5.0, alarm(0.0, 2.0));
-        for (int i = 7; i < 10; i++) {
-            assertTrue(r.onElement("Y", i, 0.0, null).isEmpty(), "最近六个的中位数仍高于门限");
+        double[] post = {5, 5, 5, 0, 0, 0};
+        for (int i = 0; i < post.length; i++) {
+            assertTrue(r.onElement("Y", 7 + i, post[i], null).isEmpty(), "中位数 2.5 仍高于门限");
         }
-        ev = r.onElement("Y", 10, 0.0, null);                   // 最近六个里四个为 0，中位数 0 ≤ 1 / median drops
+        ev = r.onElement("Y", 13, 0.0, null);                   // 最近六个 5,5,0,0,0,0 的中位数 0 / median 0
         assertEquals(DriftEvent.Level.REVOKE, ev.get(0).level);
-        assertEquals(4, ev.get(0).checkedElements);
+        assertEquals(7, ev.get(0).checkedElements);
         assertFalse(r.isPending());
     }
 
