@@ -51,9 +51,17 @@ mkdir -p "$OUT_DIR"
 
 # 先写临时文件，非空才替换，读到 0 条时保留原文件并给出原因（与 syn-m3-grid.sh 同一做法）。
 # Temp file first, replace only when non-empty (same approach as syn-m3-grid.sh).
+# 条数上限取收集时刻各分区末端偏移之和（topic 每次复位后重建，起点为 0），读满即退出：打开性能层（M5b）时，它的监测快照
+# 按处理时间每 60 秒一条、在数据结束后仍持续写入，监测主题永远等不到 60 秒的空闲，只靠超时会一直读下去。
+# Cap at the end-offset sum taken now: M5b keeps writing processing-time snapshots after the data ends, so the
+# monitoring topic never goes idle for 60 s and the timeout alone would never end the dump.
 dump_topic() {   # $1 = topic, $2 = 文件名 / file name
+    local cap
+    cap="$(ssh fa-master "docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell \
+        --broker-list $BROKERS --topic $1 --time -1" 2>/dev/null | awk -F: '{s+=$3} END{print s+0}')"
+    [ "${cap:-0}" -gt 0 ] && [ "$cap" -lt "$MAX_MESSAGES" ] || cap="$MAX_MESSAGES"
     ssh fa-master "mkdir -p $WORK && chmod 777 $WORK && docker exec kafka-1 kafka-console-consumer.sh \
-        --bootstrap-server $BROKERS --topic $1 --from-beginning --max-messages $MAX_MESSAGES \
+        --bootstrap-server $BROKERS --topic $1 --from-beginning --max-messages $cap \
         --timeout-ms 60000 > $WORK/$2.tmp 2> $WORK/$2.err || true"
     local n
     n="$(ssh fa-master "wc -l < $WORK/$2.tmp 2>/dev/null || echo 0" | tr -d '[:space:]')"
