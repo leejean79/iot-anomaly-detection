@@ -17,7 +17,7 @@
 # 1. 执行环境 / Environment: 本地 Mac，仓库根目录；ssh 别名 fa-master、fa-worker1、fa-worker2 可用。编排在 master 的 tmux
 #    会话 syn-m5b-verify 里运行，start 之后本地 Mac 可以关机。
 # 2. 调用命令 / Invocation:
-#      bash deploy/scripts/syn-m5b-verify.sh start     # 立即返回；两次运行约 2 小时
+#      bash deploy/scripts/syn-m5b-verify.sh start     # 立即返回；两次运行合计约 2 至 3 小时
 #      bash deploy/scripts/syn-m5b-verify.sh status    # 随时查看进度
 #      bash deploy/scripts/syn-m5b-verify.sh fetch     # 跑完后把 docs/m5b/verify 拉回本地
 #      bash deploy/scripts/syn-m5b-verify.sh stop      # 中止：停编排、停重放、取消本项目作业
@@ -71,7 +71,7 @@ case "$CMD" in
                 (grep -q 'synergia-drift' deploy/.env || echo 'SYN_EXTRA_TOPICS=\"${SYN_EXTRA_TOPICS:-synergia-scores:4,synergia-monitoring:1,synergia-m1-out:1},synergia-drift:1\"' >> deploy/.env)"
         ssh fa-master "cd $RREPO && tmux new-session -d -s $TSESSION 'SYN_STEPC_ON_MASTER=1 bash deploy/scripts/syn-m5b-verify.sh start; sleep 5; while [ -f $DIR/verify.pid ] && kill -0 \$(cat $DIR/verify.pid) 2>/dev/null; do sleep 30; done'"
         sleep 5
-        remote_alive && echo "[m5b] 已在 master 的 tmux 会话 $TSESSION 中启动（两次短重放，约 2 小时）。本地 Mac 现在可以关机。" \
+        remote_alive && echo "[m5b] 已在 master 的 tmux 会话 $TSESSION 中启动（两次短重放，合计约 2 至 3 小时）。本地 Mac 现在可以关机。" \
             || { echo "ERROR: master 上的会话没有起来，请把 ssh fa-master 'tail -n 30 $RREPO/$LOG' 的输出发给我。" >&2; exit 1; }
         echo "      查看进度：bash $0 status    跑完后取回：bash $0 fetch"
         ;;
