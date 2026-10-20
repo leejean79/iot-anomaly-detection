@@ -12,7 +12,7 @@
 #      python3 m5b/prepare_streams.py
 #    可选：--scores docs/m3_a4/full_fix/m3_scores.jsonl（三次逐位相同运行之一的上下文通道评分）、
 #          --inject docs/m3_a4/full_fix/inject-truth.csv（注入真值）、--window-sec 600（评分窗长度，秒）、
-#          --out-dir docs/m5b。
+#          --out-dir docs/m5b、--no-exclude（不剔除注入区间，文件名加后缀 _with_injection，供判读口径第七条）。
 # 3. 前置条件 / Preconditions: 上述两个输入文件存在（随修正后全量重跑入库）。
 # 4. 期望产出 / Expected output: docs/m5b/streams_10min.csv、docs/m5b/streams_hourly.csv 与 docs/m5b/streams_summary.md
 #    （逐台元素数、剔除数、时间范围与相邻元素间隔分布）；终端打印同样的摘要。
@@ -41,7 +41,10 @@ def main() -> int:
     ap.add_argument("--inject", default="docs/m3_a4/full_fix/inject-truth.csv")
     ap.add_argument("--window-sec", type=int, default=600)
     ap.add_argument("--out-dir", default="docs/m5b")
+    ap.add_argument("--no-exclude", action="store_true",
+                    help="不剔除注入区间，输出文件名加后缀 _with_injection（判读口径第七条）")
     a = ap.parse_args()
+    suffix = "_with_injection" if a.no_exclude else ""
     for f in (a.scores, a.inject):
         if not os.path.exists(f):
             print("ERROR: 缺少 %s" % f, file=sys.stderr)
@@ -61,13 +64,13 @@ def main() -> int:
             if r.get("channel") != "m3_context":
                 continue
             d, we = r["device"], int(r["windowEnd"])
-            if any(we > s and we - a.window_sec < e for s, e in excl.get(d, [])):
+            if not a.no_exclude and any(we > s and we - a.window_sec < e for s, e in excl.get(d, [])):
                 dropped[d] += 1
                 continue
             rows[d].append((we, float(r["mainScore"]), bool(r["aboveThreshold"])))
 
     os.makedirs(a.out_dir, exist_ok=True)
-    with open(os.path.join(a.out_dir, "streams_10min.csv"), "w", newline="", encoding="utf-8") as f:
+    with open(os.path.join(a.out_dir, "streams_10min%s.csv" % suffix), "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["device", "window_end", "window_end_utc", "window_end_local", "main_score", "above_threshold"])
         for d in sorted(rows):
@@ -76,7 +79,7 @@ def main() -> int:
 
     # 小时粒度：按窗口末所在的世界协调时整点小时分组，取主分中位数，并记下该小时的元素数
     # Hourly: group by the UTC hour of the window end; median main score and element count.
-    with open(os.path.join(a.out_dir, "streams_hourly.csv"), "w", newline="", encoding="utf-8") as f:
+    with open(os.path.join(a.out_dir, "streams_hourly%s.csv" % suffix), "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["device", "hour_start", "hour_start_utc", "hour_start_local", "n", "median_main_score"])
         for d in sorted(rows):
@@ -98,7 +101,7 @@ def main() -> int:
             d, len(v), dropped[d], len({x // 3600 for x in v}), fmt(v[0], LOCAL), fmt(v[-1], LOCAL),
             100.0 * sum(g == 600 for g in gaps) / max(len(gaps), 1), sum(g > 3600 for g in gaps)))
     text = "\n".join(L) + "\n"
-    with open(os.path.join(a.out_dir, "streams_summary.md"), "w", encoding="utf-8") as f:
+    with open(os.path.join(a.out_dir, "streams_summary%s.md" % suffix), "w", encoding="utf-8") as f:
         f.write(text)
     print(text)
     return 0
