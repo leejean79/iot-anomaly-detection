@@ -60,19 +60,42 @@ case "$CMD" in
             echo $! > "$PIDF"
             exit 0
         fi
+        echo "[m5b] 1/4 检查 master 的准备状态……"
         ssh fa-master "test -f $RH/stepc.ready" \
             || { echo "ERROR: master 还不能登录三台机器，先执行：bash deploy/scripts/syn-m3-a4-stepc.sh setup-master" >&2; exit 2; }
         remote_alive && { echo "ERROR: master 上已有编排在运行。先 status 查看，或 stop 中止。" >&2; exit 3; }
-        # 复制 deploy/、m5b/ 与注入规格；.env 副本让 REST 走内网，并补上漂移主题 / copy and patch the .env copy
+        # 只复制受版本管理的 deploy/、m5b/ 文件，加上 .env 与注入规格，避免把本地未跟踪的大文件或特殊文件带上
+        # Copy only tracked files (plus .env and the spec) so untracked large or special files cannot stall the copy.
+        FILES=$(git ls-files deploy m5b; echo deploy/.env; echo "$SPEC")
+        echo "[m5b] 2/4 复制 $(echo "$FILES" | wc -l | tr -d ' ') 个文件到 master 的 $RREPO ……"
         ssh fa-master "mkdir -p $RREPO && rm -rf $RREPO/deploy $RREPO/docs $RREPO/m5b"
-        COPYFILE_DISABLE=1 tar czf - deploy m5b "$SPEC" \
+        # shellcheck disable=SC2086
+        COPYFILE_DISABLE=1 tar czf - $FILES \
             | ssh fa-master "tar --warning=no-unknown-keyword -xzf - -C $RREPO && cd $RREPO && \
                 echo 'NODE_MASTER_PUBLIC_IP=$NODE_MASTER_IP' >> deploy/.env && \
-                (grep -q 'synergia-drift' deploy/.env || echo 'SYN_EXTRA_TOPICS=\"${SYN_EXTRA_TOPICS:-synergia-scores:4,synergia-monitoring:1,synergia-m1-out:1},synergia-drift:1\"' >> deploy/.env)"
-        ssh fa-master "cd $RREPO && tmux new-session -d -s $TSESSION 'SYN_STEPC_ON_MASTER=1 bash deploy/scripts/syn-m5b-verify.sh start; sleep 5; while [ -f $DIR/verify.pid ] && kill -0 \$(cat $DIR/verify.pid) 2>/dev/null; do sleep 30; done'"
-        sleep 5
-        remote_alive && echo "[m5b] 已在 master 的 tmux 会话 $TSESSION 中启动（两次短重放，合计约 2 至 3 小时）。本地 Mac 现在可以关机。" \
-            || { echo "ERROR: master 上的会话没有起来，请把 ssh fa-master 'tail -n 30 $RREPO/$LOG' 的输出发给我。" >&2; exit 1; }
+                (grep -q '^SYN_EXTRA_TOPICS=.*synergia-drift' deploy/.env || echo 'SYN_EXTRA_TOPICS=\"${SYN_EXTRA_TOPICS:-synergia-scores:4,synergia-monitoring:1,synergia-m1-out:1},synergia-drift:1\"' >> deploy/.env)" \
+            || { echo "ERROR: 复制到 master 失败（见上方 tar 或 ssh 的报错）。" >&2; exit 1; }
+        ssh fa-master "test -f $RREPO/deploy/scripts/syn-m5b-verify.sh && test -f $RREPO/$SPEC && test -f $RREPO/m5b/compare_events.py" \
+            || { echo "ERROR: master 上的仓库副本不完整，请把 ssh fa-master 'find $RREPO -maxdepth 3 | head -50' 的输出发给我。" >&2; exit 1; }
+        echo "[m5b] 3/4 在 master 上启动 tmux 会话 $TSESSION ……"
+        ssh fa-master "cd $RREPO && tmux new-session -d -s $TSESSION 'SYN_STEPC_ON_MASTER=1 bash deploy/scripts/syn-m5b-verify.sh start; sleep 5; while [ -f $DIR/verify.pid ] && kill -0 \$(cat $DIR/verify.pid) 2>/dev/null; do sleep 30; done'" \
+            || { echo "ERROR: tmux 会话创建失败（见上方报错）。" >&2; exit 1; }
+        echo "[m5b] 4/4 等待第一行进度……"
+        for _ in $(seq 1 12); do
+            ssh fa-master "test -s $RREPO/$PROGRESS" && break
+            sleep 5
+        done
+        if ssh fa-master "test -s $RREPO/$PROGRESS"; then
+            ssh fa-master "tail -n 3 $RREPO/$PROGRESS"
+            if ssh fa-master "grep -q '失败' $RREPO/$PROGRESS"; then
+                echo "ERROR: 编排已经失败（见上方进度）。请执行 bash $0 fetch，把 $DIR/ 下的 progress.txt 与相应日志发给我。" >&2
+                exit 1
+            fi
+            echo "[m5b] 已在 master 的 tmux 会话 $TSESSION 中启动（两次短重放，合计约 2 至 3 小时）。本地 Mac 现在可以关机。"
+        else
+            echo "ERROR: 60 秒内没有进度记录。请把 ssh fa-master 'tail -n 30 $RREPO/$LOG; tmux ls' 的输出发给我。" >&2
+            exit 1
+        fi
         echo "      查看进度：bash $0 status    跑完后取回：bash $0 fetch"
         ;;
     status)
