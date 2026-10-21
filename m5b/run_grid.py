@@ -149,8 +149,11 @@ def _index(ts_list, ts):
     return lo
 
 
-def segment_stats(seg, events, fwr, blind):
-    """一段的候选、确认、F 计数与盲区内错过 / per-segment statistics."""
+def segment_stats(seg, events, fwr, blind, elem_ts=None):
+    """一段的候选、确认、F 计数、盲区内错过与时延 / per-segment statistics including delays.
+
+    时延（验收项四）：从段的开始到第一个归属于它的候选、到第一次归属于它的确认，给出分钟数与其间的元素数
+    （元素时刻落在 (段开始, 候选或确认时刻] 之内）。/ delay from the segment start to the first candidate / confirm."""
     dev = seg["device"]
     cands = [e for e in events if e["device"] == dev and e["level"] == "CANDIDATE" and attributed(e["ts"], seg)]
     confs = [e for e in events if e["device"] == dev and e["level"] == "CONFIRM" and attributed(e["candidate_ts"], seg)]
@@ -160,7 +163,17 @@ def segment_stats(seg, events, fwr, blind):
                 first_confirm_ts=min(e["ts"] for e in confs) if confs else 0,
                 first_confirm_test=min(confs, key=lambda e: e["ts"])["test"] if confs else "",
                 fwr=sum(1 for d, t in fwr if d == dev and seg["start"] <= t < seg["end"]),
-                blind_miss=int(in_blind and not cands))
+                blind_miss=int(in_blind and not cands),
+                cand_delay=_delay(seg, min(e["ts"] for e in cands) if cands else 0, elem_ts, dev),
+                confirm_delay=_delay(seg, min(e["ts"] for e in confs) if confs else 0, elem_ts, dev))
+
+
+def _delay(seg, ts, elem_ts, dev):
+    """（分钟数, 元素数）；没有事件时为空 / (minutes, elements) or blanks."""
+    if not ts:
+        return "", ""
+    n = sum(1 for t in elem_ts[dev] if seg["start"] < t <= ts) if elem_ts else ""
+    return "%.0f" % ((ts - seg["start"]) / 60.0), n
 
 
 # ---------------------------------------------------------------- 输入 / inputs
@@ -254,10 +267,10 @@ def analyse(c, events, fwr, elem_ts, stable, scale, gas, segs_main, ev_inj, fwr_
     blind, blind_inj = blind_intervals(events, elem_ts), blind_intervals(ev_inj, elem_inj)
     seg_rows = []
     for seg in segs_main:
-        st = segment_stats(seg, events, fwr, blind)
+        st = segment_stats(seg, events, fwr, blind, elem_ts)
         seg_rows.append((seg, st))
     for seg in inj_segs:
-        seg_rows.append((seg, segment_stats(seg, ev_inj, fwr_inj, blind_inj)))
+        seg_rows.append((seg, segment_stats(seg, ev_inj, fwr_inj, blind_inj, elem_inj)))
     for seg, st in seg_rows:
         rows_out["segments"].append(dict(combo=cid, item=seg["item"], segment=seg["name"], device=seg["device"],
                                          note=seg.get("why", ""), candidates=st["candidates"],
@@ -266,7 +279,10 @@ def analyse(c, events, fwr, elem_ts, stable, scale, gas, segs_main, ev_inj, fwr_
                                          first_confirm_utc=utc(st["first_confirm_ts"]) if st["first_confirm_ts"] else "",
                                          first_confirm_local=local(st["first_confirm_ts"]) if st["first_confirm_ts"] else "",
                                          first_confirm_test=st["first_confirm_test"], fwr=st["fwr"],
-                                         blind_miss=st["blind_miss"]))
+                                         blind_miss=st["blind_miss"],
+                                         cand_delay_min=st["cand_delay"][0], cand_delay_elements=st["cand_delay"][1],
+                                         confirm_delay_min=st["confirm_delay"][0],
+                                         confirm_delay_elements=st["confirm_delay"][1]))
     by_item = collections.defaultdict(list)
     for seg, st in seg_rows:
         by_item[seg["item"]].append((seg, st))
@@ -443,15 +459,19 @@ def report(path, summary, rows_out, base_rows, base_seg, java_note, scale, gas, 
     for item, title in (("2", "第 2 条：三月尾段"), ("3", "第 3 条（按段归属）与第 5 条：尺度漂移日"),
                         ("4", "第 4 条：C 日照直射与傍晚气体上升"), ("7", "第 7 条：注入（不剔除注入的元素流）")):
         p("### %s\n" % title)
-        p("| 段 | 设备 | 候选 | 第一个候选的检验 | 有确认 | 第一次确认（UTC / 当地） | 检验 | 方差显著但均值未升 | 盲区内错过 | 注 |")
-        p("| --- |" + " --- |" * 9)
+        p("| 段 | 设备 | 候选 | 第一个候选的检验 | 到候选（分钟 / 元素） | 有确认 | 第一次确认（UTC / 当地） | 检验 | "
+          "到确认（分钟 / 元素） | 方差显著但均值未升 | 盲区内错过 | 注 |")
+        p("| --- |" + " --- |" * 11)
         for r in rows_out["segments"]:
             if r["combo"] == cid and r["item"] == item:
                 note = r["note"] or (("评分从 " + LATE_START[r["device"]] + " 才开始") if item == "2" and r["device"] in LATE_START else "")
-                p("| %s | %s | %d | %s | %s | %s | %s | %d | %s | %s |" % (
-                    r["segment"], r["device"], r["candidates"], r["first_candidate_test"] or "—", yn(r["has_confirm"]),
+                dl = lambda m, n: ("%s / %s" % (m, n)) if m != "" else "—"
+                p("| %s | %s | %d | %s | %s | %s | %s | %s | %s | %d | %s | %s |" % (
+                    r["segment"], r["device"], r["candidates"], r["first_candidate_test"] or "—",
+                    dl(r["cand_delay_min"], r["cand_delay_elements"]), yn(r["has_confirm"]),
                     ("%s / %s" % (r["first_confirm_utc"], r["first_confirm_local"])) if r["first_confirm_utc"] else "—",
-                    r["first_confirm_test"] or "—", r["fwr"], yn(r["blind_miss"]), note))
+                    r["first_confirm_test"] or "—", dl(r["confirm_delay_min"], r["confirm_delay_elements"]),
+                    r["fwr"], yn(r["blind_miss"]), note))
         p("")
     p("### 第 3 条：按确认时刻所在的日子\n")
     p("| 列 | 设备 | 日 | 超标通道（宽度倍数） | 确认 | F | T |")
@@ -507,7 +527,9 @@ def self_test():
     assert st["blind_miss"] == 1 and st["candidates"] == 0
     st = segment_stats(dict(start=50 * u, end=120 * u, device="X"), ev, [], b)
     assert st["candidates"] == 2 and st["blind_miss"] == 0 and st["first_candidate_test"] == "F"
-    assert st["has_confirm"] == 0
+    assert st["has_confirm"] == 0 and st["cand_delay"][1] == "" and st["confirm_delay"] == ("", "")
+    st = segment_stats(dict(start=50 * u, end=120 * u, device="X"), ev, [], b, elem)
+    assert st["cand_delay"] == ("%.0f" % (50 * u / 60.0), 5), st["cand_delay"]
     assert local(BST_START - 60).endswith("00:59") and local(BST_START).endswith("02:00")
     print("自检通过。")
     return 0
