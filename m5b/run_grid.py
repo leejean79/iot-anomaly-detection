@@ -313,6 +313,18 @@ def analyse(c, events, fwr, elem_ts, stable, scale, gas, segs_main, ev_inj, fwr_
         rows_out["trigger_tests"].append(dict(combo=cid, device=d, confirms=len(cs), F=nf, T=len(cs) - nf,
                                               F_share=("%.3f" % (nf / len(cs))) if cs else ""))
     S["F_share"] = ("%.3f" % (fleet_f / fleet_n)) if fleet_n else ""
+
+    # 每一次确认的幅度与候选时刻的历史标准差（2026-10-21 补充，只报告，不设门限）
+    # Per confirm: (median of the last six post-candidate elements − reference) / historical sd at the candidate.
+    for e in events:
+        if e["level"] == "CONFIRM":
+            sd = e["hist_sd"]
+            rows_out["confirms"].append(dict(
+                combo=cid, device=e["device"], confirm_utc=utc(e["ts"]), confirm_local=local(e["ts"]),
+                candidate_utc=utc(e["candidate_ts"]), test=e["test"],
+                on_stable_day=int(day_of(e["ts"]) in stable[e["device"]]),
+                reference=repr(e["reference"]), last_median=repr(e["last_median"]), hist_sd=repr(sd),
+                confirm_magnitude=repr((e["last_median"] - e["reference"]) / sd) if sd > 0 else ""))
     S["fwr_total"], S["fwr_stable"] = tot["fwr_total"], tot["fwr_stable"]
     return S
 
@@ -455,6 +467,18 @@ def report(path, summary, rows_out, base_rows, base_seg, java_note, scale, gas, 
     for r in rows_out["trigger_tests"]:
         if r["combo"] == cid:
             p("| %s | %d | %d | %d | %s |" % (r["device"], r["confirms"], r["F"], r["T"], r["F_share"] or "—"))
+    p("\n### 每一次确认的幅度与候选时刻的历史标准差\n")
+    p("确认的幅度 =（确认时候选之后最近六个元素的中位数 − 参照值）÷ 候选时刻的历史段标准差；参照值为候选时刻的历史段中位数。"
+      "历史标准差为 0 时幅度留空。确认要求中位数高于参照值 + 鲁棒度 × 历史标准差，所以幅度按构造必然大于鲁棒度；以主分为单位的绝对"
+      "幅度是「幅度 × 历史标准差」，即最近六个的中位数减参照值。只报告、不设门限（2026-10-21 补充）。全部组合见 `confirms.csv`。\n")
+    p("| 设备 | 确认（UTC / 当地） | 候选（UTC） | 检验 | 平稳日 | 参照值 | 最近六个的中位数 | 历史标准差 | 确认的幅度 |")
+    p("| --- |" + " --- |" * 8)
+    for r in rows_out["confirms"]:
+        if r["combo"] == cid:
+            p("| %s | %s / %s | %s | %s | %s | %.4g | %.4g | %.4g | %s |" % (
+                r["device"], r["confirm_utc"], r["confirm_local"], r["candidate_utc"], r["test"],
+                yn(r["on_stable_day"]), float(r["reference"]), float(r["last_median"]), float(r["hist_sd"]),
+                ("%.3f" % float(r["confirm_magnitude"])) if r["confirm_magnitude"] else "—"))
     p("\n## 五、输入摘要\n")
     p("平稳日（逐台）：%s。\n" % "；".join("%s %d 天" % (d, len(stable[d])) for d in DEVICES))
     p("尺度漂移日（逐台，主表 / 敏感性）：%s。\n" % "；".join("%s %d / %d" % (d, len(scale[d]), len(gas[d])) for d in DEVICES))
