@@ -330,7 +330,7 @@ def analyse(c, events, fwr, elem_ts, stable, scale, gas, segs_main, ev_inj, fwr_
 
 
 def selection(summary):
-    """第四节的参数选择规则（草案，待设计会话确认）/ section 4 selection rule (draft)."""
+    """第四节的参数选择规则（2026-10-21 设计会话确认）/ section 4 selection rule (confirmed)."""
     by = {(s["confidence"], s["robustness"], s["granularity"], s["k"]): s for s in summary}
     dflt = by[DEFAULT]
     neigh = [((0.999, 0.5, "10min", 36), "置信度 0.999", True), ((0.99, 0.3, "10min", 36), "鲁棒度 0.3", True),
@@ -377,7 +377,7 @@ def report(path, summary, rows_out, base_rows, base_seg, java_note, scale, gas, 
       "同一个候选可能同时归属于相邻的几段（例如间隔不到 6 小时的注入），各段分别计。表甲的「尾段候选」按候选时刻落在 03-24 至 03-27 "
       "四天之内计；逐台明细表中各段的「候选」按归属规则计。长表在 `%s/`。\n" % (datetime.now().strftime("%Y-%m-%d %H:%M"), out_dir))
     p("Java 与 Python 的等值：%s\n" % java_note)
-    p("## 一、第四节参数选择规则的结论（规则为代码开发代理拟定的草案，待设计会话确认）\n")
+    p("## 一、第四节参数选择规则的结论（规则于 2026-10-21 经设计会话确认，在运行之前）\n")
     p("默认组合：平稳日确认 %d 条，三月尾段有确认的设备 %d 台，有确认的尺度漂移日 %d 个设备日。\n"
       % (dflt["i1_confirms_on_stable"], dflt["i2_devices_confirmed"], dflt["i3_days_confirmed"]))
     p("| 邻近组合 | 平稳日确认 | 默认明显更高（多 50% 且至少多 3 条） | 尾段有确认的设备数 | 不比默认差 | 有确认的尺度漂移日 | 不比默认差 | 满足三条 |")
