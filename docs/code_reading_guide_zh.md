@@ -579,7 +579,7 @@ M3 的输出水位线保持（补遗四，把 M3 训练移出任务线程后的�
     `syn-m2-late-drop-history.sh`、`syn-m3-after-reboot.sh`。
   - 离线参照：`syn-m2-probe.sh`、`syn-m2-baseline.sh`、`syn-m3-grid.sh`。
   - M5b：`syn-m5b-verify.sh`（打开与关闭性能层的两次短重放，核对在线与离线等值、上游评分不变、至少一次确认）；
-    `m5b/` 下的 Python 工具（元素流整理、参考实现、常量表核对、事件比较、漂移主题转储转 CSV）。
+    `m5b/` 下的 Python 工具（元素流整理、参考实现、常量表核对、事件比较、漂移主题转储转 CSV、离线网格 `run_grid.py`）。
   - 报告生成（Python）：`m3_coldstart_report.py`、`m3_v34_report.py`、`m3_dual_channel_week.py`、
     `m3_injection_recall.py`（V-M3-5 召回表与双通道对注入的响应）、`m3_bh_analysis.py`（B、H 误报偏高的并行分析）。
 - `eda/`：探索性数据分析与只读原始 CSV 的工具（`count_rounds.py`、`daily_channel_profile.py`、`make_injection_specs.py`、
