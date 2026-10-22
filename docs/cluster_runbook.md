@@ -270,6 +270,22 @@ M2 与 M1 共用同一套集群流程（§3–§6 全部适用），只有以下
 - **预热与单日的关系（M2 尤其要记）**：见 §7 footgun——单日重放整天都在预热期，M2 不 admit、scores
   空，属预期；要看 M2 产出得重放 ≥1.x 天或临时 `--warmup-rounds` 小预热。
 
+## 7.2 性能层漂移监测（M5b）的参数说明 / M5b parameters
+
+性能层接在 M3 之后、同一个 `M2Job` 里，由 `--m5b-enabled true` 打开（默认关闭；正式运行时打开，须同时 `--m3-enabled true`）。
+收口时冻结的配置与依据见 `docs/handover/m5b_closeout_zh.md` 第二节。
+
+- **默认参数**：`--m5b-confidence 0.99 --m5b-robustness 0.5 --m5b-granularity 10min --m5b-k 36`（窗上限默认 2,016，即十四天的
+  十分钟元素）。离线网格按运行前写定的口径保持了这一组合（`docs/reports/m5b_offline_grid.md`）。
+- **小时粒度不适合本数据的时间尺度**：检测器要攒够 30 个元素才开始检验，小时粒度下就是 30 小时，窗上限也只有 336；离线网格中
+  小时粒度在三月事件尾段零确认。除非有新的裁决，不要用 `--m5b-granularity hourly`。
+- **鲁棒度 0.1 退化为对半切分**：在窗上限 2,016 以内式 4.1 无根，切点一律取窗长的一半，最优切点机制失效（鲁棒度 0.3 的首个有根
+  窗长为 433，0.5 为 179）。
+- **输出**：漂移事件写 `synergia-drift`（须在 `.env` 的 `SYN_EXTRA_TOPICS` 中列出 `synergia-drift:1`）；监测快照写
+  `synergia-monitoring`，`windowEnd = -2`。
+- **注意快照按处理时间持续写入**：数据结束后每台设备仍每 60 秒写一条快照，监测主题永远不会空闲。转储监测主题时必须按末端偏移
+  限定条数（`syn-m3-march-collect.sh` 已这样做），不能只靠「60 秒无新消息」的超时。
+
 ---
 
 ## 8. 日志与产物留存 / Logs & artifacts
