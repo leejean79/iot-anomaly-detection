@@ -5,7 +5,8 @@
 #   一、逐台的标定窗口：从 2022-03-01 00:00 UTC 起按轮（同一设备的不同时间戳）计数，第 60,480 轮处冻结（与数据接入模块
 #       --calib-days 7 的口径相同），给出冻结时刻；
 #   二、效应量门槛 D 零的推导表：标定窗口内每个完整的当地日，与整个标定窗口做两样本分布检验（精确经验累积分布），逐台逐通道
-#       逐日给出 D；D 零 = 全部 D 的最大值向上取整到两位小数（决定三），并列出最大的十个来源；
+#       逐日给出 D；D 零 = 全部 D 的最大值向上取整到两位小数（决定三），并列出最大的十个来源；1.04 版起另给逐通道推导
+#       （光照剔除 G），并在同一组参照分位数箱上算似然比（G）检验，以 G ÷ 2n（KL 散度估计）为效应量，同法推导 G 零；
 #   三、直方图近似的核查：对每台每通道，按交接文档的「四百个等宽箱，范围为实测范围加余量」与另一种「按参照分位数等质量分箱」
 #       各算一遍，给出参照样本在单个箱里的最大质量，以及标定日上分箱 D 与精确 D 的最大差。
 # 读数在变换域处理（光照取 log1p，与数据接入模块相同）；光照等于 65536 的右删失读数不计入，与标定相同。分布检验的 D 与分箱 D
@@ -97,6 +98,23 @@ def binned_d(edges, a, b):
     return float(np.max(np.abs(ca - cb)))
 
 
+def g_test(edges, x, ref):
+    """似然比（G）检验：当日在参照分位数箱上的频数对参照比例，G = 2 Σ O ln(O/E)；返回 (G, 自由度, G ÷ 2n)。
+    G ÷ 2n 是两分布的 KL 散度（自然对数）的估计，不随样本量增长，作为 G 检验的效应量。
+    Likelihood-ratio (G) test on the reference-quantile bins; G/(2n) estimates the KL divergence (effect size)."""
+    rs, xs = np.sort(ref), np.sort(x)
+    cr = np.searchsorted(rs, edges, side="right")
+    cx = np.searchsorted(xs, edges, side="right")
+    pr = np.diff(np.concatenate([[0], cr, [len(rs)]])) / len(rs)
+    ox = np.diff(np.concatenate([[0], cx, [len(xs)]])).astype(float)
+    keep = pr > 0
+    e = len(xs) * pr[keep]
+    o = ox[keep]
+    nz = o > 0
+    g = 2.0 * float(np.sum(o[nz] * np.log(o[nz] / e[nz])))
+    return g, int(keep.sum()) - 1, g / (2.0 * len(xs))
+
+
 def p_value(d, n, m):
     """渐近 p 值：Q_KS(√(nm/(n+m))·D)（与 scipy 的 asymp 方法相同的极限分布）/ asymptotic p-value."""
     lam = math.sqrt(n * m / (n + m)) * d
@@ -160,10 +178,12 @@ def main() -> int:
                     continue
                 de = ks_d(x, v)
                 be, bq = binned_d(ew, x, v), binned_d(qe, x, v)
+                gs, gdf, gk = g_test(qe, x, v)
                 err_ew, err_q = max(err_ew, abs(de - be)), max(err_q, abs(de - bq))
                 drows.append(dict(device=dev, channel=ch, day=day, n=len(x), m=len(v), D=round(de, 4),
                                   D_equal_width=round(be, 4), D_quantile=round(bq, 4),
-                                  p_asymp="%.3g" % p_value(de, len(x), len(v))))
+                                  p_asymp="%.3g" % p_value(de, len(x), len(v)),
+                                  G=round(gs, 2), G_df=gdf, G_over_2n=round(gk, 5)))
             hrows.append(dict(device=dev, channel=ch, m=len(v), distinct=int(len(np.unique(v))), lo=round(lo, 4), hi=round(hi, 4),
                               equal_width_bin=round((ew[1] - ew[0]), 5), equal_width_max_bin_mass=round(float(ew_mass), 4),
                               quantile_edges=len(qe), quantile_max_bin_mass=round(q_mass, 4),
@@ -201,6 +221,19 @@ def write_report(a, W, D, H, nfiles, nread):
     L += ["逐通道的最大值（只供参考，决定三是在设备与通道上一起取最大）：" + "；".join(
         "%s %.4f（%s %s）" % (ch, g["D"].max(), g.loc[g["D"].idxmax(), "device"], g.loc[g["D"].idxmax(), "day"])
         for ch, g in D.groupby("channel")) + "。", ""]
+    L += ["**逐通道推导（开发设计日志 1.04 版，做法乙）**：每个通道在八台设备与七个完整标定日上取最大值，向上取整到两位小数（G 零同法，"
+          "以 G ÷ 2n 为效应量）；光照通道剔除设备 G（标定窗口内有已登记的状态变化）。", "",
+          "| 通道 | D 零 | D 的最大值（来源） | G 零（G ÷ 2n） | G ÷ 2n 的最大值（来源） | 参与推导的设备日 |",
+          "| --- | --- | --- | --- | --- | --- |"]
+    for ch in CHANNELS:
+        g = D[(D["channel"] == ch) & ~((D["channel"] == "Light") & (D["device"] == "G"))]
+        if g.empty:
+            continue
+        rd, rg = g.loc[g["D"].idxmax()], g.loc[g["G_over_2n"].idxmax()]
+        L.append("| %s | %.2f | %.4f（%s %s） | %.2f | %.5f（%s %s） | %d |" % (
+            ch, math.ceil(rd["D"] * 100) / 100, rd["D"], rd["device"], rd["day"],
+            math.ceil(rg["G_over_2n"] * 100) / 100, rg["G_over_2n"], rg["device"], rg["day"], len(g)))
+    L += [""]
     L += ["逐台逐通道的最大值：", "", "| 设备 | " + " | ".join(CHANNELS) + " |", "| --- |" + " --- |" * len(CHANNELS)]
     for dev, g in D.groupby("device"):
         L.append("| %s | %s |" % (dev, " | ".join("%.3f" % g[g["channel"] == c]["D"].max() if (g["channel"] == c).any() else "—"
