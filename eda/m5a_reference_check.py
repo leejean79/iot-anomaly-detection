@@ -98,21 +98,34 @@ def binned_d(edges, a, b):
     return float(np.max(np.abs(ca - cb)))
 
 
+def ref_edges(ref, bins):
+    """参照分位数边界：排序后取第 ⌊j(m−1)/bins⌋ 个顺序统计量（j = 0…bins），去重。边界都是参照样本里的值，
+    所以每个内部箱至少含一个参照读数。/ order-statistic quantile edges, deduplicated."""
+    s = np.sort(ref)
+    idx = (np.arange(bins + 1) * (len(s) - 1)) // bins
+    return np.unique(s[idx])
+
+
+def cells(edges, x):
+    """箱频数：下溢 (−∞, e0)、[e0, e1]、(e(i−1), e(i)]…、上溢 (eK, +∞)，共 K + 2 个箱。/ K + 2 cell counts."""
+    xs = np.sort(x)
+    under = np.searchsorted(xs, edges[0], side="left")
+    c = np.searchsorted(xs, edges, side="right")
+    return np.concatenate([[under], [c[0] - under], np.diff(c), [len(xs) - c[-1]]]).astype(float)
+
+
 def g_test(edges, x, ref):
-    """似然比（G）检验：当日在参照分位数箱上的频数对参照比例，G = 2 Σ O ln(O/E)；返回 (G, 自由度, G ÷ 2n)。
-    G ÷ 2n 是两分布的 KL 散度（自然对数）的估计，不随样本量增长，作为 G 检验的效应量。
-    Likelihood-ratio (G) test on the reference-quantile bins; G/(2n) estimates the KL divergence (effect size)."""
-    rs, xs = np.sort(ref), np.sort(x)
-    cr = np.searchsorted(rs, edges, side="right")
-    cx = np.searchsorted(xs, edges, side="right")
-    pr = np.diff(np.concatenate([[0], cr, [len(rs)]])) / len(rs)
-    ox = np.diff(np.concatenate([[0], cx, [len(xs)]])).astype(float)
-    keep = pr > 0
-    e = len(xs) * pr[keep]
-    o = ox[keep]
+    """似然比（G）检验：当日箱频数对参照比例，G = 2 Σ O ln(O/E)；返回 (G, 自由度, G ÷ 2n)。
+    参照频数在每个箱（含两个溢出箱）上各加 0.5 再归一化作为期望比例（1.05 版确认），推导与实验同用。
+    G ÷ 2n 是 KL 散度（自然对数）的估计，作为 G 检验的效应量；正偏差约为（非空箱数 − 1）÷ 2n，不做校正。
+    G test with reference counts smoothed by +0.5 in every cell (both overflow cells included)."""
+    cr = cells(edges, ref) + 0.5
+    pr = cr / cr.sum()
+    o = cells(edges, x)
+    e = len(x) * pr
     nz = o > 0
     g = 2.0 * float(np.sum(o[nz] * np.log(o[nz] / e[nz])))
-    return g, int(keep.sum()) - 1, g / (2.0 * len(xs))
+    return g, len(o) - 1, g / (2.0 * len(x))
 
 
 def p_value(d, n, m):
@@ -165,7 +178,7 @@ def main() -> int:
             lo, hi = float(v.min()), float(v.max())
             span = (hi - lo) or 1.0
             ew = np.linspace(lo - a.margin * span, hi + a.margin * span, a.bins + 1)
-            qe = np.unique(np.quantile(v, np.linspace(0, 1, a.bins + 1)))
+            qe = ref_edges(v, a.bins)
             ew_mass = np.histogram(v, bins=ew)[0].max() / len(v)
             # 分位数箱：边界上的并列值各成一箱，最大质量按「不大于该边界」的累积跳跃计
             cq = np.searchsorted(np.sort(v), qe, side="right") / len(v)
@@ -222,7 +235,7 @@ def write_report(a, W, D, H, nfiles, nread):
         "%s %.4f（%s %s）" % (ch, g["D"].max(), g.loc[g["D"].idxmax(), "device"], g.loc[g["D"].idxmax(), "day"])
         for ch, g in D.groupby("channel")) + "。", ""]
     L += ["**逐通道推导（开发设计日志 1.04 版，做法乙）**：每个通道在八台设备与七个完整标定日上取最大值，向上取整到两位小数（G 零同法，"
-          "以 G ÷ 2n 为效应量）；光照通道剔除设备 G（标定窗口内有已登记的状态变化）。", "",
+          "以 G ÷ 2n 为效应量；G 检验的参照频数在每个箱含两个溢出箱上各加 0.5 再归一化，1.05 版；分位数边界取顺序统计量）；光照通道剔除设备 G（标定窗口内有已登记的状态变化）。", "",
           "| 通道 | D 零 | D 的最大值（来源） | G 零（G ÷ 2n） | G ÷ 2n 的最大值（来源） | 参与推导的设备日 |",
           "| --- | --- | --- | --- | --- | --- |"]
     for ch in CHANNELS:
