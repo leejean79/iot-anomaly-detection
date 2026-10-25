@@ -286,6 +286,22 @@ M2 与 M1 共用同一套集群流程（§3–§6 全部适用），只有以下
 - **注意快照按处理时间持续写入**：数据结束后每台设备仍每 60 秒写一条快照，监测主题永远不会空闲。转储监测主题时必须按末端偏移
   限定条数（`syn-m3-march-collect.sh` 已这样做），不能只靠「60 秒无新消息」的超时。
 
+## 7.3 数据层漂移监测（M5a）的参数说明与短重放验证 / M5a parameters and the short-replay check
+
+数据层在同一个 `M2Job` 里，由 `--m5a-enabled true` 打开（默认关闭）。它有两路输入：标准化轮与点通道离群记录，不依赖 M3。
+
+- **默认参数**：`--m5a-alpha 0.01`（按五个通道做邦费罗尼校正）、`--m5a-d0 0.38/0.73/0.84/0.43/0.51`（温度、湿度、气压、气体、光照，
+  1.05 版冻结）、`--m5a-missing-max 0.2`、`--m5a-guard-max 0.2`；离群率检测器 `--m5a-confidence 0.99 --m5a-robustness 0.5
+  --m5a-wmax 2016`，与性能层默认组合相同，不经持续性核对（1.09 版第一节）。
+- **输出**：状态转移（DEVIATE、RECOVER）与爆发（BURST）写 `synergia-drift`，与性能层事件同一主题，用 `layer` 字段区分；日记录写
+  `synergia-monitoring`，`windowEnd = -3`。日记录与状态转移在布里斯托当地日结束时发出，爆发在报警元素之后一小时以上才发出。
+- **上游的改动**：`RobustScalerFunction` 冻结时建参照直方图，挂在冻结后的第一条轮上，所以 `synergia-m1-out` 中每台设备有一条轮
+  多一个 `refHistograms` 字段（约 30 KB）。这一改动与数据层开关无关。
+- **短重放验证（V-M5a-3 短重放等值、V-M5a-5 性能）**：`bash deploy/scripts/syn-m5a-verify.sh start`，在 master 的 tmux 会话里无人值守
+  运行两次短重放（默认 2022-03-24 至 03-31，打开与关闭数据层各一次），合计约 4 小时。用户只需要在场两次：开头执行 `start`（提交后
+  本地 Mac 可以关机），结尾执行 `fetch` 取回 `docs/m5a/verify/`。中途查看进度：`bash deploy/scripts/syn-m5a-verify.sh status`。
+  前置条件：`syn-m3-a4-stepc.sh setup-master` 已做过、新 jar 已通过 `check-jar.sh` 并上传、集群上没有本项目的作业在运行。
+
 ---
 
 ## 8. 日志与产物留存 / Logs & artifacts

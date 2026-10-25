@@ -12,6 +12,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.InstantiationUtil;
 import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,7 +72,11 @@ public class M5aFunction extends KeyedCoProcessFunction<String, DeviceRound, Sco
         List<DriftEvent> events = new ArrayList<>();
         List<MonitoringSnapshot> records = new ArrayList<>();
         long before = c.openDayEnd();
+        long t0 = System.nanoTime();
         long dayEnd = c.onRound(r, params, events, records);
+        if (!records.isEmpty()) {
+            logDayClose(r.getDevice(), records, System.nanoTime() - t0, c);
+        }
         if (dayEnd != before) {
             ctx.timerService().registerEventTimeTimer(dayEnd * 1000L);
         }
@@ -100,7 +105,11 @@ public class M5aFunction extends KeyedCoProcessFunction<String, DeviceRound, Sco
         long t = timestamp / 1000L;
         c.closeBinsUpTo(t, device, params, tables, events);
         if (c.openDayEnd() > 0 && c.openDayEnd() <= t) {
+            long t0 = System.nanoTime();
             c.closeDay(device, params, events, records);
+            if (!records.isEmpty()) {
+                logDayClose(device, records, System.nanoTime() - t0, c);
+            }
         }
         for (MonitoringSnapshot s : records) {
             ctx.output(recordTag, s);
@@ -109,6 +118,25 @@ public class M5aFunction extends KeyedCoProcessFunction<String, DeviceRound, Sco
             out.collect(e);
         }
         core.update(c);
+    }
+
+    /**
+     * 日界处理的耗时与关闭后的状态大小（Java 序列化字节数，近似检查点里的体积），供验收项五（性能）取数。
+     * Day-close cost and the state size after closing (Java-serialized bytes), for V-M5a-5.
+     */
+    private static void logDayClose(String device, List<MonitoringSnapshot> records, long nanos, M5aCore c) {
+        int n = 0;
+        for (MonitoringSnapshot s : records) {
+            n += s.getM5aN();
+        }
+        int bytes;
+        try {
+            bytes = InstantiationUtil.serializeObject(c).length;
+        } catch (java.io.IOException e) {
+            bytes = -1;
+        }
+        LOG.info("[M5a] Device {} day {} closed in {} us: {} values, state {} bytes", device, records.get(0).getM5aDay(),
+                 nanos / 1000L, n, bytes);
     }
 
     private void emit(List<DriftEvent> events, List<MonitoringSnapshot> records, Collector<DriftEvent> out, Context ctx) {

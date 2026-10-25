@@ -43,12 +43,17 @@ def main() -> int:
             bad += 1
     rows.sort(key=lambda r: r["device"])                     # 稳定排序，保留设备内的发出顺序 / stable
     events = []
+    other = 0
     for r in rows:
+        if r.get("layer", "performance") != "performance":     # 数据层（M5a）事件同在漂移主题，不在此列 / skip M5a events
+            other += 1
+            continue
         e = {k: r[v] for k, v in FIELDS.items()}
         e["during_check"] = int(bool(e["during_check"]))
         events.append(e)
     ow.write_events(events, sys.argv[2])
-    print("事件 %d 条（%s）；无法解析 %d 行" % (len(events), dict(collections.Counter(e["level"] for e in events)), bad))
+    print("事件 %d 条（%s）；无法解析 %d 行；跳过数据层事件 %d 条" % (len(events), dict(collections.Counter(e["level"] for e in events)),
+                                                       bad, other))
     return 0
 
 

@@ -92,6 +92,7 @@ checks=(
     "com/leejean/m5/OptWinOfflineRunner.class|time-col|Java 离线运行器（V-M5b-3 离线与在线等值）"
     "com/leejean/m2/M2Job.class|m5b-enabled|性能层开关参数（M5b 阶段，默认关闭）"
     "com/leejean/m5a/M5aFunction.class|[M5a] tables built in|数据层漂移监测算子（M5a 阶段）"
+    "com/leejean/m5a/M5aFunction.class|closed in {} us|日界处理耗时与状态大小的日志（V-M5a-5 性能）"
     "com/leejean/m5a/M5aOfflineRunner.class|online-drift|Java 离线运行器与在线转换模式（V-M5a-3 短重放等值）"
     "com/leejean/m1/RobustScalerFunction.class|rs-ref-histograms|冻结时建参照直方图（M5a 长记忆一族）"
     "com/leejean/m2/M2Job.class|m5a-enabled|数据层开关参数（M5a 阶段，默认关闭）"

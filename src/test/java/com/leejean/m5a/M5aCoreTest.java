@@ -244,6 +244,38 @@ class M5aCoreTest {
         }
     }
 
+    @Test
+    @DisplayName("命令行入口的流式运行（读 m1-out 与 scores 的 JSON 转储）与逐台运行相同 / file-based run equals runDevice")
+    void fileRunEqualsRunDevice() throws Exception {
+        com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+        java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("m5a-run");
+        List<String> rl = new ArrayList<>();
+        for (DeviceRound r : rounds) {
+            rl.add(om.writeValueAsString(r));
+        }
+        List<String> sl = new ArrayList<>();
+        for (long[] o : outliers) {
+            sl.add(om.writeValueAsString(new ScoreEvent(DEV, o[0], o[1])));
+        }
+        java.nio.file.Files.write(dir.resolve("m1out.jsonl"), rl, StandardCharsets.UTF_8);
+        java.nio.file.Files.write(dir.resolve("scores.jsonl"), sl, StandardCharsets.UTF_8);
+        List<DriftEvent> ev = new ArrayList<>();
+        List<MonitoringSnapshot> rec = new ArrayList<>();
+        M5aOfflineRunner.run(dir.resolve("m1out.jsonl"), dir.resolve("scores.jsonl"), P, tables, ev, rec);
+        List<DriftEvent> ev0 = new ArrayList<>();
+        List<MonitoringSnapshot> rec0 = new ArrayList<>();
+        offline(ev0, rec0);
+        List<String> a = new ArrayList<>();
+        List<String> b = new ArrayList<>();
+        ev.forEach(e -> a.add(e.toDataCsv()));
+        ev0.forEach(e -> b.add(e.toDataCsv()));
+        rec.forEach(r -> a.add(M5aOfflineRunner.recordCsv(r)));
+        rec0.forEach(r -> b.add(M5aOfflineRunner.recordCsv(r)));
+        Collections.sort(a);
+        Collections.sort(b);
+        assertEquals(b, a);
+    }
+
     // ================================================================ 在线 / online
     private static KeyedTwoInputStreamOperatorTestHarness<String, DeviceRound, ScoreEvent, DriftEvent> harness() throws Exception {
         return new KeyedTwoInputStreamOperatorTestHarness<>(
