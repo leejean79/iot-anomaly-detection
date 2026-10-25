@@ -309,6 +309,8 @@ def main() -> int:
         for day, why in sorted(scale[d].items()):
             t0 = int(datetime.strptime("2022-" + day, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
             segs.append(dict(item="3", name="尺度漂移日 " + day, device=d, start=t0, end=t0 + 86400, why="、".join(why)))
+    for d in DEVICES:
+        scale[d] = {k: "、".join(v) for k, v in scale[d].items()}
 
     R = Report(a, daily, quality, refs, stable, scale, lm, cr, rate_ev, rate_elems, m5b, segs, inj_segs, episodes)
     R.write()
@@ -376,6 +378,8 @@ class Report:
         self.item9()
         self.latency()
         self.refs_section()
+        self.deviations()
+        self.timeline()
         with open(self.a.report, "w", encoding="utf-8") as fh:
             fh.write("\n".join(self.L) + "\n")
 
@@ -383,7 +387,7 @@ class Report:
         self.p("## 〇、冻结的门槛（1.05 版）")
         self.p()
         self.table(["通道", "D 零", "G 零（G ÷ 2n）"], [(CN[c], D0[c], G0[c]) for c in CHANNELS])
-        errs = [abs(r["D_bin"] - r["D_exact"]) for r in self.daily if r["variant"] == "excl"]
+        errs = [abs(r["D_bin"] - r["D_exact"]) for r in self.daily if r["variant"] == "excl" and r["daykind"] == "local"]
         self.p("显著性 0.01，五通道邦费罗尼校正为 0.002。分箱 D 与精确 D 之差：最大 %s，中位数 %s（%d 个设备日通道）。G ÷ 2n 带正偏差，约为"
                "（非空箱数 − 1）÷ 2n，不做校正。" % (f2(max(errs), 4) if errs else "—", f2(sorted(errs)[len(errs) // 2], 4) if errs else "—", len(errs)))
         self.p()
@@ -646,6 +650,64 @@ class Report:
                          f2(ow_ / w, 2) if w > 0 else "—"))
         self.table(["设备", "通道", "本阶段参照中位数", "本阶段参照宽度", "已登记参照中位数", "已登记参照宽度", "宽度之比（已登记 ÷ 本阶段）"], rows)
         self.p("数值在变换域（光照为 log1p）。本阶段参照为标定窗口（03-01 至冻结），已登记口径的参照为 03-08 至 03-17。")
+
+
+    def deviations(self):
+        p = self.p
+        p("## 十二、与口径或交接文档预期不符的实测（只报事实）")
+        p()
+        ev = self.rate_ev["excl"]
+        lv = collections.Counter(e["level"] for e in ev)
+        elems = sum(len(v) for v in self.rate_elems["excl"].values())
+        rv = [e for e in ev if e["level"] == "REVOKE"]
+        p("1. **离群率一族全程没有确认。** 剔除注入的一遍共 %d 个十分钟元素，候选 %d 条、确认 %d 条、撤销 %d 条；撤销中 %d 条在候选之后第 6 个元素即撤销，"
+          "%d 条撤销时最近六个元素的中位数为 0。不剔除的一遍候选 %d 条、确认 %d 条。交接文档第四节第 2 条预期「起点由离群率先报」，第 6 条预期"
+          "「离群率对尖峰与阶跃候选、持续性核对不确认」。" % (
+              elems, lv["CANDIDATE"], lv["CONFIRM"], lv["REVOKE"], sum(e["checked"] == 6 for e in rv), sum(e["last_median"] == 0 for e in rv),
+              sum(e["level"] == "CANDIDATE" for e in self.rate_ev["inj"]), sum(e["level"] == "CONFIRM" for e in self.rate_ev["inj"])))
+        errs = sorted(((abs(r["D_bin"] - r["D_exact"]), r) for r in self.daily if r["variant"] == "excl" and r["daykind"] == "local"),
+                      key=lambda x: -x[0])
+        viol = sum(1 for e, r in errs if e > max(fnum(r.get("max_cell_mass_day")), 1.0 / 400) + 1e-12)
+        big = [x for x in errs if x[0] > 0.005]
+        p("2. **分箱 D 的误差在少数设备日上大于参照核查时的值。** 参照核查（标定日）的最大误差为 0.0019；实验日上有 %d 个设备日通道的误差超过 0.005，"
+          "最大 %s（%s）。这些设备日当天落在单个箱里的读数比例为 %s；全部设备日通道中误差超过「当日单箱最大质量与参照单箱质量 1/400 的"
+          "较大者」的有 %d 个。" % (
+              len(big), f2(errs[0][0], 4) if errs else "—",
+              "、".join("%s %s %s" % (r["device"], r["day"][5:], CN[r["channel"]]) for _, r in big[:3]),
+              "、".join(f2(fnum(r.get("max_cell_mass_day")), 3) for _, r in big[:3]), viol))
+        reg, now = [], []
+        for d in DEVICES:
+            for day, why in self.scale[d].items():
+                for item in why.split("、"):
+                    if item.startswith("Light"):
+                        reg.append(float(item.split()[1]))
+                        now += [r["width_x"] for r in self.daily if r["variant"] == "excl" and r["daykind"] == "local" and r["device"] == d
+                                and r["day"] == "2022-" + day and r["channel"] == "Light"]
+        p("3. **已登记的尺度漂移日清单中光照的条目与本阶段不可比。** 已登记口径在原始光照值上算宽度倍数，本阶段在 log1p 域上算；已登记清单中因光照"
+          "超标的 %d 个设备日（已登记口径 %s 至 %s 倍），在本阶段参照下光照宽度倍数为 %s 至 %s。" % (
+              len(reg), f2(min(reg)) if reg else "—", f2(max(reg)) if reg else "—", f2(min(now)) if now else "—", f2(max(now)) if now else "—"))
+        pre = collections.Counter(r["channel"] for r in self.lm["excl"] if r["day"] < "2022-03-22")
+        p("4. **三月事件之前已有长记忆事件。** 03-09 至 03-21 共有 %s 条长记忆事件；第二条表中「第一次」只在 03-22 至 03-27 内取，不表示事件的起点。"
+          "逐日的设备数见附表。" % "、".join("%s %d" % (CN[c], pre[c]) for c in CHANNELS if pre[c]))
+        st = collections.Counter(r["channel"] for r in self.lm["excl"] if r["day"] in self.stable_local_days(r["device"]))
+        alarms = sum(1 for d in DEVICES for day in self.stable_local_days(d) if evaluable(self.quality, d, "excl", day)
+                     and any(r["device"] == d and r["day"] == day for r in self.lm["excl"]))
+        total = sum(1 for d in DEVICES for day in self.stable_local_days(d) if evaluable(self.quality, d, "excl", day))
+        p("5. **平稳日上的长记忆事件远多于交接文档的理论预期（零）。** 可判的平稳设备日 %d 个，其中 %d 个至少有一个通道的长记忆事件；按通道：%s。"
+          "分类按第一条（运行前写定）。" % (total, alarms, "、".join("%s %d" % (CN[c], st[c]) for c in CHANNELS if st[c])))
+        sh = {c: [r["shift"] for r in self.lm["excl"] if r["channel"] == c] for c in CHANNELS}
+        p("6. **长记忆事件的方向。** 全程（剔除注入）各通道事件中偏移为正的比例：%s。" % "、".join(
+            "%s %d / %d" % (CN[c], sum(x > 0 for x in v), len(v)) for c, v in sh.items() if v))
+        p()
+
+    def timeline(self):
+        self.p("## 附：逐日长记忆事件的设备数（剔除注入的一遍）")
+        self.p()
+        days = sorted({r["day"] for r in self.daily if r["daykind"] == "local"})
+        ev = collections.Counter((r["channel"], r["day"]) for r in self.lm["excl"])
+        ok = collections.Counter(day for (d, v, day), q in self.quality.items() if v == "excl" and q["evaluable"] == "1")
+        self.table(["当地日", "温度", "湿度", "气压", "气体", "光照", "可判设备数"],
+                   [(day[5:],) + tuple(ev[(c, day)] for c in CHANNELS) + (ok[day],) for day in days])
 
 
 if __name__ == "__main__":
