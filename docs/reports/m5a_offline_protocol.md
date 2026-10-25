@@ -121,7 +121,10 @@
 
 - `Injector` 的四种注入移植到 Python，用 `inject-truth.csv` 的参数施加；单元测试与 Java 的 `Injector` 在同一段合成序列上逐值对照。
 - `RepeatRunGuard` 的游程规则移植到 Python，用于质量门控；与 Java 在合成序列上逐轮对照。
-- 分布检验的 D、渐近显著性与 G 检验与 scipy 对照（`ks_2samp(method="asymp")`、`power_divergence(lambda_="log-likelihood")`）。
+- 分布检验的 D、渐近显著性与 G 检验与 scipy 对照：D 与 `ks_2samp` 的统计量对照；显著性按第二节的极限分布公式，与
+  `kstwobign.sf(√(nm/(n+m))·D)` 对照（注意 `ks_2samp(method="asymp")` 用的是样本量取整后的有限样本分布 `kstwo`，在本数据的样本量下
+  显著性相差约百分之五至七，本口径采用极限分布，Java 与 Python 同用）；G 检验与 `power_divergence(lambda_="log-likelihood")`、卡方上尾与
+  `chi2.sf` 对照。
 - 第三族用性能层的 Python 参考实现（`m5b/optwin_offline.py`），与性能层已证明的 Java 等值一致。
 
 ## 八、两种参照的并列（1.03 版）

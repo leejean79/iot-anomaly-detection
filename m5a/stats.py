@@ -2,7 +2,8 @@
 # ============================================================================
 # m5a/stats.py
 # M5a 的统计函数（标准库实现，供离线判读与等值核对使用）：分布检验的渐近显著性、卡方分布的上尾概率（正则化上不完全伽马函数）。
-# 与 scipy 的 `ks_2samp(method="asymp")` 的极限分布、`chi2.sf` 一致（自检：`python3 m5a/stats.py`）。
+# 与 scipy 的 `kstwobign.sf`（分布检验的极限分布）、`chi2.sf` 一致（自检：`python3 m5a/stats.py`）。注意 `ks_2samp(method="asymp")`
+# 用的是样本量取整后的有限样本分布 `kstwo`，与极限分布相差约百分之几；本项目按操作口径采用极限分布。
 # Statistics for M5a in the standard library: asymptotic KS p-value and the chi-square upper tail.
 #
 # ---------------------------- 脚本交付五要素 -------------------------------
