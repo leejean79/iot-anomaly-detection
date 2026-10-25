@@ -173,6 +173,72 @@ def lm_events(daily, quality, var):
             and r["p_ks"] < ALPHA_B and r["D_bin"] > D0[r["channel"]]]
 
 
+def lm_transitions(daily, quality, var):
+    """长记忆的状态转移（1.09 版第二节）：每台每通道两态（在参照范围内 / 已偏离），起始为在范围内；可判日上
+    p < 0.002 且 D > D 零 而原态为在范围内 → 「进入偏离」；D ≤ D 零 而原态为已偏离 → 「回落」；不可判日不改变状态。
+    State transitions of the long-memory test (ruling 1.09, section 2)."""
+    rows = sorted((r for r in daily if r["variant"] == var and r["daykind"] == "local"
+                   and evaluable(quality, r["device"], var, r["day"])), key=lambda r: (r["device"], r["channel"], r["day"]))
+    state, out = {}, []
+    for r in rows:
+        k = (r["device"], r["channel"])
+        dev = state.get(k, False)
+        if not dev and r["p_ks"] < ALPHA_B and r["D_bin"] > D0[r["channel"]]:
+            state[k] = True
+            out.append(dict(r, kind="进入偏离"))
+        elif dev and r["D_bin"] <= D0[r["channel"]]:
+            state[k] = False
+            out.append(dict(r, kind="回落"))
+    return out
+
+
+def state_on(transitions, dev, ch, day):
+    """某日开始时（前一日结束后）的状态 / state at the start of a day."""
+    st = False
+    for t in transitions:
+        if t["device"] == dev and t["channel"] == ch and t["day"] < day:
+            st = t["kind"] == "进入偏离"
+    return st
+
+
+def bursts(events, rows, num):
+    """离群率爆发（1.09 版第一节）：检测器的每次报警（候选）即一次爆发，不经持续性核对。大小 = 候选元素起一小时内（元素末端
+    落在 [候选时刻, 候选时刻 + 3600 秒]）的离群轮数与离群率峰值；持续长度 = 包含候选元素的连续非零元素数（候选元素为零时取紧挨
+    在它之前的那一段）。/ Each detector alarm is a burst; size and duration as stated."""
+    by = collections.defaultdict(list)
+    for dv, b, r in rows:
+        by[dv].append((b, r))
+    out = []
+    for e in events:
+        if e["level"] != "CANDIDATE":
+            continue
+        el = by[e["device"]]
+        idx = {b: i for i, (b, _) in enumerate(el)}
+        i = idx.get(e["ts"])
+        win = [(b, r) for b, r in el if e["ts"] <= b <= e["ts"] + 3600]
+        size = sum(num.get(e["device"], {}).get(b, 0) for b, _ in win)
+        peak = max((r for _, r in win), default=0.0)
+        dur = 0
+        if i is not None:
+            j = i if el[i][1] > 0 else i - 1
+            if j >= 0 and el[j][1] > 0:
+                k = j
+                while k - 1 >= 0 and el[k - 1][1] > 0:
+                    k -= 1
+                m = j
+                while m + 1 < len(el) and el[m + 1][1] > 0:
+                    m += 1
+                dur = m - k + 1
+        out.append(dict(device=e["device"], ts=e["ts"], test=e["test"], magnitude=e["magnitude"], size=size, peak=peak, duration=dur))
+    return out
+
+
+def seg_burst(seg, bl):
+    b = sorted((x for x in bl if x["device"] == seg["device"] and attributed(x["ts"], seg)), key=lambda x: x["ts"])
+    return dict(bursts=len(b), first_burst=b[0]["ts"] if b else 0, first_test=b[0]["test"] if b else "",
+                first_size=b[0]["size"] if b else 0, first_peak=b[0]["peak"] if b else 0.0, first_duration=b[0]["duration"] if b else 0)
+
+
 def crossings(daily, quality, var):
     out = []
     for r in daily:
@@ -271,23 +337,27 @@ def main() -> int:
     stable, scale = load_stable(a.stable), load_scale_days(a.profile)
     num = outlier_bins(a.scores)
     table = ow.load_table(a.table)
-    rate_ev = {}
-    rate_elems = {}
+    rate_ev, rate_elems, burst = {}, {}, {}
     for var, excl in (("excl", True), ("inj", False)):
         rows = rate_stream(num, den, injections, excl)
         rate_elems[var] = collections.defaultdict(list)
         for dv, b, _ in rows:
             rate_elems[var][dv].append(b)
         rate_ev[var] = ow.run_stream(rows, table, 36)
+        burst[var] = bursts(rate_ev[var], rows, num)
     m5b = {"excl": load_m5b_events(a.m5b_events), "inj": load_m5b_events(a.m5b_events_inj)}
     lm = {v: lm_events(daily, quality, v) for v in ("excl", "inj")}
     cr = {v: crossings(daily, quality, v) for v in ("excl", "inj")}
-    print("长记忆事件 %d 条（剔除）/ %d 条（不剔除）；越门槛 %d / %d；离群率事件 %d / %d" % (
-        len(lm["excl"]), len(lm["inj"]), len(cr["excl"]), len(cr["inj"]), len(rate_ev["excl"]), len(rate_ev["inj"])))
+    lmt = {v: lm_transitions(daily, quality, v) for v in ("excl", "inj")}
+    print("长记忆偏离日 %d / %d、状态转移 %d / %d（剔除 / 不剔除）；越门槛 %d / %d；离群率爆发 %d / %d" % (
+        len(lm["excl"]), len(lm["inj"]), len(lmt["excl"]), len(lmt["inj"]), len(cr["excl"]), len(cr["inj"]),
+        len(burst["excl"]), len(burst["inj"])))
 
     os.makedirs(a.out_dir, exist_ok=True)
     keys = ["variant", "device", "day", "channel", "n", "D_bin", "D_exact", "p_ks", "G_kl", "p_G", "shift", "width_x"]
     write(os.path.join(a.out_dir, "lm_events.csv"), [{k: r[k] for k in keys} for v in lm for r in lm[v]])
+    write(os.path.join(a.out_dir, "lm_transitions.csv"), [dict({k: r[k] for k in keys}, kind=r["kind"]) for v in lmt for r in lmt[v]])
+    write(os.path.join(a.out_dir, "bursts.csv"), [dict(b, variant=v, utc=utc(b["ts"])) for v in burst for b in burst[v]])
     write(os.path.join(a.out_dir, "crossings.csv"), [dict({k: r[k] for k in keys}, kind=r["kind"]) for v in cr for r in cr[v]])
     for var in rate_ev:
         ow.write_events(rate_ev[var], os.path.join(a.out_dir, "rate_events_%s.csv" % var))
@@ -313,6 +383,7 @@ def main() -> int:
         scale[d] = {k: "、".join(v) for k, v in scale[d].items()}
 
     R = Report(a, daily, quality, refs, stable, scale, lm, cr, rate_ev, rate_elems, m5b, segs, inj_segs, episodes)
+    R.lmt, R.burst = lmt, burst
     R.write()
     write(os.path.join(a.out_dir, "segments.csv"), R.seg_rows)
     write(os.path.join(a.out_dir, "two_layer.csv"), R.two_layer_rows)
@@ -373,6 +444,7 @@ class Report:
         self.item4()
         self.item5()
         self.item6()
+        self.burst_vs_lm()
         self.item7()
         self.item8()
         self.item9()
@@ -407,40 +479,43 @@ class Report:
 
     def item1(self):
         p = self.p
-        p("## 一、平稳日上的事件数（按通道分列）")
+        p("## 一、平稳日：长记忆的状态转移与按日计的偏离日数（按通道分列）")
         p()
-        rows, unexpected = [], []
+        p("长记忆事件按 1.09 版第二节改为状态转移：「进」= 进入偏离，「回」= 回落（日期为当地日，在该日结束时发出）。下表给出全程每台每通道的"
+          "转移清单；括号内为可判平稳日中 D 超过 D 零的天数（原按日计的事件数，作对照）。")
+        p()
+        rows = []
         for d in DEVICES:
             sd = self.stable_local_days(d)
+            cells = []
+            for c in CHANNELS:
+                tr = [t for t in self.lmt["excl"] if t["device"] == d and t["channel"] == c]
+                seq = "；".join("%s %s" % ("进" if t["kind"] == "进入偏离" else "回", t["day"][5:]) for t in tr) or "无"
+                nd = sum(1 for r in self.lm["excl"] if r["device"] == d and r["channel"] == c and r["day"] in sd)
+                cells.append("%s（%d）" % (seq, nd))
             ne = sum(1 for day in sd if not evaluable(self.quality, d, "excl", day))
-            lm = [r for r in self.lm["excl"] if r["device"] == d and r["day"] in sd]
-            pos = [r for r in self.cr["excl"] if r["device"] == d and r["day"] in sd and r["kind"] == "位置"]
-            sca = [r for r in self.cr["excl"] if r["device"] == d and r["day"] in sd and r["kind"] == "尺度"]
-            rc = [e for e in self.rate_ev["excl"] if e["device"] == d and utc_day_label(e["ts"]) in self.stable[d]]
-            per = lambda xs: "、".join("%s %d" % (CN[c], sum(1 for r in xs if r["channel"] == c)) for c in CHANNELS
-                                       if any(r["channel"] == c for r in xs)) or "0"
-            rows.append((d, len(sd), ne, per(lm), per(pos), per(sca), sum(e["level"] == "CONFIRM" for e in rc),
-                         sum(e["level"] == "CANDIDATE" for e in rc)))
-            unexpected += [r for r in lm if r["channel"] in ("Temperature", "Gas")]
-        self.table(["设备", "平稳日", "其中不可判", "长记忆事件（按通道）", "越位置门槛（按通道）", "越尺度门槛（按通道）", "离群率确认", "离群率候选"], rows)
-        g_light = [r for r in self.lm["excl"] if r["device"] == "G" and r["channel"] == "Light" and r["day"] in self.stable_local_days("G")]
-        p("**分类说明**（运行前写定）：")
+            rb = [b for b in self.burst["excl"] if b["device"] == d and utc_day_label(b["ts"]) in self.stable[d]]
+            rows.append((d, "%d（不可判 %d）" % (len(sd), ne)) + tuple(cells) + (len(rb),))
+        self.table(["设备", "平稳日"] + [CN[c] for c in CHANNELS] + ["平稳日上的离群率爆发"], rows)
+        p("**分类说明**（运行前写定）：G 的光照为参照污染（数据事实第三十四条）；其余设备的光照为季节趋势（理论回传第十五条）；气压与湿度为天气驱动、"
+          "全机队同步（理论回传第二十一条）；以上三类不计入未预期。温度与气体在平稳日上的偏离日为「未预期的平稳日事件」，下面逐条列出，并注明"
+          "当日的状态是由当日进入偏离，还是此前已在偏离中。")
         p()
-        p("- G 的光照（参照污染，数据事实第三十四条，不计入未预期）：平稳日上长记忆事件 %d 条。" % len(g_light))
-        others = collections.Counter(r["day"] for r in self.lm["excl"] if r["channel"] == "Light" and r["device"] != "G"
-                                     and r["day"] in self.stable_local_days(r["device"]))
-        p("- 其余设备的光照（季节趋势，理论回传第十五条）：平稳日上长记忆事件 %d 条，按日：%s。" % (
-            sum(others.values()), "；".join("%s %d 台" % (k[5:], v) for k, v in sorted(others.items())) or "无"))
         for ch in ("Pressure", "Humidity"):
             c = collections.Counter(r["day"] for r in self.lm["excl"] if r["channel"] == ch and r["day"] in self.stable_local_days(r["device"]))
-            p("- %s（天气驱动、全机队同步，理论回传第二十一条）：平稳日上长记忆事件 %d 条；同一天报警的设备数：%s。" % (
-                CN[ch], sum(c.values()), "；".join("%s %d 台" % (k[5:], v) for k, v in sorted(c.items())) or "无"))
-        p("- 温度与气体（未预期的平稳日事件）：%d 条%s" % (len(unexpected), "。" if not unexpected else "："))
+            p("- %s：平稳日上偏离日 %d 个；同一天的设备数：%s。" % (CN[ch], sum(c.values()), "；".join("%s %d 台" % (k[5:], v) for k, v in sorted(c.items())) or "无"))
+        gl = sum(1 for r in self.lm["excl"] if r["device"] == "G" and r["channel"] == "Light" and r["day"] in self.stable_local_days("G"))
+        ol = sum(1 for r in self.lm["excl"] if r["device"] != "G" and r["channel"] == "Light" and r["day"] in self.stable_local_days(r["device"]))
+        p("- G 的光照：平稳日上偏离日 %d 个；其余设备的光照：%d 个。" % (gl, ol))
+        unexpected = [r for r in self.lm["excl"] if r["channel"] in ("Temperature", "Gas") and r["day"] in self.stable_local_days(r["device"])]
+        p("- 温度与气体（未预期）：平稳日上偏离日 %d 个。" % len(unexpected))
         p()
         if unexpected:
-            self.table(["设备", "日", "通道", "D（分箱）", "D 零", "G ÷ 2n", "偏移", "宽度倍数"],
-                       [(r["device"], r["day"], CN[r["channel"]], f2(r["D_bin"], 3), D0[r["channel"]], f2(r["G_kl"], 3), f2(r["shift"]),
-                         f2(r["width_x"])) for r in sorted(unexpected, key=lambda r: (r["device"], r["day"]))])
+            entered = {(t["device"], t["channel"], t["day"]) for t in self.lmt["excl"] if t["kind"] == "进入偏离"}
+            self.table(["设备", "日", "通道", "当日状态", "D（分箱）", "D 零", "偏移", "宽度倍数"],
+                       [(r["device"], r["day"][5:], CN[r["channel"]], "当日进入" if (r["device"], r["channel"], r["day"]) in entered else "此前已偏离",
+                         f2(r["D_bin"], 3), D0[r["channel"]], f2(r["shift"]), f2(r["width_x"]))
+                        for r in sorted(unexpected, key=lambda r: (r["device"], r["day"], r["channel"]))])
 
     def first_day(self, rows, dev, ch, days, kind=None):
         xs = sorted(r["day"] for r in rows if r["device"] == dev and r["channel"] == ch and r["day"] in days
@@ -453,18 +528,22 @@ class Report:
         rows = []
         for d in DEVICES:
             for c in CHANNELS:
-                rows.append((d, CN[c], self.first_day(self.lm["excl"], d, c, MARCH_DAYS), self.first_day(self.cr["excl"], d, c, MARCH_DAYS, "位置"),
+                ent = sorted(t["day"][5:] for t in self.lmt["excl"] if t["device"] == d and t["channel"] == c and t["kind"] == "进入偏离"
+                             and t["day"] in MARCH_DAYS)
+                rows.append((d, CN[c], "是" if state_on(self.lmt["excl"], d, c, "2022-03-22") else "否", "、".join(ent) or "—",
+                             self.first_day(self.lm["excl"], d, c, MARCH_DAYS), self.first_day(self.cr["excl"], d, c, MARCH_DAYS, "位置"),
                              self.first_day(self.cr["excl"], d, c, MARCH_DAYS, "尺度")))
-        self.table(["设备", "通道", "第一次长记忆事件", "第一次越位置门槛", "第一次越尺度门槛"], rows)
+        self.table(["设备", "通道", "03-22 开始时已偏离", "段内进入偏离", "段内第一个偏离日", "第一次越位置门槛", "第一次越尺度门槛"], rows)
         rows = []
         for s in [x for x in self.segs if x["item"] == "2"]:
-            st = seg_rate(s, self.rate_ev["excl"])
-            rows.append((s["device"], "%s（%s）" % (utc(st["first_cand"]), st["first_cand_test"]) if st["first_cand"] else "—",
-                         "%s（%s）" % (utc(st["first_confirm"]), st["first_confirm_test"]) if st["first_confirm"] else "—", st["cand"], st["confirm"]))
+            st = seg_burst(s, self.burst["excl"])
+            before = "、".join(CN[c] for c in CHANNELS if state_on(self.lmt["excl"], s["device"], c, "2022-03-22")) or "无"
+            rows.append((s["device"], before, "%s（%s）" % (utc(st["first_burst"]), st["first_test"]) if st["first_burst"] else "—",
+                         st["first_size"] if st["first_burst"] else "—", f2(st["first_peak"], 3) if st["first_burst"] else "—", st["bursts"]))
             self.seg_rows.append(dict(item="2", segment=s["name"], device=s["device"], **st))
-        self.p("离群率（归属于 [03-22 00:00, 03-28 00:00) UTC 加 6 小时尾长）：")
+        self.p("离群率爆发（候选即事件，1.09 版第一节；归属于 [03-22 00:00, 03-28 00:00) UTC 加 6 小时尾长）与 03-22 开始时已处于偏离的通道：")
         self.p()
-        self.table(["设备", "第一个候选（UTC，检验）", "第一次确认（UTC，检验）", "候选数", "确认数"], rows)
+        self.table(["设备", "03-22 开始时已偏离的通道", "第一次爆发（UTC，检验）", "爆发大小（一小时内离群轮数）", "离群率峰值", "爆发次数"], rows)
 
     def item3(self):
         self.p("## 三、尺度漂移日：逐日统计量的宽度倍数与长记忆事件")
@@ -480,12 +559,17 @@ class Report:
                 wx = {r["channel"]: r["width_x"] for r in self.daily if r["variant"] == "excl" and r["daykind"] == "local"
                       and r["device"] == d and r["day"] == full}
                 over = any(v > SCALE for v in wx.values())
+                light_only = all(x.startswith("Light") for x in why.split("、"))
                 lmc = [CN[r["channel"]] for r in self.lm["excl"] if r["device"] == d and r["day"] == full]
-                cat[("越尺度" if over else "未越尺度", "有长记忆" if lmc else "无长记忆")] += 1
-                rows.append((d, day, why, "、".join("%s %s" % (CN[c], f2(wx.get(c, float("nan")))) for c in CHANNELS),
-                             "是" if over else "否", "、".join(lmc) or "无"))
+                if not light_only:
+                    cat[("越尺度" if over else "未越尺度", "有长记忆" if lmc else "无长记忆")] += 1
+                rows.append((d, day, why + ("（光照，域不可比）" if light_only else ("（光照条目域不可比）" if "Light" in why else "")),
+                             "、".join("%s %s" % (CN[c], f2(wx.get(c, float("nan")))) for c in CHANNELS), "是" if over else "否", "、".join(lmc) or "无"))
         self.table(["设备", "日", "已登记口径的超标通道", "本阶段参照的宽度倍数", "越尺度门槛", "长记忆事件"], rows)
-        self.p("汇总（设备日）：越尺度且有长记忆 %d；只越尺度 %d；只有长记忆 %d；两者都没有 %d。" % (
+        self.p("已登记清单在原始光照值上算宽度倍数，本阶段在 log1p 域上算，光照条目域不可比（1.09 版第三节）；只因光照入清单的设备日不参与下面的汇总，"
+               "同时因其他通道入清单的设备日参与汇总、但光照条目不作比较。")
+        self.p()
+        self.p("汇总（设备日，偏离日口径）：越尺度且有长记忆 %d；只越尺度 %d；只有长记忆 %d；两者都没有 %d。" % (
             cat[("越尺度", "有长记忆")], cat[("越尺度", "无长记忆")], cat[("未越尺度", "有长记忆")], cat[("未越尺度", "无长记忆")]))
         self.p()
 
@@ -499,45 +583,92 @@ class Report:
             per_day = collections.Counter(r["day"] for r in self.lm["excl"] if r["channel"] == "Gas" and r["day"] in days)
             for d in DEVICES:
                 s = dict(seg, device=d, item="4", name=e["name"])
-                st = seg_rate(s, self.rate_ev["excl"])
+                st = seg_burst(s, self.burst["excl"])
                 self.seg_rows.append(dict(item="4", segment=e["name"], device=d, **st))
+                before = "是" if state_on(self.lmt["excl"], d, "Gas", days[0]) else "否"
+                tr = sorted("%s %s" % (t["kind"], t["day"][5:]) for t in self.lmt["excl"] if t["device"] == d and t["channel"] == "Gas" and t["day"] in days)
                 lmd = sorted(r["day"][5:] for r in self.lm["excl"] if r["device"] == d and r["channel"] == "Gas" and r["day"] in days)
-                crd = sorted("%s %s" % (r["day"][5:], r["kind"]) for r in self.cr["excl"] if r["device"] == d and r["channel"] == "Gas" and r["day"] in days)
-                rows.append((e["name"], d, "、".join(lmd) or "无", "、".join(crd) or "无",
-                             utc(st["first_cand"]) if st["first_cand"] else "—", utc(st["first_confirm"]) if st["first_confirm"] else "—"))
-            rows.append((e["name"], "同日气体长记忆报警的设备数", "；".join("%s %d 台" % (k[5:], v) for k, v in sorted(per_day.items())) or "无", "", "", ""))
-        self.table(["时段", "设备", "气体长记忆事件（当地日）", "气体越门槛", "离群率第一个候选（UTC）", "离群率第一次确认（UTC）"], rows)
+                rows.append((e["name"], d, before, "、".join(tr) or "无", "、".join(lmd) or "无",
+                             "%s（%d 轮）" % (utc(st["first_burst"]), st["first_size"]) if st["first_burst"] else "—"))
+            rows.append((e["name"], "同日气体偏离的设备数", "", "", "；".join("%s %d 台" % (k[5:], v) for k, v in sorted(per_day.items())) or "无", ""))
+        self.table(["时段", "设备", "段首日开始时气体已偏离", "段内气体状态转移", "气体偏离日（当地日）", "第一次离群率爆发（UTC，大小）"], rows)
 
     def item5(self):
         self.p("## 五、C 的日照直射与 04-17 傍晚气体上升")
         self.p()
         rows = []
         for s in [x for x in self.segs if x["item"] == "5"]:
-            st = seg_rate(s, self.rate_ev["excl"])
+            st = seg_burst(s, self.burst["excl"])
             self.seg_rows.append(dict(item="5", segment=s["name"], device=s["device"], **st))
             days = seg_days(s)
             chs = ("Light", "Temperature") if s["name"].startswith("C 日照") else ("Gas",)
             lmc = sorted("%s %s" % (r["day"][5:], CN[r["channel"]]) for r in self.lm["excl"] if r["device"] == s["device"]
                          and r["channel"] in chs and r["day"] in days)
+            trc = sorted("%s %s %s" % (t["kind"], t["day"][5:], CN[t["channel"]]) for t in self.lmt["excl"] if t["device"] == s["device"]
+                         and t["channel"] in chs and t["day"] in days)
             crc = sorted("%s %s %s" % (r["day"][5:], CN[r["channel"]], r["kind"]) for r in self.cr["excl"] if r["device"] == s["device"]
                          and r["channel"] in chs and r["day"] in days)
-            rows.append((s["name"], s["device"], "、".join(lmc) or "无", "、".join(crc) or "无", st["cand"], st["confirm"]))
-        self.table(["段", "设备", "长记忆事件", "越门槛", "离群率候选", "离群率确认"], rows)
+            rows.append((s["name"], s["device"], "、".join(lmc) or "无", "、".join(trc) or "无", "、".join(crc) or "无", st["bursts"]))
+        self.table(["段", "设备", "偏离日", "状态转移", "越门槛", "离群率爆发"], rows)
 
     def item6(self):
         self.p("## 六、注入（不剔除的一遍）")
         self.p()
         rows = []
         for s in self.inj_segs:
-            st = seg_rate(s, self.rate_ev["inj"])
+            st = seg_burst(s, self.burst["inj"])
             self.seg_rows.append(dict(item="6", segment=s["name"], device=s["device"], **st))
             day = local_day_of(s["start"])
             cell = lambda var: "、".join(sorted(
-                ["长记忆"] * any(r["device"] == s["device"] and r["channel"] == s["channel"] and r["day"] == day for r in self.lm[var])
-                + [r["kind"] for r in self.cr[var] if r["device"] == s["device"] and r["channel"] == s["channel"] and r["day"] == day])) or "无"
+                ["偏离日"] * any(r["device"] == s["device"] and r["channel"] == s["channel"] and r["day"] == day for r in self.lm[var])
+                + [t["kind"] for t in self.lmt[var] if t["device"] == s["device"] and t["channel"] == s["channel"] and t["day"] == day]
+                + ["越" + r["kind"] for r in self.cr[var] if r["device"] == s["device"] and r["channel"] == s["channel"] and r["day"] == day])) or "无"
             ok = lambda var: "" if evaluable(self.quality, s["device"], var, day) else "（不可判）"
-            rows.append((s["name"], st["cand"], st["confirm"], cell("inj") + ok("inj"), cell("excl") + ok("excl")))
-        self.table(["注入段", "离群率候选", "离群率确认", "注入当日（不剔除）", "注入当日（剔除）"], rows)
+            rows.append((s["name"], st["bursts"], "%s（%d 轮，峰值 %s）" % (utc(st["first_burst"]), st["first_size"], f2(st["first_peak"], 3))
+                         if st["first_burst"] else "—", cell("inj") + ok("inj"), cell("excl") + ok("excl")))
+        self.table(["注入段", "离群率爆发", "第一次爆发（UTC，大小，峰值）", "注入当日（不剔除）", "注入当日（剔除）"], rows)
+
+    def burst_vs_lm(self):
+        self.p("## 六之二、爆发与当日、次日长记忆的对照（1.09 版第一节）")
+        self.p()
+        self.p("每一次离群率爆发（剔除注入的一遍）之后：爆发所在当地日与次日，该台是否有进入偏离的转移、是否处于偏离（任一通道的偏离日）、是否越门槛。"
+               "次日不可判时记为不可判。")
+        self.p()
+        tot = collections.Counter()
+        rows = []
+        for b in self.burst["excl"]:
+            day = local_day_of(b["ts"])
+            nxt = (datetime.strptime(day, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+            res = []
+            for dd in (day, nxt):
+                if not evaluable(self.quality, b["device"], "excl", dd):
+                    res.append("不可判")
+                    continue
+                ent = [CN[t["channel"]] for t in self.lmt["excl"] if t["device"] == b["device"] and t["day"] == dd and t["kind"] == "进入偏离"]
+                dev = any(r["device"] == b["device"] and r["day"] == dd for r in self.lm["excl"])
+                crs = any(r["device"] == b["device"] and r["day"] == dd for r in self.cr["excl"])
+                res.append("进入偏离（%s）" % "、".join(ent) if ent else ("偏离中" if dev else ("越门槛" if crs else "在范围内")))
+            tot[("当日", res[0].split("（")[0])] += 1
+            tot[("次日", res[1].split("（")[0])] += 1
+            rows.append((b["device"], utc(b["ts"]), b["test"], b["size"], f2(b["peak"], 3), b["duration"], res[0], res[1]))
+        self.p("汇总：" + "；".join("%s %s %d 次" % (k[0], k[1], v) for k, v in sorted(tot.items())) + "。")
+        base = collections.Counter()
+        dd_all = {(d, day) for (d, v, day), q in self.quality.items() if v == "excl" and q["evaluable"] == "1" and day != "2022-03-08"}
+        for d, day in dd_all:
+            if any(t["device"] == d and t["day"] == day and t["kind"] == "进入偏离" for t in self.lmt["excl"]):
+                base["进入偏离"] += 1
+            elif any(r["device"] == d and r["day"] == day for r in self.lm["excl"]):
+                base["偏离中"] += 1
+            elif any(r["device"] == d and r["day"] == day for r in self.cr["excl"]):
+                base["越门槛"] += 1
+            else:
+                base["在范围内"] += 1
+        n = len(dd_all)
+        self.p("作为对照，全部 %d 个可判设备日（不论有无爆发）中：进入偏离 %d（%s）、偏离中 %d（%s）、越门槛 %d、在范围内 %d。" % (
+            n, base["进入偏离"], f2(base["进入偏离"] / n if n else float("nan"), 3), base["偏离中"], f2(base["偏离中"] / n if n else float("nan"), 3),
+            base["越门槛"], base["在范围内"]))
+        self.p()
+        self.table(["设备", "爆发（UTC）", "检验", "大小（轮）", "峰值", "持续（元素）", "当日", "次日"], rows)
 
     def item7(self):
         self.p("## 七、夏令时切换日：按当地日与按世界协调时日的长记忆")
@@ -562,7 +693,8 @@ class Report:
     def item8(self):
         self.p("## 八、两层同报表")
         self.p()
-        self.p("时刻为世界协调时；长记忆与越门槛以当地日结束的时刻计（在线算子在日界处发出）。性能层为默认组合的事件。")
+        self.p("时刻为世界协调时；长记忆的状态转移与越门槛以当地日结束的时刻计（在线算子在日界处发出）；段开始时已处于偏离的通道单独注明。"
+               "性能层为默认组合的事件；离群率为爆发（候选即事件）。")
         self.p()
         rows = []
         segs = [s for s in self.segs if s["item"] in ("2", "3", "4", "5")] + list(self.inj_segs)
@@ -576,25 +708,22 @@ class Report:
                     items.append((e["ts"], "性能层候选（%s）" % e["test"]))
                 if e["level"] == "CONFIRM" and attributed(e["candidate_ts"], s):
                     items.append((e["ts"], "性能层确认（%s）" % e["test"]))
-            for e in self.rate_ev[var]:
-                if e["device"] != s["device"]:
-                    continue
-                if e["level"] == "CANDIDATE" and attributed(e["ts"], s):
-                    items.append((e["ts"], "离群率候选（%s）" % e["test"]))
-                if e["level"] == "CONFIRM" and attributed(e["candidate_ts"], s):
-                    items.append((e["ts"], "离群率确认（%s）" % e["test"]))
+            for b in self.burst[var]:
+                if b["device"] == s["device"] and attributed(b["ts"], s):
+                    items.append((b["ts"], "离群率爆发（%s，%d 轮）" % (b["test"], b["size"])))
             days = seg_days(s)
-            for r in self.lm[var]:
-                if r["device"] == s["device"] and r["day"] in days:
-                    items.append((day_end_ts(r["day"]), "长记忆 %s" % CN[r["channel"]]))
+            for t in self.lmt[var]:
+                if t["device"] == s["device"] and t["day"] in days:
+                    items.append((day_end_ts(t["day"]), "长记忆%s %s" % (t["kind"], CN[t["channel"]])))
             for r in self.cr[var]:
                 if r["device"] == s["device"] and r["day"] in days:
                     items.append((day_end_ts(r["day"]), "越%s %s" % (r["kind"], CN[r["channel"]])))
             items.sort()
+            before = "、".join(CN[c] for c in CHANNELS if state_on(self.lmt[var], s["device"], c, days[0])) or "无"
             text = "；".join("%s %s" % (utc(t), x) for t, x in items) or "无"
-            self.two_layer_rows.append(dict(item=s["item"], segment=s["name"], device=s["device"], sequence=text))
-            rows.append((s["item"], s["name"], s["device"], text))
-        self.table(["条", "段", "设备", "按时刻排序的报警"], rows)
+            self.two_layer_rows.append(dict(item=s["item"], segment=s["name"], device=s["device"], deviated_at_start=before, sequence=text))
+            rows.append((s["item"], s["name"], s["device"], before, text))
+        self.table(["条", "段", "设备", "段首日开始时已偏离", "按时刻排序的报警"], rows)
 
     def item9(self):
         self.p("## 九、理论第五项验证：三种统计方案")
@@ -629,16 +758,16 @@ class Report:
         self.p()
         rows = []
         for d in DEVICES:
-            lmd = sorted(r["day"] for r in self.lm["excl"] if r["device"] == d and r["day"] >= "2022-03-22")
+            ent = sorted(t["day"] for t in self.lmt["excl"] if t["device"] == d and t["kind"] == "进入偏离" and t["day"] >= "2022-03-22")
+            before = "、".join(CN[c] for c in CHANNELS if state_on(self.lmt["excl"], d, c, "2022-03-22")) or "无"
             crd = sorted(r["day"] for r in self.cr["excl"] if r["device"] == d and r["day"] >= "2022-03-22")
             dd = lambda xs: "%s（第 %d 天）" % (xs[0][5:], (datetime.strptime(xs[0], "%Y-%m-%d") - datetime(2022, 3, 22)).days + 1) if xs else "—"
-            s = dict(start=MARCH[0], end=MARCH[1], device=d)
-            st = seg_rate(s, self.rate_ev["excl"])
+            st = seg_burst(dict(start=MARCH[0], end=MARCH[1], device=d), self.burst["excl"])
             el = self.rate_elems["excl"].get(d, [])
             cnt = lambda t: sum(1 for b in el if MARCH[0] < b <= t)
             mn = lambda t: "%d 分钟 / %d 个元素" % ((t - MARCH[0]) // 60, cnt(t)) if t else "—"
-            rows.append((d, dd(lmd), dd(crd), mn(st["first_cand"]), mn(st["first_confirm"])))
-        self.table(["设备", "第一次长记忆事件", "第一次越门槛", "离群率第一个候选", "离群率第一次确认"], rows)
+            rows.append((d, before, dd(ent), dd(crd), mn(st["first_burst"])))
+        self.table(["设备", "03-22 开始时已偏离的通道", "03-22 起第一次进入偏离", "第一次越门槛", "第一次离群率爆发"], rows)
 
     def refs_section(self):
         self.p("## 十一、两种参照的对照（1.03 版）")
@@ -656,48 +785,23 @@ class Report:
         p = self.p
         p("## 十二、与口径或交接文档预期不符的实测（只报事实）")
         p()
-        ev = self.rate_ev["excl"]
-        lv = collections.Counter(e["level"] for e in ev)
-        elems = sum(len(v) for v in self.rate_elems["excl"].values())
-        rv = [e for e in ev if e["level"] == "REVOKE"]
-        p("1. **离群率一族全程没有确认。** 剔除注入的一遍共 %d 个十分钟元素，候选 %d 条、确认 %d 条、撤销 %d 条；撤销中 %d 条在候选之后第 6 个元素即撤销，"
-          "%d 条撤销时最近六个元素的中位数为 0。不剔除的一遍候选 %d 条、确认 %d 条。交接文档第四节第 2 条预期「起点由离群率先报」，第 6 条预期"
-          "「离群率对尖峰与阶跃候选、持续性核对不确认」。" % (
-              elems, lv["CANDIDATE"], lv["CONFIRM"], lv["REVOKE"], sum(e["checked"] == 6 for e in rv), sum(e["last_median"] == 0 for e in rv),
-              sum(e["level"] == "CANDIDATE" for e in self.rate_ev["inj"]), sum(e["level"] == "CONFIRM" for e in self.rate_ev["inj"])))
+        lv = collections.Counter(e["level"] for e in self.rate_ev["excl"])
+        rv = [e for e in self.rate_ev["excl"] if e["level"] == "REVOKE"]
+        p("1. **离群率接持续性核对时全程零确认（原口径）。** 剔除注入的一遍检测器报警 %d 次，按原口径的持续性核对确认 %d 条、撤销 %d 条，其中 %d 条撤销时"
+          "最近六个元素的中位数为 0。1.09 版第一节判定这是交接文档的设计错误（点通道的爆发被一小时窗长封顶），第三族改为「爆发」语义，本报告的离群率"
+          "各列均为爆发。" % (lv["CANDIDATE"], lv["CONFIRM"], lv["REVOKE"], sum(e["last_median"] == 0 for e in rv)))
         errs = sorted(((abs(r["D_bin"] - r["D_exact"]), r) for r in self.daily if r["variant"] == "excl" and r["daykind"] == "local"),
                       key=lambda x: -x[0])
         viol = sum(1 for e, r in errs if e > max(fnum(r.get("max_cell_mass_day")), 1.0 / 400) + 1e-12)
-        big = [x for x in errs if x[0] > 0.005]
-        p("2. **分箱 D 的误差在少数设备日上大于参照核查时的值。** 参照核查（标定日）的最大误差为 0.0019；实验日上有 %d 个设备日通道的误差超过 0.005，"
-          "最大 %s（%s）。这些设备日当天落在单个箱里的读数比例为 %s；全部设备日通道中误差超过「当日单箱最大质量与参照单箱质量 1/400 的"
-          "较大者」的有 %d 个。" % (
-              len(big), f2(errs[0][0], 4) if errs else "—",
-              "、".join("%s %s %s" % (r["device"], r["day"][5:], CN[r["channel"]]) for _, r in big[:3]),
-              "、".join(f2(fnum(r.get("max_cell_mass_day")), 3) for _, r in big[:3]), viol))
-        reg, now = [], []
-        for d in DEVICES:
-            for day, why in self.scale[d].items():
-                for item in why.split("、"):
-                    if item.startswith("Light"):
-                        reg.append(float(item.split()[1]))
-                        now += [r["width_x"] for r in self.daily if r["variant"] == "excl" and r["daykind"] == "local" and r["device"] == d
-                                and r["day"] == "2022-" + day and r["channel"] == "Light"]
-        p("3. **已登记的尺度漂移日清单中光照的条目与本阶段不可比。** 已登记口径在原始光照值上算宽度倍数，本阶段在 log1p 域上算；已登记清单中因光照"
-          "超标的 %d 个设备日（已登记口径 %s 至 %s 倍），在本阶段参照下光照宽度倍数为 %s 至 %s。" % (
-              len(reg), f2(min(reg)) if reg else "—", f2(max(reg)) if reg else "—", f2(min(now)) if now else "—", f2(max(now)) if now else "—"))
-        pre = collections.Counter(r["channel"] for r in self.lm["excl"] if r["day"] < "2022-03-22")
-        p("4. **三月事件之前已有长记忆事件。** 03-09 至 03-21 共有 %s 条长记忆事件；第二条表中「第一次」只在 03-22 至 03-27 内取，不表示事件的起点。"
-          "逐日的设备数见附表。" % "、".join("%s %d" % (CN[c], pre[c]) for c in CHANNELS if pre[c]))
-        st = collections.Counter(r["channel"] for r in self.lm["excl"] if r["day"] in self.stable_local_days(r["device"]))
+        p("2. **分箱 D 的误差**：实验日最大 %s（%s），参照核查时为 0.0019；超出「当日单箱最大质量与参照单箱质量 1/400 的较大者」的设备日通道 %d 个。"
+          "1.09 版第三节接受，成因是夜间光照的并列值。" % (f2(errs[0][0], 4) if errs else "—",
+                                              "%s %s %s" % (errs[0][1]["device"], errs[0][1]["day"][5:], CN[errs[0][1]["channel"]]) if errs else "", viol))
+        p("3. **已登记尺度漂移日清单中的光照条目域不可比**（1.09 版第三节），已在第三条中标注并移出汇总。")
+        total = sum(1 for d in DEVICES for day in self.stable_local_days(d) if evaluable(self.quality, d, "excl", day))
         alarms = sum(1 for d in DEVICES for day in self.stable_local_days(d) if evaluable(self.quality, d, "excl", day)
                      and any(r["device"] == d and r["day"] == day for r in self.lm["excl"]))
-        total = sum(1 for d in DEVICES for day in self.stable_local_days(d) if evaluable(self.quality, d, "excl", day))
-        p("5. **平稳日上的长记忆事件远多于交接文档的理论预期（零）。** 可判的平稳设备日 %d 个，其中 %d 个至少有一个通道的长记忆事件；按通道：%s。"
-          "分类按第一条（运行前写定）。" % (total, alarms, "、".join("%s %d" % (CN[c], st[c]) for c in CHANNELS if st[c])))
-        sh = {c: [r["shift"] for r in self.lm["excl"] if r["channel"] == c] for c in CHANNELS}
-        p("6. **长记忆事件的方向。** 全程（剔除注入）各通道事件中偏移为正的比例：%s。" % "、".join(
-            "%s %d / %d" % (CN[c], sum(x > 0 for x in v), len(v)) for c, v in sh.items() if v))
+        p("4. **平稳日上的偏离**：可判的平稳设备日 %d 个，其中 %d 个至少有一个通道处于偏离。1.09 版第二节判定这不是误报，平稳日清单与长记忆的参照不同。"
+          % (total, alarms))
         p()
 
     def timeline(self):
