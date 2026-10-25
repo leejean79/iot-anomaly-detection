@@ -205,6 +205,20 @@ public class M2Job {
         int m5bWMax = params.getInt("m5b-wmax", m5bGranularity == com.leejean.m5.M5bFunction.Granularity.HOURLY ? 336 : 2016);
         int m5bK = params.getInt("m5b-k", 36);
         String driftTopic = params.get("drift-topic", "synergia-drift");
+        // ---- M5a 数据层漂移监测（M5a 交接文档第三节「参数」；默认关闭；D 零为 1.05 版冻结的逐通道值；离群率检测器照抄性能层默认组合）----
+        // M5a data-layer drift monitoring (off by default; D0 frozen per channel by ruling 1.05).
+        boolean m5aEnabled = params.getBoolean("m5a-enabled", false);
+        double m5aAlpha = params.getDouble("m5a-alpha", 0.01);
+        String m5aD0Spec = params.get("m5a-d0", "0.38/0.73/0.84/0.43/0.51");
+        double[] m5aD0 = java.util.Arrays.stream(m5aD0Spec.split("/")).mapToDouble(Double::parseDouble).toArray();
+        if (m5aD0.length != com.leejean.m1.Channels.N_DET) {
+            throw new IllegalArgumentException("--m5a-d0 须给五个值（温度/湿度/气压/气体/光照）: " + m5aD0Spec);
+        }
+        double m5aMissingMax = params.getDouble("m5a-missing-max", 0.20);
+        double m5aGuardMax = params.getDouble("m5a-guard-max", 0.20);
+        double m5aConfidence = params.getDouble("m5a-confidence", 0.99);
+        double m5aRobustness = params.getDouble("m5a-robustness", 0.5);
+        int m5aWMax = params.getInt("m5a-wmax", 2016);
 
         System.out.println("========================================");
         System.out.println("M2Job (M1+pMCOD joint)");
@@ -247,6 +261,12 @@ public class M2Job {
                     + m3DrainBatch + " rounds, poll interval=" + m3PollIntervalSec + " s (addendum 4)");
         }
         System.out.println("M5b enabled:     " + (m5bEnabled && m3Enabled));
+        System.out.println("M5a enabled:     " + m5aEnabled);
+        if (m5aEnabled) {
+            System.out.println("M5a data layer:  alpha=" + m5aAlpha + " (Bonferroni /5) D0=" + m5aD0Spec + " missing-max=" + m5aMissingMax
+                    + " guard-max=" + m5aGuardMax + " burst OPTWIN confidence=" + m5aConfidence + " robustness=" + m5aRobustness
+                    + " wmax=" + m5aWMax + " -> " + driftTopic);
+        }
         if (m5bEnabled && m3Enabled) {
             System.out.println("M5b OPTWIN:      confidence=" + m5bConfidence + " robustness=" + m5bRobustness
                     + " wmax=" + m5bWMax + " granularity=" + m5bGranularity + " K=" + m5bK + " -> " + driftTopic);
@@ -388,6 +408,27 @@ public class M2Job {
                         new MonitoringSerializationSchema(monitoringTopic),
                         producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
                 .name("Kafka Sink [" + monitoringTopic + " / M2]");
+
+        // ---- M5a 数据层：标准化轮与点通道离群记录按同一代理键连接；事件写 synergia-drift，日记录并入 synergia-monitoring ----
+        // M5a: rounds and point outliers connected on the same surrogate keys; events to drift, daily records to monitoring.
+        if (m5aEnabled) {
+            OutputTag<MonitoringSnapshot> m5aRecordTag = new OutputTag<MonitoringSnapshot>("m5a-day-records") { };
+            SingleOutputStreamOperator<com.leejean.m5.DriftEvent> dataDrift = cached
+                    .keyBy(DeviceKeys.selector(surrogate, DeviceRound::getDevice))
+                    .connect(scored.keyBy(DeviceKeys.selector(surrogate, ScoreEvent::getDevice)))
+                    .process(new com.leejean.m5a.M5aFunction(
+                            new com.leejean.m5a.M5aCore.Params(m5aD0, m5aAlpha, m5aMissingMax, m5aGuardMax, nominalPeriodSec, slideSec),
+                            m5aConfidence, m5aRobustness, m5aWMax, m5aRecordTag))
+                    .name("M5a-DataLayer");
+            dataDrift.addSink(new FlinkKafkaProducer<>(driftTopic, new DriftEventSerializationSchema(driftTopic),
+                            producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
+                    .name("Kafka Sink [" + driftTopic + " / M5a]");
+            dataDrift.getSideOutput(m5aRecordTag)
+                    .addSink(new FlinkKafkaProducer<>(monitoringTopic,
+                            new MonitoringSerializationSchema(monitoringTopic),
+                            producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
+                    .name("Kafka Sink [" + monitoringTopic + " / M5a]");
+        }
 
         // 迟到丢弃计数（侧输出）：仅计 Flink 指标，不落库（§4）
         scored.getSideOutput(lateTag).process(new LateDropCounter()).name("M2LateDrops");

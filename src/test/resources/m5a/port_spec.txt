@@ -1,0 +1,3 @@
+E:Temperature:1649068715:600:spike:9.12;E:Temperature:1649070467:1800:step:4.56;E:Gas:1649081710:3600:ramp:10994.8905;E:Humidity:1649095555:2400:stuck:0.0
+E=30/8/40/400/200
+E.Gas=500,E.Light=1/2

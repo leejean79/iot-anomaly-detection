@@ -14,7 +14,16 @@ import java.util.Locale;
 public class DriftEvent implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    public enum Level { CANDIDATE, CONFIRM, REVOKE }
+    /**
+     * 性能层：CANDIDATE、CONFIRM、REVOKE。数据层（M5a，开发设计日志 1.09 版）：BURST（离群率爆发，候选即事件）、DEVIATE（长记忆
+     * 进入偏离）、RECOVER（长记忆回落）。/ Performance-layer levels plus the data-layer BURST, DEVIATE and RECOVER.
+     */
+    public enum Level { CANDIDATE, CONFIRM, REVOKE, BURST, DEVIATE, RECOVER }
+
+    /** 层：performance 或 data（M5a 交接文档决定六）/ layer marker. */
+    public String layer = "performance";
+    /** 通道：性能层为 main_score；数据层为检测通道名或 outlier_rate / channel. */
+    public String channel = "main_score";
 
     public String device;
     /** 事件时间：元素的时间戳（评分窗末，秒）/ event time: the element's timestamp (window end, seconds). */
@@ -30,6 +39,13 @@ public class DriftEvent implements Serializable {
     public long candidateTs;
     public double reference, threshold, lastMedian;
     public int checkedElements;
+    /** 数据层爆发：报警元素起一小时内的离群轮数、离群率峰值、连续非零元素数 / data-layer burst fields. */
+    public long burstSize;
+    public double burstPeak;
+    public int burstDuration;
+    /** 数据层长记忆：当地日、分箱 D、渐近显著性、偏移、宽度倍数 / data-layer long-memory fields. */
+    public String dataDay;
+    public double dataD, dataP, dataShift, dataWidthX;
 
     public DriftEvent() { }
 
@@ -48,6 +64,36 @@ public class DriftEvent implements Serializable {
         e.threshold = threshold;
         e.lastMedian = lastMedian;
         e.checkedElements = checked;
+        return e;
+    }
+
+    /** 数据层离群率爆发 / data-layer outlier-rate burst. */
+    public static DriftEvent burst(String device, long ts, OptWinDetector.Alarm a, long size, double peak, int duration) {
+        DriftEvent e = base(device, ts, Level.BURST, a);
+        e.layer = "data";
+        e.channel = "outlier_rate";
+        e.candidateTs = ts;
+        e.burstSize = size;
+        e.burstPeak = peak;
+        e.burstDuration = duration;
+        return e;
+    }
+
+    /** 数据层长记忆的状态转移（DEVIATE 或 RECOVER）；ts 为当地日结束的时刻 / data-layer long-memory transition. */
+    public static DriftEvent dataState(String device, long ts, Level level, String channel, String day, double d, double p,
+                                       double shift, double widthX) {
+        DriftEvent e = new DriftEvent();
+        e.device = device;
+        e.ts = ts;
+        e.level = level;
+        e.layer = "data";
+        e.channel = channel;
+        e.test = "KS";
+        e.dataDay = day;
+        e.dataD = d;
+        e.dataP = p;
+        e.dataShift = shift;
+        e.dataWidthX = widthX;
         return e;
     }
 
@@ -79,6 +125,17 @@ public class DriftEvent implements Serializable {
                 Integer.toString(histLen), Integer.toString(newLen), d(histMean), d(histSd), d(newMean), d(newSd),
                 d(histMedian), d(magnitude), duringCheck ? "1" : "0", Long.toString(candidateTs), d(reference),
                 d(threshold), d(lastMedian), Integer.toString(checkedElements));
+    }
+
+    /** 数据层事件的 CSV 表头 / CSV header of data-layer events. */
+    public static final String DATA_CSV_HEADER = "device,ts,level,channel,test,magnitude,burst_size,burst_peak,burst_duration,"
+            + "data_day,data_d,data_p,data_shift,data_width_x";
+
+    /** 数据层事件的 CSV 行 / CSV row of a data-layer event. */
+    public String toDataCsv() {
+        return String.join(",", device, Long.toString(ts), level.name(), channel, test == null ? "" : test, d(magnitude),
+                Long.toString(burstSize), d(burstPeak), Integer.toString(burstDuration), dataDay == null ? "" : dataDay,
+                d(dataD), d(dataP), d(dataShift), d(dataWidthX));
     }
 
     private static String d(double v) {

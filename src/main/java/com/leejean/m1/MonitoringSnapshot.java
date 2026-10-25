@@ -61,6 +61,25 @@ public class MonitoringSnapshot implements Serializable {
     private long m5bFWithoutRise;        // F 显著而均值未升高的累计次数（10 月 19 日裁决第二点）/ significant F without a rise
     private long m5bTSkippedConstant;    // 两个子窗都为常数、不做 t 检验的累计次数（0.94 版第八条）/ t-test skipped, both constant
 
+    // ---- M5a 日记录字段（M5a 交接文档决定六；windowEnd = -3 的记录才有意义，每台每通道每个当地日一条）/ M5a daily-record fields ----
+    private String m5aDay;          // 当地日
+    private String m5aChannel;      // 检测通道
+    private boolean m5aEvaluable;   // 可判
+    private String m5aReason;       // 不可判的原因
+    private int m5aRounds;          // 当日实到轮数
+    private long m5aExpected;       // 当日应有轮数
+    private int m5aGuardRounds;     // 守卫打标轮数
+    private int m5aN;               // 当日该通道的读数数
+    private double m5aD;            // 分箱 D
+    private double m5aP;            // 渐近显著性
+    private double m5aP10;          // 当日 P10
+    private double m5aMedian;       // 当日中位数
+    private double m5aP90;          // 当日 P90
+    private double m5aShift;        // 偏移（参照宽度单位）
+    private double m5aWidthX;       // 宽度倍数
+    private double m5aMaxCellMass;  // 当日单箱最大质量
+    private boolean m5aDeviated;    // 日末状态：已偏离
+
     /** Jackson 反序列化需要无参构造 / No-arg constructor required by Jackson. */
     public MonitoringSnapshot() { }
 
@@ -197,6 +216,58 @@ public class MonitoringSnapshot implements Serializable {
     @JsonProperty
     public long getM5bTSkippedConstant() { return m5bTSkippedConstant; }
     public void setM5bTSkippedConstant(long m5bTSkippedConstant) { this.m5bTSkippedConstant = m5bTSkippedConstant; }
+
+    @JsonProperty
+    public String getM5aDay() { return m5aDay; }
+    public void setM5aDay(String m5aDay) { this.m5aDay = m5aDay; }
+    @JsonProperty
+    public String getM5aChannel() { return m5aChannel; }
+    public void setM5aChannel(String m5aChannel) { this.m5aChannel = m5aChannel; }
+    @JsonProperty
+    public boolean isM5aEvaluable() { return m5aEvaluable; }
+    public void setM5aEvaluable(boolean m5aEvaluable) { this.m5aEvaluable = m5aEvaluable; }
+    @JsonProperty
+    public String getM5aReason() { return m5aReason; }
+    public void setM5aReason(String m5aReason) { this.m5aReason = m5aReason; }
+    @JsonProperty
+    public int getM5aRounds() { return m5aRounds; }
+    public void setM5aRounds(int m5aRounds) { this.m5aRounds = m5aRounds; }
+    @JsonProperty
+    public long getM5aExpected() { return m5aExpected; }
+    public void setM5aExpected(long m5aExpected) { this.m5aExpected = m5aExpected; }
+    @JsonProperty
+    public int getM5aGuardRounds() { return m5aGuardRounds; }
+    public void setM5aGuardRounds(int m5aGuardRounds) { this.m5aGuardRounds = m5aGuardRounds; }
+    @JsonProperty
+    public int getM5aN() { return m5aN; }
+    public void setM5aN(int m5aN) { this.m5aN = m5aN; }
+    @JsonProperty
+    public double getM5aD() { return m5aD; }
+    public void setM5aD(double m5aD) { this.m5aD = m5aD; }
+    @JsonProperty
+    public double getM5aP() { return m5aP; }
+    public void setM5aP(double m5aP) { this.m5aP = m5aP; }
+    @JsonProperty
+    public double getM5aP10() { return m5aP10; }
+    public void setM5aP10(double m5aP10) { this.m5aP10 = m5aP10; }
+    @JsonProperty
+    public double getM5aMedian() { return m5aMedian; }
+    public void setM5aMedian(double m5aMedian) { this.m5aMedian = m5aMedian; }
+    @JsonProperty
+    public double getM5aP90() { return m5aP90; }
+    public void setM5aP90(double m5aP90) { this.m5aP90 = m5aP90; }
+    @JsonProperty
+    public double getM5aShift() { return m5aShift; }
+    public void setM5aShift(double m5aShift) { this.m5aShift = m5aShift; }
+    @JsonProperty
+    public double getM5aWidthX() { return m5aWidthX; }
+    public void setM5aWidthX(double m5aWidthX) { this.m5aWidthX = m5aWidthX; }
+    @JsonProperty
+    public double getM5aMaxCellMass() { return m5aMaxCellMass; }
+    public void setM5aMaxCellMass(double m5aMaxCellMass) { this.m5aMaxCellMass = m5aMaxCellMass; }
+    @JsonProperty
+    public boolean isM5aDeviated() { return m5aDeviated; }
+    public void setM5aDeviated(boolean m5aDeviated) { this.m5aDeviated = m5aDeviated; }
 
     public double getM3ReconError() { return m3ReconError; }
     public void setM3ReconError(double m3ReconError) { this.m3ReconError = m3ReconError; }

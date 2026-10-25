@@ -67,6 +67,12 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
     private transient ValueState<boolean[]> bypass;
     private transient ValueState<boolean[]> substituted;   // 相对退化：改用主体宽度分母的通道
     private transient List<ListState<Double>> reservoirs;   // 每通道一个蓄水池 / one reservoir per channel
+    // 数据层长记忆的参照直方图（M5a，1.03 版：冻结时由蓄水池建成，自留一份，并附在冻结后的第一条轮上传出）
+    // Reference histograms for M5a: built from the reservoirs at freeze, kept here and attached to the first frozen round.
+    private transient ValueState<com.leejean.m5a.RefHistogram[]> refHist;
+    private transient ValueState<Boolean> refSent;
+    /** 参照直方图的箱数（离线操作口径第二节）/ number of reference bins. */
+    public static final int REF_BINS = 400;
 
     private transient Counter warmupRoundsMetric;
     private transient Counter frozenDevices;
@@ -117,6 +123,9 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
                 "rs-bypass", PrimitiveArrayTypeInfo.BOOLEAN_PRIMITIVE_ARRAY_TYPE_INFO));
         substituted = getRuntimeContext().getState(new ValueStateDescriptor<>(
                 "rs-substituted", PrimitiveArrayTypeInfo.BOOLEAN_PRIMITIVE_ARRAY_TYPE_INFO));
+        refHist = getRuntimeContext().getState(new ValueStateDescriptor<>(
+                "rs-ref-histograms", Types.OBJECT_ARRAY(Types.POJO(com.leejean.m5a.RefHistogram.class))));
+        refSent = getRuntimeContext().getState(new ValueStateDescriptor<>("rs-ref-sent", Types.BOOLEAN));
         reservoirs = new ArrayList<>(Channels.N_DET);
         for (int c = 0; c < Channels.N_DET; c++) {
             reservoirs.add(getRuntimeContext().getListState(
@@ -188,6 +197,10 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
         }
         round.setWarmup(false);
         round.setXNorm(xn);
+        if (refSent.value() == null) {                // 冻结后的第一条轮带上参照直方图 / first frozen round carries the histograms
+            round.setRefHistograms(refHist.value());
+            refSent.update(true);
+        }
         round.setBypassMask(outBypass);
         round.setSubstitutedMask(outSub);
         out.collect(round);
@@ -197,6 +210,7 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
     private void freeze() throws Exception {
         double[] med = new double[Channels.N_DET];
         double[] scale = new double[Channels.N_DET];
+        com.leejean.m5a.RefHistogram[] hist = new com.leejean.m5a.RefHistogram[Channels.N_DET];
         boolean[] bp = new boolean[Channels.N_DET];
         boolean[] sub = new boolean[Channels.N_DET];
         int nBypass = 0;
@@ -214,6 +228,7 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
                 nBypass++;
             } else {
                 Collections.sort(vals);
+                hist[c] = com.leejean.m5a.RefHistogram.build(vals.stream().mapToDouble(Double::doubleValue).toArray(), REF_BINS);
                 ScaleDecision d = decideScale(vals, epsilon, relativeGuardEnabled);
                 med[c] = d.median;
                 scale[c] = d.scale;
@@ -229,6 +244,7 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
         }
         median.update(med);
         iqr.update(scale);
+        refHist.update(hist);
         bypass.update(bp);
         substituted.update(sub);
         frozen.update(true);
@@ -317,6 +333,8 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
         iqr.clear();
         bypass.clear();
         substituted.clear();
+        refHist.clear();
+        refSent.clear();
         count.update(0L);
         for (ListState<Double> res : reservoirs) {
             res.clear();

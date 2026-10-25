@@ -1,6 +1,7 @@
 package com.leejean.m1;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.io.Serializable;
@@ -59,6 +60,10 @@ public class DeviceRound implements Serializable {
     private int malformed;              // 归属到本设备本轮的畸形读数 / malformed readings attributed here
     private int censoredLight;          // Light 右删失计数 / Light right-censored count
     private int rssiSentinel;           // RSSI 哨兵替换计数 / RSSI sentinel substitutions
+
+    // 数据层长记忆的参照直方图（M5a，开发设计日志 1.03 版）：只在冻结后的第一条轮上非空，按检测通道排列；其余轮为 null。
+    // Reference histograms for the M5a long-memory test: non-null only on the first round after the freeze.
+    private com.leejean.m5a.RefHistogram[] refHistograms;
 
     /** Jackson 反序列化需要无参构造 / No-arg constructor required by Jackson + Flink POJO. */
     public DeviceRound() {
@@ -133,6 +138,13 @@ public class DeviceRound implements Serializable {
     @JsonIgnore
     public long[] getGuardRunStartTs() { return guardRunStartTs; }
     public void setGuardRunStartTs(long[] guardRunStartTs) { this.guardRunStartTs = guardRunStartTs; }
+
+    // 只在冻结后的第一条轮上写进 synergia-m1-out（其余轮为 null，不写），供数据层的 Java 离线运行器读取
+    // written to m1-out only on the first frozen round (null elsewhere, omitted), for the M5a offline runner
+    @JsonProperty
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public com.leejean.m5a.RefHistogram[] getRefHistograms() { return refHistograms; }
+    public void setRefHistograms(com.leejean.m5a.RefHistogram[] refHistograms) { this.refHistograms = refHistograms; }
 
     @JsonProperty
     public boolean isWarmup() { return warmup; }
