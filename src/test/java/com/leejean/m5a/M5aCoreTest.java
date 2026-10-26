@@ -36,8 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 一台设备 13 天的合成轮（跨夏令时切换日，含标定日、缺轮日、守卫打标日、两段漂移）与离群记录（含之后滑动步的重复）。
  * Tests of M5aCore and M5aFunction against fixtures produced by the Python offline implementation.
  *
- * <p>检查三件事：参照直方图与 numpy 逐位相同；Java 离线运行（{@link M5aOfflineRunner#runDevice}）的日记录、状态转移与爆发与 Python
- * 相同（显著性允许 1e-12 的相对差，其余逐位）；在线算子（含中途检查点恢复）的输出与 Java 离线运行逐条相同。
+ * <p>检查三件事：参照直方图与 numpy 相同；Java 离线运行（{@link M5aOfflineRunner#runDevice}）的日记录、状态转移与爆发与 Python
+ * 相同；在线算子（含中途检查点恢复）的输出与 Java 离线运行逐条相同。与 Python 的比较除光照的连续统计量（见 LIGHT_TOL）外一律逐位。
  * Checks: reference histograms equal numpy; the Java offline run equals Python; the online operator (with a restore) equals it.
  */
 class M5aCoreTest {
@@ -46,8 +46,9 @@ class M5aCoreTest {
     private static final OutputTag<MonitoringSnapshot> TAG = new OutputTag<MonitoringSnapshot>("m5a-rec") { };
     /**
      * 光照在 log1p 域：Java 的 Math.log1p 与 numpy 的 log1p 在少数输入上相差一个最低有效位，分箱边界与分位数随之可差一位，偏移与宽度倍数
-     * 因相减可差到 1e-15 量级；分箱 D 不受影响（参照与当日用同一个变换，相等关系不变）。
-     * Light is in the log1p domain; Java and numpy log1p differ by one ulp on a few inputs, so its quantiles may too.
+     * 因相减可差到 1e-15 量级；分箱 D 不受影响（参照与当日用同一个变换，相等关系不变）。开发设计日志 1.11 版裁定：跨语言比较对光照经过
+     * 变换的连续统计量（分位数、偏移、宽度倍数）用 1e-12 的容差，分箱 D、显著性、事件清单与状态转移仍逐位相同；Java 对 Java 一律逐行相同。
+     * Light is in the log1p domain; Java and numpy log1p differ by one ulp on a few inputs, so its quantiles may too (ruling 1.11).
      */
     private static final double LIGHT_TOL = 1e-12;
     private static final M5aCore.Params P = new M5aCore.Params(new double[]{0.38, 0.73, 0.84, 0.43, 0.51}, 0.01, 0.2, 0.2, 10, 60);
@@ -182,11 +183,11 @@ class M5aCoreTest {
         M5aOfflineRunner.runDevice(DEV, new ArrayList<>(rounds), os, finalTime, P, tables, ev, rec);
     }
 
-    /** 显著性允许 1e-12 的相对差（级数求和的次序不同）；其余逐位，光照的分位数类字段见 LIGHT_TOL / p relative 1e-12, else exact. */
-    private static void assertNum(String exp, String act, boolean pValue, boolean light, String what) {
+    /** 逐位比较；光照的分位数、偏移与宽度倍数用 LIGHT_TOL / exact, except the light quantile-type fields. */
+    private static void assertNum(String exp, String act, boolean light, String what) {
         double e = Double.parseDouble(exp);
         double a = Double.parseDouble(act);
-        assertEquals(e, a, pValue ? Math.abs(e) * 1e-12 : (light ? LIGHT_TOL : 0.0), what);
+        assertEquals(e, a, light ? LIGHT_TOL : 0.0, what);
     }
 
     @Test
@@ -208,7 +209,7 @@ class M5aCoreTest {
                 assertEquals(e[k], a[k + 1], at + " col " + k);
             }
             for (int k = 8; k < 16; k++) {
-                assertNum(e[k], a[k + 1], k == 9, k >= 10 && k <= 14 && e[1].equals("Light"), at + " col " + k);
+                assertNum(e[k], a[k + 1], k >= 10 && k <= 14 && e[1].equals("Light"), at + " col " + k);
             }
             assertEquals(e[16], a[17], at + " deviated");
             evaluable += e[2].equals("1") ? 1 : 0;
@@ -239,7 +240,7 @@ class M5aCoreTest {
                 assertEquals(e[k], a[k], at + " col " + k);
             }
             for (int k : new int[]{5, 7, 10, 11, 12, 13}) {
-                assertNum(e[k], a[k], k == 11, k >= 12 && e[3].equals("Light"), at + " col " + k);
+                assertNum(e[k], a[k], k >= 12 && e[3].equals("Light"), at + " col " + k);
             }
         }
     }
