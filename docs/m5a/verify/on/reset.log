@@ -16,7 +16,7 @@
 ───────── 2/8 磁盘门槛 / free space >= 20 GB
   fa-master: 可用 21 GB
   fa-worker1: 可用 24 GB
-  fa-worker2: 可用 25 GB
+  fa-worker2: 可用 24 GB
 
 ───────── 3/8 停止重放器并清掉续跑位点 / stop replayer, drop the resume offset
 

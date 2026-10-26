@@ -1,2 +1,2 @@
-[watch] 监测已在 master 的 tmux 会话 syn-m3-watch 中启动（作业 751a1e81c93a105c2264a408084ebbab），本地终端可以关闭。
+[watch] 监测已在 master 的 tmux 会话 syn-m3-watch 中启动（作业 1d32ec2f4f933732f6978193a4e85400），本地终端可以关闭。
         查看进度：bash deploy/scripts/syn-m3-watch.sh status

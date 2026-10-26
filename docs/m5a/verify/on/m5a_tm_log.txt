@@ -1,56 +1,56 @@
-2026-10-26 07:22:16,926 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 4209 ms: confidence=0.99, robustness=0.5, wmax=2016
-2026-10-26 07:22:16,940 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 4247 ms: confidence=0.99, robustness=0.5, wmax=2016
-2026-10-26 07:22:17,127 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 4386 ms: confidence=0.99, robustness=0.5, wmax=2016
-2026-10-26 07:22:17,172 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 4541 ms: confidence=0.99, robustness=0.5, wmax=2016
-2026-10-26 07:46:37,484 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device F day 2022-03-25 closed in 386 us: 0 values, state 80439 bytes
-2026-10-26 07:46:37,566 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device B day 2022-03-25 closed in 188 us: 0 values, state 77799 bytes
-2026-10-26 07:46:37,566 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device G day 2022-03-25 closed in 201 us: 0 values, state 80935 bytes
-2026-10-26 07:46:37,576 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device E day 2022-03-25 closed in 180 us: 0 values, state 81799 bytes
-2026-10-26 07:58:37,457 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device G day 2022-03-26 closed in 30165 us: 43070 values, state 80935 bytes
-2026-10-26 07:58:37,462 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device B day 2022-03-26 closed in 35859 us: 42910 values, state 77799 bytes
-2026-10-26 07:58:37,470 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device F day 2022-03-26 closed in 46133 us: 43100 values, state 80439 bytes
-2026-10-26 07:58:37,473 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device E day 2022-03-26 closed in 3902 us: 43110 values, state 81799 bytes
-2026-10-26 08:10:07,389 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device G day 2022-03-27 closed in 2263 us: 41285 values, state 80935 bytes
-2026-10-26 08:10:07,393 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device E day 2022-03-27 closed in 3473 us: 41305 values, state 81799 bytes
-2026-10-26 08:10:07,488 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device F day 2022-03-27 closed in 2386 us: 41285 values, state 80439 bytes
-2026-10-26 08:10:07,489 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device B day 2022-03-27 closed in 2279 us: 41285 values, state 77799 bytes
-2026-10-26 08:22:07,365 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device F day 2022-03-28 closed in 2121 us: 43080 values, state 80439 bytes
-2026-10-26 08:22:07,414 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device B day 2022-03-28 closed in 2471 us: 42375 values, state 77799 bytes
-2026-10-26 08:22:07,514 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device G day 2022-03-28 closed in 2177 us: 43050 values, state 80935 bytes
-2026-10-26 08:22:07,603 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device E day 2022-03-28 closed in 2815 us: 43110 values, state 81799 bytes
-2026-10-26 08:34:07,410 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device E day 2022-03-29 closed in 2180 us: 43105 values, state 81799 bytes
-2026-10-26 08:34:07,495 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device F day 2022-03-29 closed in 1983 us: 43080 values, state 80439 bytes
-2026-10-26 08:34:07,495 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device G day 2022-03-29 closed in 2409 us: 43015 values, state 80935 bytes
-2026-10-26 08:34:07,499 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device B day 2022-03-29 closed in 2079 us: 41875 values, state 77799 bytes
-2026-10-26 08:45:39,055 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device F day 2022-03-30 closed in 2031 us: 41265 values, state 80439 bytes
-2026-10-26 08:45:39,108 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device B day 2022-03-30 closed in 1836 us: 39650 values, state 77799 bytes
-2026-10-26 08:45:39,208 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device E day 2022-03-30 closed in 2007 us: 41300 values, state 81799 bytes
-2026-10-26 08:45:39,254 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device G day 2022-03-30 closed in 1998 us: 41220 values, state 80935 bytes
-2026-10-26 07:22:16,349 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 3660 ms: confidence=0.99, robustness=0.5, wmax=2016
-2026-10-26 07:22:16,369 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 3772 ms: confidence=0.99, robustness=0.5, wmax=2016
-2026-10-26 07:22:16,555 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 3914 ms: confidence=0.99, robustness=0.5, wmax=2016
-2026-10-26 07:22:16,809 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 4097 ms: confidence=0.99, robustness=0.5, wmax=2016
-2026-10-26 07:46:37,436 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device A day 2022-03-25 closed in 373 us: 0 values, state 80503 bytes
-2026-10-26 07:46:37,436 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device D day 2022-03-25 closed in 335 us: 0 values, state 82487 bytes
-2026-10-26 07:46:37,466 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device H day 2022-03-25 closed in 328 us: 0 values, state 79271 bytes
-2026-10-26 07:46:37,538 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device C day 2022-03-25 closed in 211 us: 0 values, state 82279 bytes
-2026-10-26 07:58:37,415 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device A day 2022-03-26 closed in 4201 us: 43090 values, state 80503 bytes
-2026-10-26 07:58:37,419 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device D day 2022-03-26 closed in 3567 us: 43105 values, state 82487 bytes
-2026-10-26 07:58:37,422 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device C day 2022-03-26 closed in 4188 us: 43095 values, state 82279 bytes
-2026-10-26 07:58:37,514 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device H day 2022-03-26 closed in 3066 us: 43100 values, state 79271 bytes
-2026-10-26 08:10:07,478 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device C day 2022-03-27 closed in 2604 us: 41310 values, state 82279 bytes
-2026-10-26 08:10:07,481 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device A day 2022-03-27 closed in 2514 us: 41305 values, state 80503 bytes
-2026-10-26 08:10:07,482 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device D day 2022-03-27 closed in 2870 us: 41305 values, state 82487 bytes
-2026-10-26 08:10:07,482 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device H day 2022-03-27 closed in 1725 us: 41255 values, state 79271 bytes
-2026-10-26 08:22:07,409 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device C day 2022-03-28 closed in 2569 us: 43045 values, state 82279 bytes
-2026-10-26 08:22:07,412 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device A day 2022-03-28 closed in 2118 us: 43090 values, state 80503 bytes
-2026-10-26 08:22:07,509 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device D day 2022-03-28 closed in 2224 us: 43105 values, state 82487 bytes
-2026-10-26 08:22:07,514 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device H day 2022-03-28 closed in 2111 us: 41170 values, state 79271 bytes
-2026-10-26 08:34:07,410 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device A day 2022-03-29 closed in 2683 us: 43055 values, state 80503 bytes
-2026-10-26 08:34:07,412 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device D day 2022-03-29 closed in 3124 us: 43105 values, state 82487 bytes
-2026-10-26 08:34:07,508 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device C day 2022-03-29 closed in 2894 us: 43045 values, state 82279 bytes
-2026-10-26 08:34:08,016 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device H day 2022-03-29 closed in 2073 us: 36970 values, state 79271 bytes
-2026-10-26 08:45:39,182 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device A day 2022-03-30 closed in 1928 us: 41230 values, state 80503 bytes
-2026-10-26 08:45:39,186 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device H day 2022-03-30 closed in 1577 us: 33405 values, state 79271 bytes
-2026-10-26 08:45:39,187 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device D day 2022-03-30 closed in 3503 us: 41290 values, state 82487 bytes
-2026-10-26 08:45:39,187 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device C day 2022-03-30 closed in 2827 us: 41260 values, state 82279 bytes
+2026-10-26 11:46:10,744 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 3650 ms: confidence=0.99, robustness=0.5, wmax=2016
+2026-10-26 11:46:11,168 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 3874 ms: confidence=0.99, robustness=0.5, wmax=2016
+2026-10-26 11:46:11,272 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 3981 ms: confidence=0.99, robustness=0.5, wmax=2016
+2026-10-26 11:46:11,313 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 4165 ms: confidence=0.99, robustness=0.5, wmax=2016
+2026-10-26 12:10:31,975 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device G day 2022-03-25 closed in 424 us: 0 values, state 39979 bytes
+2026-10-26 12:10:32,050 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device H day 2022-03-25 closed in 206 us: 0 values, state 38315 bytes
+2026-10-26 12:10:32,072 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device F day 2022-03-25 closed in 199 us: 0 values, state 39483 bytes
+2026-10-26 12:10:32,072 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device B day 2022-03-25 closed in 183 us: 0 values, state 36843 bytes
+2026-10-26 12:22:31,988 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device F day 2022-03-26 closed in 4199 us: 43100 values, state 39483 bytes
+2026-10-26 12:22:32,077 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device H day 2022-03-26 closed in 2740 us: 43100 values, state 38315 bytes
+2026-10-26 12:22:32,079 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device B day 2022-03-26 closed in 2543 us: 42910 values, state 36843 bytes
+2026-10-26 12:22:32,083 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device G day 2022-03-26 closed in 3602 us: 43070 values, state 39979 bytes
+2026-10-26 12:34:01,911 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device H day 2022-03-27 closed in 2106 us: 41255 values, state 38315 bytes
+2026-10-26 12:34:01,911 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device F day 2022-03-27 closed in 2097 us: 41285 values, state 39483 bytes
+2026-10-26 12:34:02,011 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device G day 2022-03-27 closed in 2134 us: 41285 values, state 39979 bytes
+2026-10-26 12:34:02,110 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device B day 2022-03-27 closed in 2356 us: 41285 values, state 36843 bytes
+2026-10-26 12:46:01,997 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device H day 2022-03-28 closed in 2139 us: 41170 values, state 38315 bytes
+2026-10-26 12:46:02,010 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device B day 2022-03-28 closed in 2512 us: 42375 values, state 36843 bytes
+2026-10-26 12:46:02,011 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device F day 2022-03-28 closed in 2427 us: 43080 values, state 39483 bytes
+2026-10-26 12:46:02,012 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device G day 2022-03-28 closed in 2839 us: 43050 values, state 39979 bytes
+2026-10-26 12:58:02,041 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device F day 2022-03-29 closed in 1898 us: 43080 values, state 39483 bytes
+2026-10-26 12:58:02,087 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device B day 2022-03-29 closed in 1799 us: 41875 values, state 36843 bytes
+2026-10-26 12:58:02,088 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device G day 2022-03-29 closed in 2641 us: 43015 values, state 39979 bytes
+2026-10-26 12:58:02,587 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device H day 2022-03-29 closed in 1871 us: 36970 values, state 38315 bytes
+2026-10-26 13:09:33,545 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device G day 2022-03-30 closed in 2247 us: 41220 values, state 39979 bytes
+2026-10-26 13:09:33,546 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device F day 2022-03-30 closed in 2329 us: 41265 values, state 39483 bytes
+2026-10-26 13:09:33,596 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device B day 2022-03-30 closed in 1728 us: 39650 values, state 36843 bytes
+2026-10-26 13:09:33,696 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device H day 2022-03-30 closed in 1587 us: 33405 values, state 38315 bytes
+2026-10-26 11:46:10,416 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 3382 ms: confidence=0.99, robustness=0.5, wmax=2016
+2026-10-26 11:46:10,654 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 3392 ms: confidence=0.99, robustness=0.5, wmax=2016
+2026-10-26 11:46:10,724 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 3674 ms: confidence=0.99, robustness=0.5, wmax=2016
+2026-10-26 11:46:10,770 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] tables built in 3594 ms: confidence=0.99, robustness=0.5, wmax=2016
+2026-10-26 12:10:31,900 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device C day 2022-03-25 closed in 393 us: 0 values, state 41323 bytes
+2026-10-26 12:10:32,000 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device E day 2022-03-25 closed in 194 us: 0 values, state 40843 bytes
+2026-10-26 12:10:32,004 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device A day 2022-03-25 closed in 207 us: 0 values, state 39547 bytes
+2026-10-26 12:10:32,072 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device D day 2022-03-25 closed in 185 us: 0 values, state 41531 bytes
+2026-10-26 12:22:32,022 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device A day 2022-03-26 closed in 4712 us: 43090 values, state 39547 bytes
+2026-10-26 12:22:32,022 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device E day 2022-03-26 closed in 4310 us: 43110 values, state 40843 bytes
+2026-10-26 12:22:32,025 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device C day 2022-03-26 closed in 3324 us: 43095 values, state 41323 bytes
+2026-10-26 12:22:32,121 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device D day 2022-03-26 closed in 2484 us: 43105 values, state 41531 bytes
+2026-10-26 12:34:01,939 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device A day 2022-03-27 closed in 2046 us: 41305 values, state 39547 bytes
+2026-10-26 12:34:02,039 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device E day 2022-03-27 closed in 2014 us: 41305 values, state 40843 bytes
+2026-10-26 12:34:02,135 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device D day 2022-03-27 closed in 2172 us: 41305 values, state 41531 bytes
+2026-10-26 12:34:02,237 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device C day 2022-03-27 closed in 2338 us: 41310 values, state 41323 bytes
+2026-10-26 12:46:02,024 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device C day 2022-03-28 closed in 2428 us: 43045 values, state 41323 bytes
+2026-10-26 12:46:02,037 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device D day 2022-03-28 closed in 2069 us: 43105 values, state 41531 bytes
+2026-10-26 12:46:02,097 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device E day 2022-03-28 closed in 1887 us: 43110 values, state 40843 bytes
+2026-10-26 12:46:02,123 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device A day 2022-03-28 closed in 1845 us: 43090 values, state 39547 bytes
+2026-10-26 12:58:02,031 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device A day 2022-03-29 closed in 2605 us: 43055 values, state 39547 bytes
+2026-10-26 12:58:02,032 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device E day 2022-03-29 closed in 2524 us: 43105 values, state 40843 bytes
+2026-10-26 12:58:02,037 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device D day 2022-03-29 closed in 1753 us: 43105 values, state 41531 bytes
+2026-10-26 12:58:02,130 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device C day 2022-03-29 closed in 2261 us: 43045 values, state 41323 bytes
+2026-10-26 13:09:33,668 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device A day 2022-03-30 closed in 2100 us: 41230 values, state 39547 bytes
+2026-10-26 13:09:33,668 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device C day 2022-03-30 closed in 2083 us: 41260 values, state 41323 bytes
+2026-10-26 13:09:33,670 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device D day 2022-03-30 closed in 2240 us: 41290 values, state 41531 bytes
+2026-10-26 13:09:33,670 INFO  com.leejean.m5a.M5aFunction                                  [] - [M5a] Device E day 2022-03-30 closed in 1989 us: 41300 values, state 40843 bytes

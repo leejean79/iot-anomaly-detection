@@ -48,7 +48,7 @@ WARNING: Illegal reflective access by org.apache.flink.api.java.ClosureCleaner (
 WARNING: Please consider reporting this to the maintainers of org.apache.flink.api.java.ClosureCleaner
 WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
 WARNING: All illegal access operations will be denied in a future release
-Job has been submitted with JobID 3c5757fb15c31ccb3d1734045ec7bdb9
-[wait] M2Job (3c5757fb15c31ccb3d1734045ec7bdb9) to be RUNNING ...
-  M2Job is RUNNING (JobID 3c5757fb15c31ccb3d1734045ec7bdb9)
+Job has been submitted with JobID f087b2afbe10b333d0bec3772ec3f1fb
+[wait] M2Job (f087b2afbe10b333d0bec3772ec3f1fb) to be RUNNING ...
+  M2Job is RUNNING (JobID f087b2afbe10b333d0bec3772ec3f1fb)
 下一步 / Next: bash /opt/fa-iforest/m5averify/repo/deploy/scripts/syn-replay.sh --speedup 600 --start <day> --end <day>
