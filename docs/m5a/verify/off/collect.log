@@ -1,0 +1,11 @@
+[collect] 转储 synergia-scores 与 synergia-monitoring（各最多 5000000 条）……
+[collect] synergia-scores：6312 行 → master:/opt/fa-iforest/m3march/scores.jsonl
+[collect] synergia-monitoring：153402 行 → master:/opt/fa-iforest/m3march/monitoring.jsonl
+[collect] 注入地面真值 → docs/m5a/verify/off/inject-truth.csv
+收集时间：2026-10-26 18:23:18 CST
+scores 行数：6312
+其中上下文通道（m3_context）：4879
+monitoring 行数（留在 master）：153402
+注入真值行数（含表头）：2
+M3 训练完成的设备数：8
+REPORT 警告数：1

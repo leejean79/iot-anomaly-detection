@@ -1,0 +1,74 @@
+====================================================================
+  syn-reset-env.sh — 阶段实验前的环境复位
+  磁盘门槛 20 GB/节点   清空 topic: 是
+  回收孤儿卷: 否（只报告）
+  模式: 执行复位
+====================================================================
+
+───────── 1/8 容器在位检查 / containers present
+  fa-master: jobmanager kafka-1 node-exporter zookeeper prometheus grafana 
+  fa-worker1: taskmanager-2 kafka-2 node-exporter-2 
+  fa-worker2: taskmanager-3 kafka-3 node-exporter-3 
+
+───────── 1b/8 JobManager REST 可达性 / JobManager REST reachability
+  http://172.16.0.162:8081 可达，可用 slot: 8/8
+
+───────── 2/8 磁盘门槛 / free space >= 20 GB
+  fa-master: 可用 21 GB
+  fa-worker1: 可用 24 GB
+  fa-worker2: 可用 25 GB
+
+───────── 3/8 停止重放器并清掉续跑位点 / stop replayer, drop the resume offset
+
+───────── 4/8 取消本项目作业 / cancel this project's jobs only
+  没有本项目作业在跑。
+
+───────── 5/8 重启 Flink 容器 / restart Flink containers
+  目的：Flink 的指标计数器是**每 JVM** 的。上一轮运行留下的计数若不清零，本轮的对账恒等式
+        会读到跨轮累加的数字，且表面看不出异常（断言五抓的正是这一类）。
+  等待 JobManager REST 就绪……
+  REST 就绪，可用 slot: 4/4
+
+───────── 6/8 清空 synergia-* topic 并复核末端偏移 / clean topics and verify end offsets
+  Kafka 删除是异步的，等待 20 秒后复核……
+    synergia-source 末端偏移合计: 0
+    synergia-m1-out 末端偏移合计: 0
+    synergia-monitoring 末端偏移合计: 0
+    synergia-scores 末端偏移合计: 0
+    synergia-source retention.ms: -1
+    synergia-m1-out retention.ms: -1
+    synergia-monitoring retention.ms: -1
+    synergia-scores retention.ms: -1
+
+───────── 7/8 清理远端中间产物、盘点孤儿卷 / clear scratch dirs, report orphan volumes
+  fa-master: 孤儿卷 0 个，约 0 MB
+  fa-worker1: 孤儿卷 0 个，约 0 MB
+  fa-worker2: 孤儿卷 0 个，约 0 MB
+
+───────── 8/8 配置与 jar 一致性 / configuration and jar consistency
+  TaskManager 镜像: fa-iforest/flink:1.13.6-java11（期望 fa-iforest/flink:1.13.6-java11）
+  TaskManager maxphysicalbytes: 5120m（期望 5120m）
+  TaskManager OMP_NUM_THREADS: taskmanager-2=1 taskmanager-3=1（期望都为 1）
+  JobManager akka.framesize: 268435456b（期望 268435456b，来自 .env）
+
+====================================================================
+  复位核对表 / reset checklist
+====================================================================
+  [PASS] 容器在位   六个核心容器齐全
+  [PASS] JM REST 可达 slot 8/8
+  [PASS] 磁盘门槛   三台均 >= 20 GB
+  [PASS] 重放器已停 无残留容器，续跑位点已清
+  [PASS] 无作业在跑 RUNNING 作业数 0
+  [PASS] Flink 已重启 REST 就绪，slot 4/4
+  [PASS] topic 已清零 四个 topic 末端偏移均为 0
+  [PASS] retention.ms=-1 四个 topic 均为 -1
+  [PASS] 孤儿卷      无孤儿卷
+  [PASS] TM 镜像      fa-iforest/flink:1.13.6-java11
+  [PASS] JavaCPP 上限 5120m
+  [PASS] TM 单线程    taskmanager-2=1 taskmanager-3=1
+  [PASS] framesize 写法 268435456b 可被 Typesafe Config 解析（来自 .env）
+  [PASS] akka.framesize 268435456b（期望值来自 .env）
+  [SKIP] jar 一致     本地 target/ 下没有 iot-anomaly-detection-1.0-SNAPSHOT.jar（先 mvn -DskipTests package）
+====================================================================
+  ✅ 环境已复位，可以开始本阶段实验。
+     下一步通常是：syn-create-topics.sh（若 topic 被删后未重建）→ 提交作业 → 启动重放。
