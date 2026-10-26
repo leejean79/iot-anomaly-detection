@@ -13,7 +13,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -72,8 +71,7 @@ public class M5aCore implements Serializable {
     private long dayEnd;
     private int dayRounds;
     private int dayGuard;
-    private double[][] buf = new double[Channels.N_DET][];
-    private int[] bufN = new int[Channels.N_DET];
+    private DayBuffer buf = new DayBuffer(Channels.N_DET);       // 序列化只写已用部分 / serialized without spare capacity
     private final boolean[] deviated = new boolean[Channels.N_DET];
     // ---- 第三族 / family 3
     private final TreeMap<Long, long[]> bins = new TreeMap<>();    // 十分钟末 → {入口轮数, 离群轮数}
@@ -106,7 +104,7 @@ public class M5aCore implements Serializable {
             dayEnd = dayEnd(d);
             dayRounds = 0;
             dayGuard = 0;
-            Arrays.fill(bufN, 0);
+            buf = new DayBuffer(Channels.N_DET);
         }
         if (r.getRefHistograms() != null && ref == null) {
             ref = r.getRefHistograms();
@@ -124,7 +122,7 @@ public class M5aCore implements Serializable {
                 if ((miss != null && miss[c]) || (c == Channels.LIGHT_INDEX && cens != null && cens[c])) {
                     continue;
                 }
-                append(c, tf[c].apply(r.getX()[c]));
+                buf.append(c, tf[c].apply(r.getX()[c]));
             }
             if (r.missingCount() == 0) {                     // 点通道入口判据（M2Gate）/ the M2 entry gate
                 long b = Math.floorDiv(r.getTs(), (long) BIN_SEC) * BIN_SEC + BIN_SEC;
@@ -164,8 +162,8 @@ public class M5aCore implements Serializable {
                 s.setM5aEvaluable(evaluable);
                 s.setM5aReason(reason);
                 DayStats st = null;
-                if (!day.equals(calibDay) && bufN[c] > 0 && ref[c] != null) {
-                    st = DayStats.of(Arrays.copyOf(buf[c], bufN[c]), ref[c]);
+                if (!day.equals(calibDay) && buf.size(c) > 0 && ref[c] != null) {
+                    st = DayStats.of(buf.values(c), ref[c]);
                     s.setM5aN(st.n);
                     s.setM5aD(st.dBin);
                     s.setM5aP(st.p);
@@ -192,8 +190,7 @@ public class M5aCore implements Serializable {
             }
         }
         day = null;
-        buf = new double[Channels.N_DET][];
-        Arrays.fill(bufN, 0);
+        buf = new DayBuffer(Channels.N_DET);
     }
 
     // ================================================================ 离群率 / outlier rate
@@ -276,15 +273,6 @@ public class M5aCore implements Serializable {
     }
 
     // ================================================================ 工具 / helpers
-    private void append(int c, double v) {
-        if (buf[c] == null) {
-            buf[c] = new double[1024];
-        } else if (bufN[c] == buf[c].length) {
-            buf[c] = Arrays.copyOf(buf[c], buf[c].length * 2);
-        }
-        buf[c][bufN[c]++] = v;
-    }
-
     private static boolean any(boolean[] m) {
         if (m == null) {
             return false;
