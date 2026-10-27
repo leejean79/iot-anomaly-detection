@@ -289,6 +289,7 @@ M2 与 M1 共用同一套集群流程（§3–§6 全部适用），只有以下
 ## 7.3 数据层漂移监测（M5a）的参数说明与短重放验证 / M5a parameters and the short-replay check
 
 数据层在同一个 `M2Job` 里，由 `--m5a-enabled true` 打开（默认关闭）。它有两路输入：标准化轮与点通道离群记录，不依赖 M3。
+收口时冻结的配置与依据见 `docs/handover/m5a_closeout_zh.md` 第二节。
 
 - **默认参数**：`--m5a-alpha 0.01`（按五个通道做邦费罗尼校正）、`--m5a-d0 0.38/0.73/0.84/0.43/0.51`（温度、湿度、气压、气体、光照，
   1.05 版冻结）、`--m5a-missing-max 0.2`、`--m5a-guard-max 0.2`；离群率检测器 `--m5a-confidence 0.99 --m5a-robustness 0.5

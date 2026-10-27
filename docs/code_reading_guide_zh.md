@@ -747,6 +747,7 @@ M3 的输出水位线保持（补遗四，把 M3 训练移出任务线程后的�
 | 2026-10-18 | M3 收口（开发设计日志 0.88 版，`docs/handover/m3_closeout_zh.md`），收口代码为提交 `6ab4010`。核对中发现设备 G 光照只做了输入置零、损失权重未置零（只有全机队统一的通道权重表），已提请裁定如何记录（`docs/reports/m3_closeout_g_light_weight_for_decision.md`）。Java 代码没有改动 |
 | 2026-10-20 | M5b 阶段：新增 `m5` 包（常量表、检测器、持续性核对、事件、在线算子、离线运行器），第四节、5.6 节、第六至九节同步；`M2Job` 增加 `--m5b-*` 参数与漂移主题；监测快照增加五个性能层字段 |
 | 2026-10-22 | M5b 收口（开发设计日志 1.00 版，`docs/handover/m5b_closeout_zh.md`）；运行手册新增 7.2 节（M5b 参数说明）。Java 代码没有改动 |
+| 2026-10-27 | M5a 收口（开发设计日志 1.13 版，`docs/handover/m5a_closeout_zh.md`），收口代码为提交 `fc5a60a`；运行手册 7.3 节注明冻结配置的出处。Java 代码没有改动 |
 | 2026-10-26 | 当日缓冲抽成 `DayBuffer`，序列化只写已用部分（M5a 阶段报告第九节第 1 条，设计会话选乙）；新增 `DayBufferTest` |
 | 2026-10-26 | `M5aCoreTest` 的容差按 1.11 版裁定收紧：只有光照的分位数、偏移、宽度倍数用 1e-12，显著性改为逐位；5.7 节同步 |
 | 2026-10-25 | M5a 在线实现：新增 `m5a` 包（参照直方图、日统计量、核心、在线算子、离线运行器）与 5.7 节；`RobustScalerFunction` 冻结时建参照直方图，`DeviceRound` 增加 `refHistograms`；`DriftEvent` 增加 `layer`、`channel` 与数据层字段，`MonitoringSnapshot` 增加日记录字段；`M2Job` 增加 `--m5a-*` 参数；第四、六至九节同步 |
