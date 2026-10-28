@@ -40,7 +40,7 @@ import java.util.UUID;
 
 /**
  * M2 联合作业（交接文档 §3-§5）：在 M1 管线之后接续 pMCOD 点异常检测，同一作业内算子链接续、不经 Kafka
- * 中转。M1 段完全复用已验收的算子（RawLineParser→RoundAssembler→RobustScaler→RawCache），M2 段为
+ * 中转。M1 段复用已验收的算子（RawLineParser→RoundAssembler→RawCache→RobustScaler；原始缓存移到标准化之前见适应执行第一批），M2 段为
  * 三道闸 → keyBy(device) → 事件时间滑动窗口 → PmcodFunction → synergia-scores / synergia-monitoring。
  * The joint M2 job: pMCOD point-anomaly detection chained after the (already-accepted) M1 pipeline in
  * one job. M1 operators are reused as-is; M2 adds the gates, the sliding window and PmcodFunction.
@@ -48,7 +48,7 @@ import java.util.UUID;
  * <pre>
  *   Kafka(synergia-source, event time, 55s OOO, idle 时限 --idle-wall)
  *     → RawLineParser → keyBy → RoundAssembler → AlignEventTime（事件时间改回轮时间戳）
- *     → keyBy → RobustScaler → keyBy → RawCache  [= M1 标准化流]
+ *     → keyBy → RawCache → keyBy → RobustScaler  [= M1 标准化流]
  *     ├→ MonitoringAggregator → synergia-monitoring        （M1 逐设备 60s 快照，保留）
  *     ├→ synergia-m1-out                                   （可选，--out-topic）
  *     └→ M2Gate（三道闸）→ keyBy(device)
@@ -352,13 +352,15 @@ public class M2Job {
                         .withTimestampAssigner((round, ts) -> round.getTs() * 1000L))
                 .name("AlignEventTime");
 
+        // 原始缓存（守卫与冷启动标记）在标准化之前，标准化算子的零级重估要用守卫标记（适应执行第一批裁决第一项）；两者互不读取
+        // 对方写的字段，调换顺序不改变输出。/ RawCache before the scaler (M6a ruling item 1); neither reads the other's fields.
         SingleOutputStreamOperator<DeviceRound> cached = aligned
+                .keyBy(DeviceKeys.selector(surrogate, DeviceRound::getDevice))
+                .process(new RawCacheFunction(cacheDepth, nominalPeriodSec, stuckThresholds, stuckFloors)).name("RawCache")
                 .keyBy(DeviceKeys.selector(surrogate, DeviceRound::getDevice))
                 .process(new RobustScalerFunction(
                         warmupRounds, epsilon, ChannelTransform.defaultTable(), relativeGuard))
-                .name("RobustScaler")
-                .keyBy(DeviceKeys.selector(surrogate, DeviceRound::getDevice))
-                .process(new RawCacheFunction(cacheDepth, nominalPeriodSec, stuckThresholds, stuckFloors)).name("RawCache");
+                .name("RobustScaler");
 
         Properties producerProps = new Properties();
         producerProps.setProperty("bootstrap.servers", brokers);
