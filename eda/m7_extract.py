@@ -22,7 +22,8 @@
 #    --inject docs/m3_a4/full_fix/inject-truth.csv、--guard docs/stuck_guard/thresholds.env、--devices ABCDEFGH。
 # 3. 前置条件：原始 CSV 目录可读（与数据层离线第一步同一个目录）；仓库里有注入真值与守卫阈值文件。
 # 4. 期望产出：docs/m7/extract/ 下 hourly.csv（设备、小时起点、当地小时、轮数、入口轮数、守卫打标轮数、五个通道的读数数与均值）、
-#    calib_hourly.csv（设备、当地钟点 0 至 23、五个通道在标定窗口内该钟点的读数数与均值）、meta.md（冻结时刻、读数数、行数）。
+#    calib_hourly.csv（设备、当地钟点 0 至 23、五个通道在标定窗口内该钟点的读数数与均值）、meta.md（冻结时刻、读数数、行数，以及
+#    每个通道不能被单精度精确表示的读数数，供适应执行模块的紧凑缓存参考）。
 #    运行时长与数据层离线第一步相近（读一遍全部文件，再逐台计算）。
 # 5. 失败兜底：没有读到读数时退出码 2（多半是 --data-dir 不对）；缺注入或守卫文件时退出码 3；某台设备不足 60,480 轮时跳过该台并在
 #    meta.md 中注明。
@@ -115,6 +116,12 @@ def main() -> int:
         print("ERROR: 没有读到读数（检查 --data-dir）", file=sys.stderr)
         return 2
     print("读入文件 %d 个；去重后读数 %d 条" % (nfiles, len(d)))
+    # 适应执行模块第一批的紧凑缓存按单精度存原始读数；这里核对每个通道有多少读数不能被单精度精确表示（M6 开工核对第四节）
+    # The M6 compact cache stores raw readings as float32; count readings per channel that float32 cannot represent exactly.
+    v = d["v"].to_numpy(dtype=float)
+    # pandas 默认的快速解析器偶尔差一个最低有效位，所以允许两个最低有效位 / pandas' fast parser may be off by one ulp
+    inexact = np.abs(v.astype(np.float32).astype(float) - v) > 2 * np.spacing(np.abs(v))
+    f32 = {CHANNELS[c]: (int(inexact[d["ch"].to_numpy() == c].sum()), int((d["ch"].to_numpy() == c).sum())) for c in range(5)}
     out = {"hourly": [], "calib": [], "meta": []}
     for dev, g in d.groupby("dev"):
         print("处理设备 %s（%d 条读数）……" % (dev, len(g)))
@@ -127,6 +134,8 @@ def main() -> int:
         fh.write("# M7 离线实验原始数据提取的元数据\n\n读入文件 %d 个，读数 %d 条（%s 至 %s，世界协调时）；hourly.csv %d 行。\n\n"
                  % (nfiles, len(d), a.start, a.end, len(hourly)))
         fh.write("\n".join("- " + x for x in out["meta"]) + "\n")
+        fh.write("\n## 单精度能否精确表示原始读数（适应执行模块紧凑缓存）\n\n")
+        fh.write("\n".join("- %s：%d / %d 条读数不能被单精度精确表示。" % (k, a_, b_) for k, (a_, b_) in f32.items()) + "\n")
     print("完成：%s/ 下 hourly.csv（%d 行）、calib_hourly.csv、meta.md" % (a.out_dir, len(hourly)))
     return 0
 
