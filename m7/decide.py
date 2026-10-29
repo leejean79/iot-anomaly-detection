@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ============================================================================
 # m7/decide.py
-# 聚合模块决策函数的 Python 参考实现（交接文档 `handover_m7_decision_stage_zh.md` 1.23 版第四节）：读 `m7/prepare_inputs.py` 整理的
+# 聚合模块决策函数的 Python 参考实现（交接文档 `handover_m7_decision_stage_zh.md` 1.24 版第四节）：读 `m7/prepare_inputs.py` 整理的
 # 七张表，逐个当地小时做小时节拍（五个标志、机队计数、六级归因），逐个当地日界做日节拍（时间形态、决策矩阵、冷却期与同一段偏离
 # 只发一次）与日界复核，写告警、命令、复核三份日志。Java 离线运行器读同一份输入，日志须逐条相同（验收项一）。
 # Python reference of the M7 decision function: hourly alerts, daily level-0 commands and the daily review log.
@@ -16,9 +16,10 @@
 # 1. 执行环境 / Environment: 开发机或本地 Mac，仓库根目录，python3.9+（只用标准库）。
 # 2. 调用命令 / Invocation:
 #      python3 m7/decide.py [--inputs docs/m7/inputs] [--out-dir docs/m7/run] [--no-once] [--layers data,perf,detect]
-#        [--common-ratio 3/4] [--k-site 3] [--delta-sec 0]
+#        [--common-ratio 3/4] [--k-site 3] [--delta-sec 0] [--wait-sec 0]
 #    --no-once 关闭「同一段偏离只发一次」（对照跑）；--layers 只用部分信号（消融）；--delta-sec 生效提前量（0 为一个当地日）；
-#    其余参数见 Params。
+#    --wait-sec 等待时长 W（0 为一个日界；小于一天时性能层规则改为确认持续满 W，数据层规则不变）；其余参数见 Params。
+#    告警节拍与决策节拍按 1.24 版裁决只在 Java 单元测试与在线算子中取非默认值，本脚本固定为一小时与一个当地日。
 # 3. 前置条件 / Preconditions: 已运行 m7/prepare_inputs.py。
 # 4. 期望产出 / Expected output: out-dir 下 alerts.csv、commands.csv、review.csv、params.json；终端打印三份日志的条数与按归因的分布。
 # 5. 失败兜底 / Failure fallback: 缺输入时退出码 2。
@@ -64,6 +65,7 @@ class Params:
         self.point_min_frac = kw.get("point_min_frac", 0.5)
         self.once_per_episode = kw.get("once_per_episode", True)
         self.delta_sec = kw.get("delta_sec", 0)              # 生效提前量 Δ；0 表示一个当地日 / 0 means one local day
+        self.wait_sec = kw.get("wait_sec", 0)                # 等待时长 W；0 表示一个日界 / 0 means one day boundary
         self.layers = kw.get("layers", ("data", "perf", "detect"))
         self.first_day = kw.get("first_day", "2022-03-08")
         self.last_day = kw.get("last_day", "2022-04-30")
@@ -369,7 +371,10 @@ def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, 
         perf[dev].advance(t)
         pf = perf[dev]
         perf_at_t = pf.confirmed
-        perf_cross = pf.confirmed and pf.since is not None and pf.since < day_start
+        # W 为一个日界：确认跨过当日零点且仍未回落；W 小于一天：从确认起持续满 W 仍未回落（1.24 版第四点四）
+        # W = one day boundary: the spell crossed local midnight; W < 1 day: the spell has lasted W without falling back
+        perf_cross = pf.confirmed and pf.since is not None and (
+            pf.since < day_start if p.wait_sec == 0 else t - pf.since >= p.wait_sec)
         ev = inp.evaluable.get((dev, day), False)
         chans = {}
         for ch in CHANNELS:
@@ -405,7 +410,7 @@ def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, 
                 forms.append("%s：%s" % (ch, "两层同日同报" if s["perf_at_t"] and not data_dev(dev, prev, ch) else "连续两日偏离"))
         if s["perf_cross"]:
             triggers.append("perf")
-            forms.append("性能层确认跨过日界")
+            forms.append("性能层确认跨过日界" if p.wait_sec == 0 else "性能层确认持续满等待时长")
         if not triggers:
             continue
         scope = "全局" if any(cnt[tr] >= T for tr in triggers) else "局部"
@@ -461,6 +466,7 @@ def main() -> int:
     ap.add_argument("--k-site", type=int, default=3)
     ap.add_argument("--p-point", type=float, default=None)
     ap.add_argument("--delta-sec", type=int, default=0)
+    ap.add_argument("--wait-sec", type=int, default=0)
     a = ap.parse_args()
     need = ["hours.csv", "perf_events.csv", "perf_elements.csv", "data_days.csv", "bursts.csv", "refs.csv", "freeze.csv"]
     miss = [f for f in need if not os.path.exists(os.path.join(a.inputs, f))]
@@ -469,7 +475,8 @@ def main() -> int:
         return 2
     num, den = (int(x) for x in a.common_ratio.split("/"))
     p = Params(once_per_episode=not a.no_once, layers=tuple(a.layers.split(",")), common_ratio_num=num,
-               common_ratio_den=den, k_site=a.k_site, delta_sec=a.delta_sec)
+               common_ratio_den=den, k_site=a.k_site, delta_sec=a.delta_sec,
+               wait_sec=a.wait_sec)
     inp = Inputs(a.inputs)
     p.p_point = a.p_point if a.p_point is not None else derive_p_point(inp, Params())
     alerts, commands, review = run(inp, p)

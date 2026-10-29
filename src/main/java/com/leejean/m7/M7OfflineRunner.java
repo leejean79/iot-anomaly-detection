@@ -23,7 +23,7 @@ import java.util.TreeMap;
  * 执行环境：任意装有 JDK 11 及以上的机器，仓库根目录。
  * 调用：java -cp &lt;作业 jar&gt; com.leejean.m7.M7OfflineRunner --inputs docs/m7/inputs --out-dir docs/m7/run_java
  *       可选：--no-once（关闭「同一段偏离只发一次」）、--layers data,perf,detect（消融）、--common-ratio 3/4、--k-site 3、--p-point 0.06、
- *             --delta-sec 0（生效提前量，0 为一个当地日）
+ *             --delta-sec 0（生效提前量，0 为一个当地日）、--wait-sec 0（等待时长 W，0 为一个日界）
  * 前置条件：已运行 m7/prepare_inputs.py。
  * 产出：out-dir 下 alerts.csv、commands.csv、review.csv；终端打印三份日志的条数与 p_point。缺输入时退出码 2。
  * </pre>
@@ -68,6 +68,7 @@ public final class M7OfflineRunner {
         p.commonDen = Integer.parseInt(cr[1]);
         p.kSite = Integer.parseInt(a.getOrDefault("k-site", "3"));
         p.deltaSec = Long.parseLong(a.getOrDefault("delta-sec", "0"));
+        p.waitSec = Long.parseLong(a.getOrDefault("wait-sec", "0"));
         Map<String, Map<Long, FleetDecisionFunction.HourObs>> hours = readHours(in.resolve("hours.csv"));
         p.pPoint = a.containsKey("p-point") ? Double.parseDouble(a.get("p-point")) : derivePPoint(in.resolve("hours.csv"));
         List<FleetDecisionFunction.Alert> alerts = new ArrayList<>();
@@ -120,7 +121,7 @@ public final class M7OfflineRunner {
                         obs.put(e.getKey(), o);
                     }
                 }
-                alerts.addAll(f.hourTick(hs, obs));
+                alerts.addAll(f.alertTick(hs, obs));
             }
             f.dayTick(day, commands, review);
         }

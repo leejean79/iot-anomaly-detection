@@ -15,13 +15,14 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * 聚合模块的决策函数（交接文档 {@code handover_m7_decision_stage_zh.md} 1.23 版第四节）：小时节拍给出带范围与性质归因的告警，日节拍
+ * 聚合模块的决策函数（交接文档 {@code handover_m7_decision_stage_zh.md} 1.24 版第四节）：小时节拍给出带范围与性质归因的告警，日节拍
  * 按时间形态与决策矩阵发出零级命令，日界复核补记当日才知道的事。在线算子与 Java 离线运行器共用本类，Python 参考实现
  * {@code m7/decide.py} 与本类逐条相同（验收项一）。本类只依赖调用者按事件时间送入的观测与事件，不依赖处理时间。
  * The M7 decision function shared by the online operator and the offline runner; mirrors m7/decide.py step by step.
  *
- * <p>调用顺序：先用 {@code add*} 方法送入事件（性能层事件与元素、爆发、数据层日结论），再对每个当地整点调用 {@link #hourTick}，
- * 每个当地日的最后一个整点之后调用 {@link #dayTick}。交接文档未写死、此处选定的写法与 Python 实现相同（见 decide.py 文件头 a 至 d）。
+ * <p>调用顺序：先用 {@code add*} 方法送入事件（性能层事件与元素、爆发、数据层日结论），再对每个告警节拍调用 {@link #alertTick}，
+ * 在每个决策节拍调用 {@link #cmdTick}（默认即每个当地日的最后一个整点之后调用 {@link #dayTick}）。交接文档未写死、此处选定的
+ * 写法与 Python 实现相同（见 decide.py 文件头 a 至 d）；日内决策节拍的在场设备按前一日计（e，见 {@link #cmdTick}）。
  */
 public class FleetDecisionFunction implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -60,7 +61,15 @@ public class FleetDecisionFunction implements Serializable {
         public boolean useData = true;
         public boolean usePerf = true;
         public boolean useDetect = true;
-        public long deltaSec;                                 // 生效提前量 Δ；0 表示一个当地日 / 0 means one local day
+        public long deltaSec;                                 // 生效提前量 Δ；0 表示一个决策节拍 / 0 means one τ_cmd
+        public long alertSec = 3600;                          // 告警节拍 τ_alert：3600 或 600 / alert tick period
+        public long cmdSec;                                   // 决策节拍 τ_cmd；0 表示一个当地日 / 0 means one local day
+        public long waitSec;                                  // 等待时长 W；0 表示一个日界 / 0 means one day boundary
+
+        /** 一个告警节拍的名义轮数（每十秒一轮）/ nominal rounds per alert tick. */
+        double nominal() {
+            return NOMINAL_PER_HOUR * alertSec / 3600.0;
+        }
 
         /** 共模门槛 max(最少台数, ⌈n·比例⌉) / common-mode threshold. */
         public int threshold(int n) {
@@ -68,12 +77,12 @@ public class FleetDecisionFunction implements Serializable {
         }
 
         boolean qualityBad(int rounds, int guard) {
-            double missing = 1.0 - (double) rounds / NOMINAL_PER_HOUR;
-            return missing > qualityMax || (double) guard / NOMINAL_PER_HOUR > qualityMax;
+            double missing = 1.0 - (double) rounds / nominal();
+            return missing > qualityMax || (double) guard / nominal() > qualityMax;
         }
     }
 
-    /** 一台设备一个小时的观测 / one device-hour observation. */
+    /** 一台设备一个告警节拍的观测 / one device observation over one alert tick. */
     public static final class HourObs implements Serializable {
         private static final long serialVersionUID = 1L;
         public int rounds;
@@ -287,11 +296,13 @@ public class FleetDecisionFunction implements Serializable {
     }
 
     /**
-     * 当地整点 hs 起的小时节拍；obs 为该小时有读数的设备的观测。返回本小时的告警（按设备排序）。
-     * Hourly tick for the local hour starting at hs; obs holds the devices that have readings in this hour.
+     * 从 hs 起、长 τ_alert 的告警节拍（默认为当地整点起的一小时）；obs 为该节拍内有读数的设备的观测。返回本节拍的告警（按设备排序）。
+     * τ_alert 取十分钟时（交接文档 1.24 版第四点四）：点通道离群率按十分钟计（门槛由调用者按十分钟重新推导后放进 pPoint），上下文
+     * 通道标志即该窗口超阈，性能层、数据层与爆发标志不变，现场条件仍按整点钟点累计、用该窗口的均值判定。
+     * Alert tick of length τ_alert starting at hs (default: the local hour); obs holds the devices that have readings in it.
      */
-    public List<Alert> hourTick(long hs, Map<String, HourObs> obs) {
-        long he = hs + 3600;
+    public List<Alert> alertTick(long hs, Map<String, HourObs> obs) {
+        long he = hs + p.alertSec;
         String day = localDay(hs);
         int hod = localHour(hs);
         String d1 = addDays(day, -1);
@@ -304,11 +315,11 @@ public class FleetDecisionFunction implements Serializable {
             }
             Info x = new Info();
             x.bad = p.qualityBad(r.rounds, r.guardRounds);
-            if (p.useDetect && r.admitted >= p.pointMinFrac * NOMINAL_PER_HOUR) {
+            if (p.useDetect && r.admitted >= p.pointMinFrac * p.nominal()) {
                 x.point = (double) r.outlierRounds / r.admitted;
             }
             x.pflag = x.point != null && x.point > p.pPoint;
-            x.cflag = p.useDetect && r.ctxAbove / 6.0 >= p.pCtx;
+            x.cflag = p.useDetect && r.ctxAbove / (p.alertSec / 600.0) >= p.pCtx;
             perf.get(dev).advance(he);
             x.perf = perf.get(dev).confirmed;
             for (String ch : CHANNELS) {
@@ -446,7 +457,8 @@ public class FleetDecisionFunction implements Serializable {
             Alert a = new Alert();
             a.device = dev;
             a.hourStart = hs;
-            a.localHour = day + String.format(" %02d", hod);
+            a.localHour = day + String.format(" %02d", hod)
+                    + (p.alertSec < 3600 ? String.format(":%02d", Instant.ofEpochSecond(hs).atZone(ZONE).getMinute()) : "");
             a.label = label;
             a.scope = scope;
             a.co = String.join("|", co);
@@ -510,7 +522,7 @@ public class FleetDecisionFunction implements Serializable {
     // ================================================================ 日节拍与复核 / daily tick and review
     private static final class DevState {
         boolean perfAtT;
-        boolean perfCross;
+        boolean perfPersist;
         final Map<String, boolean[]> chans = new HashMap<>();   // ch → {dev, persistent}
     }
 
@@ -519,12 +531,24 @@ public class FleetDecisionFunction implements Serializable {
      * Daily tick and review at the end of local day {@code day}.
      */
     public void dayTick(String day, List<Command> commands, List<Review> review) {
-        long t = dayStart(addDays(day, 1));
+        cmdTick(dayStart(addDays(day, 1)), commands, review);
+    }
+
+    /**
+     * 时刻 t 的决策节拍（交接文档 1.24 版第四点四）：决策节拍从当地零点起每 τ_cmd 触发一次。数据层的两条规则与日界复核只在当地日界
+     * 那个节拍上判定；性能层的规则在每个节拍上判定：W 为一个日界时是「确认跨过当日零点且仍未回落」，W 小于一天时是「从确认起持续满
+     * W 仍未回落」。日内节拍的在场设备按最近一个已有数据层结论的当地日（前一日）计。冷却期与同一段偏离只发一次照旧。
+     * Decision tick at t; data rules and the review only at local day boundaries, the perf rule at every tick.
+     */
+    public void cmdTick(long t, List<Command> commands, List<Review> review) {
+        String day = localDay(t - 1);
+        boolean boundary = dayStart(addDays(day, 1)) == t;
         String prev = addDays(day, -1);
         long dayStart = dayStart(day);
+        String evDay = boundary ? day : prev;
         List<String> present = new ArrayList<>();
         for (String d : devices) {
-            if (isEvaluable(d, day)) {
+            if (isEvaluable(d, evDay)) {
                 present.add(d);
             }
         }
@@ -535,10 +559,11 @@ public class FleetDecisionFunction implements Serializable {
             pf.advance(t);
             DevState s = new DevState();
             s.perfAtT = pf.confirmed;
-            s.perfCross = pf.confirmed && pf.since != null && pf.since < dayStart;
-            boolean ev = isEvaluable(dev, day);
+            s.perfPersist = pf.confirmed && pf.since != null
+                    && (p.waitSec == 0 ? pf.since < dayStart : t - pf.since >= p.waitSec);
+            boolean ev = boundary && isEvaluable(dev, day);
             for (String ch : CHANNELS) {
-                boolean dd = dataDev(dev, day, ch);
+                boolean dd = boundary && dataDev(dev, day, ch);
                 boolean persistent = ev && dd && (dataDev(dev, prev, ch) || s.perfAtT);
                 s.chans.put(ch, new boolean[]{ev && dd, persistent});
             }
@@ -549,7 +574,7 @@ public class FleetDecisionFunction implements Serializable {
             for (String ch : ACTIVE) {
                 inc(cnt, ch, st.get(dev).chans.get(ch)[1]);
             }
-            inc(cnt, "perf", st.get(dev).perfCross);
+            inc(cnt, "perf", st.get(dev).perfPersist);
         }
         for (String dev : devices) {
             for (Map<String, Book> book : Arrays.<Map<String, Book>>asList(drift, episode)) {
@@ -561,7 +586,7 @@ public class FleetDecisionFunction implements Serializable {
                 for (String trig : b.triggers) {
                     if ("perf".equals(trig)) {
                         fell = fell || !st.get(dev).perfAtT;
-                    } else if (isEvaluable(dev, day) && !dataDev(dev, day, trig)) {
+                    } else if (boundary && isEvaluable(dev, day) && !dataDev(dev, day, trig)) {
                         fell = true;
                     }
                 }
@@ -580,9 +605,9 @@ public class FleetDecisionFunction implements Serializable {
                     forms.add(ch + "：" + (s.perfAtT && !dataDev(dev, prev, ch) ? "两层同日同报" : "连续两日偏离"));
                 }
             }
-            if (s.perfCross) {
+            if (s.perfPersist) {
                 triggers.add("perf");
-                forms.add("性能层确认跨过日界");
+                forms.add(p.waitSec == 0 ? "性能层确认跨过日界" : "性能层确认持续满等待时长");
             }
             if (triggers.isEmpty()) {
                 continue;
@@ -598,7 +623,7 @@ public class FleetDecisionFunction implements Serializable {
                 for (String ch : ACTIVE) {
                     any = any || (triggers.contains(ch) && st.get(d).chans.get(ch)[1]);
                 }
-                if (any || (triggers.contains("perf") && st.get(d).perfCross)) {
+                if (any || (triggers.contains("perf") && st.get(d).perfPersist)) {
                     co.add(d);
                 }
             }
@@ -628,8 +653,12 @@ public class FleetDecisionFunction implements Serializable {
             c.device = dev;
             c.day = day;
             c.decidedAt = t;
-            // 生效 = t + Δ（Δ 为 0 时取一个当地日）；冷却期截止 = 生效之后一个当地日 / effective time and cooldown
-            c.effectiveAt = p.deltaSec == 0 ? addLocalDays(t, 1) : t + p.deltaSec;
+            // 生效 = t + Δ（Δ 为 0 时取一个决策节拍）；冷却期截止 = 生效之后一个当地日 / effective time and cooldown
+            if (p.deltaSec != 0) {
+                c.effectiveAt = t + p.deltaSec;
+            } else {
+                c.effectiveAt = p.cmdSec == 0 ? addLocalDays(t, 1) : t + p.cmdSec;
+            }
             cooldownUntil.put(dev, addLocalDays(c.effectiveAt, 1));
             c.seq = n;
             c.level = 0;
@@ -641,6 +670,9 @@ public class FleetDecisionFunction implements Serializable {
             c.coDevices = String.join("|", co);
             c.episodeN = ep.count;
             commands.add(c);
+        }
+        if (!boundary) {
+            return;
         }
         // 日界复核 / daily review
         for (String dev : devices) {
@@ -667,7 +699,7 @@ public class FleetDecisionFunction implements Serializable {
                 }
                 long hs = a.hourStart;
                 for (long[] b : bursts.get(dev)) {
-                    if (hs < b[0] && b[0] <= hs + 3600 && b[1] <= t + SLIDE) {
+                    if (hs < b[0] && b[0] <= hs + p.alertSec && b[1] <= t + SLIDE) {
                         Review r = new Review();
                         r.device = dev;
                         r.day = day;
@@ -713,6 +745,26 @@ public class FleetDecisionFunction implements Serializable {
 
     public static String addDays(String day, int k) {
         return LocalDate.parse(day).plusDays(k).toString();
+    }
+
+    /** 当地日 day 内的决策节拍时刻：从当地零点起每 cmdSec 一个，最后一个是次日零点 / decision ticks within a local day. */
+    public static List<Long> cmdTicks(String day, long cmdSec) {
+        List<Long> out = new ArrayList<>();
+        long end = dayStart(addDays(day, 1));
+        for (long t = cmdSec == 0 ? end : dayStart(day) + cmdSec; t < end; t += cmdSec) {
+            out.add(t);
+        }
+        out.add(end);
+        return out;
+    }
+
+    /** 当地日内各告警节拍的起点（夏令时开始那天少一个小时）/ alert tick starts within a local day. */
+    public static List<Long> alertStarts(String day, long alertSec) {
+        List<Long> out = new ArrayList<>();
+        for (long t = dayStart(day); t < dayStart(addDays(day, 1)); t += alertSec) {
+            out.add(t);
+        }
+        return out;
     }
 
     /** 当地日内各整点的起点（夏令时开始那天少一个小时）/ hour starts within a local day. */

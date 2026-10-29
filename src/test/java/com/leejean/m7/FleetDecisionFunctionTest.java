@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 聚合决策函数的单元测试（交接文档 1.23 版第六节「测试」所列各项中，与默认时间参数相关的部分）。每个用例用合成观测驱动
+ * 聚合决策函数的单元测试（交接文档 1.24 版第六节「测试」所列各项，含四个时间参数取非默认值的用例）。每个用例用合成观测驱动
  * {@link FleetDecisionFunction}：四台设备 A 至 D 默认每小时都是正常的整点（360 轮、无离群、无超阈），由用例改动其中几项。
  * Unit tests of the M7 decision function with synthetic observations; devices A to D are normal unless a test changes them.
  */
@@ -87,7 +87,7 @@ class FleetDecisionFunctionTest {
                         obs.put(d, o);
                     }
                 }
-                r.alerts.addAll(f.hourTick(hs, obs));
+                r.alerts.addAll(f.alertTick(hs, obs));
             }
             f.dayTick(day, r.commands, r.review);
         }
@@ -395,5 +395,167 @@ class FleetDecisionFunctionTest {
         g.dayTick("2022-03-26", cmds, new ArrayList<>());
         assertEquals(3600L, cmds.get(0).effectiveAt - cmds.get(0).decidedAt, "Δ = 1 小时 / one hour");
         assertFalse(cmds.get(0).forms.isEmpty());
+    }
+
+    private static FleetDecisionFunction perfFunction(FleetDecisionFunction.Params p, String[] days) {
+        FleetDecisionFunction f = new FleetDecisionFunction(p);
+        for (String d : DEVS) {
+            f.addDevice(d);
+            for (String day : days) {
+                for (String ch : FleetDecisionFunction.CHANNELS) {
+                    f.addDataDay(d, day, ch, true, false, "");
+                }
+            }
+        }
+        return f;
+    }
+
+    private static long at(String day, int hour) {
+        return FleetDecisionFunction.dayStart(day) + 3600L * hour;
+    }
+
+    @Test
+    @DisplayName("决策节拍一小时、W 六小时、Δ 一小时：性能层满六小时的那个节拍发命令，不满六小时即回落的不发 / hourly ticks, W = 6 h")
+    void hourlyTicksWaitSixHours() {
+        FleetDecisionFunction.Params p = params();
+        p.cmdSec = 3600;
+        p.waitSec = 6 * 3600;
+        p.deltaSec = 3600;
+        String day = "2022-03-10";
+        FleetDecisionFunction f = perfFunction(p, new String[]{"2022-03-09", day});
+        f.addPerfEvent("A", at(day, 3), "CONFIRM", 1.0, 2.0);             // 03:00 确认，之后不回落 / never falls back
+        f.addPerfEvent("C", at(day, 3), "CONFIRM", 1.0, 2.0);             // 03:00 确认，07:00 回落 / falls back at 07:00
+        for (int k = 1; k <= 6; k++) {
+            f.addPerfElement("C", at(day, 6) + 600L * k, 0.0);
+        }
+        List<FleetDecisionFunction.Command> cmds = new ArrayList<>();
+        List<FleetDecisionFunction.Review> review = new ArrayList<>();
+        List<Long> ticks = FleetDecisionFunction.cmdTicks(day, p.cmdSec);
+        assertEquals(24, ticks.size());
+        assertEquals(at(day, 1), (long) ticks.get(0));
+        for (long t : ticks) {
+            f.cmdTick(t, cmds, review);
+        }
+        assertEquals(1, cmds.size());
+        FleetDecisionFunction.Command c = cmds.get(0);
+        assertEquals("A", c.device);
+        assertEquals(at(day, 9), c.decidedAt, "从确认起满六小时的节拍 / the first tick six hours after confirmation");
+        assertEquals(at(day, 10), c.effectiveAt);
+        assertEquals("perf", c.triggers);
+        assertEquals("性能层确认持续满等待时长", c.forms);
+        assertTrue(review.isEmpty(), "日内节拍不做复核；本日各台都可判 / no review at intra-day ticks");
+    }
+
+    @Test
+    @DisplayName("决策节拍一小时：数据层两条规则只在当地日界那个节拍判定 / data rules only at the day-boundary tick")
+    void hourlyTicksDataOnlyAtBoundary() {
+        FleetDecisionFunction.Params p = params();
+        p.cmdSec = 3600;
+        p.deltaSec = 3600;
+        String day = "2022-03-10";
+        FleetDecisionFunction f = perfFunction(p, new String[]{"2022-03-08"});
+        for (String d : DEVS) {
+            for (String dd : new String[]{"2022-03-09", day}) {
+                for (String ch : FleetDecisionFunction.CHANNELS) {
+                    f.addDataDay(d, dd, ch, true, d.equals("B") && ch.equals("Gas"), dd.equals("2022-03-09") && d.equals("B")
+                            && ch.equals("Gas") ? "DEVIATE" : "");
+                }
+            }
+        }
+        List<FleetDecisionFunction.Command> cmds = new ArrayList<>();
+        for (long t : FleetDecisionFunction.cmdTicks(day, p.cmdSec)) {
+            f.cmdTick(t, cmds, new ArrayList<>());
+        }
+        assertEquals(1, cmds.size());
+        assertEquals("B", cmds.get(0).device);
+        assertEquals(FleetDecisionFunction.dayStart("2022-03-11"), cmds.get(0).decidedAt, "只在日界判定 / at the boundary only");
+        assertEquals("Gas", cmds.get(0).triggers);
+        assertEquals(23, FleetDecisionFunction.cmdTicks("2022-03-27", 3600).size(), "夏令时开始那天 23 个节拍 / DST day");
+        assertEquals(1, FleetDecisionFunction.cmdTicks("2022-03-27", 0).size());
+    }
+
+    @Test
+    @DisplayName("决策节拍一天：W 六小时比一个日界早一天发命令 / W = 6 h vs one day boundary at daily ticks")
+    void dailyTicksWaitSixHours() {
+        String day = "2022-03-10";
+        String[] days = {day, "2022-03-11"};
+        long[] decided = new long[2];
+        for (int i = 0; i < 2; i++) {
+            FleetDecisionFunction.Params p = params();
+            p.waitSec = i == 0 ? 6 * 3600 : 0;
+            FleetDecisionFunction f = perfFunction(p, days);
+            f.addPerfEvent("C", at(day, 17), "CONFIRM", 1.0, 2.0);            // 17:00 确认，不回落 / never falls back
+            List<FleetDecisionFunction.Command> cmds = new ArrayList<>();
+            for (String d : days) {
+                f.dayTick(d, cmds, new ArrayList<>());
+            }
+            assertEquals(1, cmds.size());
+            decided[i] = cmds.get(0).decidedAt;
+        }
+        assertEquals(FleetDecisionFunction.dayStart("2022-03-11"), decided[0], "W 六小时：当晚日界已满七小时 / 7 h by midnight");
+        assertEquals(FleetDecisionFunction.dayStart("2022-03-12"), decided[1], "一个日界：须跨过 03-11 零点 / must cross midnight");
+    }
+
+    @Test
+    @DisplayName("告警节拍十分钟：点通道、上下文通道与质量按十分钟计，现场条件按整点钟点累计 / ten-minute alert ticks")
+    void tenMinuteAlertTicks() {
+        FleetDecisionFunction.Params p = params();
+        p.alertSec = 600;
+        FleetDecisionFunction f = new FleetDecisionFunction(p);
+        for (String d : DEVS) {
+            f.addDevice(d);
+            f.setFreeze(d, FleetDecisionFunction.dayStart(FIRST) + 60);
+            for (String ch : FleetDecisionFunction.ACTIVE) {
+                f.setRef(d, ch, 9.0, 11.0);
+            }
+        }
+        List<FleetDecisionFunction.Alert> alerts = new ArrayList<>();
+        String day = FIRST;
+        for (int i = 0; i < 13; i++, day = FleetDecisionFunction.addDays(day, 1)) {
+            List<Long> starts = FleetDecisionFunction.alertStarts(day, p.alertSec);
+            assertEquals(144, starts.size());
+            for (long ws : starts) {
+                Map<String, FleetDecisionFunction.HourObs> obs = new HashMap<>();
+                for (String d : DEVS) {
+                    FleetDecisionFunction.HourObs o = new FleetDecisionFunction.HourObs();
+                    o.rounds = 60;
+                    o.admitted = 60;
+                    for (int k = 0; k < FleetDecisionFunction.ACTIVE.length; k++) {
+                        o.n[k] = 60;
+                        o.sum[k] = 60 * 10.0;
+                    }
+                    long off = ws - FleetDecisionFunction.dayStart(day);
+                    if (i == 0 && d.equals("A") && off == 5 * 3600 + 1200) {
+                        o.outlierRounds = 6;                                   // 6/60 = 0.1 > 0.05
+                    }
+                    if (i == 0 && d.equals("B") && off == 7 * 3600 + 600) {
+                        o.ctxAbove = 1;                                        // 该窗口超阈 / this window above threshold
+                    }
+                    if (i == 0 && d.equals("C") && off == 8 * 3600) {
+                        o.rounds = 40;                                         // 缺失 1/3 > 0.2
+                    }
+                    if (i >= 10 && d.equals("D") && (off == 12 * 3600 || off == 12 * 3600 + 600)) {
+                        o.outlierRounds = 6;
+                        o.sum[0] = 60 * 12.0;                                  // 偏离基线 2 > 0.5·(11 − 9)
+                    }
+                    obs.put(d, o);
+                }
+                alerts.addAll(f.alertTick(ws, obs));
+            }
+            f.dayTick(day, new ArrayList<>(), new ArrayList<>());
+        }
+        Map<String, String> got = new HashMap<>();
+        for (FleetDecisionFunction.Alert a : alerts) {
+            got.put(a.device + " " + a.localHour, a.label);
+        }
+        assertEquals(FleetDecisionFunction.ANOMALY, got.get("A 2022-03-01 05:20"));
+        assertEquals(0.1, alerts.stream().filter(a -> a.device.equals("A")).findFirst().get().pointRate, 0.0);
+        assertEquals(FleetDecisionFunction.ANOMALY, got.get("B 2022-03-01 07:10"));
+        assertEquals(FleetDecisionFunction.QUALITY, got.get("C 2022-03-01 08:00"));
+        assertEquals(3, alerts.stream().filter(a -> a.localHour.startsWith("2022-03-01")).count(), "其余窗口无告警 / no others");
+        // 现场条件按整点钟点累计：03-11、03-12 两日各两个窗口有标志，03-13 过去七日有两日，12 点的两个窗口都记现场条件
+        assertEquals(FleetDecisionFunction.ANOMALY, got.get("D 2022-03-12 12:10"));
+        assertEquals(FleetDecisionFunction.SITE, got.get("D 2022-03-13 12:00"));
+        assertEquals(FleetDecisionFunction.SITE, got.get("D 2022-03-13 12:10"));
     }
 }
