@@ -22,6 +22,7 @@
 #    --inject docs/m3_a4/full_fix/inject-truth.csv、--guard docs/stuck_guard/thresholds.env、--devices ABCDEFGH。
 # 3. 前置条件：原始 CSV 目录可读（与数据层离线第一步同一个目录）；仓库里有注入真值与守卫阈值文件。
 # 4. 期望产出：docs/m7/extract/ 下 hourly.csv（设备、小时起点、当地小时、轮数、入口轮数、守卫打标轮数、五个通道的读数数与均值）、
+#    其中 pn_ 与 ps_ 列是温度、气体、光照在冻结之后的轮上的变换域读数数与小时和（「同步变化」用）；freeze.csv（每台冻结的轮时刻）；
 #    calib_hourly.csv（设备、当地钟点 0 至 23、五个通道在标定窗口内该钟点的读数数与均值）、meta.md（冻结时刻、读数数、行数，以及
 #    每个通道不能被单精度精确表示的读数数，供适应执行模块的紧凑缓存参考）。
 #    运行时长与数据层离线第一步相近（读一遍全部文件，再逐台计算）。
@@ -39,6 +40,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import m5a_extract as ex                              # noqa: E402
 
 CHANNELS = ex.CHANNELS
+SYNC = ("Temperature", "Gas", "Light")            # 「同步变化」看的三个通道 / channels of the synchronous-change test
 
 
 def local_hour_start(ts):
@@ -68,11 +70,20 @@ def process_device(dev, g, specs, thr, floors, out):
     hs, hod = local_hour_start(ts)
     df = pd.DataFrame({"hour_start": hs, "rounds": 1, "admitted": adm.astype(int), "guard_rounds": stuck.astype(int)})
     agg = {"rounds": "sum", "admitted": "sum", "guard_rounds": "sum"}
+    post = ts > tf
     for c, name in enumerate(CHANNELS):
         df["n_" + name] = (~np.isnan(tv[:, c])).astype(int)
         df["s_" + name] = np.nan_to_num(tv[:, c])
         agg["n_" + name] = "sum"
         agg["s_" + name] = "sum"
+        if name in SYNC:
+            # 冻结之后的轮的变换域小时和与读数数，供「同步变化」的日内基线与小时均值（M7 口径裁决第三点）
+            # post-freeze transformed-domain hourly sums and counts for the M7 synchronous-change test
+            ok = post & ~np.isnan(tv[:, c])
+            df["pn_" + name] = ok.astype(int)
+            df["ps_" + name] = np.where(ok, np.nan_to_num(tv[:, c]), 0.0)
+            agg["pn_" + name] = "sum"
+            agg["ps_" + name] = "sum"
     h = df.groupby("hour_start", sort=True).agg(agg).reset_index()
     for name in CHANNELS:
         h["mean_" + name] = np.where(h["n_" + name] > 0, h["s_" + name] / h["n_" + name].where(h["n_" + name] > 0, 1), np.nan)
@@ -90,6 +101,7 @@ def process_device(dev, g, specs, thr, floors, out):
             row["n_" + name] = len(x)
             row["mean_" + name] = float(x.mean()) if len(x) else np.nan
         out["calib"].append(row)
+    out["freeze"].append(dict(device=dev, freeze_ts=tf))
     out["meta"].append("%s：冻结于 %s UTC；轮数 %d；小时 %d 个。" % (
         dev, pd.Timestamp(tf, unit="s", tz="UTC").strftime("%Y-%m-%d %H:%M:%S"), len(ts), len(h)))
 
@@ -122,7 +134,7 @@ def main() -> int:
     # pandas 默认的快速解析器偶尔差一个最低有效位，所以允许两个最低有效位 / pandas' fast parser may be off by one ulp
     inexact = np.abs(v.astype(np.float32).astype(float) - v) > 2 * np.spacing(np.abs(v))
     f32 = {CHANNELS[c]: (int(inexact[d["ch"].to_numpy() == c].sum()), int((d["ch"].to_numpy() == c).sum())) for c in range(5)}
-    out = {"hourly": [], "calib": [], "meta": []}
+    out = {"hourly": [], "calib": [], "meta": [], "freeze": []}
     for dev, g in d.groupby("dev"):
         print("处理设备 %s（%d 条读数）……" % (dev, len(g)))
         process_device(dev, g, specs, thr, floors, out)
@@ -130,6 +142,7 @@ def main() -> int:
     hourly = pd.concat(out["hourly"], ignore_index=True)
     hourly.to_csv(os.path.join(a.out_dir, "hourly.csv"), index=False)
     pd.DataFrame(out["calib"]).to_csv(os.path.join(a.out_dir, "calib_hourly.csv"), index=False)
+    pd.DataFrame(out["freeze"]).to_csv(os.path.join(a.out_dir, "freeze.csv"), index=False)
     with open(os.path.join(a.out_dir, "meta.md"), "w", encoding="utf-8") as fh:
         fh.write("# M7 离线实验原始数据提取的元数据\n\n读入文件 %d 个，读数 %d 条（%s 至 %s，世界协调时）；hourly.csv %d 行。\n\n"
                  % (nfiles, len(d), a.start, a.end, len(hourly)))
