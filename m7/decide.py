@@ -16,8 +16,9 @@
 # 1. 执行环境 / Environment: 开发机或本地 Mac，仓库根目录，python3.9+（只用标准库）。
 # 2. 调用命令 / Invocation:
 #      python3 m7/decide.py [--inputs docs/m7/inputs] [--out-dir docs/m7/run] [--no-once] [--layers data,perf,detect]
-#        [--common-ratio 0.75] [--k-site 3]
-#    --no-once 关闭「同一段偏离只发一次」（对照跑）；--layers 只用部分信号（消融）；其余参数见 Params。
+#        [--common-ratio 3/4] [--k-site 3] [--delta-sec 0]
+#    --no-once 关闭「同一段偏离只发一次」（对照跑）；--layers 只用部分信号（消融）；--delta-sec 生效提前量（0 为一个当地日）；
+#    其余参数见 Params。
 # 3. 前置条件 / Preconditions: 已运行 m7/prepare_inputs.py。
 # 4. 期望产出 / Expected output: out-dir 下 alerts.csv、commands.csv、review.csv、params.json；终端打印三份日志的条数与按归因的分布。
 # 5. 失败兜底 / Failure fallback: 缺输入时退出码 2。
@@ -62,6 +63,7 @@ class Params:
         self.quality_max = kw.get("quality_max", 0.2)
         self.point_min_frac = kw.get("point_min_frac", 0.5)
         self.once_per_episode = kw.get("once_per_episode", True)
+        self.delta_sec = kw.get("delta_sec", 0)              # 生效提前量 Δ；0 表示一个当地日 / 0 means one local day
         self.layers = kw.get("layers", ("data", "perf", "detect"))
         self.first_day = kw.get("first_day", "2022-03-08")
         self.last_day = kw.get("last_day", "2022-04-30")
@@ -87,6 +89,12 @@ def next_day(day):
 
 def add_days(day, k):
     return (datetime.strptime(day, "%Y-%m-%d") + timedelta(days=k)).strftime("%Y-%m-%d")
+
+
+def add_local_days(ts, k):
+    """按当地挂钟加 k 天（夏令时切换日为 23 或 25 小时）/ add k local calendar days, keeping the wall clock."""
+    t = datetime.fromtimestamp(ts, ZoneInfo(TZ)).replace(tzinfo=None) + timedelta(days=k)
+    return int(t.replace(tzinfo=ZoneInfo(TZ)).timestamp())
 
 
 def local_hours(day):
@@ -411,8 +419,9 @@ def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, 
         ep = episode.setdefault(dev, dict(triggers=triggers, count=0))
         ep["count"] += 1
         seq[dev] += 1
-        eff = local_day_start(next_day(next_day(day)))      # t 之后的下一个当地日界 / next local boundary after t
-        cooldown_until[dev] = local_day_start(next_day(next_day(next_day(day))))
+        # 生效 = t + Δ（Δ 为 0 时取一个当地日，即下一个日界）；冷却期截止 = 生效之后一个当地日 / effective time and cooldown
+        eff = add_local_days(t, 1) if p.delta_sec == 0 else t + p.delta_sec
+        cooldown_until[dev] = add_local_days(eff, 1)
         commands.append(dict(device=dev, decided_at=t, effective_at=eff, seq=seq[dev], level=0, scope=scope,
                              label=DRIFT, triggers="|".join(triggers), forms="；".join(forms), co=len(co),
                              co_devices="|".join(co), episode_n=ep["count"], day=day))
@@ -451,6 +460,7 @@ def main() -> int:
     ap.add_argument("--common-ratio", default="3/4")
     ap.add_argument("--k-site", type=int, default=3)
     ap.add_argument("--p-point", type=float, default=None)
+    ap.add_argument("--delta-sec", type=int, default=0)
     a = ap.parse_args()
     need = ["hours.csv", "perf_events.csv", "perf_elements.csv", "data_days.csv", "bursts.csv", "refs.csv", "freeze.csv"]
     miss = [f for f in need if not os.path.exists(os.path.join(a.inputs, f))]
@@ -459,7 +469,7 @@ def main() -> int:
         return 2
     num, den = (int(x) for x in a.common_ratio.split("/"))
     p = Params(once_per_episode=not a.no_once, layers=tuple(a.layers.split(",")), common_ratio_num=num,
-               common_ratio_den=den, k_site=a.k_site)
+               common_ratio_den=den, k_site=a.k_site, delta_sec=a.delta_sec)
     inp = Inputs(a.inputs)
     p.p_point = a.p_point if a.p_point is not None else derive_p_point(inp, Params())
     alerts, commands, review = run(inp, p)

@@ -60,6 +60,7 @@ public class FleetDecisionFunction implements Serializable {
         public boolean useData = true;
         public boolean usePerf = true;
         public boolean useDetect = true;
+        public long deltaSec;                                 // 生效提前量 Δ；0 表示一个当地日 / 0 means one local day
 
         /** 共模门槛 max(最少台数, ⌈n·比例⌉) / common-mode threshold. */
         public int threshold(int n) {
@@ -627,8 +628,9 @@ public class FleetDecisionFunction implements Serializable {
             c.device = dev;
             c.day = day;
             c.decidedAt = t;
-            c.effectiveAt = dayStart(addDays(day, 2));
-            cooldownUntil.put(dev, dayStart(addDays(day, 3)));
+            // 生效 = t + Δ（Δ 为 0 时取一个当地日）；冷却期截止 = 生效之后一个当地日 / effective time and cooldown
+            c.effectiveAt = p.deltaSec == 0 ? addLocalDays(t, 1) : t + p.deltaSec;
+            cooldownUntil.put(dev, addLocalDays(c.effectiveAt, 1));
             c.seq = n;
             c.level = 0;
             c.scope = scope;
@@ -702,6 +704,11 @@ public class FleetDecisionFunction implements Serializable {
 
     public static long dayStart(String day) {
         return LocalDate.parse(day).atStartOfDay(ZONE).toEpochSecond();
+    }
+
+    /** 按当地挂钟加 k 天（夏令时切换日为 23 或 25 小时）/ add k local calendar days, keeping the wall clock. */
+    public static long addLocalDays(long ts, int k) {
+        return Instant.ofEpochSecond(ts).atZone(ZONE).plusDays(k).toEpochSecond();
     }
 
     public static String addDays(String day, int k) {
