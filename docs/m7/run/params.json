@@ -1,0 +1,23 @@
+{
+ "p_point": 0.061343306938749904,
+ "p_ctx": 0.5,
+ "k_site": 3,
+ "site_window_days": 7,
+ "k_site_drift": 7,
+ "site_drift_window_days": 14,
+ "sync_frac": 0.5,
+ "baseline_days": 10,
+ "common_ratio_num": 3,
+ "common_ratio_den": 4,
+ "min_global": 2,
+ "quality_max": 0.2,
+ "point_min_frac": 0.5,
+ "once_per_episode": true,
+ "layers": [
+  "data",
+  "perf",
+  "detect"
+ ],
+ "first_day": "2022-03-08",
+ "last_day": "2022-04-30"
+}
