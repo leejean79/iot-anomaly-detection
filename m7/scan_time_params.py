@@ -28,7 +28,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import decide as D  # noqa: E402
 
 SEGMENTS = [                                                # (名称, 当地起, 当地止, 当地日)
-    ("时段一 04-03 00–09", "2022-04-03 00:00", "2022-04-03 09:00", ["2022-04-03"]),
+    # 1.26 版裁决第二点：时段一的起点按最早一层（数据层 04-02 12:00 世界协调时，即当地 13:00）/ earliest layer
+    ("时段一 04-02 13–04-03 09", "2022-04-02 13:00", "2022-04-03 09:00", ["2022-04-02", "2022-04-03"]),
     ("时段二 04-04 05–23", "2022-04-04 05:00", "2022-04-04 23:00", ["2022-04-04"]),
     ("时段三 04-10 00–08", "2022-04-10 00:00", "2022-04-10 08:00", ["2022-04-10"]),
     ("时段四 04-15 傍晚至 04-16 03", "2022-04-15 17:00", "2022-04-16 03:00", ["2022-04-15", "2022-04-16"]),
@@ -94,7 +95,7 @@ def main() -> int:
                         segment_of(s)])
 
     seg_days = {d: name for name, _, _, days in SEGMENTS for d in days}
-    summary, latency = [], []
+    summary, latency, blocked = [], [], []
     for cmd, cn, wait, wn, delta, dn in [(c, cn, w, wn, d, dn) for c, cn in CMDS for w, wn in WAITS for d, dn in DELTAS]:
         if True:
             tag = "C%s_W%s_D%s" % (cn, wn, dn)
@@ -112,6 +113,32 @@ def main() -> int:
                         seg_perf.append("%s %s（%s）" % (c["device"], c["day"][5:], segment_of(since)[:3]))
                 if "Gas" in trig and c["day"] in seg_days:
                     seg_gas.append("%s %s（%s）" % (c["device"], c["day"][5:], seg_days[c["day"]][:3]))
+            # 持续满 W 且始于共模时段的确认段：是否成为命令触发；没有的注明被哪条规则挡住（1.26 版裁决第四点）
+            if wait:
+                ticks = (lambda t0, t1: [t for t in range(t0 - t0 % 3600, t1 + 1, 3600) if t0 <= t <= t1]) if cmd else \
+                    (lambda t0, t1: [t for t in (D.local_day_start(D.next_day(D.local_of(x)[0])) for x in range(t0, t1 + 1, 3600))
+                                     if t0 <= t <= t1])
+                for dev, s0, e0 in spells:
+                    if not segment_of(s0) or e0 is None or e0 - s0 < wait:
+                        continue
+                    hit = [c for c in commands if c["device"] == dev and "perf" in c["triggers"].split("|")
+                           and s0 <= c["decided_at"] <= e0]
+                    if hit:
+                        why = "成为命令触发：%s %s" % (dev, fmt_local(hit[0]["decided_at"]))
+                    else:
+                        ts = sorted(set(ticks(s0 + wait, e0)))
+                        if not ts:
+                            why = "满 W 的时刻 %s 与回落 %s 之间没有决策节拍" % (fmt_local(s0 + wait), fmt_local(e0))
+                        else:
+                            blk = []
+                            for t in ts:
+                                prev = [c for c in commands if c["device"] == dev and c["decided_at"] < t]
+                                cd = max((D.add_local_days(c["effective_at"], 1) for c in prev), default=0)
+                                blk.append("冷却期（%s %s 的命令，截止 %s）" % (dev, prev[-1]["day"][5:], fmt_local(cd))
+                                           if cd > t else "其他")
+                            why = "；".join(sorted(set(blk)))
+                    blocked.append(dict(config=tag, device=dev, since=fmt_local(s0), fallen=fmt_local(e0),
+                                        hours="%.1f" % ((e0 - s0) / 3600), segment=segment_of(s0), outcome=why))
             summary.append(dict(config=tag, commands=len(commands), perf_commands=len(perf_cmds),
                                 perf_list="；".join(perf_cmds), seg_perf=len(seg_perf), seg_perf_list="；".join(seg_perf),
                                 seg_gas=len(seg_gas), seg_gas_list="；".join(seg_gas)))
@@ -153,6 +180,11 @@ def main() -> int:
             fh.write("| %s | %s | %s | %s | %s | %s | %s | %d | %d |\n" % (
                 r["config"], r["segment"], r["device"], r["triggers"], r["entry_day"], r["decided_local"],
                 r["effective_local"], r["to_decision_h"], r["to_effective_h"]))
+        fh.write("\n持续满 W 且始于共模时段的确认段，是否成为命令触发：\n\n| 组合 | 设备 | 确认（当地） | 回落（当地） | 时长（小时） | 时段 | 结果 |\n"
+                 "| --- | --- | --- | --- | --- | --- | --- |\n")
+        for r in blocked:
+            fh.write("| %s | %s | %s | %s | %s | %s | %s |\n" % (r["config"], r["device"], r["since"], r["fallen"], r["hours"],
+                                                             r["segment"], r["outcome"]))
         fh.write("\n| 设备 | 确认（当地） | 回落（当地） | 时长（小时） | 共模时段 |\n| --- | --- | --- | --- | --- |\n")
         for dev, s, e in spells:
             fh.write("| %s | %s | %s | %s | %s |\n" % (dev, fmt_local(s), fmt_local(e) if e else "未回落",

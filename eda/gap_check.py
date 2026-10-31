@@ -12,9 +12,10 @@
 # 2. 调用命令：
 #      python3 eda/gap_check.py \
 #          --data-dir /Users/lijing/Downloads/fwlmb11wni392kodtyljkw4n2/files_csv \
-#          --start 2022-03-30T19:30:00 --end 2022-03-30T21:30:00 --gap 30 \
-#          --out docs/m7/gap_0330.md
-#    --start 含、--end 不含，均为世界协调时；--gap 为判为缺口的相邻轮间隔（秒，名义间隔十秒）。
+#          --start 2022-03-30T19:00:00 --end 2022-03-30T22:00:00 --gap 30 \
+#          --out docs/m7/gap_0330_v2.md
+#    --start 含、--end 不含，均为世界协调时；--gap 为判为缺口的相邻轮间隔（秒，名义间隔十秒）；--margin 为窗口两端多读的
+#    秒数（默认 3600），跨窗口边界的缺口据此找到起止。
 # 3. 前置条件：原始 CSV 目录可读（EDA 全量扫描用的同一个目录）。
 # 4. 期望产出：终端与 --out 处的 Markdown：逐台缺口清单（起止时刻与时长）、全机队逐分钟轮数表。若原始数据在 20:00 至 21:00 之间
 #    每台都有一个约十二分半钟的缺口，即为数据集本身的缺口。
@@ -49,6 +50,7 @@ def main() -> int:
     ap.add_argument("--start", required=True)
     ap.add_argument("--end", required=True)
     ap.add_argument("--gap", type=int, default=30)
+    ap.add_argument("--margin", type=int, default=3600, help="窗口两端多读的秒数，用来找到跨窗口边界的缺口的起止")
     ap.add_argument("--out")
     a = ap.parse_args()
     lo, hi = epoch(a.start), epoch(a.end)
@@ -68,7 +70,7 @@ def main() -> int:
         keep = t.notna() & df["DeviceId"].notna()
         t = t[keep].astype("int64")
         dev = df["DeviceId"][keep].astype(str).str.strip()
-        inside = (t >= lo - 600) & (t < hi + 600)          # 两端各多读十分钟，边界处的缺口也能看到
+        inside = (t >= lo - a.margin) & (t < hi + a.margin)   # 两端多读一段，跨边界的缺口也能找到起止
         if inside.any():
             parts.append(pd.DataFrame({"dev": dev[inside].to_numpy(), "time": t[inside].to_numpy()}))
     if n_data == 0:
@@ -82,6 +84,8 @@ def main() -> int:
            "## 逐台缺口\n", "| 设备 | 缺口开始（上一轮，UTC） | 缺口结束（下一轮，UTC） | 时长（秒） |", "| --- | --- | --- | --- |"]
     for d, g in rounds.groupby("dev"):
         ts = g["time"].to_numpy()
+        if ts[0] > lo:                                   # 读入范围内找不到缺口前的一轮 / no round before the gap within the margin
+            out.append("| %s | 早于 %s（读入范围内无读数） | %s | 至少 %d |" % (d, iso(lo - a.margin), iso(ts[0]), ts[0] - (lo - a.margin)))
         for prev, nxt in zip(ts[:-1], ts[1:]):
             if nxt - prev > a.gap and nxt > lo and prev < hi:
                 out.append("| %s | %s | %s | %d |" % (d, iso(prev), iso(nxt), nxt - prev))

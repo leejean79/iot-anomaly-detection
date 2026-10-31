@@ -45,7 +45,8 @@ CONFIGS = [
     ("pctx_2", "p_ctx 六分之二", dict(p_ctx=2 / 6)),
 ]
 APRIL = [
-    ("时段一", "2022-04-03 00", "2022-04-03 08", ["2022-04-03"]),
+    # 1.26 版裁决第二点：时段起点以最早一层为准；时段一的数据层起点为 04-02 12:00（世界协调时），即当地 13 时
+    ("时段一", "2022-04-02 13", "2022-04-03 08", ["2022-04-02", "2022-04-03"]),
     ("时段二", "2022-04-04 05", "2022-04-04 22", ["2022-04-04"]),
     ("时段三", "2022-04-10 00", "2022-04-10 07", ["2022-04-10"]),
     ("时段四", "2022-04-15 17", "2022-04-16 02", ["2022-04-15", "2022-04-16"]),
@@ -397,7 +398,7 @@ def main() -> int:
              "对照跑：命令"], rows))
 
     w("\n## 补充二（裁决第二项）：决定日在四月共模时段上的命令逐条分类\n\n")
-    w("判定：触发通道的偏离段在时段所在当地日进入、之后回落的，记为丙型实例；进入日早于时段的，记为与时段重合；进入后到 04-30 未回落的单列。\n\n")
+    w("判定：触发通道的偏离段在时段所在当地日（时段一含数据层起点 04-02）进入、之后回落的，记为长瞬态实例候选；进入日早于时段的，记为与时段重合；进入后到 04-30 未回落的单列。\n\n")
 
     def segment_of(dev, ch, day):
         ds = sorted(dd for (dv, dd, c), r in inp.days.items() if dv == dev and c == ch and r["transition"] == "DEVIATE" and dd <= day)
@@ -417,7 +418,7 @@ def main() -> int:
                     continue
                 st0, en = segment_of(c["device"], tr, c["day"])
                 if st0 in sd:
-                    verdict = "丙型实例" if en else "时段内进入，至 04-30 未回落"
+                    verdict = "长瞬态实例候选（时段后 %s 回落）" % en[5:] if en else "时段内进入，至 04-30 未回落"
                 elif st0 and st0 < sd[0]:
                     lag = (D.local_day_start(sd[0]) - D.local_day_start(st0)) // 86400
                     verdict = "与时段重合（偏离段早 %d 天进入）" % lag
@@ -425,6 +426,67 @@ def main() -> int:
                     verdict = "其他"
                 rows.append([name, c["device"], c["day"][5:], tr, st0[5:] if st0 else "—", en[5:] if en else "未回落", verdict])
     w(table(["时段", "设备", "命令日", "触发通道", "偏离段进入（当地日）", "回落（当地日）", "判定"], rows))
+
+    # 各时段各层的时间（1.26 版裁决第二点：表里同时列各层的时间）/ per-layer times of each segment
+    w("\n各时段各层的时间（当地）：性能层取数据事实第三十五条候选；数据层爆发取性能层起点前二十四小时至时段末之间的离群率爆发，"
+      "同一时刻至少三台的记为机队级；气体进入偏离取时段所在日与前一日的状态转移。\n\n")
+    perf_win = {"时段一": "04-03 00–09", "时段二": "04-04 05–23", "时段三": "04-10 00–08", "时段四": "04-15 傍晚至 04-16 03",
+                "时段五": "04-22 07–14"}
+    perf_start = {"时段一": "2022-04-03 00", "时段二": "2022-04-04 05", "时段三": "2022-04-10 00", "时段四": "2022-04-15 17",
+                  "时段五": "2022-04-22 07"}
+    rows = []
+    for name, s0, e0, sd in APRIL:
+        t0 = D.local_day_start(perf_start[name][:10]) + 3600 * int(perf_start[name][11:]) - 86400
+        t1 = D.local_day_start(e0[:10]) + 3600 * (int(e0[11:]) + 1)
+        bs = collections.defaultdict(list)
+        for dev in devs:
+            for b, _ in inp.bursts.get(dev, []):
+                if t0 <= b <= t1:
+                    bs[b].append(dev)
+        fleet = [(b, ds) for b, ds in sorted(bs.items()) if len(ds) >= 3]
+        d0 = D.add_days(perf_start[name][:10], -1)
+        ent = collections.defaultdict(list)
+        for (dev, dd, ch), r in inp.days.items():
+            if ch == "Gas" and r["transition"] == "DEVIATE" and d0 <= dd <= e0[:10]:
+                ent[dd].append(dev)
+        rows.append([name, perf_win[name],
+                     "；".join("%s（%s）" % (fmt_local(b), "".join(sorted(ds))) for b, ds in fleet) or "无",
+                     "；".join("%s（%s）" % (fmt_local(b), "".join(sorted(ds))) for b, ds in sorted(bs.items()) if len(ds) < 3) or "无",
+                     "；".join("%s（%s）" % (dd[5:], "".join(sorted(v))) for dd, v in sorted(ent.items())) or "无",
+                     "%s 时至 %s 时" % (s0[5:], e0[5:])])
+    w(table(["时段", "性能层", "数据层机队级爆发", "数据层其他爆发", "气体进入偏离", "本表采用的时段"], rows))
+
+    w("\n## 补充三之二（1.26 版裁决第三点）：全机队六十一个现场条件小时\n\n")
+    base = {}
+    for (dev, hs), r in inp.hours.items():
+        fd = D.local_of(inp.freeze[dev])[0]
+        day, hod = D.local_of(hs)
+        if fd <= day <= D.add_days(fd, 9):
+            for ch in D.ACTIVE:
+                n = int(r["n_" + ch])
+                if n > 0:
+                    s1, n1 = base.get((dev, ch, hod), (0.0, 0))
+                    base[(dev, ch, hod)] = (s1 + float(r["sum_" + ch]), n1 + n)
+    site_rows, by = [], collections.Counter()
+    for x in al:
+        if x["label"] != D.SITE:
+            continue
+        r = inp.hours[(x["device"], x["hour_start"])]
+        hod = int(x["local_hour"][11:])
+        chs = []
+        for ch in D.ACTIVE:
+            n = int(r["n_" + ch])
+            b = base.get((x["device"], ch, hod))
+            p10, p90 = inp.refs[(x["device"], ch)]
+            if n and b:
+                dlt = float(r["sum_" + ch]) / n - b[0] / b[1]
+                if abs(dlt) > 0.5 * (p90 - p10):
+                    chs.append("%s %+.2f 宽" % (ch, dlt / (p90 - p10)))
+        flg = ("点" if x["point_flag"] else "") + ("上" if x["ctx_flag"] else "")
+        site_rows.append([x["device"], x["local_hour"][5:], flg, "；".join(chs), x["note"] or ""])
+        by[(x["device"], hod)] += 1
+    w(table(["设备", "当地时", "检测标志", "同步变化的通道（偏离 / 参照 P90−P10 宽度）", "备注"], site_rows))
+    w("\n按设备与当地钟点计：%s。\n" % "；".join("%s %02d 时 %d" % (d, h, n) for (d, h), n in sorted(by.items())))
 
     w("\n## 补充三（裁决第三项）：p_ctx 取六分之一、六分之二、六分之三时 C 正午各小时的标志与归因\n\n")
     w("格内依次为：上下文通道超阈窗口数 / 6；三档 p_ctx 下的归因（标志有无写在括号里，「上」为上下文通道标志）。\n\n")
