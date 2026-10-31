@@ -41,6 +41,8 @@ CONFIGS = [
     ("common_1_1", "共模比例全体", dict(common_ratio_num=1, common_ratio_den=1)),
     ("ksite_2", "K_site 二", dict(k_site=2)),
     ("ksite_5", "K_site 五", dict(k_site=5)),
+    ("pctx_1", "p_ctx 六分之一", dict(p_ctx=1 / 6)),
+    ("pctx_2", "p_ctx 六分之二", dict(p_ctx=2 / 6)),
 ]
 APRIL = [
     ("时段一", "2022-04-03 00", "2022-04-03 08", ["2022-04-03"]),
@@ -83,10 +85,11 @@ def run_with_drift(inp, p):
     book = {}
     orig = D.daily_tick
 
-    def wrapped(day, t, inp_, p_, devs, perf, drift, *rest):
-        orig(day, t, inp_, p_, devs, perf, drift, *rest)
-        book[D.next_day(day)] = {d: "|".join(v["triggers"]) for d, v in drift.items()}
-        book["ep " + D.next_day(day)] = {d: "|".join(v["triggers"]) for d, v in rest[0].items()}
+    def wrapped(day, t, inp_, p_, devs, perf, drift, *rest, boundary=True):
+        orig(day, t, inp_, p_, devs, perf, drift, *rest, boundary=boundary)
+        if boundary:
+            book[D.next_day(day)] = {d: "|".join(v["triggers"]) for d, v in drift.items()}
+            book["ep " + D.next_day(day)] = {d: "|".join(v) for d, v in rest[0].items()}
 
     D.daily_tick = wrapped
     try:
@@ -209,7 +212,7 @@ def main() -> int:
         inj = collections.Counter()
         for r in injections:
             hs0 = int(r["start_ts"]) // 3600 * 3600
-            for hs in range(hs0, int(r["end_ts"]) + 1, 3600):
+            for hs in range(hs0, int(r["end_ts"]), 3600):
                 inj[lab.get((r["device"], hs), "无告警")] += 1
         rows.append(["十四段注入（E，所覆盖的设备小时）", "；".join("%s %d" % (SHORT.get(k, k), v) for k, v in inj.most_common()), "—"])
         st = lambda x: x["local_hour"][:10] in stable[x["device"]]
@@ -306,7 +309,9 @@ def main() -> int:
             pf.advance(t)
             if pf.confirmed and not was:
                 spells[dev].append(pf.since)
-    rows, gaps = [], []
+    # 只计每段偏离第一次出现在命令里的那个触发（即开启新一段的触发）；同一段在后续命令里再次列出的不重复计
+    # only the trigger that opens a deviation segment counts; a segment listed again in later commands is skipped
+    rows, gaps, seen = [], [], set()
     for c in cm:
         parts = []
         for tr in c["triggers"].split("|"):
@@ -317,12 +322,17 @@ def main() -> int:
                             if dev == c["device"] and ch == tr and r["transition"] == "DEVIATE" and dd <= c["day"])
                 t0 = D.local_day_start(entry)
             g = (c["effective_at"] - t0) / 86400
+            label = "%s %s 起" % (tr, fmt_local(t0)[:5] if tr != "perf" else fmt_local(t0))
+            if (c["device"], tr, t0) in seen:
+                parts.append(label + "（该段已在此前命令中）")
+                continue
+            seen.add((c["device"], tr, t0))
             gaps.append(g)
-            parts.append("%s %s 起 %.1f 天" % (tr, fmt_local(t0)[:5] if tr != "perf" else fmt_local(t0), g))
+            parts.append("%s %.1f 天" % (label, g))
         rows.append([c["device"], c["day"][5:], fmt_local(c["effective_at"]), "；".join(parts)])
     w(table(["设备", "命令日", "生效（当地）", "进入偏离到生效"], rows))
     gaps.sort()
-    w("\n共 %d 个触发：最短 %.1f 天，中位 %.1f 天，最长 %.1f 天；大于三天的触发逐条见上表。\n\n" % (
+    w("\n开启新一段的触发共 %d 个：最短 %.1f 天，中位 %.1f 天，最长 %.1f 天；大于三天的触发逐条见上表。\n\n" % (
         len(gaps), gaps[0], gaps[len(gaps) // 2], gaps[-1]))
     # 瞬态事件：按设备的连续小时段；若按小时节拍立即响应（在段首小时终点发命令，同样带一天冷却期）会多发多少命令
     runs = collections.defaultdict(list)
@@ -373,6 +383,94 @@ def main() -> int:
         rows.append([dd[5:]] + cells)
     w(table(["当地日"] + ["%d 时" % h for h in range(10, 16)], rows))
     w("（「点」「上」表示该小时有点通道、上下文通道标志；「状态触发」是该日零点日节拍之后 C 的漂移状态由哪个通道或性能层触发。）\n")
+
+    # ================ 1.25 版裁决要求的补充记录 / supplements requested by ruling 1.25
+    w("\n## 补充一（裁决第一项）：三月事件逐台的命令\n\n")
+    rows = []
+    for d in devs:
+        before = books["default"].get("ep 2022-03-22", {}).get(d, "")
+        mine = [c for c in cm if c["device"] == d and "2022-03-22" <= c["day"] <= "2022-03-27"]
+        no = [c for c in R["no_once"]["commands"] if c["device"] == d and "2022-03-22" <= c["day"] <= "2022-03-27"]
+        rows.append([d, before or "无", "；".join("%s %s" % (c["day"][5:], c["triggers"]) for c in mine) or "无",
+                     len(no), "；".join("%s %s" % (c["day"][5:], c["triggers"]) for c in no) or "无"])
+    w(table(["设备", "03-22 零点时未结束的段（触发类）", "默认：命令日 03-22 至 03-27 的命令", "对照跑：命令数",
+             "对照跑：命令"], rows))
+
+    w("\n## 补充二（裁决第二项）：决定日在四月共模时段上的命令逐条分类\n\n")
+    w("判定：触发通道的偏离段在时段所在当地日进入、之后回落的，记为丙型实例；进入日早于时段的，记为与时段重合；进入后到 04-30 未回落的单列。\n\n")
+
+    def segment_of(dev, ch, day):
+        ds = sorted(dd for (dv, dd, c), r in inp.days.items() if dv == dev and c == ch and r["transition"] == "DEVIATE" and dd <= day)
+        start = ds[-1] if ds else None
+        rec = sorted(dd for (dv, dd, c), r in inp.days.items()
+                     if dv == dev and c == ch and r["transition"] == "RECOVER" and start and dd > start)
+        return start, rec[0] if rec else None
+
+    rows = []
+    for name, s0, e0, sd in APRIL:
+        for c in cm:
+            if c["day"] not in sd:
+                continue
+            for tr in c["triggers"].split("|"):
+                if tr == "perf":
+                    rows.append([name, c["device"], c["day"][5:], tr, "—", "—", "性能层触发，另见第 9 条"])
+                    continue
+                st0, en = segment_of(c["device"], tr, c["day"])
+                if st0 in sd:
+                    verdict = "丙型实例" if en else "时段内进入，至 04-30 未回落"
+                elif st0 and st0 < sd[0]:
+                    lag = (D.local_day_start(sd[0]) - D.local_day_start(st0)) // 86400
+                    verdict = "与时段重合（偏离段早 %d 天进入）" % lag
+                else:
+                    verdict = "其他"
+                rows.append([name, c["device"], c["day"][5:], tr, st0[5:] if st0 else "—", en[5:] if en else "未回落", verdict])
+    w(table(["时段", "设备", "命令日", "触发通道", "偏离段进入（当地日）", "回落（当地日）", "判定"], rows))
+
+    w("\n## 补充三（裁决第三项）：p_ctx 取六分之一、六分之二、六分之三时 C 正午各小时的标志与归因\n\n")
+    w("格内依次为：上下文通道超阈窗口数 / 6；三档 p_ctx 下的归因（标志有无写在括号里，「上」为上下文通道标志）。\n\n")
+    rows = []
+    for dd in SUN_DAYS:
+        for h in range(10, 16):
+            hs = D.local_day_start(dd) + 3600 * h
+            r = inp.hours.get(("C", hs))
+            cells = [dd[5:] + " %02d" % h, r["ctx_above"] if r else "—"]
+            for key in ("pctx_1", "pctx_2", "default"):
+                x = next((y for y in R[key]["alerts"] if y["device"] == "C" and y["hour_start"] == hs), None)
+                cells.append("无告警" if x is None else SHORT[x["label"]] + ("（上）" if x["ctx_flag"] else ""))
+            rows.append(cells)
+    w(table(["C 当地时", "超阈窗口数", "p_ctx 1/6", "p_ctx 2/6", "p_ctx 3/6（默认）"], rows))
+    for key in ("pctx_1", "pctx_2", "default"):
+        A = R[key]["alerts"]
+        w("\n%s：全机队现场条件 %d 小时，C 的现场条件 %d 小时（正午 %d），命令 %d 条。" % (
+            dict((k, n) for k, n, _ in CONFIGS)[key], sum(1 for x in A if x["label"] == D.SITE),
+            sum(1 for x in A if x["label"] == D.SITE and x["device"] == "C"),
+            sum(1 for x in A if x["label"] == D.SITE and x["device"] == "C" and 10 <= int(x["local_hour"][11:]) <= 15),
+            len(R[key]["commands"])))
+    w("\n")
+
+    w("\n## 补充四（裁决第五项）：十四段注入所在小时的归因与原因\n\n")
+    rows = []
+    labd = {(x["device"], x["hour_start"]): x for x in al}
+    for r in injections:
+        hs0 = int(r["start_ts"]) // 3600 * 3600
+        for hs in range(hs0, int(r["end_ts"]), 3600):
+            x = labd.get((r["device"], hs))
+            h = inp.hours.get((r["device"], hs))
+            day = D.local_of(hs)[0]
+            if x is None:
+                why = "无告警"
+            elif x["label"] == D.DRIFT:
+                why = "漂移期，状态触发 %s" % books["default"].get(day, {}).get(r["device"], "?")
+            elif x["label"] == D.QUALITY:
+                miss = 1 - int(h["rounds"]) / 360
+                guard = int(h["guard_rounds"]) / 360
+                why = "缺轮 %.0f%%，守卫打标 %.0f%%（%s）" % (100 * miss, 100 * guard, "守卫超门槛" if guard > 0.2 else "缺轮超门槛")
+            else:
+                why = ""
+            rows.append(["%s %s %s" % (r["channel"], r["type"], r["magnitude"].rstrip("0").rstrip(".")), x["local_hour"] if x else lh(hs),
+                         SHORT.get(x["label"], "") if x else "无告警", why,
+                         ("点" if x and x["point_flag"] else "") + ("上" if x and x["ctx_flag"] else "") or "无"])
+    w(table(["注入（E）", "当地小时", "归因", "原因", "载荷中的检测标志"], rows))
 
     with open(os.path.join(a.out_dir, "tables.md"), "w", encoding="utf-8") as fh:
         fh.write("".join(out))

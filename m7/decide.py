@@ -9,17 +9,21 @@
 # 交接文档未写死、此处选定的写法（报告中逐条列出）：
 #   a. 质量问题告警的范围：按有读数的设备数计门槛；分布切换的范围：按有爆发标志的设备数计门槛；
 #   b. 当日不可判时，数据层两条日规则在该日不成立（没有新的证据），状态仍按数据层的规则延续；
-#   c. 一台设备同时有多个触发信号时，其中任一回落即结束「同一段偏离」与「漂移」状态；
-#   d. 复核只用发出时刻不晚于日节拍触发时刻（日界后六十秒）的爆发，与在线一致。
+#   c. （1.25 版裁决第六项更正）「同一段偏离」与「漂移」状态按触发信号类分别结束：数据层某通道的段在该通道回到正常时
+#      结束，性能层的段在确认回落时结束；一台设备只要还有未结束的类就仍处于漂移状态；只发一次按类计——命令的触发里有
+#      不在未结束段中的类才发命令；
+#   d. 复核只用发出时刻不晚于日节拍触发时刻（日界后六十秒）的爆发，与在线一致；
+#   e. 决策节拍短于一天时，日内节拍的在场设备按前一日的可判设备计（当日数据层结论要到日界才有）。
 #
 # ---------------------------- 脚本交付五要素 -------------------------------
 # 1. 执行环境 / Environment: 开发机或本地 Mac，仓库根目录，python3.9+（只用标准库）。
 # 2. 调用命令 / Invocation:
 #      python3 m7/decide.py [--inputs docs/m7/inputs] [--out-dir docs/m7/run] [--no-once] [--layers data,perf,detect]
-#        [--common-ratio 3/4] [--k-site 3] [--delta-sec 0] [--wait-sec 0]
+#        [--common-ratio 3/4] [--k-site 3] [--delta-sec 0] [--wait-sec 0] [--cmd-sec 0] [--p-ctx 0.5]
 #    --no-once 关闭「同一段偏离只发一次」（对照跑）；--layers 只用部分信号（消融）；--delta-sec 生效提前量（0 为一个当地日）；
 #    --wait-sec 等待时长 W（0 为一个日界；小于一天时性能层规则改为确认持续满 W，数据层规则不变）；其余参数见 Params。
-#    告警节拍与决策节拍按 1.24 版裁决只在 Java 单元测试与在线算子中取非默认值，本脚本固定为一小时与一个当地日。
+#    --cmd-sec 决策节拍（0 为一个当地日；须整除一天，如 3600）；--p-ctx 上下文通道标志的门槛（超阈窗口数 / 6）。
+#    告警节拍按 1.24 版裁决只在 Java 单元测试与在线算子中取非默认值，本脚本固定为一小时。
 # 3. 前置条件 / Preconditions: 已运行 m7/prepare_inputs.py。
 # 4. 期望产出 / Expected output: out-dir 下 alerts.csv、commands.csv、review.csv、params.json；终端打印三份日志的条数与按归因的分布。
 # 5. 失败兜底 / Failure fallback: 缺输入时退出码 2。
@@ -66,6 +70,7 @@ class Params:
         self.once_per_episode = kw.get("once_per_episode", True)
         self.delta_sec = kw.get("delta_sec", 0)              # 生效提前量 Δ；0 表示一个当地日 / 0 means one local day
         self.wait_sec = kw.get("wait_sec", 0)                # 等待时长 W；0 表示一个日界 / 0 means one day boundary
+        self.cmd_sec = kw.get("cmd_sec", 0)                  # 决策节拍 τ_cmd；0 表示一个当地日 / 0 means one local day
         self.layers = kw.get("layers", ("data", "perf", "detect"))
         self.first_day = kw.get("first_day", "2022-03-08")
         self.last_day = kw.get("last_day", "2022-04-30")
@@ -212,7 +217,7 @@ def run(inp, p):
     base = {}                                      # (dev, ch, 钟点) → (和, 数) / baseline sums
     base_ready = {}
     drift = {}                                     # dev → dict(scope, triggers, since)
-    episode = {}                                   # dev → dict(triggers, count)
+    episode = {}                                   # dev → {触发类: 第几次命令} / per trigger class
     cooldown_until = {}
     seq = collections.Counter()
     day_alerts = collections.defaultdict(list)
@@ -317,13 +322,18 @@ def run(inp, p):
                 a = dict(device=dev, hour_start=hs, local_hour="%s %02d" % (day, hod), label=label, scope=scope,
                          co="|".join(sorted(co)), point_rate=x["point"], ctx_max=x["ctx_max"],
                          perf_magnitude=perf[dev].magnitude if x["perf"] else None,
-                         data_channels="|".join(active_data), burst=int(x["burst"]), note=note)
+                         data_channels="|".join(active_data), burst=int(x["burst"]), point_flag=int(x["pflag"]),
+                         ctx_flag=int(x["cflag"]), note=note)
                 alerts.append(a)
                 day_alerts[day].append(a)
             # 现场条件用的按日标志记录在日界更新；这里先记下当日该钟点是否有标志 / per-day flag record
             for dev in info:
                 if info[dev]["pflag"] or info[dev]["cflag"]:
                     flag_hist[(dev, hod)].add(day)
+            # 日内决策节拍（τ_cmd 短于一天时）/ intra-day decision ticks
+            if p.cmd_sec and he < local_day_start(next_day(day)) and (he - local_day_start(day)) % p.cmd_sec == 0:
+                daily_tick(day, he, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, data_trans,
+                           boundary=False)
         # ---------------- 日节拍：日界 t = 次日零点 / daily tick at the boundary
         t = local_day_start(next_day(day))
         daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, data_trans)
@@ -361,10 +371,14 @@ def site_condition(dev, hod, day, x, flag_hist, base, inp, p, freeze_day):
     return False
 
 
-def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, data_trans):
+def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, data_trans,
+               boundary=True):
+    """时刻 t 的决策节拍；boundary 为真时是当地日 day 结束的日界节拍。数据层规则只在日界判定，性能层规则每个节拍判定。
+    Decision tick at t; data rules only at the day boundary, the perf rule at every tick."""
     prev = add_days(day, -1)
     day_start = local_day_start(day)
-    present = [d for d in devs if inp.evaluable.get((d, day), False)]
+    ev_day = day if boundary else prev
+    present = [d for d in devs if inp.evaluable.get((d, ev_day), False)]
     T = p.threshold(len(present))
     st = {}
     for dev in devs:
@@ -375,10 +389,10 @@ def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, 
         # W = one day boundary: the spell crossed local midnight; W < 1 day: the spell has lasted W without falling back
         perf_cross = pf.confirmed and pf.since is not None and (
             pf.since < day_start if p.wait_sec == 0 else t - pf.since >= p.wait_sec)
-        ev = inp.evaluable.get((dev, day), False)
+        ev = boundary and inp.evaluable.get((dev, day), False)
         chans = {}
         for ch in CHANNELS:
-            dd = data_dev(dev, day, ch)
+            dd = boundary and data_dev(dev, day, ch)
             persistent = ev and dd and (data_dev(dev, prev, ch) or perf_at_t)
             chans[ch] = dict(dev=ev and dd, persistent=persistent)
         st[dev] = dict(perf_at_t=perf_at_t, perf_cross=perf_cross, chans=chans)
@@ -387,19 +401,23 @@ def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, 
         for ch in ACTIVE:
             cnt[ch] += st[dev]["chans"][ch]["persistent"]
         cnt["perf"] += st[dev]["perf_cross"]
-    # 回落：结束漂移状态与同一段偏离 / fallbacks end drift status and episodes
+
+    # 回落按触发信号类分别结束（1.25 版裁决第六项）/ each trigger class ends on its own fallback
+    def fallen(dev, trig):
+        if trig == "perf":
+            return not st[dev]["perf_at_t"]
+        return boundary and inp.evaluable.get((dev, day), False) and not data_dev(dev, day, trig)
+
     for dev in devs:
-        for book in (drift, episode):
-            if dev not in book:
-                continue
-            fell = False
-            for trig in book[dev]["triggers"]:
-                if trig == "perf":
-                    fell = fell or not st[dev]["perf_at_t"]
-                elif inp.evaluable.get((dev, day), False) and not data_dev(dev, day, trig):
-                    fell = True
-            if fell:
-                del book[dev]
+        if dev in drift:
+            drift[dev]["triggers"] = [tr for tr in drift[dev]["triggers"] if not fallen(dev, tr)]
+            if not drift[dev]["triggers"]:
+                del drift[dev]
+        if dev in episode:
+            for tr in [tr for tr in episode[dev] if fallen(dev, tr)]:
+                del episode[dev][tr]
+            if not episode[dev]:
+                del episode[dev]
     for dev in devs:
         s = st[dev]
         triggers, forms = [], []
@@ -416,20 +434,30 @@ def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, 
         scope = "全局" if any(cnt[tr] >= T for tr in triggers) else "局部"
         co = sorted(d for d in present if any(st[d]["chans"][ch]["persistent"] for ch in ACTIVE if ch in triggers)
                     or ("perf" in triggers and st[d]["perf_cross"]))
-        drift.setdefault(dev, dict(scope=scope, triggers=triggers, since=t))
+        if dev in drift:
+            drift[dev]["triggers"] += [tr for tr in triggers if tr not in drift[dev]["triggers"]]
+        else:
+            drift[dev] = dict(scope=scope, triggers=list(triggers), since=t)
         if cooldown_until.get(dev, 0) > t:
             continue
-        if dev in episode and p.once_per_episode:
+        ep = episode.get(dev, {})
+        fresh = [tr for tr in triggers if tr not in ep]
+        if p.once_per_episode and not fresh:
             continue
-        ep = episode.setdefault(dev, dict(triggers=triggers, count=0))
-        ep["count"] += 1
+        ep = episode.setdefault(dev, {})
+        inc = fresh if p.once_per_episode else triggers
+        for tr in inc:
+            ep[tr] = ep.get(tr, 0) + 1
         seq[dev] += 1
-        # 生效 = t + Δ（Δ 为 0 时取一个当地日，即下一个日界）；冷却期截止 = 生效之后一个当地日 / effective time and cooldown
-        eff = add_local_days(t, 1) if p.delta_sec == 0 else t + p.delta_sec
+        # 生效 = t + Δ（Δ 为 0 时取一个决策节拍）；冷却期截止 = 生效之后一个当地日 / effective time and cooldown
+        if p.delta_sec:
+            eff = t + p.delta_sec
+        else:
+            eff = add_local_days(t, 1) if p.cmd_sec == 0 else t + p.cmd_sec
         cooldown_until[dev] = add_local_days(eff, 1)
         commands.append(dict(device=dev, decided_at=t, effective_at=eff, seq=seq[dev], level=0, scope=scope,
                              label=DRIFT, triggers="|".join(triggers), forms="；".join(forms), co=len(co),
-                             co_devices="|".join(co), episode_n=ep["count"], day=day))
+                             co_devices="|".join(co), episode_n=max(ep[tr] for tr in inc), day=day))
 
 
 # ---------------------------------------------------------------- 输出 / output
@@ -450,7 +478,7 @@ def write(path, rows, cols):
 
 
 ALERT_COLS = ["device", "hour_start", "local_hour", "label", "scope", "co", "point_rate", "ctx_max", "perf_magnitude",
-              "data_channels", "burst", "note"]
+              "data_channels", "burst", "point_flag", "ctx_flag", "note"]
 COMMAND_COLS = ["device", "day", "decided_at", "effective_at", "seq", "level", "scope", "label", "triggers", "forms", "co",
                 "co_devices", "episode_n"]
 REVIEW_COLS = ["device", "day", "kind", "hour_start", "detail"]
@@ -467,6 +495,8 @@ def main() -> int:
     ap.add_argument("--p-point", type=float, default=None)
     ap.add_argument("--delta-sec", type=int, default=0)
     ap.add_argument("--wait-sec", type=int, default=0)
+    ap.add_argument("--cmd-sec", type=int, default=0)
+    ap.add_argument("--p-ctx", type=float, default=0.5)
     a = ap.parse_args()
     need = ["hours.csv", "perf_events.csv", "perf_elements.csv", "data_days.csv", "bursts.csv", "refs.csv", "freeze.csv"]
     miss = [f for f in need if not os.path.exists(os.path.join(a.inputs, f))]
@@ -476,7 +506,7 @@ def main() -> int:
     num, den = (int(x) for x in a.common_ratio.split("/"))
     p = Params(once_per_episode=not a.no_once, layers=tuple(a.layers.split(",")), common_ratio_num=num,
                common_ratio_den=den, k_site=a.k_site, delta_sec=a.delta_sec,
-               wait_sec=a.wait_sec)
+               wait_sec=a.wait_sec, cmd_sec=a.cmd_sec, p_ctx=a.p_ctx)
     inp = Inputs(a.inputs)
     p.p_point = a.p_point if a.p_point is not None else derive_p_point(inp, Params())
     alerts, commands, review = run(inp, p)

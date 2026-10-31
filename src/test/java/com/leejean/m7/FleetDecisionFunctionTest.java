@@ -224,6 +224,30 @@ class FleetDecisionFunctionTest {
         assertEquals(2, r.commands("C"));
     }
 
+    @Test
+    @DisplayName("同一段偏离按触发信号类分别结束：气体回落不结束温度段；新通道光照持续时发命令 / episodes end per trigger class")
+    void episodeEndsPerClass() {
+        Run r = run(params(), 8, f -> dataDays(f, 8, (k, v) -> {
+            String[] p = k.split("\\|");
+            if (!p[0].equals("C")) {
+                return;
+            }
+            int day = Integer.parseInt(p[1].substring(8));
+            boolean dev = p[2].equals("Temperature")
+                    || (p[2].equals("Gas") && day <= 3)
+                    || (p[2].equals("Light") && day >= 5);
+            v[1] = dev ? "1" : "0";
+        }), NONE);
+        List<FleetDecisionFunction.Command> c = new ArrayList<>();
+        r.commands.stream().filter(x -> x.device.equals("C")).forEach(c::add);
+        assertEquals(2, c.size());
+        assertEquals("2022-03-02", c.get(0).day);
+        assertEquals("Temperature|Gas", c.get(0).triggers);
+        assertEquals("2022-03-06", c.get(1).day, "气体回落后温度段仍在，不发；光照满两日才发 / Light is a fresh class");
+        assertEquals("Temperature|Light", c.get(1).triggers);
+        assertEquals(1, c.get(1).episodeN);
+    }
+
     // ---------------------------------------------------------------- 优先次序 / priority
     @Test
     @DisplayName("优先次序：质量问题压过一切；分布切换压过异常（点通道静默）；漂移压过现场条件 / priority")

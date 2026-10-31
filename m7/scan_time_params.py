@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # ============================================================================
 # m7/scan_time_params.py
-# 判读口径第 9 条（交接文档 1.24 版第七节）：时间参数的离线扫描，只作记录、不改默认。等待时长 W 取六小时、十二小时、一个日界
-# 三档（前两档按 1.24 版第四点四只用性能层判持续），生效提前量 Δ 取一小时与一天两档；告警节拍与决策节拍保持默认（一小时、
-# 一个当地日）。每种组合列出零级命令总数、带性能层触发的命令、落在四月五个共模气体时段上的命令，以及三月事件与 G 光照两段从进入
+# 判读口径第 9 条（交接文档 1.25 版第七节）：时间参数的离线扫描，只作记录、不改默认。决策节拍取一小时与一个当地日两档，
+# 等待时长 W 取六小时、十二小时、一个日界三档（前两档按 1.24 版第四点四只用性能层判持续），生效提前量 Δ 取一小时与一天两档；
+# 告警节拍保持一小时。每种组合列出零级命令总数、带性能层触发的命令、落在四月五个共模气体时段上的命令，以及三月事件与 G 光照两段从进入
 # 偏离到命令生效的延迟；另列性能层每一段「已确认未回落」的起止与时长（这是 W 起作用的唯一途径）。
 # Offline scan of W x Delta for judgement item 9; record only.
 #
@@ -34,6 +34,7 @@ SEGMENTS = [                                                # (名称, 当地起
     ("时段四 04-15 傍晚至 04-16 03", "2022-04-15 17:00", "2022-04-16 03:00", ["2022-04-15", "2022-04-16"]),
     ("时段五 04-22 07–14", "2022-04-22 07:00", "2022-04-22 14:00", ["2022-04-22"]),
 ]
+CMDS = [(3600, "1h"), (0, "1d")]
 WAITS = [(21600, "6h"), (43200, "12h"), (0, "1日界")]
 DELTAS = [(3600, "1h"), (0, "1d")]
 
@@ -94,10 +95,11 @@ def main() -> int:
 
     seg_days = {d: name for name, _, _, days in SEGMENTS for d in days}
     summary, latency = [], []
-    for wait, wn in WAITS:
-        for delta, dn in DELTAS:
-            tag = "W%s_D%s" % (wn, dn)
-            p = D.Params(p_point=p_point, wait_sec=wait, delta_sec=delta)
+    for cmd, cn, wait, wn, delta, dn in [(c, cn, w, wn, d, dn) for c, cn in CMDS for w, wn in WAITS for d, dn in DELTAS]:
+        if True:
+            tag = "C%s_W%s_D%s" % (cn, wn, dn)
+            # Δ 一天：决策节拍一天时取一个当地日（delta 0），决策节拍一小时时取 86,400 秒 / one day of lead time
+            p = D.Params(p_point=p_point, cmd_sec=cmd, wait_sec=wait, delta_sec=86400 if (cmd and not delta) else delta)
             _, commands, _ = D.run(inp, p)
             D.write(os.path.join(a.out_dir, "commands_%s.csv" % tag), commands, D.COMMAND_COLS)
             perf_cmds, seg_perf, seg_gas = [], [], []
@@ -121,9 +123,13 @@ def main() -> int:
                     chans = [t for t in c["triggers"].split("|") if t != "perf"]
                     if seg == "G 光照":
                         chans = ["Light"]
-                    entry = max(dd for (dev, dd, ch), r in inp.days.items()
-                                if dev == c["device"] and ch in chans and r["transition"] == "DEVIATE" and dd <= c["day"])
-                    t0 = D.local_day_start(entry)
+                    if chans:
+                        entry = max(dd for (dev, dd, ch), r in inp.days.items()
+                                    if dev == c["device"] and ch in chans and r["transition"] == "DEVIATE" and dd <= c["day"])
+                        t0 = D.local_day_start(entry)
+                    else:                                         # 只由性能层触发：取这一段确认的时刻 / perf only
+                        t0 = max(s for dev, s, e in spells if dev == c["device"] and s <= c["decided_at"])
+                        entry = fmt_local(t0)
                     latency.append(dict(config=tag, segment=seg, device=c["device"], triggers=c["triggers"], entry_day=entry,
                                         decided_local=fmt_local(c["decided_at"]), effective_local=fmt_local(c["effective_at"]),
                                         to_decision_h=(c["decided_at"] - t0) // 3600,
@@ -133,7 +139,8 @@ def main() -> int:
 
     with open(os.path.join(a.out_dir, "scan.md"), "w", encoding="utf-8") as fh:
         fh.write("# 时间参数离线扫描（判读口径第 9 条，m7/scan_time_params.py 生成）\n\n")
-        fh.write("告警节拍一小时、决策节拍一个当地日；p_point = %r。\n\n" % p_point)
+        fh.write("告警节拍一小时；组合名 C 为决策节拍、W 为等待时长、D 为生效提前量（决策节拍一小时时，Δ 一天取 86,400 秒）；"
+                 "p_point = %r。\n\n" % p_point)
         fh.write("| 组合 | 命令总数 | 带性能层触发的命令 | 性能层确认始于共模时段的命令 | 决定日在共模时段上的气体命令 |\n")
         fh.write("| --- | --- | --- | --- | --- |\n")
         for s in summary:

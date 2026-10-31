@@ -23,7 +23,8 @@ import java.util.TreeMap;
  * 执行环境：任意装有 JDK 11 及以上的机器，仓库根目录。
  * 调用：java -cp &lt;作业 jar&gt; com.leejean.m7.M7OfflineRunner --inputs docs/m7/inputs --out-dir docs/m7/run_java
  *       可选：--no-once（关闭「同一段偏离只发一次」）、--layers data,perf,detect（消融）、--common-ratio 3/4、--k-site 3、--p-point 0.06、
- *             --delta-sec 0（生效提前量，0 为一个当地日）、--wait-sec 0（等待时长 W，0 为一个日界）
+ *             --delta-sec 0（生效提前量，0 为一个决策节拍）、--wait-sec 0（等待时长 W，0 为一个日界）、
+ *             --cmd-sec 0（决策节拍，0 为一个当地日）、--p-ctx 0.5（上下文通道标志门槛）
  * 前置条件：已运行 m7/prepare_inputs.py。
  * 产出：out-dir 下 alerts.csv、commands.csv、review.csv；终端打印三份日志的条数与 p_point。缺输入时退出码 2。
  * </pre>
@@ -31,7 +32,7 @@ import java.util.TreeMap;
 public final class M7OfflineRunner {
 
     public static final String ALERT_HEADER = "device,hour_start,local_hour,label,scope,co,point_rate,ctx_max,perf_magnitude,"
-            + "data_channels,burst,note";
+            + "data_channels,burst,point_flag,ctx_flag,note";
     public static final String COMMAND_HEADER = "device,day,decided_at,effective_at,seq,level,scope,label,triggers,forms,co,"
             + "co_devices,episode_n";
     public static final String REVIEW_HEADER = "device,day,kind,hour_start,detail";
@@ -69,6 +70,8 @@ public final class M7OfflineRunner {
         p.kSite = Integer.parseInt(a.getOrDefault("k-site", "3"));
         p.deltaSec = Long.parseLong(a.getOrDefault("delta-sec", "0"));
         p.waitSec = Long.parseLong(a.getOrDefault("wait-sec", "0"));
+        p.cmdSec = Long.parseLong(a.getOrDefault("cmd-sec", "0"));
+        p.pCtx = Double.parseDouble(a.getOrDefault("p-ctx", "0.5"));
         Map<String, Map<Long, FleetDecisionFunction.HourObs>> hours = readHours(in.resolve("hours.csv"));
         p.pPoint = a.containsKey("p-point") ? Double.parseDouble(a.get("p-point")) : derivePPoint(in.resolve("hours.csv"));
         List<FleetDecisionFunction.Alert> alerts = new ArrayList<>();
@@ -122,6 +125,11 @@ public final class M7OfflineRunner {
                     }
                 }
                 alerts.addAll(f.alertTick(hs, obs));
+                long he = hs + 3600;
+                if (p.cmdSec != 0 && he < FleetDecisionFunction.dayStart(FleetDecisionFunction.addDays(day, 1))
+                        && (he - FleetDecisionFunction.dayStart(day)) % p.cmdSec == 0) {
+                    f.cmdTick(he, commands, review);          // 日内决策节拍 / intra-day decision tick
+                }
             }
             f.dayTick(day, commands, review);
         }
@@ -199,7 +207,7 @@ public final class M7OfflineRunner {
             w.print(ALERT_HEADER + "\n");
             for (FleetDecisionFunction.Alert x : alerts) {
                 w.print(String.join(",", x.device, Long.toString(x.hourStart), x.localHour, x.label, x.scope, x.co, d(x.pointRate),
-                        x.ctxMax, d(x.perfMagnitude), x.dataChannels, Integer.toString(x.burst), x.note) + "\n");
+                        x.ctxMax, d(x.perfMagnitude), x.dataChannels, Integer.toString(x.burst), Integer.toString(x.pointFlag), Integer.toString(x.ctxFlag), x.note) + "\n");
             }
         }
     }

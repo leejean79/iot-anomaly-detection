@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -109,6 +110,8 @@ public class FleetDecisionFunction implements Serializable {
         public Double perfMagnitude;
         public String dataChannels;
         public int burst;
+        public int pointFlag;                 // 该节拍的检测标志，主标签被覆盖时仍可查 / detection flags kept in the payload
+        public int ctxFlag;
         public String note;
     }
 
@@ -199,7 +202,6 @@ public class FleetDecisionFunction implements Serializable {
         private static final long serialVersionUID = 1L;
         String scope;
         List<String> triggers;
-        int count;
     }
 
     private final Params p;
@@ -214,7 +216,7 @@ public class FleetDecisionFunction implements Serializable {
     private final Map<String, Set<String>> siteHist = new HashMap<>();
     private final Map<String, double[]> base = new HashMap<>();                    // dev|ch|hod → {sum, n}
     private final TreeMap<String, Book> drift = new TreeMap<>();
-    private final Map<String, Book> episode = new HashMap<>();
+    private final Map<String, Map<String, Integer>> episode = new HashMap<>();     // dev → {触发类: 第几次} / per trigger class
     private final Map<String, Long> cooldownUntil = new HashMap<>();
     private final Map<String, Integer> seq = new HashMap<>();
     private final List<Alert> dayAlerts = new ArrayList<>();
@@ -467,6 +469,8 @@ public class FleetDecisionFunction implements Serializable {
             a.perfMagnitude = x.perf ? perf.get(dev).magnitude : null;
             a.dataChannels = String.join("|", activeData);
             a.burst = x.burst ? 1 : 0;
+            a.pointFlag = x.pflag ? 1 : 0;
+            a.ctxFlag = x.cflag ? 1 : 0;
             a.note = note;
             out.add(a);
             dayAlerts.add(a);
@@ -576,22 +580,20 @@ public class FleetDecisionFunction implements Serializable {
             }
             inc(cnt, "perf", st.get(dev).perfPersist);
         }
+        // 回落按触发信号类分别结束（1.25 版裁决第六项）/ each trigger class ends on its own fallback
         for (String dev : devices) {
-            for (Map<String, Book> book : Arrays.<Map<String, Book>>asList(drift, episode)) {
-                Book b = book.get(dev);
-                if (b == null) {
-                    continue;
+            Book b = drift.get(dev);
+            if (b != null) {
+                b.triggers.removeIf(tr -> fallen(st.get(dev), dev, day, tr, boundary));
+                if (b.triggers.isEmpty()) {
+                    drift.remove(dev);
                 }
-                boolean fell = false;
-                for (String trig : b.triggers) {
-                    if ("perf".equals(trig)) {
-                        fell = fell || !st.get(dev).perfAtT;
-                    } else if (boundary && isEvaluable(dev, day) && !dataDev(dev, day, trig)) {
-                        fell = true;
-                    }
-                }
-                if (fell) {
-                    book.remove(dev);
+            }
+            Map<String, Integer> ep = episode.get(dev);
+            if (ep != null) {
+                ep.keySet().removeIf(tr -> fallen(st.get(dev), dev, day, tr, boundary));
+                if (ep.isEmpty()) {
+                    episode.remove(dev);
                 }
             }
         }
@@ -628,25 +630,38 @@ public class FleetDecisionFunction implements Serializable {
                 }
             }
             Collections.sort(co);
-            if (!drift.containsKey(dev)) {
-                Book b = new Book();
-                b.scope = scope;
-                b.triggers = triggers;
-                drift.put(dev, b);
+            Book db = drift.get(dev);
+            if (db == null) {
+                db = new Book();
+                db.scope = scope;
+                db.triggers = new ArrayList<>(triggers);
+                drift.put(dev, db);
+            } else {
+                for (String tr : triggers) {
+                    if (!db.triggers.contains(tr)) {
+                        db.triggers.add(tr);
+                    }
+                }
             }
             if (cooldownUntil.getOrDefault(dev, 0L) > t) {
                 continue;
             }
-            if (episode.containsKey(dev) && p.oncePerEpisode) {
+            Map<String, Integer> ep = episode.getOrDefault(dev, Collections.emptyMap());
+            List<String> fresh = new ArrayList<>();
+            for (String tr : triggers) {
+                if (!ep.containsKey(tr)) {
+                    fresh.add(tr);
+                }
+            }
+            if (p.oncePerEpisode && fresh.isEmpty()) {
                 continue;
             }
-            Book ep = episode.get(dev);
-            if (ep == null) {
-                ep = new Book();
-                ep.triggers = triggers;
-                episode.put(dev, ep);
+            ep = episode.computeIfAbsent(dev, k -> new LinkedHashMap<>());
+            int episodeN = 0;
+            for (String tr : p.oncePerEpisode ? fresh : triggers) {
+                ep.merge(tr, 1, Integer::sum);
+                episodeN = Math.max(episodeN, ep.get(tr));
             }
-            ep.count++;
             int n = seq.getOrDefault(dev, 0) + 1;
             seq.put(dev, n);
             Command c = new Command();
@@ -668,7 +683,7 @@ public class FleetDecisionFunction implements Serializable {
             c.forms = String.join("；", forms);
             c.co = co.size();
             c.coDevices = String.join("|", co);
-            c.episodeN = ep.count;
+            c.episodeN = episodeN;
             commands.add(c);
         }
         if (!boundary) {
@@ -713,6 +728,13 @@ public class FleetDecisionFunction implements Serializable {
             }
         }
         dayAlerts.clear();
+    }
+
+    private boolean fallen(DevState s, String dev, String day, String trig, boolean boundary) {
+        if ("perf".equals(trig)) {
+            return !s.perfAtT;
+        }
+        return boundary && isEvaluable(dev, day) && !dataDev(dev, day, trig);
     }
 
     private static void inc(Map<String, Integer> cnt, String k, boolean v) {

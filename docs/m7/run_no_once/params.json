@@ -13,6 +13,9 @@
  "quality_max": 0.2,
  "point_min_frac": 0.5,
  "once_per_episode": false,
+ "delta_sec": 0,
+ "wait_sec": 0,
+ "cmd_sec": 0,
  "layers": [
   "data",
   "perf",
