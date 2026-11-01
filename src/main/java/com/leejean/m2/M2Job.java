@@ -260,6 +260,23 @@ public class M2Job {
             System.out.println("M3 async train:  threads=" + m3TrainThreads + " per TaskManager, drain batch="
                     + m3DrainBatch + " rounds, poll interval=" + m3PollIntervalSec + " s (addendum 4)");
         }
+        // ---- M7 聚合决策（交接文档 1.25 版第六节；默认关闭；须同时开启 M3、M5b、M5a）。决策参数用 --m7- 前缀加离线运行器的选项名
+        // （p-point、alert-sec、cmd-sec、wait-sec、delta-sec、p-ctx、k-site、common-ratio、no-once、layers）----
+        // M7 decision operator (off by default; requires M3, M5b and M5a). Options: --m7- plus the offline runner's names.
+        boolean m7Enabled = params.getBoolean("m7-enabled", false);
+        String alertsTopic = params.get("alerts-topic", "synergia-alerts");
+        String adaptTopic = params.get("adapt-topic", "synergia-adapt");
+        java.util.Map<String, String> m7Opts = new java.util.HashMap<>();
+        for (String key : params.toMap().keySet()) {
+            if (key.startsWith("m7-") && !"m7-enabled".equals(key)) {
+                m7Opts.put(key.substring(3), params.get(key));
+            }
+        }
+        m7Opts.putIfAbsent("p-point", com.leejean.m7.M7DumpRunner.DEFAULT_P_POINT);
+        com.leejean.m7.FleetDecisionFunction.Params m7Params = com.leejean.m7.M7OfflineRunner.params(m7Opts);
+        if (m7Enabled && !(m3Enabled && m5bEnabled && m5aEnabled)) {
+            throw new IllegalArgumentException("--m7-enabled 须同时开启 --m3-enabled、--m5b-enabled、--m5a-enabled");
+        }
         System.out.println("M5b enabled:     " + (m5bEnabled && m3Enabled));
         System.out.println("M5a enabled:     " + m5aEnabled);
         if (m5aEnabled) {
@@ -271,6 +288,8 @@ public class M2Job {
             System.out.println("M5b OPTWIN:      confidence=" + m5bConfidence + " robustness=" + m5bRobustness
                     + " wmax=" + m5bWMax + " granularity=" + m5bGranularity + " K=" + m5bK + " -> " + driftTopic);
         }
+        System.out.println("M7 enabled:      " + m7Enabled + (m7Enabled ? " options=" + m7Opts + " -> " + alertsTopic + " / "
+                + adaptTopic : ""));
         System.out.println("========================================");
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -413,6 +432,10 @@ public class M2Job {
 
         // ---- M5a 数据层：标准化轮与点通道离群记录按同一代理键连接；事件写 synergia-drift，日记录并入 synergia-monitoring ----
         // M5a: rounds and point outliers connected on the same surrogate keys; events to drift, daily records to monitoring.
+        DataStream<com.leejean.m5.DriftEvent> m7DataEvents = null;
+        DataStream<MonitoringSnapshot> m7DataRecords = null;
+        DataStream<M3ScoreRecord> m7Contexts = null;
+        DataStream<com.leejean.m5.DriftEvent> m7PerfEvents = null;
         if (m5aEnabled) {
             OutputTag<MonitoringSnapshot> m5aRecordTag = new OutputTag<MonitoringSnapshot>("m5a-day-records") { };
             SingleOutputStreamOperator<com.leejean.m5.DriftEvent> dataDrift = cached
@@ -430,6 +453,8 @@ public class M2Job {
                             new MonitoringSerializationSchema(monitoringTopic),
                             producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
                     .name("Kafka Sink [" + monitoringTopic + " / M5a]");
+            m7DataEvents = dataDrift;
+            m7DataRecords = dataDrift.getSideOutput(m5aRecordTag);
         }
 
         // 迟到丢弃计数（侧输出）：仅计 Flink 指标，不落库（§4）
@@ -466,6 +491,7 @@ public class M2Job {
                             new MonitoringSerializationSchema(monitoringTopic),
                             producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
                     .name("Kafka Sink [" + monitoringTopic + " / M3]");
+            m7Contexts = m3Scored;
 
             // M5b 性能层：接在 M3 之后、同一作业、同一代理键，消费评分窗，事件写 synergia-drift，快照并入 synergia-monitoring
             // M5b: after M3 in the same job with the same surrogate keys; events to synergia-drift, snapshots to monitoring
@@ -484,7 +510,33 @@ public class M2Job {
                                 new MonitoringSerializationSchema(monitoringTopic),
                                 producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
                         .name("Kafka Sink [" + monitoringTopic + " / M5b]");
+                m7PerfEvents = drift;
             }
+        }
+
+        // ---- M7 聚合决策：六路输入映射为同一种记录、合并，并行度为一；告警与复核写 synergia-alerts，命令写 synergia-adapt ----
+        // M7: six inputs mapped to M7Input and unioned; parallelism one; alerts/review to synergia-alerts, commands to synergia-adapt.
+        if (m7Enabled) {
+            OutputTag<String> m7CommandTag = new OutputTag<String>("m7-commands") { };
+            DataStream<com.leejean.m7.M7Input> m7In = cached
+                    .process(new com.leejean.m7.M7DecisionOperator.Rounds()).name("M7-In-Rounds")
+                    .union(scored.process(new com.leejean.m7.M7DecisionOperator.Outliers(slideSec)).name("M7-In-Outliers"),
+                            m7Contexts.process(new com.leejean.m7.M7DecisionOperator.Contexts()).name("M7-In-Contexts"),
+                            m7PerfEvents.process(new com.leejean.m7.M7DecisionOperator.Drifts()).name("M7-In-Perf"),
+                            m7DataEvents.process(new com.leejean.m7.M7DecisionOperator.Drifts()).name("M7-In-DataEvents"),
+                            m7DataRecords.process(new com.leejean.m7.M7DecisionOperator.Records()).name("M7-In-DataRecords"));
+            SingleOutputStreamOperator<String> m7Out = m7In
+                    .keyBy(x -> 0, org.apache.flink.api.common.typeinfo.Types.INT)
+                    .process(new com.leejean.m7.M7DecisionOperator(m7Params, m7CommandTag))
+                    .setParallelism(1).setMaxParallelism(1)
+                    .name("M7-Decision");
+            m7Out.addSink(new FlinkKafkaProducer<>(alertsTopic, new M7LineSerializationSchema(alertsTopic),
+                            producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
+                    .setParallelism(1).name("Kafka Sink [" + alertsTopic + " / M7]");
+            m7Out.getSideOutput(m7CommandTag)
+                    .addSink(new FlinkKafkaProducer<>(adaptTopic, new M7LineSerializationSchema(adaptTopic),
+                            producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
+                    .setParallelism(1).name("Kafka Sink [" + adaptTopic + " / M7]");
         }
 
         env.execute("M2Job - M1 ingestion/normalization + pMCOD + LSTM-AE contextual anomaly detection");
@@ -641,6 +693,32 @@ public class M2Job {
     }
 
     /** M5b 漂移事件 → JSON 写入 synergia-drift；记录时间戳为事件时间（毫秒）/ drift event → JSON, stamped with event time. */
+    /**
+     * M7 的 JSON 行：键取行内的 device 字段（命令契约「键为设备号」），记录时间戳为算子发出时刻。
+     * M7 JSON lines keyed by their device field.
+     */
+    private static class M7LineSerializationSchema implements KafkaSerializationSchema<String> {
+        private static final long serialVersionUID = 1L;
+        private final String topic;
+        private transient ObjectMapper mapper;
+        M7LineSerializationSchema(String topic) {
+            this.topic = topic;
+        }
+        @Override
+        public ProducerRecord<byte[], byte[]> serialize(String line, @Nullable Long timestamp) {
+            if (mapper == null) {
+                mapper = new ObjectMapper();
+            }
+            try {
+                String dev = mapper.readTree(line).path("device").asText(null);
+                byte[] key = dev == null ? null : dev.getBytes(StandardCharsets.UTF_8);
+                return new ProducerRecord<>(topic, null, timestamp, key, line.getBytes(StandardCharsets.UTF_8));
+            } catch (Exception ex) {
+                throw new RuntimeException("Failed to serialize M7 line", ex);
+            }
+        }
+    }
+
     private static class DriftEventSerializationSchema implements KafkaSerializationSchema<com.leejean.m5.DriftEvent> {
         private static final long serialVersionUID = 1L;
         private final String topic;

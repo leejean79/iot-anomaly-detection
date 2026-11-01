@@ -39,7 +39,8 @@ public final class M7OfflineRunner {
 
     private M7OfflineRunner() { }
 
-    public static void main(String[] args) throws IOException {
+    /** 命令行参数：--键 值；--no-once 不带值 / command-line options. */
+    public static Map<String, String> parseArgs(String[] args) {
         Map<String, String> a = new HashMap<>();
         for (int i = 0; i < args.length; i++) {
             String k = args[i].replaceFirst("^--", "");
@@ -49,15 +50,11 @@ public final class M7OfflineRunner {
                 a.put(k, args[++i]);
             }
         }
-        Path in = Paths.get(a.getOrDefault("inputs", "docs/m7/inputs"));
-        Path out = Paths.get(a.getOrDefault("out-dir", "docs/m7/run_java"));
-        for (String f : new String[]{"hours.csv", "perf_events.csv", "perf_elements.csv", "data_days.csv", "bursts.csv", "refs.csv",
-                "freeze.csv"}) {
-            if (!Files.exists(in.resolve(f))) {
-                System.err.println("缺少 " + in.resolve(f) + "；先运行 m7/prepare_inputs.py");
-                System.exit(2);
-            }
-        }
+        return a;
+    }
+
+    /** 决策参数（离线运行器、转储运行器与作业共用同一组选项名）/ decision parameters from the shared option names. */
+    public static FleetDecisionFunction.Params params(Map<String, String> a) {
         FleetDecisionFunction.Params p = new FleetDecisionFunction.Params();
         p.oncePerEpisode = !a.containsKey("no-once");
         String layers = a.getOrDefault("layers", "data,perf,detect");
@@ -71,7 +68,27 @@ public final class M7OfflineRunner {
         p.deltaSec = Long.parseLong(a.getOrDefault("delta-sec", "0"));
         p.waitSec = Long.parseLong(a.getOrDefault("wait-sec", "0"));
         p.cmdSec = Long.parseLong(a.getOrDefault("cmd-sec", "0"));
+        p.alertSec = Long.parseLong(a.getOrDefault("alert-sec", "3600"));
         p.pCtx = Double.parseDouble(a.getOrDefault("p-ctx", "0.5"));
+        if (a.containsKey("p-point")) {
+            p.pPoint = Double.parseDouble(a.get("p-point"));
+        }
+        return p;
+    }
+
+    public static void main(String[] args) throws IOException {
+        Map<String, String> a = parseArgs(args);
+        Path in = Paths.get(a.getOrDefault("inputs", "docs/m7/inputs"));
+        Path out = Paths.get(a.getOrDefault("out-dir", "docs/m7/run_java"));
+        for (String f : new String[]{"hours.csv", "perf_events.csv", "perf_elements.csv", "data_days.csv", "bursts.csv", "refs.csv",
+                "freeze.csv"}) {
+            if (!Files.exists(in.resolve(f))) {
+                System.err.println("缺少 " + in.resolve(f) + "；先运行 m7/prepare_inputs.py");
+                System.exit(2);
+            }
+        }
+        FleetDecisionFunction.Params p = params(a);
+        p.alertSec = 3600;                                   // 离线输入按小时整理 / offline inputs are hourly
         Map<String, Map<Long, FleetDecisionFunction.HourObs>> hours = readHours(in.resolve("hours.csv"));
         p.pPoint = a.containsKey("p-point") ? Double.parseDouble(a.get("p-point")) : derivePPoint(in.resolve("hours.csv"));
         List<FleetDecisionFunction.Alert> alerts = new ArrayList<>();

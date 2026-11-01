@@ -195,6 +195,13 @@ public class FleetDecisionFunction implements Serializable {
                     }
                 }
             }
+            if (i > 4096) {                                   // 已处理的条目不再需要，在线状态不随时间增长 / prune processed items
+                items.subList(0, i).clear();
+                i = 0;
+            }
+            if (post.size() > 64) {
+                post.subList(0, post.size() - 6).clear();
+            }
         }
     }
 

@@ -97,6 +97,10 @@ checks=(
     "com/leejean/m5a/M5aOfflineRunner.class|online-drift|Java 离线运行器与在线转换模式（V-M5a-3 短重放等值）"
     "com/leejean/m1/RobustScalerFunction.class|rs-ref-histograms|冻结时建参照直方图（M5a 长记忆一族）"
     "com/leejean/m2/M2Job.class|m5a-enabled|数据层开关参数（M5a 阶段，默认关闭）"
+    "com/leejean/m2/M2Job.class|m7-enabled|聚合算子开关参数（M7 阶段，默认关闭）"
+    "com/leejean/m7/M7DecisionOperator.class|[M7] Day {} closed|聚合在线算子与节拍耗时日志（V-M7-3、V-M7-5）"
+    "com/leejean/m7/M7DumpRunner.class|online-alerts|离线转储运行器与在线转换模式（V-M7-3 短重放等值）"
+    "com/leejean/m7/FleetDecisionFunction.class|性能层确认持续满等待时长|时间参数非默认取值与按类结束的同一段偏离（1.24、1.25 版）"
 )
 
 fail=0
