@@ -86,6 +86,10 @@ class M7StateClassLoaderTest {
             }
             assertSame(user, back.getClass().getClassLoader(), "读回的类须来自 Kryo 的类加载器");
             assertEquals(M7InputAssembler.class.getName(), back.getClass().getName());
+            // 堆状态在异步检查点期间按写时复制取值，经 KryoSerializer.copy（2026-11-01 第一次失败的位置）/ copy-on-write path
+            kryo.reset();
+            Object copy = ks.copy(a);
+            assertSame(user, copy.getClass().getClassLoader(), "复制出的对象的类须来自 Kryo 的类加载器");
         }
     }
 }
