@@ -1,7 +1,7 @@
 package com.leejean.m7;
 
 import com.esotericsoftware.kryo.DefaultSerializer;
-import com.esotericsoftware.kryo.serializers.JavaSerializer;
+import org.apache.flink.api.java.typeutils.runtime.kryo.JavaSerializer;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -19,7 +19,9 @@ import java.util.TreeMap;
  * 是否已经到达。观测的口径与离线输入表 {@code hours.csv} 相同（eda/m7_extract.py 与 m7/prepare_inputs.py）。
  * The M7 input assembler shared by the online operator and the dump runner.
  *
- * <p>检查点里整份状态用 Java 序列化（决策函数只实现了 Serializable）/ Java serialization in checkpoints.
+ * <p>检查点里整份状态用 Java 序列化（决策函数只实现了 Serializable）。须用 Flink 的 JavaSerializer：它按 Kryo 的类加载器（作业的
+ * 用户代码类加载器）解析类；Kryo 自带的同名类用系统类加载器，从检查点恢复时找不到作业 jar 里的类（2026-11-01 短重放的无限重启）。
+ * Java serialization in checkpoints via Flink's JavaSerializer, which resolves classes with the user-code class loader.
  */
 @DefaultSerializer(JavaSerializer.class)
 public class M7InputAssembler implements Serializable {

@@ -117,6 +117,11 @@ public class M2Job {
         // keeps the job running past an akka.framesize breach so per-operator checkpoint sizes can be read live
         // in the Flink UI. The default of 0 keeps today's behaviour byte-for-byte unchanged.
         int ckptTolerableFailures = params.getInt("checkpoint-tolerable-failures", 0);
+        // 失败后的自动重启次数：默认 -1 即沿用 Flink 的默认（开启检查点时无限次、间隔一秒）；验证类重放传 0，作业一失败即停止，
+        // 由编排报告失败（2026-11-01 短重放无限重启拖垮 master 之后加入）。
+        // Restart attempts after a failure: -1 keeps Flink's default; verification replays pass 0 so a failure stops the job.
+        int restartAttempts = params.getInt("restart-attempts", -1);
+        int restartDelaySec = params.getInt("restart-delay-sec", 10);
         // checkpoint 超时（分钟），默认 10 即 Flink 默认值。验收期训练同步占住任务线程时曾临时传 60、120；
         // 补遗四把训练移出任务线程后不再需要，按补遗四第五节恢复为 10。
         // Checkpoint timeout in minutes; default 10 is Flink's own default. The acceptance runs temporarily
@@ -235,6 +240,8 @@ public class M2Job {
         System.out.println("Relative guard:  " + (relativeGuard ? "ON" : "OFF (default)"));
         com.leejean.m1.CheckpointCeiling.print(ckptMaxStateMb);   // 打印两个上限与生效值 / both ceilings
         System.out.println("Ckpt interval/timeout: " + checkpointMs + " ms / " + ckptTimeoutMin + " min");
+        System.out.println("Restart attempts: " + (restartAttempts < 0 ? "Flink default" : restartAttempts + " (delay "
+                + restartDelaySec + " s)"));
         System.out.println("Ckpt tolerable failures: " + ckptTolerableFailures
                 + (ckptTolerableFailures > 0 ? "  (job restarts on consecutive failure no. " + (ckptTolerableFailures + 1) + ")" : ""));
         System.out.println("Stuck guard:     " + com.leejean.m1.RepeatRunGuard.describe(stuckThresholds));
@@ -317,6 +324,12 @@ public class M2Job {
         // 诊断开关：容忍若干次 checkpoint 失败而不重启作业（见 ckptTolerableFailures 注释）。
         // Diagnostics: tolerate N failed checkpoints without restarting the job.
         env.getCheckpointConfig().setTolerableCheckpointFailureNumber(ckptTolerableFailures);
+        if (restartAttempts >= 0) {
+            env.setRestartStrategy(restartAttempts == 0
+                    ? org.apache.flink.api.common.restartstrategy.RestartStrategies.noRestart()
+                    : org.apache.flink.api.common.restartstrategy.RestartStrategies.fixedDelayRestart(restartAttempts,
+                            org.apache.flink.api.common.time.Time.seconds(restartDelaySec)));
+        }
         env.getCheckpointConfig().setCheckpointTimeout(ckptTimeoutMin * 60_000L);
 
         Properties consumerProps = new Properties();

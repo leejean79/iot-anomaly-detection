@@ -35,7 +35,9 @@
 #    验收项五的表与总判定）、on/ 与 off/ 两个运行目录（漂移事件、日记录、告警与命令主题、日志、检查点体积）、online/ 与 offline/
 #    两份三日志目录。m1-out 转储较大（约 400 MB），留在 master 的 ${REMOTE_HOME}/m7verify/work/，核对后删除，只保留行数与校验和。
 # 5. 失败兜底 / Failure fallback: 某一步失败时编排取消作业、停重放，在 docs/m7/verify/progress.txt 写明失败的步骤后停止；先 fetch，
-#    再把 progress.txt 发给我。退出码：2 参数错误或 setup-master 未完成；3 已有编排在运行。
+#    再把 progress.txt 发给我。作业以 --restart-attempts 0 提交：任何一次失败都使作业停止而不自动重启（任何重启都会让上游输出出现
+#    重复、等值核对失去意义；2026-11-01 的无限重启曾拖垮 master），编排在下一分钟检出并把 JobManager 的失败原因写进
+#    on/jm_failure.log 或 off/jm_failure.log。退出码：2 参数错误或 setup-master 未完成；3 已有编排在运行。
 # ============================================================================
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -171,10 +173,13 @@ JID=""
 JAR="${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}"
 BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
 EXTRA_BASE="--m3-enabled true --warmup-rounds 8640 --m3-rounds-per-day 864 --m3-train-days 7 --m3-earlystop-days 2 --m3-thresh-days 7 --m3-window-length 60 --m3-hidden-size 60 --m3-batch-size 64 --m3-learning-rate 0.001 --m3-grad-clip 39072.0 --m3-max-epochs 300 --m3-earlystop-patience 20 --m3-reverse-target true --checkpoint-ms 30000 --checkpoint-timeout-min 10 --checkpoint-tolerable-failures 3 --idle-wall 60 --train-threads 2"
-EXTRA_BASE="$EXTRA_BASE --m5b-enabled true --m5b-confidence 0.99 --m5b-robustness 0.5 --m5b-granularity 10min --m5b-k 36 --m5a-enabled true"
+EXTRA_BASE="$EXTRA_BASE --m5b-enabled true --m5b-confidence 0.99 --m5b-robustness 0.5 --m5b-granularity 10min --m5b-k 36 --m5a-enabled true --restart-attempts 0"
 
 fail() {
     prog "失败：$*。已停止；请先 fetch，再把 progress.txt 与相关日志发给我。"
+    # 作业的失败原因（JobManager 日志里第一次转入失败的前后）/ the job's failure cause from the JobManager log
+    [ -n "${SINCE:-}" ] && [ -n "${RUN:-}" ] && ssh fa-master "docker logs --since $SINCE jobmanager 2>&1 \
+        | grep -m1 -A60 -E 'switched from state RUNNING to (FAILING|RESTARTING|FAILED)'" > "$DIR/$RUN/jm_failure.log" 2>/dev/null
     [ -n "$JID" ] && ssh fa-master "docker exec jobmanager flink cancel $JID" >/dev/null 2>&1
     bash "$SCRIPT_DIR/syn-replay.sh" stop >/dev/null 2>&1
     bash "$SCRIPT_DIR/syn-m3-watch.sh" stop --out-dir "$DIR/aborted" >/dev/null 2>&1
@@ -199,6 +204,15 @@ dump_topic() {   # $1 = topic, $2 = 输出文件 / output file
         --from-beginning --max-messages $cap --timeout-ms 60000 2>/dev/null" > "$2" || true
 }
 
+# 作业是否仍在运行：作业以 --restart-attempts 0 提交，一失败就停止 / the job runs with no restarts
+job_running() {   # 查询偶尔失败时重试两次，避免误判 / retry twice so a transient query failure is not mistaken
+    for _ in 1 2 3; do
+        ssh fa-master "docker exec jobmanager flink list -r 2>/dev/null" | grep -q "$JID" && return 0
+        sleep 10
+    done
+    return 1
+}
+
 run_one() {
     RUN="$1"; local m7_args="$2"; local R="$DIR/$RUN"; local W="$WORKM/$RUN"; JID=""
     rm -rf "$R" "$W"; mkdir -p "$R" "$W"
@@ -213,6 +227,7 @@ run_one() {
     printf 'RUN=%s\nSINCE=%s\nJID=%s\n' "$RUN" "$SINCE" "$JID" > "$R/run.env"
     prog "作业已提交：${JID}；$(grep -E 'M7 enabled' "$R/submit.log" | tr -s ' ')"
     # 启动横幅须与本次运行的开关一致；两次运行都须打开性能层与数据层 / the banner must match this run's switches
+    grep -q 'Restart attempts: 0' "$R/submit.log" || fail "启动横幅里重启次数不是 0（jar 可能是旧的，见 $R/submit.log）"
     grep -q 'M5b enabled:     true' "$R/submit.log" || fail "启动横幅里性能层不是打开状态（见 $R/submit.log）"
     grep -q 'M5a enabled:     true' "$R/submit.log" || fail "启动横幅里数据层不是打开状态（见 $R/submit.log）"
     if [ "$RUN" = on ]; then
@@ -228,11 +243,13 @@ run_one() {
         > "$R/replay_start.log" 2>&1 || fail "重放没有启动（见 $R/replay_start.log）"
     for _ in $(seq 1 240); do
         ssh fa-master "tmux has-session -t syn-replay 2>/dev/null" || break
+        job_running || fail "作业在重放期间停止运行（不自动重启；原因见 $R/jm_failure.log）"
         sleep 60
     done
     ssh fa-master "tmux has-session -t syn-replay 2>/dev/null" && fail "重放 4 小时仍未结束"
     for _ in $(seq 1 60); do
         [ "$(drained_devices)" -ge 8 ] && break
+        job_running || fail "作业在排空期间停止运行（原因见 $R/jm_failure.log）"
         sleep 60
     done
     N=$(drained_devices)

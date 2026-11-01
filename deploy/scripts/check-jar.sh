@@ -100,6 +100,8 @@ checks=(
     "com/leejean/m2/M2Job.class|m7-enabled|聚合算子开关参数（M7 阶段，默认关闭）"
     "com/leejean/m7/M7DecisionOperator.class|[M7] Day {} closed|聚合在线算子与节拍耗时日志（V-M7-3、V-M7-5）"
     "com/leejean/m7/M7DumpRunner.class|online-alerts|离线转储运行器与在线转换模式（V-M7-3 短重放等值）"
+    "com/leejean/m7/M7InputAssembler.class|typeutils/runtime/kryo/JavaSerializer|状态用 Flink 的 JavaSerializer（按用户代码类加载器恢复）"
+    "com/leejean/m2/M2Job.class|restart-attempts|失败重启次数参数（验证类重放传 0）"
     "com/leejean/m7/FleetDecisionFunction.class|性能层确认持续满等待时长|时间参数非默认取值与按类结束的同一段偏离（1.24、1.25 版）"
 )
 
