@@ -103,6 +103,9 @@ checks=(
     "com/leejean/m7/M7InputAssembler.class|typeutils/runtime/kryo/JavaSerializer|状态用 Flink 的 JavaSerializer（按用户代码类加载器恢复）"
     "com/leejean/m2/M2Job.class|restart-attempts|失败重启次数参数（验证类重放传 0）"
     "com/leejean/m7/FleetDecisionFunction.class|性能层确认持续满等待时长|时间参数非默认取值与按类结束的同一段偏离（1.24、1.25 版）"
+    "com/leejean/m2/M2Job.class|adapt-enabled|命令回路总开关（适应执行第一批）"
+    "com/leejean/m1/AdaptiveScalerFunction.class|Level 0 executed|标准化算子执行零级（适应执行第一批）"
+    "com/leejean/m2/PmcodFunction.class|m2_state_version_clears|点通道换版本时清空并回填（适应执行第一批）"
 )
 
 fail=0

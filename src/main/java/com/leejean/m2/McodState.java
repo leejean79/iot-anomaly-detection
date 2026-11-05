@@ -25,6 +25,10 @@ public class McodState implements Serializable {
     public Map<Long, McodPoint> pd;         // Pmcod.scala:13 PD：非簇点集
     public Map<Integer, MicroCluster> mc;   // Pmcod.scala:13 MC：微簇集
     public int mcCounter;                   // Pmcod.scala:22 mc_counter（now in state，R8 修复）
+    // 适应执行第一批（M6a）：该台当前的参数版本号（回路关闭时恒为空）与当前版本第一个点的轮时间戳（秒，之前的点只回填不判定）
+    // M6a: the device's current parameter version (null when the loop is off) and the first point of that version.
+    public Integer version;
+    public long versionStart;
 
     public McodState() {
         this.pd = new HashMap<>();

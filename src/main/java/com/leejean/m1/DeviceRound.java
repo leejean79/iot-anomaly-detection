@@ -65,6 +65,11 @@ public class DeviceRound implements Serializable {
     // Reference histograms for the M5a long-memory test: non-null only on the first round after the freeze.
     private com.leejean.m5a.RefHistogram[] refHistograms;
 
+    // 参数版本号与零级回填附件（M6a 交接文档第四节）：命令回路关闭时均为空、不写进 JSON，输出与改动前逐字节相同。
+    // Parameter version and level-0 backfill (M6a); null and omitted from JSON when the command loop is off.
+    private Integer version;
+    private com.leejean.m6.Backfill backfill;
+
     /** Jackson 反序列化需要无参构造 / No-arg constructor required by Jackson + Flink POJO. */
     public DeviceRound() {
         this.x = new double[Channels.N_DET];
@@ -145,6 +150,18 @@ public class DeviceRound implements Serializable {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public com.leejean.m5a.RefHistogram[] getRefHistograms() { return refHistograms; }
     public void setRefHistograms(com.leejean.m5a.RefHistogram[] refHistograms) { this.refHistograms = refHistograms; }
+
+    /** 参数版本号（M6a）：命令回路打开时冻结为一、每执行一次零级变为命令序号加一；关闭时为空且不写进 JSON / parameter version (M6a), null and omitted when the loop is off. */
+    @JsonProperty
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public Integer getVersion() { return version; }
+    public void setVersion(Integer version) { this.version = version; }
+
+    /** 零级回填附件，只在第一条点通道会接纳的新版本轮上非空 / the level-0 backfill, on one round only. */
+    @JsonProperty
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public com.leejean.m6.Backfill getBackfill() { return backfill; }
+    public void setBackfill(com.leejean.m6.Backfill backfill) { this.backfill = backfill; }
 
     @JsonProperty
     public boolean isWarmup() { return warmup; }

@@ -14,6 +14,8 @@ public class DevicePoint implements Serializable {
     private String device;
     private McodPoint point;
     private boolean[] censoredMask;
+    private Integer version;                          // 参数版本号（M6a），回路关闭时为空 / parameter version, null when off
+    private com.leejean.m6.Backfill backfill;         // 零级回填附件（M6a）/ level-0 backfill
 
     public DevicePoint() {
     }
@@ -51,5 +53,21 @@ public class DevicePoint implements Serializable {
 
     public void setCensoredMask(boolean[] censoredMask) {
         this.censoredMask = censoredMask;
+    }
+
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
+    }
+
+    public com.leejean.m6.Backfill getBackfill() {
+        return backfill;
+    }
+
+    public void setBackfill(com.leejean.m6.Backfill backfill) {
+        this.backfill = backfill;
     }
 }

@@ -26,6 +26,9 @@ public class M3ScoreRecord implements Serializable {
     private int hiddenSize;            // 该设备选中的 LSTM 隐藏层宽度 / selected LSTM hidden width for this device
     private int windowLength;          // 窗口长度（轮数）/ window length in rounds
 
+    // 参数版本号（M6a）：命令回路关闭时为空且不写进 JSON / parameter version (M6a), null and omitted when the loop is off
+    private Integer version;
+
     public M3ScoreRecord() {
         this.channel = "m3_context";   // 无参构造也固定通道标识 / no-arg ctor still sets the channel tag
     }
@@ -74,4 +77,13 @@ public class M3ScoreRecord implements Serializable {
 
     @JsonProperty public int getWindowLength() { return windowLength; }
     public void setWindowLength(int windowLength) { this.windowLength = windowLength; }
+
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
+    }
 }

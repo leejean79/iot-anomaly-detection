@@ -884,8 +884,10 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         M3Scorer.ScoreResult sr = scorer.score(lr.wmse, lr.perChannelMse);   // 评分 / score
 
         // 发出评分记录到 synergia-scores / emit the score record to synergia-scores
-        out.collect(new M3ScoreRecord(device, round.getWindowEnd(), sr.mainScore,
-                sr.mahaScore, lr.wmse, lr.perChannelMse, sr.aboveThreshold, hs, windowLength));
+        M3ScoreRecord rec = new M3ScoreRecord(device, round.getWindowEnd(), sr.mainScore,
+                sr.mahaScore, lr.wmse, lr.perChannelMse, sr.aboveThreshold, hs, windowLength);
+        rec.setVersion(round.getVersion());        // 模型与阈值不动，只换版本号（M6a）/ model untouched, version passed through
+        out.collect(rec);
 
         onlineCount.inc();
 

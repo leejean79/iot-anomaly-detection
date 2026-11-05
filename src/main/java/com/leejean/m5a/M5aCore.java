@@ -73,6 +73,10 @@ public class M5aCore implements Serializable {
     private int dayGuard;
     private DayBuffer buf = new DayBuffer(Channels.N_DET);       // 序列化只写已用部分 / serialized without spare capacity
     private final boolean[] deviated = new boolean[Channels.N_DET];
+    // 适应执行第一批（M6a）：当前参数版本号（回路关闭时为空）与「重估日」（生效时刻不在日界时，生效当日与标定日一样不可判）
+    // M6a: the current parameter version (null when the loop is off) and the re-estimation day (not evaluable).
+    private Integer version;
+    private String revalDay;
     // ---- 第三族 / family 3
     private final TreeMap<Long, long[]> bins = new TreeMap<>();    // 十分钟末 → {入口轮数, 离群轮数}
     private OptWinDetector detector;
@@ -109,7 +113,17 @@ public class M5aCore implements Serializable {
         if (r.getRefHistograms() != null && ref == null) {
             ref = r.getRefHistograms();
             calibDay = d;
+        } else if (r.getRefHistograms() != null) {
+            // 零级之后的新参照（M6a 交接文档第四节）：替换参照，清空状态转移与当日缓冲，不发回落事件，从该轮所在当地日重新开始；
+            // 当日已有旧版本的轮（生效时刻不在日界）则该日记为重估日。/ level-0 reference replacement without RECOVER events.
+            ref = r.getRefHistograms();
+            java.util.Arrays.fill(deviated, false);
+            if (dayRounds > 0) {
+                revalDay = d;
+            }
+            buf = new DayBuffer(Channels.N_DET);
         }
+        version = r.getVersion();
         dayRounds++;
         if (any(r.getStuckMask())) {
             dayGuard++;
@@ -146,7 +160,7 @@ public class M5aCore implements Serializable {
             long expected = (dayEnd - dayEnd(previousDay(day))) / p.periodSec;
             double missFrac = 1.0 - (double) dayRounds / expected;
             double guardFrac = (double) dayGuard / expected;
-            String reason = day.equals(calibDay) ? "标定日"
+            String reason = day.equals(calibDay) ? "标定日" : day.equals(revalDay) ? "重估日"
                     : (missFrac > p.missingMax ? "缺轮" : (guardFrac > p.guardMax ? "守卫打标" : ""));
             boolean evaluable = reason.isEmpty();
             for (int c = 0; c < Channels.N_DET; c++) {
@@ -160,6 +174,7 @@ public class M5aCore implements Serializable {
                 s.setM5aExpected(expected);
                 s.setM5aGuardRounds(dayGuard);
                 s.setM5aEvaluable(evaluable);
+                s.setVersion(version);
                 s.setM5aReason(reason);
                 DayStats st = null;
                 if (!day.equals(calibDay) && buf.size(c) > 0 && ref[c] != null) {
@@ -177,12 +192,16 @@ public class M5aCore implements Serializable {
                 if (evaluable && st != null) {
                     if (!deviated[c] && st.p < p.alphaCorrected && st.dBin > p.d0[c]) {
                         deviated[c] = true;
-                        events.add(DriftEvent.dataState(device, dayEnd, DriftEvent.Level.DEVIATE, Channels.DETECTION[c], day,
-                                st.dBin, st.p, st.shift, st.widthX));
+                        DriftEvent e = DriftEvent.dataState(device, dayEnd, DriftEvent.Level.DEVIATE, Channels.DETECTION[c], day,
+                                st.dBin, st.p, st.shift, st.widthX);
+                        e.version = version;
+                        events.add(e);
                     } else if (deviated[c] && st.dBin <= p.d0[c]) {
                         deviated[c] = false;
-                        events.add(DriftEvent.dataState(device, dayEnd, DriftEvent.Level.RECOVER, Channels.DETECTION[c], day,
-                                st.dBin, st.p, st.shift, st.widthX));
+                        DriftEvent e = DriftEvent.dataState(device, dayEnd, DriftEvent.Level.RECOVER, Channels.DETECTION[c], day,
+                                st.dBin, st.p, st.shift, st.widthX);
+                        e.version = version;
+                        events.add(e);
                     }
                 }
                 s.setM5aDeviated(deviated[c]);
@@ -246,7 +265,9 @@ public class M5aCore implements Serializable {
                 }
             }
             if (b > q.ts + BURST_HORIZON_SEC && !q.runOpen) {
-                events.add(DriftEvent.burst(device, q.ts, q.alarm, q.size, q.peak, q.duration));
+                DriftEvent e = DriftEvent.burst(device, q.ts, q.alarm, q.size, q.peak, q.duration);
+                e.version = version;
+                events.add(e);
                 it.remove();
             }
         }

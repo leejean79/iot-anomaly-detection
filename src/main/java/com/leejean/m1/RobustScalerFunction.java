@@ -174,25 +174,17 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
         double[] scale = iqr.value();
         boolean[] bp = bypass.value();
         boolean[] sub = substituted.value();
-        double[] xn = new double[Channels.N_DET];
+        double[] xn = normalize(round.getX(), round.getMissingMask(), med, scale, bp, transforms);
         boolean[] outBypass = new boolean[Channels.N_DET];
         boolean[] outSub = new boolean[Channels.N_DET];
         for (int c = 0; c < Channels.N_DET; c++) {
             if (round.getMissingMask()[c]) {
-                xn[c] = 0.0;              // 缺失通道置 0，依赖 missingMask / missing → 0, rely on mask
                 continue;
             }
-            // 预变换后再缩放：med/scale 已在变换域，故分子也取变换域值（Light 取 log1p 域）。
-            double tv = transforms[c].apply(round.getX()[c]);
             if (bp[c]) {
-                xn[c] = tv;              // 旁路：变换域值透传 / bypass: pass the transformed value through
                 outBypass[c] = true;
-            } else {
-                // scale[c] 可能是 IQR 或（相对退化时）主体宽度/2.44；sub[c] 仅供监测打标，不改算式。
-                xn[c] = (tv - med[c]) / scale[c];
-                if (sub != null && sub[c]) {
-                    outSub[c] = true;
-                }
+            } else if (sub != null && sub[c]) {
+                outSub[c] = true;   // sub[c] 仅供监测打标，不改算式 / flag only
             }
         }
         round.setWarmup(false);
@@ -208,53 +200,142 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
 
     /** 到达预热边界，冻结每通道 中位数/IQR，并清空蓄水池。 Freeze at the warm-up boundary. */
     private void freeze() throws Exception {
-        double[] med = new double[Channels.N_DET];
-        double[] scale = new double[Channels.N_DET];
-        com.leejean.m5a.RefHistogram[] hist = new com.leejean.m5a.RefHistogram[Channels.N_DET];
-        boolean[] bp = new boolean[Channels.N_DET];
-        boolean[] sub = new boolean[Channels.N_DET];
-        int nBypass = 0;
-        int nSub = 0;
+        List<List<Double>> samples = new ArrayList<>(Channels.N_DET);
         for (int c = 0; c < Channels.N_DET; c++) {
             List<Double> vals = new ArrayList<>();
             for (Double v : reservoirs.get(c).get()) {
                 vals.add(v);
             }
-            if (vals.isEmpty()) {
-                // 无样本（通道全程缺失/删失）→ 旁路 / no samples → bypass
-                med[c] = 0.0;
-                scale[c] = 1.0;
-                bp[c] = true;
-                nBypass++;
-            } else {
-                Collections.sort(vals);
-                hist[c] = com.leejean.m5a.RefHistogram.build(vals.stream().mapToDouble(Double::doubleValue).toArray(), REF_BINS);
-                ScaleDecision d = decideScale(vals, epsilon, relativeGuardEnabled);
-                med[c] = d.median;
-                scale[c] = d.scale;
-                bp[c] = d.bypass;
-                sub[c] = d.substituted;
-                if (d.bypass) {
-                    nBypass++;
-                } else if (d.substituted) {
-                    nSub++;
-                }
-            }
+            samples.add(vals);
             reservoirs.get(c).clear();   // 释放蓄水池 / release the reservoir
         }
-        median.update(med);
-        iqr.update(scale);
-        refHist.update(hist);
-        bypass.update(bp);
-        substituted.update(sub);
+        Calibration cal = calibrate(samples, epsilon, relativeGuardEnabled);
+        median.update(cal.median);
+        iqr.update(cal.scale);
+        refHist.update(cal.hist);
+        bypass.update(cal.bypass);
+        substituted.update(cal.substituted);
         frozen.update(true);
         frozenDevices.inc();
-        if (nBypass > 0) {
-            bypassedChannelsMetric.inc(nBypass);
+        if (cal.nBypass > 0) {
+            bypassedChannelsMetric.inc(cal.nBypass);
         }
-        if (nSub > 0) {
-            substitutedChannelsMetric.inc(nSub);
+        if (cal.nSub > 0) {
+            substitutedChannelsMetric.inc(cal.nSub);
         }
+    }
+
+    /** 一次标定的结果：每通道的中位数、分母、旁路与替代标记，以及参照直方图 / the outcome of one calibration. */
+    public static final class Calibration implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
+        public final double[] median = new double[Channels.N_DET];
+        public final double[] scale = new double[Channels.N_DET];
+        public final boolean[] bypass = new boolean[Channels.N_DET];
+        public final boolean[] substituted = new boolean[Channels.N_DET];
+        public final com.leejean.m5a.RefHistogram[] hist = new com.leejean.m5a.RefHistogram[Channels.N_DET];
+        public int nBypass;
+        public int nSub;
+    }
+
+    /**
+     * 冻结与零级重估共用的标定函数（M6a 交接文档第四节「两者共用同一个计算函数」）：输入每个通道在变换域的样本（缺失与光照删失
+     * 已除外，次序任意），逐通道排序后定中位数与分母并建参照直方图；没有样本的通道旁路。冻结与零级的差别只在取样（冻结按轮数、
+     * 不剔守卫轮；零级按时间、剔守卫轮），不在这里。
+     * The calibration shared by the freeze and the level-0 re-estimation; samples are in the transformed domain.
+     */
+    public static Calibration calibrate(List<List<Double>> samples, double epsilon, boolean relativeGuardEnabled) {
+        Calibration cal = new Calibration();
+        for (int c = 0; c < Channels.N_DET; c++) {
+            List<Double> vals = new ArrayList<>(samples.get(c));
+            if (vals.isEmpty()) {
+                // 无样本（通道全程缺失/删失）→ 旁路 / no samples → bypass
+                cal.median[c] = 0.0;
+                cal.scale[c] = 1.0;
+                cal.bypass[c] = true;
+                cal.nBypass++;
+            } else {
+                Collections.sort(vals);
+                cal.hist[c] = com.leejean.m5a.RefHistogram.build(vals.stream().mapToDouble(Double::doubleValue).toArray(), REF_BINS);
+                ScaleDecision d = decideScale(vals, epsilon, relativeGuardEnabled);
+                cal.median[c] = d.median;
+                cal.scale[c] = d.scale;
+                cal.bypass[c] = d.bypass;
+                cal.substituted[c] = d.substituted;
+                if (d.bypass) {
+                    cal.nBypass++;
+                } else if (d.substituted) {
+                    cal.nSub++;
+                }
+            }
+        }
+        return cal;
+    }
+
+    /**
+     * 冻结之后的标准化（在线轮与零级回填共用）：缺失通道置 0；其余先预变换，旁路通道透传变换域值，否则减中位数除分母。
+     * The frozen-state normalization shared by live rounds and the level-0 backfill.
+     */
+    public static double[] normalize(double[] x, boolean[] missing, double[] med, double[] scale, boolean[] bp,
+                                     ChannelTransform[] transforms) {
+        double[] xn = new double[Channels.N_DET];
+        for (int c = 0; c < Channels.N_DET; c++) {
+            if (missing[c]) {
+                xn[c] = 0.0;              // 缺失通道置 0，依赖 missingMask / missing → 0, rely on mask
+                continue;
+            }
+            // 预变换后再缩放：med/scale 已在变换域，故分子也取变换域值（Light 取 log1p 域）。
+            double tv = transforms[c].apply(x[c]);
+            if (bp[c]) {
+                xn[c] = tv;              // 旁路：变换域值透传 / bypass: pass the transformed value through
+            } else {
+                // scale[c] 可能是 IQR 或（相对退化时）主体宽度/2.44
+                xn[c] = (tv - med[c]) / scale[c];
+            }
+        }
+        return xn;
+    }
+
+    // ================================================================ 零级（M6a）/ level 0
+    /** 当前键是否已冻结 / whether the current key is frozen. */
+    boolean isFrozen() throws Exception {
+        return frozen.value() != null && frozen.value();
+    }
+
+    /** 当前键的参数（中位数、分母、旁路、替代）/ the current key's parameters. */
+    Calibration current() throws Exception {
+        Calibration c = new Calibration();
+        System.arraycopy(median.value(), 0, c.median, 0, Channels.N_DET);
+        System.arraycopy(iqr.value(), 0, c.scale, 0, Channels.N_DET);
+        System.arraycopy(bypass.value(), 0, c.bypass, 0, Channels.N_DET);
+        if (substituted.value() != null) {
+            System.arraycopy(substituted.value(), 0, c.substituted, 0, Channels.N_DET);
+        }
+        return c;
+    }
+
+    /**
+     * 零级换参：写入重估的参数与参照直方图；下一条冻结轮带上新直方图（与冻结后第一条轮同一机制）。须在本算子的键上下文中调用。
+     * Install re-estimated parameters; the next frozen round carries the new histograms.
+     */
+    void install(Calibration cal) throws Exception {
+        median.update(cal.median.clone());
+        iqr.update(cal.scale.clone());
+        bypass.update(cal.bypass.clone());
+        substituted.update(cal.substituted.clone());
+        refHist.update(cal.hist.clone());
+        refSent.clear();
+    }
+
+    double epsilon() {
+        return epsilon;
+    }
+
+    boolean relativeGuardEnabled() {
+        return relativeGuardEnabled;
+    }
+
+    ChannelTransform[] transforms() {
+        return transforms.clone();
     }
 
     /** 冻结时对单通道的标定决策 / the per-channel calibration decision at freeze time. */

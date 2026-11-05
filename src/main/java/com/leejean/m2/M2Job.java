@@ -281,6 +281,11 @@ public class M2Job {
         }
         m7Opts.putIfAbsent("p-point", com.leejean.m7.M7DumpRunner.DEFAULT_P_POINT);
         com.leejean.m7.FleetDecisionFunction.Params m7Params = com.leejean.m7.M7OfflineRunner.params(m7Opts);
+        // ---- 适应执行第一批（M6a 交接文档第四节；默认关闭）：标准化算子按设备键连接命令主题，执行零级 ----
+        // M6a (off by default): the scaler consumes the command topic and executes level 0.
+        boolean adaptEnabled = params.getBoolean("adapt-enabled", false);
+        int adaptCacheDays = params.getInt("adapt-cache-days", 7);              // 紧凑缓存深度 / compact cache depth
+        int adaptReestimateDays = params.getInt("adapt-reestimate-days", 1);    // 重估窗口 D / re-estimation window
         if (m7Enabled && !(m3Enabled && m5bEnabled && m5aEnabled)) {
             throw new IllegalArgumentException("--m7-enabled 须同时开启 --m3-enabled、--m5b-enabled、--m5a-enabled");
         }
@@ -295,6 +300,8 @@ public class M2Job {
             System.out.println("M5b OPTWIN:      confidence=" + m5bConfidence + " robustness=" + m5bRobustness
                     + " wmax=" + m5bWMax + " granularity=" + m5bGranularity + " K=" + m5bK + " -> " + driftTopic);
         }
+        System.out.println("Adapt (M6a):     " + adaptEnabled + (adaptEnabled ? " commands<-" + adaptTopic + " cache="
+                + adaptCacheDays + " d, D=" + adaptReestimateDays + " d, backfill=" + windowSec + " s" : ""));
         System.out.println("M7 enabled:      " + m7Enabled + (m7Enabled ? " options=" + m7Opts + " -> " + alertsTopic + " / "
                 + adaptTopic : ""));
         System.out.println("========================================");
@@ -386,13 +393,33 @@ public class M2Job {
 
         // 原始缓存（守卫与冷启动标记）在标准化之前，标准化算子的零级重估要用守卫标记（适应执行第一批裁决第一项）；两者互不读取
         // 对方写的字段，调换顺序不改变输出。/ RawCache before the scaler (M6a ruling item 1); neither reads the other's fields.
-        SingleOutputStreamOperator<DeviceRound> cached = aligned
+        org.apache.flink.streaming.api.datastream.KeyedStream<DeviceRound, String> guarded = aligned
                 .keyBy(DeviceKeys.selector(surrogate, DeviceRound::getDevice))
                 .process(new RawCacheFunction(cacheDepth, nominalPeriodSec, stuckThresholds, stuckFloors)).name("RawCache")
-                .keyBy(DeviceKeys.selector(surrogate, DeviceRound::getDevice))
-                .process(new RobustScalerFunction(
-                        warmupRounds, epsilon, ChannelTransform.defaultTable(), relativeGuard))
-                .name("RobustScaler");
+                .keyBy(DeviceKeys.selector(surrogate, DeviceRound::getDevice));
+        RobustScalerFunction scaler = new RobustScalerFunction(warmupRounds, epsilon, ChannelTransform.defaultTable(), relativeGuard);
+        SingleOutputStreamOperator<DeviceRound> cached;
+        if (adaptEnabled) {
+            // 命令流：一个分区、并行度一；发出最大水位线，不参与连接后算子的水位线（开工核对裁决第五项）
+            // Command stream: one partition, parallelism one, maximum watermark so it never holds the scaler back.
+            Properties adaptProps = new Properties();
+            adaptProps.setProperty("bootstrap.servers", brokers);
+            adaptProps.setProperty("group.id", "synergia-m6a-" + UUID.randomUUID());
+            FlinkKafkaConsumer<String> adaptConsumer = new FlinkKafkaConsumer<>(adaptTopic, new SimpleStringSchema(), adaptProps);
+            adaptConsumer.setStartFromEarliest();
+            DataStream<com.leejean.m6.AdaptCommand> commands = env.addSource(adaptConsumer).setParallelism(1)
+                    .name("Kafka Source [" + adaptTopic + " / M6a]")
+                    .flatMap(new CommandParser()).setParallelism(1).name("M6a-CommandParser")
+                    .assignTimestampsAndWatermarks(WatermarkStrategy.<com.leejean.m6.AdaptCommand>forGenerator(c -> new MaxWatermark()))
+                    .setParallelism(1).name("M6a-MaxWatermark");
+            cached = guarded
+                    .connect(commands.keyBy(DeviceKeys.selector(surrogate, com.leejean.m6.AdaptCommand::getDevice)))
+                    .process(new com.leejean.m1.AdaptiveScalerFunction(scaler, adaptCacheDays * 86400L,
+                            adaptReestimateDays * 86400L, windowSec))
+                    .name("RobustScaler");
+        } else {
+            cached = guarded.process(scaler).name("RobustScaler");
+        }
 
         Properties producerProps = new Properties();
         producerProps.setProperty("bootstrap.servers", brokers);
@@ -750,6 +777,34 @@ public class M2Job {
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to serialize DriftEvent to JSON", ex);
             }
+        }
+    }
+
+    /** 命令主题的一行 JSON 解析为命令；解析失败的行记日志并丢弃 / parse one command line; malformed lines are logged and dropped. */
+    static final class CommandParser
+            extends org.apache.flink.api.common.functions.RichFlatMapFunction<String, com.leejean.m6.AdaptCommand> {
+        private static final long serialVersionUID = 1L;
+        private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(CommandParser.class);
+
+        @Override
+        public void flatMap(String line, org.apache.flink.util.Collector<com.leejean.m6.AdaptCommand> out) {
+            try {
+                out.collect(com.leejean.m6.AdaptCommand.parse(line));
+            } catch (Exception e) {
+                LOG.warn("[M6a] Malformed command dropped: {} ({})", line, e.getMessage());
+            }
+        }
+    }
+
+    /** 命令流的水位线恒为最大值：命令流不参与连接后算子的水位线 / the command stream always reports the maximum watermark. */
+    static final class MaxWatermark implements org.apache.flink.api.common.eventtime.WatermarkGenerator<com.leejean.m6.AdaptCommand> {
+        @Override
+        public void onEvent(com.leejean.m6.AdaptCommand c, long ts, org.apache.flink.api.common.eventtime.WatermarkOutput out) {
+        }
+
+        @Override
+        public void onPeriodicEmit(org.apache.flink.api.common.eventtime.WatermarkOutput out) {
+            out.emitWatermark(new org.apache.flink.api.common.eventtime.Watermark(Long.MAX_VALUE));
         }
     }
 

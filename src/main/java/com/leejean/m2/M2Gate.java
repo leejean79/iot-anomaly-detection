@@ -77,7 +77,10 @@ public class M2Gate extends ProcessFunction<DeviceRound, DevicePoint> {
         McodPoint p = new McodPoint(value, ts * 1000L, 0, ts, cold);
         boolean[] censored = round.getCensoredMask() != null
                 ? round.getCensoredMask().clone() : null;
-        out.collect(new DevicePoint(round.getDevice(), p, censored));
+        DevicePoint dp = new DevicePoint(round.getDevice(), p, censored);
+        dp.setVersion(round.getVersion());        // 参数版本号与回填附件随点下发（M6a）/ version and backfill travel on the point
+        dp.setBackfill(round.getBackfill());
+        out.collect(dp);
     }
 
     private static int censoredCount(DeviceRound round) {

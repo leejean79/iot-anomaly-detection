@@ -15,7 +15,9 @@
 #   ⑦ 输出覆盖到末尾（同上）：逐台设备两个通道的最晚输出，与该设备最后一轮的差不超过 --coverage-slack-sec。
 #      点通道取监测主题中的点通道快照（评分主题里的点通道记录只有离群点，最晚一条离群点不代表覆盖）；
 #      上下文通道取评分主题中的 m3_context 记录。
-#   ⑥⑦ 只在给出 --since（运行结束时执行）时检查；不给 --since 时与此前的五条断言完全相同。
+#   ⑧ 迟到命令为零（适应执行第一批交接文档第四节）：命令回路打开时，标准化算子的 m6_late_commands 合计为 0（Prometheus）；
+#      只在给出 --adapt（命令回路打开的运行）时检查，此时读不到该指标判为失败。
+#   ⑥⑦⑧ 只在给出 --since（运行结束时执行）时检查；不给 --since 时与此前的五条断言完全相同。
 #
 # ---------------------------- 脚本交付五要素 -------------------------------
 # 1. 执行环境 / Environment: 本地 Mac（bash），ssh 免密到 fa-master；master 有 flink 镜像与最新 jar。
@@ -26,6 +28,8 @@
 #           --calib-days 7 --period-sec 10 --expected-total <EDA三月合计>
 #      # 运行结束时（作业仍在运行、已排空）加上断言六、七：
 #      bash deploy/scripts/syn-replay-verify.sh ... --since "$SINCE" [--coverage-slack-sec 3600]
+#      # 命令回路打开的运行再加断言八：
+#      bash deploy/scripts/syn-replay-verify.sh ... --since "$SINCE" --adapt
 # 3. 前置条件 / Preconditions: synergia-m1-out 已含目标整月的标准化 DeviceRound（含 warmup 标记）。
 # 4. 期望产出 / Expected output: stdout 打印四条断言 PASS/FAIL + 逐台冻结日；docs/<report-name> 逐设备汇总；
 #      退出码 0=全过、1=有失败、3=断言一缺 EDA 参照。**本脚本的退出码就是门槛**（配 && 串联下一步）。
@@ -53,7 +57,9 @@ REPORT_NAME="m2_replay_verify.csv"
 BOUNDARY_SLACK_SEC=120
 SINCE=""
 COVERAGE_SLACK_SEC=3600
+ADAPT=0
 while [[ $# -gt 0 ]]; do
+    if [ "$1" = "--adapt" ]; then ADAPT=1; shift; continue; fi
     if [[ "$1" == --* && -z "${2:-}" ]]; then
         echo "ERROR: 参数 $1 后面缺少取值（命令是否被拆成了两行？请写在同一行）" >&2; exit 2
     fi
@@ -268,6 +274,29 @@ PY
             VERIFY_RC=1
         fi
         printf '%s\n' "$COV" | grep -v '^BAD '
+    fi
+
+    # 断言八：迟到命令为零（命令回路打开的运行）/ assertion 8: zero late commands when the loop is on
+    if [ "$ADAPT" -eq 1 ]; then
+        N_ASSERT="八"
+        Q8="max_over_time(flink_taskmanager_job_task_operator_m6_late_commands[${RANGE_SEC}s])"
+        LATE8="$(on_master "curl -s --max-time 30 'http://localhost:9090/api/v1/query' --data-urlencode 'query=${Q8}'" \
+            | python3 -c "
+import json,sys
+try:
+    r=json.load(sys.stdin)['data']['result']
+except Exception:
+    r=[]
+print('' if not r else int(sum(float(x['value'][1]) for x in r)))")"
+        if [ -z "$LATE8" ]; then
+            echo "[断言八 迟到命令] FAIL —— Prometheus 读不到 m6_late_commands（命令回路是否打开？），无法确认为零。"
+            VERIFY_RC=1
+        elif [ "$LATE8" -eq 0 ]; then
+            echo "[断言八 迟到命令] PASS —— ${SINCE} 以来迟到命令合计 0。"
+        else
+            echo "[断言八 迟到命令] FAIL —— ${SINCE} 以来迟到命令合计 ${LATE8}；逐条见 TaskManager 日志里的「[M6a] Late command」。"
+            VERIFY_RC=1
+        fi
     fi
 fi
 

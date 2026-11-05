@@ -47,6 +47,9 @@ public class MonitoringSnapshot implements Serializable {
     private long windowEnd;              // 滑动窗口末（事件时间秒；供区分 M2 快照）
     private boolean m2ColdCleared;       // 本滑动步是否发生冷启动清空（供 DF-12 浪涌分析精确定位清空时刻）
 
+    // 参数版本号（M6a）：命令回路关闭时为空且不写进 JSON / parameter version (M6a), null and omitted when the loop is off
+    private Integer version;
+
     // ---- M3 追加字段（交接文档 §3 决策 7）：上下文通道的重建误差 ----
     // M3-appended fields (handover §3 decision 7): contextual-channel reconstruction errors.
     private double m3ReconError;         // 窗口加权 MSE / window weighted MSE
@@ -283,5 +286,14 @@ public class MonitoringSnapshot implements Serializable {
                         + "unknown=%d, dup=%d, censLight=%d, rssiSent=%d, warmup=%d, bypassed=%d, cold=%d}",
                 ts, device, roundsTotal, incompleteRounds, malformed, unknownSensor, dupKeys,
                 censoredLight, rssiSentinel, warmup, bypassedChannels, coldStart);
+    }
+
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
     }
 }

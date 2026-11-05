@@ -20,6 +20,9 @@ public class ScoreEvent implements Serializable {
     private String channel;      // 恒 "m2_point"
     private boolean outlier;     // 恒 true（名单只列离群点）
 
+    // 参数版本号（M6a）：命令回路关闭时为空且不写进 JSON / parameter version (M6a), null and omitted when the loop is off
+    private Integer version;
+
     public ScoreEvent() {
     }
 
@@ -74,5 +77,14 @@ public class ScoreEvent implements Serializable {
 
     public void setOutlier(boolean outlier) {
         this.outlier = outlier;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
     }
 }

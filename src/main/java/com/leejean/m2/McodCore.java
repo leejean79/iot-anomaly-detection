@@ -58,6 +58,16 @@ public class McodCore {
      *
      * @return 本步的离群统计（含离群点 id 集合与监测信号所需的原料，均在"删除滑出点之前"抓取）。
      */
+    /**
+     * 零级回填（M6a）：把点按到达时刻顺序作为新点插入状态，只建立邻居关系，不做判定。
+     * Level-0 backfill: insert the points as arrivals to build neighbour relations, without any judgement.
+     */
+    public void backfill(List<McodPoint> points) {
+        for (McodPoint p : points) {
+            insertPoint(p, true, null);
+        }
+    }
+
     public McodResult processSlide(Iterable<McodPoint> elements, long windowStart, long windowEnd) {
         // 插入本滑动步新到的点（arrival ≥ windowEnd - slide）/ insert new elements (Pmcod.scala:40-42)
         for (McodPoint p : elements) {

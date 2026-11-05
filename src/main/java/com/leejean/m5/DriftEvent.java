@@ -46,6 +46,9 @@ public class DriftEvent implements Serializable {
     /** 数据层长记忆：当地日、分箱 D、渐近显著性、偏移、宽度倍数 / data-layer long-memory fields. */
     public String dataDay;
     public double dataD, dataP, dataShift, dataWidthX;
+    /** 参数版本号（M6a，数据层事件）：命令回路关闭时为空且不写进 JSON / parameter version, null and omitted when off. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Integer version;
 
     public DriftEvent() { }
 

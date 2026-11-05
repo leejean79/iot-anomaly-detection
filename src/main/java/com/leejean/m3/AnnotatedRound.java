@@ -24,6 +24,9 @@ public class AnnotatedRound implements Serializable {
     private boolean coldStart;      // 该轮是否处于冷启动 / whether this round is in cold-start
     private long windowEnd;         // 产出该轮的滑动窗口末事件时间（秒）/ end event time of the emitting slide window
 
+    // 参数版本号（M6a）：命令回路关闭时为空且不写进 JSON / parameter version (M6a), null and omitted when the loop is off
+    private Integer version;
+
     public AnnotatedRound() {
     }
 
@@ -58,4 +61,13 @@ public class AnnotatedRound implements Serializable {
 
     public long getWindowEnd() { return windowEnd; }
     public void setWindowEnd(long windowEnd) { this.windowEnd = windowEnd; }
+
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
+    }
 }
