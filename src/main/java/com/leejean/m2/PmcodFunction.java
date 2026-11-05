@@ -103,80 +103,27 @@ public class PmcodFunction
         long windowStart = ctx.window().getStart();
         long windowEnd = ctx.window().getEnd();
 
-        // 物化点（窗口 Iterable 需多次遍历：插入过滤 + 删除过滤）/ materialize (iterated twice)
-        List<McodPoint> points = new ArrayList<>();
-        // M3 需要本滑动步的 DevicePoint（含 censoredMask）；仅在 m3AnnotatedTag 非 null 时收集
-        // M3 needs this slide's DevicePoints (with censoredMask); collected only when m3AnnotatedTag != null
-        List<DevicePoint> slideDevicePoints = m3AnnotatedTag != null ? new ArrayList<>() : null;
-        boolean coldSignal = false;
-        for (DevicePoint dp : elements) {
-            McodPoint p = dp.getPoint();
-            points.add(p);
-            boolean inSlide = p.arrival >= windowEnd - slideMs;
-            // 冷启动信号只可能来自本滑动步新到的点 / cold signal only from this slide's new points
-            if (p.coldStart && inSlide) {
-                coldSignal = true;
-            }
-            if (slideDevicePoints != null && inSlide) {
-                slideDevicePoints.add(dp);
-            }
-        }
-
         McodState st = state.value();
         if (st == null) {
             st = new McodState();
         }
-        // 冷启动：先清空该设备状态再照常处理（§3.2 决策二）
-        if (coldSignal) {
-            st.clearForColdStart();
-            coldClears.inc();
-        }
-        // 参数版本号（M6a）：本滑动步新到的点里最早一个版本与该台当前版本不同的点 / earliest new point with a different version
-        DevicePoint switchPoint = null;
-        for (DevicePoint dp : elements) {
-            McodPoint p = dp.getPoint();
-            if (dp.getVersion() == null || p.arrival < windowEnd - slideMs) {
-                continue;
-            }
-            if (st.version == null) {
-                st.version = dp.getVersion();         // 第一个带版本的点：记下，不清空 / first versioned point: adopt
-            } else if (!dp.getVersion().equals(st.version)
-                    && (switchPoint == null || p.arrival < switchPoint.getPoint().arrival)) {
-                switchPoint = dp;
-            }
-        }
-
         // 逐设备半径：映射里有就用，没有回退到全局 r（收尾任务；不改算法、只改该设备用哪个 R）
         double rEff = rPerDevice.getOrDefault(device, r);
-        McodCore core = new McodCore(rEff, k, slideMs, st);
-        if (switchPoint != null) {
-            // 换版本：与冷启动同一处清空，再用回填附件重建窗口内的旧点（只建邻居关系，不判定）；本滑动步里早于换版本点的旧点已在附件里
-            // Version switch: clear as on a cold start, rebuild the window's older points from the backfill, no judgements.
-            long switchArrival = switchPoint.getPoint().arrival;
-            st.clearForColdStart();
-            versionClears.inc();
-            List<McodPoint> refill = new ArrayList<>();
-            com.leejean.m6.Backfill bf = switchPoint.getBackfill();
-            for (int i = 0; i < (bf == null ? 0 : bf.size()); i++) {
-                long arrival = bf.ts[i] * 1000L;
-                if (arrival >= windowStart && arrival < switchArrival) {   // 早于窗口起点的点已经离开窗口 / still inside the window
-                    refill.add(new McodPoint(bf.xNorm[i].clone(), arrival, 0, bf.ts[i], false));
-                }
-            }
-            core.backfill(refill);
-            st.version = switchPoint.getVersion();
-            st.versionStart = switchArrival / 1000L;
-            points.removeIf(p -> p.arrival >= windowEnd - slideMs && p.arrival < switchArrival);
+        Slide sl = slide(st, elements, windowStart, windowEnd, slideMs, rEff, k, m3AnnotatedTag != null);
+        if (sl.coldSignal) {
+            coldClears.inc();
         }
-        McodCore.McodResult result = core.processSlide(points, windowStart, windowEnd);
+        if (sl.versionSwitch) {
+            versionClears.inc();
+        }
+        boolean coldSignal = sl.coldSignal;
+        List<DevicePoint> slideDevicePoints = sl.slidePoints;
+        McodCore.McodResult result = sl.result;
         state.update(st);   // 持久化状态（含 mcCounter；对任意后端都显式写回）
 
         long windowEndSec = windowEnd / 1000L;
         // 主输出：离群点名单 / outlier list
-        for (long id : result.outlierIds) {
-            if (st.versionStart > 0 && id < st.versionStart) {
-                continue;                             // 回填的点不发出判定（M6a）/ backfilled points emit no judgement
-            }
+        for (long id : sl.emitted) {
             ScoreEvent se = new ScoreEvent(device, id, windowEndSec);
             se.setVersion(st.version);
             out.collect(se);
@@ -224,6 +171,94 @@ public class PmcodFunction
         pointsTotal.inc(result.windowPoints);
         mcPointsTotal.inc(result.mcPoints);
         windowsTotal.inc();
+    }
+
+    /** 一个滑动步的结果 / the outcome of one slide. */
+    public static final class Slide {
+        public boolean coldSignal;
+        public boolean versionSwitch;
+        public McodCore.McodResult result;
+        /** 发出的离群名单（回填的点已剔除）/ emitted outlier ids, backfilled points excluded. */
+        public final List<Long> emitted = new ArrayList<>();
+        /** 本滑动步新到的点（collectSlidePoints 为真时）/ this slide's new points. */
+        public List<DevicePoint> slidePoints;
+    }
+
+    /**
+     * 一个滑动步的处理（在线算子与适应执行离线模拟器共用，M6a）：冷启动清空、换版本时清空并回填、MCOD 处理、剔除回填点的判定。
+     * One slide: cold-start clear, version switch with backfill, MCOD, and dropping judgements of backfilled points.
+     */
+    public static Slide slide(McodState st, Iterable<DevicePoint> elements, long windowStart, long windowEnd, long slideMs,
+                              double r, int k, boolean collectSlidePoints) {
+        // 物化点（窗口 Iterable 需多次遍历：插入过滤 + 删除过滤）/ materialize (iterated twice)
+        List<McodPoint> points = new ArrayList<>();
+        // M3 需要本滑动步的 DevicePoint（含 censoredMask）；仅在 m3AnnotatedTag 非 null 时收集
+        // M3 needs this slide's DevicePoints (with censoredMask); collected only when m3AnnotatedTag != null
+        List<DevicePoint> slideDevicePoints = collectSlidePoints ? new ArrayList<>() : null;
+        boolean coldSignal = false;
+        for (DevicePoint dp : elements) {
+            McodPoint p = dp.getPoint();
+            points.add(p);
+            boolean inSlide = p.arrival >= windowEnd - slideMs;
+            // 冷启动信号只可能来自本滑动步新到的点 / cold signal only from this slide's new points
+            if (p.coldStart && inSlide) {
+                coldSignal = true;
+            }
+            if (slideDevicePoints != null && inSlide) {
+                slideDevicePoints.add(dp);
+            }
+        }
+
+        // 冷启动：先清空该设备状态再照常处理（§3.2 决策二）
+        if (coldSignal) {
+            st.clearForColdStart();
+        }
+        // 参数版本号（M6a）：本滑动步新到的点里最早一个版本与该台当前版本不同的点 / earliest new point with a different version
+        DevicePoint switchPoint = null;
+        for (DevicePoint dp : elements) {
+            McodPoint p = dp.getPoint();
+            if (dp.getVersion() == null || p.arrival < windowEnd - slideMs) {
+                continue;
+            }
+            if (st.version == null) {
+                st.version = dp.getVersion();         // 第一个带版本的点：记下，不清空 / first versioned point: adopt
+            } else if (!dp.getVersion().equals(st.version)
+                    && (switchPoint == null || p.arrival < switchPoint.getPoint().arrival)) {
+                switchPoint = dp;
+            }
+        }
+
+        McodCore core = new McodCore(r, k, slideMs, st);
+        if (switchPoint != null) {
+            // 换版本：与冷启动同一处清空，再用回填附件重建窗口内的旧点（只建邻居关系，不判定）；本滑动步里早于换版本点的旧点已在附件里
+            // Version switch: clear as on a cold start, rebuild the window's older points from the backfill, no judgements.
+            long switchArrival = switchPoint.getPoint().arrival;
+            st.clearForColdStart();
+            List<McodPoint> refill = new ArrayList<>();
+            com.leejean.m6.Backfill bf = switchPoint.getBackfill();
+            for (int i = 0; i < (bf == null ? 0 : bf.size()); i++) {
+                long arrival = bf.ts[i] * 1000L;
+                if (arrival >= windowStart && arrival < switchArrival) {   // 早于窗口起点的点已经离开窗口 / still inside the window
+                    refill.add(new McodPoint(bf.xNorm[i].clone(), arrival, 0, bf.ts[i], false));
+                }
+            }
+            core.backfill(refill);
+            st.version = switchPoint.getVersion();
+            st.versionStart = switchArrival / 1000L;
+            points.removeIf(p -> p.arrival >= windowEnd - slideMs && p.arrival < switchArrival);
+        }
+        Slide out = new Slide();
+        out.coldSignal = coldSignal;
+        out.versionSwitch = switchPoint != null;
+        out.slidePoints = slideDevicePoints;
+        out.result = core.processSlide(points, windowStart, windowEnd);
+        for (long id : out.result.outlierIds) {
+            if (st.versionStart > 0 && id < st.versionStart) {
+                continue;                             // 回填的点不发出判定（M6a）/ backfilled points emit no judgement
+            }
+            out.emitted.add(id);
+        }
+        return out;
     }
 
     /**
