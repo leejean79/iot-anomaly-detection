@@ -124,6 +124,15 @@ public class LstmAutoEncoder implements Serializable {
 
     public LstmAutoEncoder(int nFeatures, int hiddenSize, int windowLength,
                            boolean reverseTarget, double learningRate, double gradClip) {
+        this(nFeatures, hiddenSize, windowLength, reverseTarget, learningRate, gradClip, SEED);
+    }
+
+    /**
+     * 指定随机种子（适应执行第一批离线评估用，1.30 版裁决第四项：另换一个种子训一次）；其余构造器都用固定种子 {@link #SEED}，在线行为不变。
+     * Explicit seed for the M6a offline evaluation; every other constructor uses the fixed SEED.
+     */
+    public LstmAutoEncoder(int nFeatures, int hiddenSize, int windowLength,
+                           boolean reverseTarget, double learningRate, double gradClip, long seed) {
         if (windowLength < 1) {
             throw new IllegalArgumentException("窗口长度须为正，收到 " + windowLength);
         }
@@ -133,13 +142,13 @@ public class LstmAutoEncoder implements Serializable {
         this.reverseTarget = reverseTarget;
         this.learningRate = learningRate;
         this.gradClip = gradClip;
-        this.model = buildModel(nFeatures, hiddenSize, windowLength, learningRate, gradClip);
+        this.model = buildModel(nFeatures, hiddenSize, windowLength, learningRate, gradClip, seed);
     }
 
     private static MultiLayerNetwork buildModel(int nFeatures, int hiddenSize, int windowLength,
-                                               double learningRate, double gradClip) {
+                                               double learningRate, double gradClip, long seed) {
         NeuralNetConfiguration.Builder builder = new NeuralNetConfiguration.Builder()
-                .seed(SEED)                                // 可复现 / reproducible
+                .seed(seed)                                // 可复现 / reproducible
                 .updater(new Adam(learningRate))           // Adam 优化器 / Adam optimizer
                 .weightInit(WeightInit.XAVIER);            // Xavier 初始化 / Xavier weight init
         if (gradClip > 0) {

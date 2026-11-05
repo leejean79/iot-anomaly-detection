@@ -46,7 +46,7 @@ import java.util.TreeMap;
  *   <li>调用命令：{@code java -cp <类路径> com.leejean.m6.M6aSimulator --rounds docs/m6a/extract/rounds_G.csv.gz --device G
  *       --r 1.5 --out-dir docs/m6a/sim --tag G_off}（无命令）；加 {@code --day 2022-03-25 [--reestimate-days 1]} 为有命令；
  *       可选 --exclude-outliers <文件>（每行一个轮时间戳：重估时额外剔除这些轮，用于判读口径第四条）、--k 10、--window-sec 3600、
- *       --slide-sec 60、--warmup-rounds 60480、--seq 1。</li>
+ *       --slide-sec 60、--warmup-rounds 60480、--seq 1、--start <秒>、--end <秒>（短重放：只用这一区间内的轮）。</li>
  *   <li>前置条件：轮表已由 eda/m6a_extract.py 生成。</li>
  *   <li>期望产出：out-dir 下 {tag}_days.csv（逐日逐通道的数据层记录）、{tag}_events.csv（偏离与回落）、{tag}_hours.csv（逐小时入口
  *       轮数与离群轮数）、{tag}_outliers.txt（到达滑动步的离群轮时间戳）、{tag}_level0.json（有命令时的零级结果）。</li>
@@ -85,7 +85,15 @@ public final class M6aSimulator {
         String outDir = a.getOrDefault("out-dir", "docs/m6a/sim");
         String tag = a.get("tag");
         new File(outDir).mkdirs();
-        List<M6aOfflineRunner.Row> rows = M6aOfflineRunner.read(a.get("rounds"), null);
+        // --start：短重放从区间起点起算（轮表里更早的轮不进入）/ short replays start at the window start
+        List<M6aOfflineRunner.Row> rows = M6aOfflineRunner.read(a.get("rounds"), a.containsKey("start") ? Long.valueOf(a.get("start")) : null);
+        if (a.containsKey("start") && !rows.isEmpty()) {
+            rows.get(0).cold = false;                       // 在线的第一轮前面没有更早的轮，不是冷启动 / no earlier round online
+        }
+        if (a.containsKey("end")) {                         // --end：只用不晚于此刻的轮（短重放的最后一轮）/ last round
+            long end = Long.parseLong(a.get("end"));
+            rows.removeIf(w -> w.ts > end);
+        }
         if (rows.size() < warmup) {
             System.err.println("ERROR: 只有 " + rows.size() + " 轮，不足以冻结");
             System.exit(2);
@@ -109,6 +117,11 @@ public final class M6aSimulator {
         List<MonitoringSnapshot> records = new ArrayList<>();
         List<DevicePoint> points = new ArrayList<>();
         int count = 0;
+        // --dump-rounds：逐轮导出冻结之后的版本号与标准化值，供短重放与在线 m1-out 逐位比较 / per-round dump for the short replay
+        PrintWriter dump = a.containsKey("dump-rounds") ? new PrintWriter(new File(a.get("dump-rounds")), "UTF-8") : null;
+        if (dump != null) {
+            dump.println("ts,version,x0,x1,x2,x3,x4,refs,backfill");
+        }
         for (M6aOfflineRunner.Row w : rows) {
             boolean[] cens = new boolean[Channels.N_DET];
             cens[Channels.LIGHT_INDEX] = !w.missing[Channels.LIGHT_INDEX] && w.x[Channels.LIGHT_INDEX] == 65536.0;
@@ -160,6 +173,14 @@ public final class M6aSimulator {
                     d.setBackfill(bfPending);
                     bfPending = null;
                 }
+                if (dump != null) {
+                    StringBuilder line = new StringBuilder().append(w.ts).append(',').append(version == null ? "" : version.toString());
+                    for (double v : xn) {
+                        line.append(',').append(v);
+                    }
+                    dump.println(line.append(',').append(d.getRefHistograms() != null ? 1 : 0).append(',')
+                            .append(d.getBackfill() != null ? d.getBackfill().size() : 0));
+                }
                 if (!missingAny) {
                     DevicePoint p = new DevicePoint(dev, new McodPoint(xn.clone(), w.ts * 1000L, 0, w.ts, w.cold), cens.clone());
                     p.setVersion(d.getVersion());
@@ -170,6 +191,9 @@ public final class M6aSimulator {
             core.onRound(d, m5p, events, records);
         }
         core.closeDay(dev, m5p, events, records);
+        if (dump != null) {
+            dump.close();
+        }
 
         // ---------------- 第二遍：点通道，按窗末 / pass 2: the point channel, by window end
         long wMs = windowSec * 1000L;

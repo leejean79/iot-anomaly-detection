@@ -47,6 +47,8 @@ public final class M3Training {
         /** 早停耐心：早停集误差连续这么多个 epoch 没有改善就停 / consecutive no-improvement epochs. */
         public final int patience;
         public final double[] channelWeights;
+        /** 模型的随机种子，默认固定为 {@link LstmAutoEncoder#SEED}；只有离线评估会改它 / model seed, fixed by default. */
+        public long seed = LstmAutoEncoder.SEED;
 
         public Config(int nFeatures, int hiddenSize, int windowLength, int batchSize,
                       int maxEpochs, int patience, double[] channelWeights) {
@@ -180,7 +182,7 @@ public final class M3Training {
         long t0 = System.currentTimeMillis();
         LstmAutoEncoder ae = new LstmAutoEncoder(
                 cfg.nFeatures, cfg.hiddenSize, cfg.windowLength, cfg.reverseTarget,
-                cfg.learningRate, cfg.gradClip);
+                cfg.learningRate, cfg.gradClip, cfg.seed);
         GradientNormRecorder recorder = cfg.recordGradientNorms ? ae.recordGradientNorms() : null;
 
         double prevLoss = Double.MAX_VALUE;
