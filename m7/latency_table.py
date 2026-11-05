@@ -8,7 +8,10 @@
 #
 # 三段的取法（报告中写明）：
 #   三月事件：03-22 至 03-27 的当地日；上游信号取全部五类（点通道或上下文通道标志所在小时的终点、性能层候选或确认、离群率爆发的
-#             发出时刻、数据层进入偏离的发出时刻即该日日界）；告警取信号之后第一条非质量问题的告警；命令取命令日在该段内的第一条。
+#             发出时刻、数据层进入偏离的发出时刻即该日日界）；告警取信号之后第一条载荷带有该信号的告警（1.28 版收口记录第二节
+#             第三项：点通道看 point_flag，上下文通道看 ctx_flag，性能层看 perf_magnitude 非空，离群率爆发看 burst，数据层看
+#             data_channels 含该通道）；旧口径（信号之后第一条非质量问题的告警）的数字保留在表注里；命令取命令日在该段内的第一条。
+#   三栏的告警口径统一为「载荷带有该信号的第一条告警」，不论归因标签（含质量问题）。
 #   G 光照：信号取 G 光照第一次进入偏离的发出时刻；告警取之后第一条数据层通道含光照的 G 告警；命令取第一条带光照触发的 G 命令。
 #   气体抬高：命令日 03-14 至 03-21；逐台信号取该段第一次气体进入偏离的发出时刻；告警取之后第一条数据层通道含气体的告警；命令取
 #             该段内第一条带气体触发的命令。
@@ -47,6 +50,21 @@ def hours(a, b):
     return "—" if a is None or b is None else "%.1f" % ((b - a) / 3600)
 
 
+def carries(alert, kind):
+    """告警载荷是否带有该类信号（1.28 版口径）/ whether the alert payload carries the signal kind."""
+    if kind == "点通道":
+        return alert["point_flag"] == "1"
+    if kind == "上下文通道":
+        return alert["ctx_flag"] == "1"
+    if kind.startswith("性能层"):
+        return alert["perf_magnitude"] != ""
+    if kind == "离群率爆发":
+        return alert["burst"] == "1"
+    if kind.startswith("数据层 "):
+        return kind.split(" ")[1] in alert["data_channels"].split("|")
+    raise ValueError(kind)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--inputs", default="docs/m7/inputs")
@@ -76,6 +94,7 @@ def main() -> int:
     s0, s1 = D.local_day_start("2022-03-22"), D.local_day_start("2022-03-28")
     out.append("\n## 三月事件（03-22 至 03-27）\n\n| 设备 | 第一条信号 | 信号类别 | 第一条告警发出 | 归因 | 到告警 | 第一条命令决定发出 | 生效 | 到生效 |\n"
                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
+    old = []
     for dev in devs:
         sig = []
         for (dv, hs), r in inp.hours.items():
@@ -99,14 +118,20 @@ def main() -> int:
             out.append("| %s | 无 | | | | | | | |\n" % dev)
             continue
         t0, kind = min(sig)
-        al = [x for x in alerts if x["device"] == dev and x["label"] != D.QUALITY
-              and int(x["hour_start"]) + 3600 >= t0 and int(x["hour_start"]) < s1 + 86400]
+        after = [x for x in alerts if x["device"] == dev and int(x["hour_start"]) + 3600 >= t0]
+        al = [x for x in after if carries(x, kind)]
         ta = int(al[0]["hour_start"]) + 3600 + SLIDE if al else None
+        ol = [x for x in after if x["label"] != D.QUALITY and int(x["hour_start"]) < s1 + 86400]
+        old.append("%s %s（%s，%s）" % (dev, hours(t0, int(ol[0]["hour_start"]) + 3600 + SLIDE) if ol else "—",
+                                      loc(int(ol[0]["hour_start"]) + 3600 + SLIDE) if ol else "—", ol[0]["label"] if ol else "—"))
         cm = [c for c in commands if c["device"] == dev and "2022-03-22" <= c["day"] <= "2022-03-27"]
         td = int(cm[0]["decided_at"]) + SLIDE if cm else None
         te = int(cm[0]["effective_at"]) if cm else None
         out.append("| %s | %s | %s | %s | %s | %s | %s | %s | %s |\n" % (
             dev, loc(t0), kind, loc(ta), al[0]["label"] if al else "—", hours(t0, ta), loc(td), loc(te), hours(t0, te)))
+
+    out.append("\n表注：告警按「载荷带有该信号的第一条告警」取（1.28 版收口记录第二节第三项）。旧口径为信号之后第一条非质量问题的告警，"
+               "开环条件下可能来自既有的漂移状态；旧口径的到告警时延（小时）与告警发出时刻、归因为：" + "；".join(old) + "。\n")
 
     # ---------------- G 光照
     out.append("\n## G 的光照\n\n| 设备 | 第一条信号（光照进入偏离的发出） | 第一条告警发出 | 归因 | 到告警 | 第一条命令决定发出 | 生效 | 到生效 |\n"

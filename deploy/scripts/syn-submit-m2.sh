@@ -16,6 +16,8 @@
 # 4. 期望产出 / Expected output: 打印 JobID 并轮询至 RUNNING；作业读 synergia-source，写 synergia-scores
 #      与 synergia-monitoring（M1 快照 + M2 三路信号）。
 # 5. 失败兜底 / Failure fallback: 提交失败或 60s 内未 RUNNING → 报错退出；**绝不 cancel 任何旧 job**。
+#    重启次数：--extra 未写 --restart-attempts 时补上 --restart-attempts 3（重放约定，1.28 版收口记录第三节）；
+#    作业失败超过三次即停止，原因看 JobManager 日志。
 #
 # 缩写自查 / Abbreviations: W = window 窗长；S = slide 滑动步；R = 半径；k = 邻居阈值；p = parallelism。
 # ============================================================================
@@ -42,6 +44,13 @@ done
 # Newlines in --extra must become spaces: the string is spliced into the multi-line remote command below,
 # where a newline would end the flink run command and silently drop every later parameter.
 EXTRA_ARGS="$(printf '%s' "$EXTRA_ARGS" | tr '\n' ' ')"
+# 重放约定（1.28 版收口记录第三节）：全量与短重放一律显式设置有限的重启次数，--extra 未给出时补上三次；
+# Flink 开启检查点后的默认无限重启不再使用（2026-11-01 无限重启拖垮 master）。--extra 已给出时以它为准（syn-m7-verify 用 0）。
+# Replay convention: a finite restart count, three unless --extra already sets --restart-attempts.
+case " $EXTRA_ARGS " in
+    *" --restart-attempts "*) ;;
+    *) EXTRA_ARGS="$EXTRA_ARGS --restart-attempts 3" ;;
+esac
 BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
 JAR_NAME="${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}"
 MAIN="${SYN_M2_JOB_MAIN:-com.leejean.m2.M2Job}"
