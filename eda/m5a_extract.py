@@ -102,8 +102,19 @@ def day_stats(x, ref_sorted, edges, ref_cells):
 
 
 # ---------------------------------------------------------------- 输入 / inputs
+def to_float(text):
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return np.nan
+
+
 def load(data_dir, t0, t1, devices):
-    parts, nfiles = [], 0
+    """读入检测通道读数，并为只有质量通道或未知传感器读数的时间戳补一条占位行（通道 −1、值为空），使其在宽表里成为五个通道全部
+    缺失的轮，与在线的成轮器相同。读数按原始文本由 float 逐个解析（正确舍入，与 Java 相同）；2026-11-05 修正两处缺陷：pandas 默认
+    解析器对 17 位有效数字的读数差最后一位，以及漏掉无检测通道读数的轮（docs/reports/m6a_extract_check.md）。
+    Detection readings plus placeholder rows for rounds without detection readings; exact parsing (2026-11-05 fix)."""
+    parts, stamps, nfiles = [], [], 0
     for path in list_all_files(data_dir):
         try:
             with open(path, "rb") as fh:
@@ -118,25 +129,39 @@ def load(data_dir, t0, t1, devices):
                 warnings.simplefilter("ignore")
                 df = pd.read_csv(io.BytesIO(raw), header=0 if has_header else None,
                                  names=config.CSV_COLUMNS, on_bad_lines="skip", engine="c",
-                                 encoding="utf-8", encoding_errors="replace")
+                                 encoding="utf-8", encoding_errors="replace", dtype={"Value": str})
         except Exception:  # noqa: BLE001
             continue
         sensor = df["Sensor"].astype(str).str.strip()
         dev = df["DeviceId"].astype(str).str.strip()
         t = pd.to_numeric(df["Time"], errors="coerce")
-        sel = sensor.isin(CHANNELS) & dev.isin(list(devices)) & (t >= t0) & (t < t1)
+        base = dev.isin(list(devices)) & (t >= t0) & (t < t1)
+        if not base.any():
+            continue
+        text = df["Value"][base].astype(str).str.strip()
+        lut = {u: to_float(u) for u in pd.unique(text)}            # 去重后逐个解析 / parse each distinct text once
+        val = pd.Series(np.nan, index=df.index)
+        val[base] = text.map(lut).to_numpy(dtype=float)
+        ok = base & val.notna()                                    # 任何传感器的可解析读数都成轮 / any parsable reading opens a round
+        stamps.append(pd.DataFrame({"dev": dev[ok].astype(str).to_numpy(), "t": t[ok].astype("int64").to_numpy()}))
+        sel = sensor.isin(CHANNELS) & ok
         if not sel.any():
             continue
         nfiles += 1
-        parts.append(pd.DataFrame({"dev": dev[sel].astype("category"),
-                                   "ch": sensor[sel].map({c: i for i, c in enumerate(CHANNELS)}).astype("int8"),
-                                   "t": t[sel].astype("int64"),
-                                   "v": pd.to_numeric(df["Value"][sel], errors="coerce")}).dropna())
+        parts.append(pd.DataFrame({"dev": dev[sel].astype(str).to_numpy(),
+                                   "ch": sensor[sel].map({c: i for i, c in enumerate(CHANNELS)}).astype("int8").to_numpy(),
+                                   "t": t[sel].astype("int64").to_numpy(),
+                                   "v": val[sel].to_numpy(dtype=float)}))
     if not parts:
         return None, nfiles
-    d = pd.concat(parts, ignore_index=True)
-    d["dev"] = d["dev"].astype(str)
-    return d.drop_duplicates(["dev", "ch", "t"], keep="first"), nfiles
+    d = pd.concat(parts, ignore_index=True).drop_duplicates(["dev", "ch", "t"], keep="first")
+    st = pd.concat(stamps, ignore_index=True).drop_duplicates()
+    empty = st.merge(d[["dev", "t"]].drop_duplicates(), on=["dev", "t"], how="left", indicator=True)
+    empty = empty[empty["_merge"] == "left_only"]
+    if len(empty):
+        d = pd.concat([d, pd.DataFrame({"dev": empty["dev"].to_numpy(), "ch": np.int8(-1), "t": empty["t"].to_numpy(),
+                                        "v": np.nan})], ignore_index=True)
+    return d, nfiles
 
 
 def read_injections(path):

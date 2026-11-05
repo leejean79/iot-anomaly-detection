@@ -130,10 +130,11 @@ def main() -> int:
     print("读入文件 %d 个；去重后读数 %d 条" % (nfiles, len(d)))
     # 适应执行模块第一批的紧凑缓存按单精度存原始读数；这里核对每个通道有多少读数不能被单精度精确表示（M6 开工核对第四节）
     # The M6 compact cache stores raw readings as float32; count readings per channel that float32 cannot represent exactly.
-    v = d["v"].to_numpy(dtype=float)
-    # pandas 默认的快速解析器偶尔差一个最低有效位，所以允许两个最低有效位 / pandas' fast parser may be off by one ulp
-    inexact = np.abs(v.astype(np.float32).astype(float) - v) > 2 * np.spacing(np.abs(v))
-    f32 = {CHANNELS[c]: (int(inexact[d["ch"].to_numpy() == c].sum()), int((d["ch"].to_numpy() == c).sum())) for c in range(5)}
+    real = d[d["ch"] >= 0]                                 # 去掉无检测通道读数的轮的占位行 / drop placeholder rows
+    v = real["v"].to_numpy(dtype=float)
+    # 读数已按原始文本正确解析（2026-11-05 修正），逐位判断 / exact parsing since the 2026-11-05 fix, so compare bitwise
+    inexact = v.astype(np.float32).astype(float) != v
+    f32 = {CHANNELS[c]: (int(inexact[real["ch"].to_numpy() == c].sum()), int((real["ch"].to_numpy() == c).sum())) for c in range(5)}
     out = {"hourly": [], "calib": [], "meta": [], "freeze": []}
     for dev, g in d.groupby("dev"):
         print("处理设备 %s（%d 条读数）……" % (dev, len(g)))
