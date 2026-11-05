@@ -50,6 +50,7 @@ public final class M6aOfflineRunner {
         double[] x = new double[Channels.N_DET];
         boolean[] missing = new boolean[Channels.N_DET];
         boolean stuck;
+        boolean cold;
     }
 
     static List<Row> read(String path, Long start) throws IOException {
@@ -69,6 +70,7 @@ public final class M6aOfflineRunner {
                     w.x[c] = w.missing[c] ? 0.0 : Double.parseDouble(f[1 + c]);
                 }
                 w.stuck = "1".equals(f[6]);
+                w.cold = f.length > 7 && "1".equals(f[7]);
                 rows.add(w);
             }
         }

@@ -6,8 +6,9 @@
 # 上的状态、点通道在新参数上的离群率等）都从这份轮表出发，不再需要原始数据。
 # Raw-data extraction for the M6a offline simulation: a compact per-round table for the chosen devices.
 #
-# 轮的构造与数据接入模块相同（与 eda/m5a_extract.py 一致）：同一设备的不同时间戳为一轮；同一设备、通道、时间戳的重复读数保留首条；
-# 缺一个通道就是该通道缺失；光照等于 65,536 为右删失。读数按原始文本由 Python 的 float 解析（正确舍入，与 Java 的
+# 轮的构造与数据接入模块的成轮器（RoundAssembler）相同：同一设备任何一条可解析的读数（含质量通道 MIC、RSSI、Accelerometer 与
+# 未知传感器）都使其时间戳成为一轮，所以只有这类读数的时间戳是一条五个检测通道全部缺失的轮（2026-11-05 修正：第一版只看检测通道，
+# 漏掉这类轮，G 的冻结因此比在线晚一轮）；同一设备、通道、时间戳的重复读数保留首条；缺一个通道就是该通道缺失；光照等于 65,536 为右删失。读数按原始文本由 Python 的 float 解析（正确舍入，与 Java 的
 # Double.parseDouble 相同），再以最短往返表示写出，保证两边读到的双精度数逐位相同。守卫按 RepeatRunGuard 的规则逐轮计算。
 #
 # 输出 docs/m6a/extract/：
@@ -52,8 +53,8 @@ def to_float(text):
 
 
 def load(data_dir, t0, t1, devices):
-    """与 eda/m5a_extract.py 的 load 相同，只是读数保留原始文本，由 float 逐个解析 / same as m5a_extract.load, exact parsing."""
-    parts, nfiles = [], 0
+    """读数保留原始文本、由 float 逐个解析；另返回每台设备所有成轮时间戳（任何传感器的可解析读数）/ exact parsing; round stamps."""
+    parts, stamps, nfiles = [], [], 0
     for path in list_all_files(data_dir):
         try:
             with open(path, "rb") as fh:
@@ -74,7 +75,16 @@ def load(data_dir, t0, t1, devices):
         sensor = df["Sensor"].astype(str).str.strip()
         dev = df["DeviceId"].astype(str).str.strip()
         t = pd.to_numeric(df["Time"], errors="coerce")
-        sel = sensor.isin(CHANNELS) & dev.isin(list(devices)) & (t >= t0) & (t < t1)
+        base = dev.isin(list(devices)) & (t >= t0) & (t < t1)
+        if not base.any():
+            continue
+        anyv = df["Value"][base].astype(str).str.strip()
+        parsable = {u: to_float(u) == to_float(u) for u in pd.unique(anyv)}   # 去重后逐个解析 / parse each distinct text once
+        ok = pd.Series(False, index=df.index)
+        ok[base] = anyv.map(parsable).astype(bool)
+        if ok.any():                                   # 成轮：任何传感器的可解析读数 / any parsable reading opens a round
+            stamps.append(pd.DataFrame({"dev": dev[ok].astype(str).to_numpy(), "t": t[ok].astype("int64").to_numpy()}))
+        sel = sensor.isin(CHANNELS) & ok
         if not sel.any():
             continue
         nfiles += 1
@@ -86,9 +96,10 @@ def load(data_dir, t0, t1, devices):
                                    "t": t[sel].astype("int64").to_numpy(),
                                    "v": text.map(lut).to_numpy(dtype=float)}).dropna())
     if not parts:
-        return None, nfiles
+        return None, None, nfiles
     d = pd.concat(parts, ignore_index=True)
-    return d.drop_duplicates(["dev", "ch", "t"], keep="first"), nfiles
+    st = pd.concat(stamps, ignore_index=True).drop_duplicates()
+    return d.drop_duplicates(["dev", "ch", "t"], keep="first"), st, nfiles
 
 
 def main() -> int:
@@ -106,7 +117,7 @@ def main() -> int:
     thr, floors = read_guard(a.guard)
     t0 = int(pd.Timestamp(a.start, tz="UTC").timestamp())
     t1 = int(pd.Timestamp(a.end, tz="UTC").timestamp()) + 86400
-    d, nfiles = load(a.data_dir, t0, t1, a.devices)
+    d, st, nfiles = load(a.data_dir, t0, t1, a.devices)
     if d is None or d.empty:
         print("ERROR: 没有读到读数（检查 --data-dir）", file=sys.stderr)
         return 2
@@ -116,6 +127,9 @@ def main() -> int:
     for dev, g in d.groupby("dev"):
         g = g.sort_values("t", kind="mergesort")
         wide = g.pivot(index="t", columns="ch", values="v").reindex(columns=range(5))
+        all_t = np.unique(st.loc[st["dev"] == dev, "t"].to_numpy().astype("int64"))
+        empty = int(len(all_t) - len(wide))            # 只有质量通道或未知传感器读数的轮 / rounds without detection readings
+        wide = wide.reindex(all_t)
         ts = wide.index.to_numpy().astype("int64")
         raw = wide.to_numpy(dtype=float)
         stuck = guard_flags(ts, raw, thr.get(dev, [0] * 5), floors.get(dev, [set() for _ in CHANNELS]))
@@ -136,7 +150,8 @@ def main() -> int:
             fz = "冻结于 %s UTC（第 %d 轮）" % (pd.Timestamp(tf, unit="s", tz="UTC").strftime("%Y-%m-%d %H:%M:%S"), CALIB_ROUNDS)
         else:
             fz = "只有 %d 轮，不足以冻结" % len(ts)
-        line = "%s：轮数 %d；%s；守卫打标 %d 轮；冷启动 %d 次；SHA-256 %s" % (dev, len(ts), fz, int(stuck.sum()), int(cold.sum()), sha)
+        line = "%s：轮数 %d（其中无检测通道读数的轮 %d）；%s；守卫打标 %d 轮；冷启动 %d 次；SHA-256 %s" % (
+            dev, len(ts), empty, fz, int(stuck.sum()), int(cold.sum()), sha)
         print(line)
         meta.append("- " + line + "\n")
     with open(os.path.join(a.out_dir, "meta.md"), "w", encoding="utf-8") as fh:
