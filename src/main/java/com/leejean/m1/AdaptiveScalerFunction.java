@@ -26,8 +26,8 @@ import java.util.List;
  * {@link RobustScalerFunction}（预热、冻结与逐轮标准化原样执行），在它外面加三件事：
  * <ol>
  *   <li>紧凑原始缓存 {@link CompactCache}：每轮五个原始读数、时间戳与缺失、删失、守卫掩码，深度默认七天；</li>
- *   <li>命令：到达时若生效时刻不晚于数据流的当前水位线、或已经处理过生效时刻及之后的轮，记为迟到并计数（不执行）；否则存入状态，
- *       并注册生效时刻的事件时间定时器；</li>
+ *   <li>命令：到达时若生效时刻不晚于数据流的当前水位线（水位线迟到），或已经处理过时间戳不早于生效时刻的轮（已处理轮迟到），
+ *       记为迟到、分开计数、不执行（1.29 版裁决第一项；断言八取两者之和）；否则存入状态，并注册生效时刻的事件时间定时器；</li>
  *   <li>零级：在事件时间到达生效时刻时执行。触发点取「定时器」与「第一条时间戳不早于生效时刻的轮」二者中先到的一个，两者看到的
  *       缓存都恰好是生效时刻之前的全部轮，所以执行与命令到达的先后无关。</li>
  * </ol>
@@ -50,7 +50,9 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
     private transient ValueState<Integer> version;
     private transient ValueState<Long> lastRoundTs;
     private transient ValueState<Backfill> pendingBackfill;
-    private transient Counter lateCommands;
+    private transient Counter lateWatermark;
+    private transient Counter lateProcessed;
+    private transient Counter preFreeze;
     private transient Counter executed;
     private transient Counter ignored;
 
@@ -79,7 +81,9 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
         version = getRuntimeContext().getState(new ValueStateDescriptor<>("m6-version", Types.INT));
         lastRoundTs = getRuntimeContext().getState(new ValueStateDescriptor<>("m6-last-round-ts", Types.LONG));
         pendingBackfill = getRuntimeContext().getState(new ValueStateDescriptor<>("m6-backfill", TypeInformation.of(Backfill.class)));
-        lateCommands = getRuntimeContext().getMetricGroup().counter("m6_late_commands");
+        lateWatermark = getRuntimeContext().getMetricGroup().counter("m6_late_watermark");
+        lateProcessed = getRuntimeContext().getMetricGroup().counter("m6_late_processed");
+        preFreeze = getRuntimeContext().getMetricGroup().counter("m6_prefreeze_commands");
         executed = getRuntimeContext().getMetricGroup().counter("m6_executed_commands");
         ignored = getRuntimeContext().getMetricGroup().counter("m6_ignored_commands");
     }
@@ -142,11 +146,13 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
                     cmd.level, cmd.device, cmd.seq, cmd.effectiveAt, wmSec, cmd.raw);
             return;
         }
-        boolean late = (long) cmd.effectiveAt * 1000L <= wm || (last != null && last >= cmd.effectiveAt);
-        if (late) {
-            lateCommands.inc();
-            LOG.warn("[M6a] Late command (not executed): device {} seq {} effective {} arrival watermark {} last round {}; {}",
-                    cmd.device, cmd.seq, cmd.effectiveAt, wmSec, last, cmd.raw);
+        boolean byWatermark = cmd.effectiveAt * 1000L <= wm;
+        boolean byProcessed = last != null && last >= cmd.effectiveAt;
+        if (byWatermark || byProcessed) {
+            // 两种迟到分开计数；两者同时成立时记为水位线迟到 / counted separately; watermark lateness takes precedence
+            (byWatermark ? lateWatermark : lateProcessed).inc();
+            LOG.warn("[M6a] Late command (not executed, {}): device {} seq {} effective {} arrival watermark {} last round {}; {}",
+                    byWatermark ? "watermark" : "processed round", cmd.device, cmd.seq, cmd.effectiveAt, wmSec, last, cmd.raw);
             return;
         }
         pending.add(cmd);
@@ -183,8 +189,9 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
 
     private void execute(String device, AdaptCommand cmd, String trigger) throws Exception {
         if (!inner.isFrozen()) {
-            ignored.inc();
-            LOG.warn("[M6a] Command ignored (scaler not frozen yet): device {} seq {} effective {}", device, cmd.seq, cmd.effectiveAt);
+            preFreeze.inc();                          // 冻结前命令，不计入迟到（1.29 版裁决第七项）/ pre-freeze, not late
+            LOG.warn("[M6a] Pre-freeze command ignored (scaler not frozen yet): device {} seq {} effective {}", device, cmd.seq,
+                    cmd.effectiveAt);
             return;
         }
         long t0 = System.nanoTime();

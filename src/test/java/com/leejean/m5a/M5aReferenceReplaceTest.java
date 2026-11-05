@@ -20,7 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 数据层收到零级之后的新参照（M6a 交接文档第四节、开工核对裁决第六项）：替换参照、清空状态转移与当日缓冲、不发回落事件；生效时刻不在
- * 日界时生效当日记为「重估日」，不可判；日记录与事件带版本号；命令回路关闭（版本为空）时不写版本。
+ * 日界时生效当日记为「重估日」，不可判；日记录与事件带版本号；命令回路关闭（版本为空）时不写版本。携带新参照的那一条轮有缺失通道，
+ * 检验数据层读取附件先于任何缺失过滤（1.29 版裁决第三项的核对：数据层不丢弃有缺失通道的轮，直方图不会随之丢失）。
  * The data layer on a level-0 reference: replace, reset without RECOVER, the re-estimation day, versions.
  */
 class M5aReferenceReplaceTest {
@@ -69,6 +70,7 @@ class M5aReferenceReplaceTest {
                 r.setVersion(t < switchAt ? 1 : 2);
                 if (t == switchAt) {
                     r.setRefHistograms(refs(3.0, 2));
+                    r.getMissingMask()[3] = true;     // 携带新参照的轮缺气体（裁决第三项）/ the carrying round lacks Gas
                 }
             }
             core.onRound(r, P, events, records);
@@ -77,7 +79,7 @@ class M5aReferenceReplaceTest {
     }
 
     @Test
-    @DisplayName("日中换参照：重估日不可判，状态转移清零且不发回落，记录与事件带版本 / mid-day replacement")
+    @DisplayName("日中换参照（携带参照的轮有缺失通道）：重估日不可判，状态转移清零且不发回落，记录与事件带版本 / mid-day replacement")
     void midDayReplacement() {
         long switchAt = DAY0 + 3 * 86400L + 12 * 3600L;
         List<DriftEvent> ev = new ArrayList<>();

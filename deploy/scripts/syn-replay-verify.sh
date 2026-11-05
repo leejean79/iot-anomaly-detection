@@ -15,7 +15,8 @@
 #   ⑦ 输出覆盖到末尾（同上）：逐台设备两个通道的最晚输出，与该设备最后一轮的差不超过 --coverage-slack-sec。
 #      点通道取监测主题中的点通道快照（评分主题里的点通道记录只有离群点，最晚一条离群点不代表覆盖）；
 #      上下文通道取评分主题中的 m3_context 记录。
-#   ⑧ 迟到命令为零（适应执行第一批交接文档第四节）：命令回路打开时，标准化算子的 m6_late_commands 合计为 0（Prometheus）；
+#   ⑧ 迟到命令为零（适应执行第一批交接文档第四节、1.29 版裁决第一项）：命令回路打开时，标准化算子的水位线迟到
+#      m6_late_watermark 与已处理轮迟到 m6_late_processed 之和为 0（Prometheus）；
 #      只在给出 --adapt（命令回路打开的运行）时检查，此时读不到该指标判为失败。
 #   ⑥⑦⑧ 只在给出 --since（运行结束时执行）时检查；不给 --since 时与此前的五条断言完全相同。
 #
@@ -279,7 +280,7 @@ PY
     # 断言八：迟到命令为零（命令回路打开的运行）/ assertion 8: zero late commands when the loop is on
     if [ "$ADAPT" -eq 1 ]; then
         N_ASSERT="八"
-        Q8="max_over_time(flink_taskmanager_job_task_operator_m6_late_commands[${RANGE_SEC}s])"
+        Q8="max_over_time({__name__=~\"flink_taskmanager_job_task_operator_m6_late_(watermark|processed)\"}[${RANGE_SEC}s])"
         LATE8="$(on_master "curl -s --max-time 30 'http://localhost:9090/api/v1/query' --data-urlencode 'query=${Q8}'" \
             | python3 -c "
 import json,sys
@@ -289,10 +290,10 @@ except Exception:
     r=[]
 print('' if not r else int(sum(float(x['value'][1]) for x in r)))")"
         if [ -z "$LATE8" ]; then
-            echo "[断言八 迟到命令] FAIL —— Prometheus 读不到 m6_late_commands（命令回路是否打开？），无法确认为零。"
+            echo "[断言八 迟到命令] FAIL —— Prometheus 读不到 m6_late_watermark / m6_late_processed（命令回路是否打开？），无法确认为零。"
             VERIFY_RC=1
         elif [ "$LATE8" -eq 0 ]; then
-            echo "[断言八 迟到命令] PASS —— ${SINCE} 以来迟到命令合计 0。"
+            echo "[断言八 迟到命令] PASS —— ${SINCE} 以来迟到命令（水位线迟到与已处理轮迟到之和）为 0。"
         else
             echo "[断言八 迟到命令] FAIL —— ${SINCE} 以来迟到命令合计 ${LATE8}；逐条见 TaskManager 日志里的「[M6a] Late command」。"
             VERIFY_RC=1

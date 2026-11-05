@@ -87,7 +87,7 @@ echo "  回收孤儿卷: $([ "$PRUNE_VOLUMES" -eq 1 ] && echo '是（不可撤�
 echo "  模式: $([ "$DRY_RUN" -eq 1 ] && echo '只检查不改动' || echo '执行复位')"
 echo "===================================================================="
 if [ "$ASSUME_YES" -eq 0 ] && [ "$DRY_RUN" -eq 0 ]; then
-    echo "将要：停重放 → 取消本项目作业 → 重启 Flink 容器 → 清空 synergia-* topic → 清理中间产物。"
+    echo "将要：停重放 → 取消本项目作业 → 清理 TaskManager 原生库缓存与旧日志 → 重启 Flink 容器 → 清空 synergia-* topic → 清理中间产物。"
     printf "继续？输入 yes 回车："
     read -r ans
     [ "$ans" = "yes" ] || { echo "已取消。"; exit 130; }
@@ -139,21 +139,24 @@ else
     record "JM REST 可达" FAIL "$REST 无响应 —— 作业无法提交，先查 docker logs jobmanager"
 fi
 
-# ---------- 2. 磁盘门槛 ----------
-step "2/8 磁盘门槛 / free space >= ${MIN_FREE_GB} GB"
+# ---------- 2. 磁盘门槛（先读清理前的数，门槛在第 5 步清理 TaskManager 缓存之后判定）----------
+# 每提交一次作业，每台 worker 的 JavaCPP 原生库缓存就多一份约 400 MB 的解包目录（以 Flink 的 jar 存档名命名），
+# 从不自动回收；2026-11-05 两台 worker 各积到约 7 GB，复位时磁盘门槛因此不过。第 5 步在本项目作业取消之后清掉它们
+# 与旧 TaskManager 进程的日志（2026-11-05 用户同意），再判门槛。
+# Free space is read here and judged after step 5 clears the TaskManager JavaCPP caches and old logs.
 DISK_BAD=""
-for h in "${NODES[@]}"; do
-    avail_kb="$(ssh "$h" "df -Pk / | awk 'NR==2{print \$4}'" 2>/dev/null)"
-    if [ -z "$avail_kb" ]; then echo "  $h: 读取失败"; DISK_BAD="$DISK_BAD $h(读取失败)"; continue; fi
-    avail_gb=$(( avail_kb / 1024 / 1024 ))
-    echo "  $h: 可用 ${avail_gb} GB"
-    [ "$avail_gb" -lt "$MIN_FREE_GB" ] && DISK_BAD="$DISK_BAD $h(${avail_gb}GB)"
-done
-if [ -n "$DISK_BAD" ]; then
-    record "磁盘门槛" FAIL "不达标:$DISK_BAD —— 见 docs/cluster_disk_cleanup_zh.md"
-else
-    record "磁盘门槛" PASS "三台均 >= ${MIN_FREE_GB} GB"
-fi
+disk_read() {   # $1 = 标签；结果累积到 DISK_BAD / label; accumulates DISK_BAD
+    DISK_BAD=""
+    for h in "${NODES[@]}"; do
+        avail_kb="$(ssh "$h" "df -Pk / | awk 'NR==2{print \$4}'" 2>/dev/null)"
+        if [ -z "$avail_kb" ]; then echo "  $h: 读取失败"; DISK_BAD="$DISK_BAD $h(读取失败)"; continue; fi
+        avail_gb=$(( avail_kb / 1024 / 1024 ))
+        echo "  $h: $1可用 ${avail_gb} GB"
+        [ "$avail_gb" -lt "$MIN_FREE_GB" ] && DISK_BAD="$DISK_BAD $h(${avail_gb}GB)"
+    done
+}
+step "2/8 磁盘可用空间（清理前）/ free space before cleanup"
+disk_read "清理前"
 
 # ---------- 3. 停重放 ----------
 step "3/8 停止重放器并清掉续跑位点 / stop replayer, drop the resume offset"
@@ -199,8 +202,55 @@ elif [ "$STILL" = "0" ]; then record "无作业在跑" PASS "RUNNING 作业数 0
 elif [ "$DRY_RUN" -eq 1 ]; then record "无作业在跑" SKIP "dry-run 未取消"
 else record "无作业在跑" FAIL "仍有 $STILL 个 RUNNING 作业，请在 Flink UI 上核对后处理"; fi
 
-# ---------- 5. 重启 Flink 容器（清空每 JVM 的指标计数器）----------
-step "5/8 重启 Flink 容器 / restart Flink containers"
+# ---------- 5. 清理 TaskManager 的 JavaCPP 缓存与旧进程日志，再判磁盘门槛 ----------
+step "5/8 清理 TaskManager 缓存与旧日志、判磁盘门槛 / clear TaskManager caches, then the disk gate"
+# 只在本项目作业已全部取消时清理；缓存会在下次作业启动时重新解包当次那一份。只删两样：容器内 /tmp/javacpp-cache 的内容，
+# 以及 /opt/flink/log 下序号不是当前进程的 flink--taskexecutor-* 文件。不碰数据集、jar、卷与其他容器。
+# Only when none of this project's jobs is running; the cache is re-extracted at the next job start.
+clean_tm() {
+    ssh "$1" 'c=$(docker ps --format "{{.Names}}" | grep -i taskmanager | head -n 1); [ -n "$c" ] || exit 0; docker exec -i -u root "$c" sh -s' <<'CLEAN'
+before=$(du -sm /tmp/javacpp-cache /opt/flink/log 2>/dev/null | awk '{s+=$1} END{print s+0}')
+rm -rf /tmp/javacpp-cache/*
+if cd /opt/flink/log 2>/dev/null; then
+    cur=$(ls -t flink--taskexecutor-*.log 2>/dev/null | head -n 1 | sed 's/.*taskexecutor-\([0-9]*\)-.*/\1/')
+    for f in flink--taskexecutor-*; do
+        [ -e "$f" ] || continue
+        n=$(echo "$f" | sed 's/.*taskexecutor-\([0-9]*\)-.*/\1/')
+        [ -n "$cur" ] && [ "$n" = "$cur" ] || rm -f "$f"
+    done
+fi
+after=$(du -sm /tmp/javacpp-cache /opt/flink/log 2>/dev/null | awk '{s+=$1} END{print s+0}')
+echo "缓存与日志 ${before} MB -> ${after} MB"
+CLEAN
+}
+OURS_LEFT="$(ssh fa-master "curl -s --max-time 20 '$REST/jobs/overview'" 2>/dev/null | python3 -c '
+import json,sys
+try: js=json.load(sys.stdin).get("jobs",[])
+except Exception: js=None
+if js is None: print("?")
+else: print(sum(1 for j in js if j.get("state")=="RUNNING" and any(k in j.get("name","") for k in ("M1Job","M2Job","M3"))))' 2>/dev/null || echo "?")"
+if [ "$DRY_RUN" -eq 1 ]; then
+    echo "    [dry-run] 不清理 TaskManager 缓存与旧日志"
+    TM_CLEAN="SKIP"
+elif [ "$OURS_LEFT" != "0" ]; then
+    echo "  本项目仍有作业在跑或读不到作业列表（${OURS_LEFT}），不清理。"
+    TM_CLEAN="SKIP"
+else
+    for h in fa-worker1 fa-worker2; do
+        echo "  $h: $(clean_tm "$h" 2>&1 | tail -n 1)"
+    done
+    TM_CLEAN="PASS"
+fi
+record "TaskManager 缓存清理" "$TM_CLEAN" "JavaCPP 原生库缓存与旧 TaskManager 日志"
+disk_read "清理后"
+if [ -n "$DISK_BAD" ]; then
+    record "磁盘门槛" FAIL "不达标:$DISK_BAD —— 见 docs/cluster_disk_cleanup_zh.md"
+else
+    record "磁盘门槛" PASS "三台均 >= ${MIN_FREE_GB} GB"
+fi
+
+# ---------- 5b. 重启 Flink 容器（清空每 JVM 的指标计数器）----------
+step "5b/8 重启 Flink 容器 / restart Flink containers"
 echo "  目的：Flink 的指标计数器是**每 JVM** 的。上一轮运行留下的计数若不清零，本轮的对账恒等式"
 echo "        会读到跨轮累加的数字，且表面看不出异常（断言五抓的正是这一类）。"
 run "ssh fa-master   'docker restart jobmanager'    >/dev/null 2>&1"

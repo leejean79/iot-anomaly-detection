@@ -18,7 +18,10 @@ public class AdaptCommand implements Serializable {
     public String device;
     /** 级别：本阶段只执行零级 / level: only level 0 is executed in batch 1. */
     public int level;
-    /** 生效事件时间（秒）/ effective event time (s). */
+    /**
+     * 生效事件时间（秒），须为点通道滑动步（60 秒）的整数倍（1.29 版裁决第五项写入命令契约）；聚合模块的日界满足，手工工具拒绝不满足的值。
+     * Effective event time (s); must be a multiple of the 60 s slide (command contract, ruling 1.29 item 5).
+     */
     public long effectiveAt;
     /** 决定时刻（秒）/ decision event time (s). */
     public long decidedAt;
