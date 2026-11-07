@@ -222,6 +222,8 @@ class M7InputAssemblerTest {
                     M7DumpRunner.burstEmission(bins.get(r.get("device")), Long.parseLong(r.get("ts"))), r.toString());
             n++;
         }
-        assertEquals(247, n);
+        // 不剔除注入的一遍共 250 次爆发：2026-11-07 起按 1.31 版裁决第一节以修正后的提取为基线（原为 247，见 docs/reports/m6a_extract_impact.md）
+        // 250 bursts in the injected pass since the 2026-11-07 baseline correction (was 247).
+        assertEquals(250, n);
     }
 }
