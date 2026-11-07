@@ -218,7 +218,12 @@ public final class M6aSimulator {
             if (lo == hi) {
                 continue;                                     // 空窗口不触发 / empty windows do not fire
             }
+            long tSlide = System.nanoTime();
             PmcodFunction.Slide sl = PmcodFunction.slide(st, new ArrayList<>(points.subList(lo, hi)), end - wMs, end, sMs, r, k, false);
+            if (sl.versionSwitch) {                           // 换版本那一个滑动步（清空、回填与处理）的耗时 / timing of the switch slide
+                System.out.println("换版本滑动步 窗末 " + (end / 1000L) + "：清空、回填与处理共 " + (System.nanoTime() - tSlide) / 1000L
+                        + " 微秒，窗口内 " + (hi - lo) + " 个点");
+            }
             long endSec = end / 1000L;
             for (long id : sl.emitted) {
                 if (endSec - slideSec <= id && id < endSec) {

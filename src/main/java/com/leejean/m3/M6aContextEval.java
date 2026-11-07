@@ -55,7 +55,7 @@ public final class M6aContextEval {
     private static final class Pt {
         long ts;
         double[] xOld;
-        double[] xNew;
+        Map<String, double[]> xNew = new java.util.LinkedHashMap<>();
         boolean[] mask;
         boolean outlier;
     }
@@ -84,11 +84,31 @@ public final class M6aContextEval {
         long thR = Long.parseLong(a.getOrDefault("thresh-days", "7")) * perDay;
         int warmup = Integer.parseInt(a.getOrDefault("warmup-rounds", "60480"));
 
-        JsonNode pj = new ObjectMapper().readTree(new File(a.get("params")));
-        double[][] fp = params(pj.get("freeze"));
-        double[][] np = params(pj.get("new"));
-        boolean[] fb = bools(pj.get("freeze").get("bypass"));
-        boolean[] nb = bools(pj.get("new").get("bypass"));
+        // --params：一组或多组新参数，写成「标签=路径」并以逗号分隔（无标签时为 new）；冻结参数取第一组的 freeze。
+        // 只重估位置的一组：在标签后加 :pos，分母与旁路沿用冻结值（1.31 版裁决第三节第二档）。
+        // One or more parameter sets as label=path[,label=path]; a ":pos" suffix keeps the frozen scale.
+        Map<String, double[][]> sets = new java.util.LinkedHashMap<>();
+        Map<String, boolean[]> setBp = new java.util.LinkedHashMap<>();
+        double[][] fp = null;
+        boolean[] fb = null;
+        for (String spec : a.get("params").split(",")) {
+            String label = spec.contains("=") ? spec.substring(0, spec.indexOf('=')) : "new";
+            String path = spec.contains("=") ? spec.substring(spec.indexOf('=') + 1) : spec;
+            JsonNode pj = new ObjectMapper().readTree(new File(path));
+            if (fp == null) {
+                fp = params(pj.get("freeze"));
+                fb = bools(pj.get("freeze").get("bypass"));
+            }
+            double[][] np = params(pj.get("new"));
+            boolean[] nb = bools(pj.get("new").get("bypass"));
+            if (label.endsWith(":pos")) {
+                label = label.substring(0, label.length() - 4);
+                np[1] = fp[1].clone();
+                nb = fb.clone();
+            }
+            sets.put(label, np);
+            setBp.put(label, nb);
+        }
         Set<Long> outl = new HashSet<>();
         for (String l : Files.readAllLines(Paths.get(a.get("outliers")))) {
             if (!l.trim().isEmpty()) {
@@ -123,9 +143,12 @@ public final class M6aContextEval {
                 Pt p = new Pt();
                 p.ts = Long.parseLong(f[0]);
                 p.xOld = RobustScalerFunction.normalize(x, miss, fp[0], fp[1], fb, tf);
-                p.xNew = RobustScalerFunction.normalize(x, miss, np[0], np[1], nb, tf);
                 M3Function.zeroDeviceGLight(p.xOld, dev);
-                M3Function.zeroDeviceGLight(p.xNew, dev);
+                for (Map.Entry<String, double[][]> e : sets.entrySet()) {
+                    double[] xn = RobustScalerFunction.normalize(x, miss, e.getValue()[0], e.getValue()[1], setBp.get(e.getKey()), tf);
+                    M3Function.zeroDeviceGLight(xn, dev);
+                    p.xNew.put(e.getKey(), xn);
+                }
                 boolean[] cens = new boolean[N];
                 cens[Channels.LIGHT_INDEX] = x[Channels.LIGHT_INDEX] == 65536.0;
                 p.mask = WeightedMseLoss.buildMask(cens);
@@ -196,7 +219,10 @@ public final class M6aContextEval {
             for (String span : new String[]{"before", "after"}) {
                 long t0 = "before".equals(span) ? before : eff;
                 long t1 = "before".equals(span) ? eff : after;
-                for (String which : new String[]{"old", "new"}) {
+                List<String> whichList = new ArrayList<>();
+                whichList.add("old");
+                whichList.addAll(sets.keySet());
+                for (String which : whichList) {
                     List<Double> s = new ArrayList<>();
                     int above = 0;
                     List<Pt> in = new ArrayList<>();
@@ -209,7 +235,7 @@ public final class M6aContextEval {
                         double[][] w = new double[window][];
                         boolean[][] m = new boolean[window][];
                         for (int t = 0; t < window; t++) {
-                            w[t] = "old".equals(which) ? in.get(i + t).xOld : in.get(i + t).xNew;
+                            w[t] = "old".equals(which) ? in.get(i + t).xOld : in.get(i + t).xNew.get(which);
                             m[t] = in.get(i + t).mask;
                         }
                         WeightedMseLoss.LossResult lr0 = loss.compute(w, res.model.reconstruct(w), m, window);
