@@ -1,0 +1,4 @@
+WARNING: sun.reflect.Reflection.getCallerClass is not supported. This will impact performance.
+G_short：轮 59896，点 51248，离群 15，日记录 35，数据层事件 11，零级窗口 8617 轮，剔除 0 轮
+WARNING: sun.reflect.Reflection.getCallerClass is not supported. This will impact performance.
+G 生效 1648422000：窗口 8617 轮，剔除守卫 0 轮，回填 359 轮
