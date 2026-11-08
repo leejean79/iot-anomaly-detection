@@ -1,0 +1,556 @@
+<title>物联网检测流水线架构</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 版式：一张工程图纸式的长页。上方是状态摘要，主体是五张示意图，每张图配一句结论与说明；表格放在文末供查阅。 */
+:root {
+  --bg: #F2F4F5;
+  --surface: #FFFFFF;
+  --ink: #1C2630;
+  --muted: #5E6B76;
+  --line: #CBD3D9;
+  --line-strong: #8C99A4;
+  --job-bg: #E8EDF0;
+  --topic-bg: #EEF2F4;
+  --amber: #A9620A;
+  --amber-bg: #FBEEDA;
+  --good: #2F6B4F;
+  --good-bg: #E3F0E8;
+  --sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --serif: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171B; --surface: #1A2127; --ink: #E2E8EC; --muted: #97A4AE; --line: #34404A; --line-strong: #5D6B76;
+    --job-bg: #172026; --topic-bg: #1F2830; --amber: #E3A24B; --amber-bg: #3A2A12; --good: #7CC4A0; --good-bg: #183026;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12171B; --surface: #1A2127; --ink: #E2E8EC; --muted: #97A4AE; --line: #34404A; --line-strong: #5D6B76;
+  --job-bg: #172026; --topic-bg: #1F2830; --amber: #E3A24B; --amber-bg: #3A2A12; --good: #7CC4A0; --good-bg: #183026;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.75; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 44px; }
+header { display: grid; gap: 14px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+h1 { font-family: var(--serif); font-size: clamp(28px, 4vw, 40px); line-height: 1.25; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--serif); font-size: 22px; line-height: 1.35; margin: 0; text-wrap: balance; }
+h3 { font-size: 16px; margin: 0; }
+p { margin: 0; max-width: 68ch; }
+.lede { font-size: 16px; color: var(--ink); }
+code, .mono { font-family: var(--mono); font-size: .92em; }
+.status { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 10px 12px; display: grid; gap: 2px; min-width: 0; }
+.chip b { font-size: 14px; }
+.chip span { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.chip.done { border-left: 4px solid var(--good); }
+.chip.wip { border-left: 4px solid var(--amber); background: var(--amber-bg); }
+.chip.plan { border-left: 4px dashed var(--line-strong); }
+section { display: grid; gap: 14px; }
+.changes { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; max-width: 76ch; }
+.changes li { padding-left: 18px; position: relative; }
+.changes li::before { content: ""; position: absolute; left: 0; top: .72em; width: 8px; height: 8px; border-radius: 2px; background: var(--amber); }
+figure { margin: 0; display: grid; gap: 12px; }
+.scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.scroll svg { display: block; min-width: 860px; width: 100%; height: auto; }
+figcaption { font-size: 14px; color: var(--muted); max-width: 76ch; }
+figcaption b { color: var(--ink); font-weight: 500; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+th { font-weight: 500; color: var(--muted); font-size: 13px; background: var(--topic-bg); }
+tr:last-child td { border-bottom: none; }
+td.k { white-space: nowrap; font-family: var(--mono); font-size: 13px; }
+.tag { display: inline-block; font-size: 12px; border-radius: 4px; padding: 0 6px; line-height: 1.7; white-space: nowrap; }
+.tag.done { background: var(--good-bg); color: var(--good); }
+.tag.wip { background: var(--amber-bg); color: var(--amber); }
+.tag.plan { border: 1px dashed var(--line-strong); color: var(--muted); }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+
+/* 示意图 / diagrams */
+.dg { color: var(--ink); font-family: var(--sans); }
+.dg text { fill: var(--ink); font-size: 12px; }
+.dg .t1 { font-size: 13px; font-weight: 500; }
+.dg .t2 { font-size: 11px; fill: var(--muted); }
+.dg .lab { font-size: 10.5px; fill: var(--muted); }
+.dg .mono { font-family: var(--mono); }
+.dg .amb { fill: var(--amber); }
+.dg .box { fill: var(--surface); stroke: var(--ink); stroke-width: 1.2; }
+.dg .chg { fill: var(--amber-bg); stroke: var(--amber); stroke-width: 1.6; }
+.dg .plan { fill: var(--surface); stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 4; }
+.dg .topic { fill: var(--topic-bg); stroke: var(--line-strong); stroke-width: 1; }
+.dg .topic-p { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 4 3; }
+.dg .job { fill: var(--job-bg); stroke: var(--line); stroke-width: 1; }
+.dg .lane { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 4; }
+.dg .ln { stroke: var(--ink); stroke-width: 1.3; fill: none; }
+.dg .bus { stroke: var(--ink); stroke-width: 2.4; fill: none; }
+.dg .ln-p { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 4; fill: none; }
+.dg .ln-a { stroke: var(--amber); stroke-width: 1.6; stroke-dasharray: 6 4; fill: none; }
+.dg .tick { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 3; }
+.dg .mk-ink { fill: var(--ink); }
+.dg .mk-mut { fill: var(--muted); }
+.dg .mk-amb { fill: var(--amber); }
+.dg .dot { fill: var(--ink); }
+.dg .dot-a { fill: var(--amber); }
+@media (max-width: 600px) { body { font-size: 14.5px; } .wrap { gap: 36px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">iot-anomaly-detection · 2026-11-08 · 分支 dev-claude</div>
+    <h1>物联网检测流水线架构</h1>
+    <p class="lede">整套系统是一个 Flink 主作业 <code>M2Job</code>：重放器把数据集按事件时间送进 Kafka，作业依次做数据接入、点异常检测、上下文异常检测，再由性能层与数据层两路漂移监测看模型与输入是否变了。聚合决策（把所有信号归因并决定是否响应）与适应执行第一批（把零级命令送回上游执行）都已收口，两者合起来让这条流水线具备了闭环的机制；闭环的链式实验、一级与二级重训属于适应执行第二批。</p>
+    <div class="status" role="list">
+      <div class="chip done" role="listitem"><b>M1 数据接入</b><span>已收口；本阶段调整了算子顺序</span></div>
+      <div class="chip done" role="listitem"><b>M2 点异常检测</b><span>已收口</span></div>
+      <div class="chip done" role="listitem"><b>M3 上下文异常检测</b><span>已收口</span></div>
+      <div class="chip done" role="listitem"><b>M5b 性能层漂移</b><span>已收口</span></div>
+      <div class="chip done" role="listitem"><b>M5a 数据层漂移</b><span>已收口</span></div>
+      <div class="chip done" role="listitem"><b>M6a 适应执行第一批</b><span>已收口（命令回路默认关闭）</span></div>
+      <div class="chip done" role="listitem"><b>M7 聚合决策</b><span>已收口（默认关闭）</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>最近的三处变化</h2>
+    <ul class="changes">
+      <li>聚合决策（M7）已经接入主作业（<code>--m7-enabled</code>）：六路输入合并到并行度为一的算子，每个告警节拍发告警、每个决策节拍决定零级命令；短重放中在线与离线三份日志逐条相同。</li>
+      <li>适应执行第一批（M6a）已经接入（<code>--adapt-enabled</code>）：标准化算子连接命令主题，在生效时刻用紧凑缓存重估参数、换版本号，新参照与回填附件随新版本的轮传给下游；短重放中在线执行与离线模拟逐位相同。</li>
+      <li>离线提取改为按原始文本正确解析读数、并按在线成轮器的规则成轮，修正后的提取已成为数据层与聚合模块离线输入的新基线（2026-11-07）。</li>
+    </ul>
+  </section>
+
+  <!-- 图一 -->
+  <section>
+    <h2>图一　主作业的算子拓扑与 Kafka 主题</h2>
+    <figure>
+      <div class="scroll">
+        <svg class="dg" viewBox="0 0 1200 604" role="img" aria-label="主作业 M2Job 的算子拓扑：重放器写入 synergia-source；作业内依次是解析、装轮、事件时间对齐、原始缓存、标准化；标准化轮分别进入监测聚合、点通道 pMCOD 与数据层 M5a；点通道的标注轮进入上下文 M3，M3 的评分进入性能层 M5b；规划中的聚合 M7 读取上游输出并写告警与命令主题，命令经虚线回到标准化算子。">
+          <defs>
+            <marker id="f1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-ink" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="f1m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-mut" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="f1b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-amb" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+
+          <!-- 重放器与源主题 -->
+          <rect class="box" x="10" y="40" width="140" height="56" rx="4"/>
+          <text class="t1" x="80" y="63" text-anchor="middle">重放器（含注入器）</text>
+          <text class="t2 mono" x="80" y="82" text-anchor="middle">CsvKafkaReplayer</text>
+          <line class="ln" x1="80" y1="96" x2="80" y2="128" marker-end="url(#f1a)"/>
+          <rect class="topic" x="10" y="130" width="140" height="28" rx="14"/>
+          <text class="mono" x="80" y="148" text-anchor="middle" style="font-size:11px">synergia-source</text>
+          <line class="ln" x1="150" y1="144" x2="188" y2="144" marker-end="url(#f1a)"/>
+
+          <!-- 作业边界 -->
+          <rect class="job" x="170" y="20" width="1020" height="548" rx="10"/>
+          <text class="lab" x="186" y="40">Flink 主作业 M2Job · 八台设备按代理键各占一个子任务</text>
+
+          <!-- M1 主干 -->
+          <rect class="box" x="190" y="120" width="110" height="48" rx="4"/>
+          <text class="t1 mono" x="245" y="140" text-anchor="middle" style="font-size:11.5px">RawLineParser</text>
+          <text class="t2" x="245" y="157" text-anchor="middle">解析一行读数</text>
+          <line class="ln" x1="300" y1="144" x2="318" y2="144" marker-end="url(#f1a)"/>
+          <rect class="box" x="320" y="120" width="120" height="48" rx="4"/>
+          <text class="t1 mono" x="380" y="140" text-anchor="middle" style="font-size:11.5px">RoundAssembler</text>
+          <text class="t2" x="380" y="157" text-anchor="middle">同一时间戳装成一轮</text>
+          <line class="ln" x1="440" y1="144" x2="458" y2="144" marker-end="url(#f1a)"/>
+          <rect class="box" x="460" y="120" width="110" height="48" rx="4"/>
+          <text class="t1" x="515" y="140" text-anchor="middle">事件时间对齐</text>
+          <text class="t2" x="515" y="157" text-anchor="middle">改回轮时间戳</text>
+          <line class="ln" x1="570" y1="144" x2="588" y2="144" marker-end="url(#f1a)"/>
+          <text class="lab amb" x="655" y="110" text-anchor="middle">M6a：已移到标准化之前</text>
+          <rect class="chg" x="590" y="120" width="130" height="48" rx="4"/>
+          <text class="t1 mono" x="655" y="140" text-anchor="middle" style="font-size:11.5px">RawCache</text>
+          <text class="t2" x="655" y="157" text-anchor="middle">守卫打标 · 冷启动</text>
+          <line class="ln" x1="720" y1="144" x2="738" y2="144" marker-end="url(#f1a)"/>
+          <rect class="box" x="740" y="120" width="150" height="48" rx="4"/>
+          <text class="t1 mono" x="815" y="140" text-anchor="middle" style="font-size:11.5px">RobustScaler</text>
+          <text class="t2" x="815" y="157" text-anchor="middle">冻结 · 标准化 · 参照直方图</text>
+          <line class="ln" x1="890" y1="144" x2="918" y2="144" marker-end="url(#f1a)"/>
+          <rect class="topic" x="920" y="133" width="122" height="22" rx="11"/>
+          <text x="981" y="148" text-anchor="middle" style="font-size:11px">m1-out（可选）</text>
+
+          <!-- 标准化轮总线 -->
+          <line class="ln" x1="815" y1="168" x2="815" y2="196"/>
+          <line class="bus" x1="250" y1="196" x2="995" y2="196"/>
+          <text class="lab" x="270" y="189">标准化轮 DeviceRound（每台每 10 秒一轮）</text>
+
+          <!-- 第二行：M2 与 M1 监测 -->
+          <line class="ln" x1="250" y1="196" x2="250" y2="224" marker-end="url(#f1a)"/>
+          <rect class="box" x="200" y="226" width="100" height="48" rx="4"/>
+          <text class="t1 mono" x="250" y="246" text-anchor="middle" style="font-size:11.5px">M2Gate</text>
+          <text class="t2" x="250" y="263" text-anchor="middle">预热与缺失不进入</text>
+          <line class="ln" x1="300" y1="250" x2="328" y2="250" marker-end="url(#f1a)"/>
+          <rect class="box" x="330" y="226" width="200" height="48" rx="4"/>
+          <text class="t1" x="430" y="246" text-anchor="middle">点通道 pMCOD</text>
+          <text class="t2" x="430" y="263" text-anchor="middle">滑动窗 3600 秒 / 步长 60 秒</text>
+          <line class="ln" x1="530" y1="238" x2="546" y2="238" marker-end="url(#f1a)"/>
+          <rect class="topic" x="548" y="228" width="132" height="20" rx="10"/>
+          <text x="614" y="242" text-anchor="middle" style="font-size:11px">scores（离群点）</text>
+          <line class="ln" x1="530" y1="262" x2="546" y2="262" marker-end="url(#f1a)"/>
+          <rect class="topic" x="548" y="252" width="132" height="20" rx="10"/>
+          <text x="614" y="266" text-anchor="middle" style="font-size:11px">monitoring</text>
+
+          <line class="ln" x1="995" y1="196" x2="995" y2="224" marker-end="url(#f1a)"/>
+          <rect class="box" x="930" y="226" width="130" height="48" rx="4"/>
+          <text class="t1" x="995" y="246" text-anchor="middle">监测聚合</text>
+          <text class="t2" x="995" y="263" text-anchor="middle">每台每 60 秒快照</text>
+          <line class="ln" x1="1060" y1="250" x2="1072" y2="250" marker-end="url(#f1a)"/>
+          <rect class="topic" x="1074" y="240" width="88" height="20" rx="10"/>
+          <text x="1118" y="254" text-anchor="middle" style="font-size:11px">monitoring</text>
+
+          <!-- 第三行：数据层 M5a -->
+          <line class="ln" x1="820" y1="196" x2="820" y2="314" marker-end="url(#f1a)"/>
+          <polyline class="ln" points="480,274 480,342 718,342" marker-end="url(#f1a)"/>
+          <text class="lab" x="600" y="336" text-anchor="middle">离群记录</text>
+          <rect class="box" x="720" y="316" width="200" height="52" rx="4"/>
+          <text class="t1" x="820" y="337" text-anchor="middle">数据层 M5a</text>
+          <text class="t2" x="820" y="356" text-anchor="middle">日界分布检验 · 状态转移 · 爆发</text>
+          <line class="ln" x1="920" y1="330" x2="936" y2="330" marker-end="url(#f1a)"/>
+          <rect class="topic" x="938" y="320" width="162" height="20" rx="10"/>
+          <text x="1019" y="334" text-anchor="middle" style="font-size:11px">drift（状态转移 · 爆发）</text>
+          <line class="ln" x1="920" y1="354" x2="936" y2="354" marker-end="url(#f1a)"/>
+          <rect class="topic" x="938" y="344" width="162" height="20" rx="10"/>
+          <text x="1019" y="358" text-anchor="middle" style="font-size:11px">monitoring（日记录）</text>
+
+          <!-- 第四、五行：M3 与 M5b -->
+          <line class="ln" x1="380" y1="274" x2="380" y2="404" marker-end="url(#f1a)"/>
+          <text class="lab" x="388" y="392">标注轮（侧输出）</text>
+          <rect class="box" x="330" y="406" width="200" height="52" rx="4"/>
+          <text class="t1" x="430" y="427" text-anchor="middle">上下文 M3</text>
+          <text class="t2" x="430" y="446" text-anchor="middle">LSTM 自编码器 · 每 10 分钟主分</text>
+          <line class="ln" x1="530" y1="418" x2="546" y2="418" marker-end="url(#f1a)"/>
+          <rect class="topic" x="548" y="408" width="150" height="20" rx="10"/>
+          <text x="623" y="422" text-anchor="middle" style="font-size:11px">scores（上下文评分）</text>
+          <line class="ln" x1="530" y1="444" x2="546" y2="444" marker-end="url(#f1a)"/>
+          <rect class="topic" x="548" y="434" width="150" height="20" rx="10"/>
+          <text x="623" y="448" text-anchor="middle" style="font-size:11px">monitoring</text>
+
+          <line class="ln" x1="430" y1="458" x2="430" y2="494" marker-end="url(#f1a)"/>
+          <text class="lab" x="438" y="480">评分窗</text>
+          <rect class="box" x="330" y="496" width="200" height="52" rx="4"/>
+          <text class="t1" x="430" y="517" text-anchor="middle">性能层 M5b</text>
+          <text class="t2" x="430" y="536" text-anchor="middle">OPTWIN 检测器 + 持续性核对</text>
+          <line class="ln" x1="530" y1="508" x2="546" y2="508" marker-end="url(#f1a)"/>
+          <rect class="topic" x="548" y="498" width="172" height="20" rx="10"/>
+          <text x="634" y="512" text-anchor="middle" style="font-size:11px">drift（候选 · 确认 · 撤销）</text>
+          <line class="ln" x1="530" y1="534" x2="546" y2="534" marker-end="url(#f1a)"/>
+          <rect class="topic" x="548" y="524" width="172" height="20" rx="10"/>
+          <text x="634" y="538" text-anchor="middle" style="font-size:11px">monitoring</text>
+
+          <!-- 聚合 M7 -->
+          <line class="ln" x1="820" y1="368" x2="820" y2="428" marker-end="url(#f1a)"/>
+          <text class="lab" x="828" y="402">漂移事件 · 日记录</text>
+          <polyline class="ln" points="722,470 758,470" marker-end="url(#f1a)"/>
+          <text class="lab" x="754" y="462" text-anchor="end">评分 · 轮</text>
+          <rect class="box" x="760" y="430" width="170" height="72" rx="4"/>
+          <text class="t1" x="845" y="452" text-anchor="middle">聚合 M7 决策</text>
+          <text class="t2" x="845" y="470" text-anchor="middle">小时告警 · 日界命令</text>
+          <text class="lab" x="845" y="488" text-anchor="middle">并行度一 · --m7-enabled</text>
+          <line class="ln" x1="930" y1="450" x2="946" y2="450" marker-end="url(#f1a)"/>
+          <rect class="topic" x="948" y="440" width="120" height="20" rx="10"/>
+          <text x="1008" y="454" text-anchor="middle" style="font-size:11px">alerts（告警）</text>
+          <line class="ln" x1="930" y1="478" x2="946" y2="478" marker-end="url(#f1a)"/>
+          <rect class="topic" x="948" y="468" width="120" height="20" rx="10"/>
+          <text x="1008" y="482" text-anchor="middle" style="font-size:11px">adapt（命令）</text>
+
+          <!-- M6a 闭环 -->
+          <polyline class="ln-a" points="1068,478 1180,478 1180,100 815,100 815,118" marker-end="url(#f1b)"/>
+          <text class="lab amb" x="1000" y="93" text-anchor="middle">零级命令经 Kafka 回到标准化算子（M6a，--adapt-enabled）</text>
+
+          <!-- 图例 -->
+          <rect class="box" x="190" y="580" width="26" height="14" rx="2"/>
+          <text class="lab" x="222" y="591">已收口的算子</text>
+          <rect class="chg" x="320" y="580" width="26" height="14" rx="2"/>
+          <text class="lab" x="352" y="591">本阶段改动</text>
+          <rect class="topic" x="530" y="580" width="40" height="14" rx="7"/>
+          <text class="lab" x="576" y="591">Kafka 主题（写入）</text>
+        </svg>
+      </div>
+      <figcaption><b>一条标准化轮流，分出四条检测与监测支路。</b>原始缓存与标准化之后的标准化轮是全系统的公共输入：监测聚合、点通道和数据层都直接读它；上下文通道读点通道附带的标注轮；性能层读上下文通道的主分。数据层是唯一同时读两路输入的算子，它把标准化轮与点通道离群记录按同一设备键连接。五个模块都往监测主题写快照，所以一个主题有多个写入方。橙色虚线是命令回路，由 --adapt-enabled 打开，默认关闭。</figcaption>
+    </figure>
+  </section>
+
+  <!-- 图二 -->
+  <section>
+    <h2>图二　一条零级命令从决定到执行</h2>
+    <figure>
+      <div class="scroll">
+        <svg class="dg" viewBox="0 0 1100 430" role="img" aria-label="零级命令的时序：聚合 M7 在日界 t 判为漂移并写入命令主题；标准化算子收到后存入状态并登记定时器；到生效时刻 t 加 Δ，标准化算子用紧凑缓存最近 D 天重估参数并换版本号，新版本的第一条轮带着参照直方图与回填附件；点通道清空状态并回填，上下文通道只换版本号，数据层换参照并重置。">
+          <defs>
+            <marker id="f2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-ink" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="f2b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-amb" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <!-- 泳道 -->
+          <text class="t1" x="20" y="74">聚合 M7</text>
+          <text class="t1 mono" x="20" y="134" style="font-size:12px">synergia-adapt</text>
+          <text class="t1" x="20" y="194">标准化算子</text>
+          <text class="t1" x="20" y="254">点通道 pMCOD</text>
+          <text class="t1" x="20" y="314">上下文 M3</text>
+          <text class="t1" x="20" y="374">数据层 M5a</text>
+          <line class="lane" x1="160" y1="70" x2="1080" y2="70"/>
+          <line class="lane" x1="160" y1="130" x2="1080" y2="130"/>
+          <line class="lane" x1="160" y1="190" x2="1080" y2="190"/>
+          <line class="lane" x1="160" y1="250" x2="1080" y2="250"/>
+          <line class="lane" x1="160" y1="310" x2="1080" y2="310"/>
+          <line class="lane" x1="160" y1="370" x2="1080" y2="370"/>
+          <!-- 时刻 -->
+          <line class="tick" x1="300" y1="34" x2="300" y2="400"/>
+          <text class="lab" x="300" y="26" text-anchor="middle">日界 t（决定时刻）</text>
+          <line class="tick" x1="760" y1="34" x2="760" y2="400"/>
+          <text class="lab amb" x="760" y="26" text-anchor="middle">生效时刻 t + Δ（默认下一个当地日界）</text>
+          <text class="lab" x="530" y="418" text-anchor="middle">事件时间 →</text>
+
+          <!-- 缓存持续写入 -->
+          <text class="lab" x="168" y="184">紧凑缓存持续写入（七天，双精度）</text>
+
+          <!-- 决定与写入 -->
+          <circle class="dot" cx="300" cy="70" r="5"/>
+          <text x="312" y="60" style="font-size:11.5px">日节拍判为漂移，发零级命令（序号 n）</text>
+          <line class="ln" x1="304" y1="74" x2="356" y2="126" marker-end="url(#f2a)"/>
+          <text class="lab" x="340" y="104">写入命令主题</text>
+          <circle class="dot" cx="360" cy="130" r="4"/>
+          <line class="ln" x1="364" y1="134" x2="416" y2="186" marker-end="url(#f2a)"/>
+          <circle class="dot" cx="420" cy="190" r="4"/>
+          <text x="432" y="212" style="font-size:11.5px">收到命令：已过生效时刻即记为迟到（两种计数）；</text>
+          <text x="432" y="228" style="font-size:11.5px">否则存入状态并登记定时器（冻结前到期另计）</text>
+
+          <!-- 生效时刻的执行 -->
+          <circle class="dot-a" cx="760" cy="190" r="6"/>
+          <text x="772" y="156" style="font-size:11.5px">定时器或第一条不早于生效时刻的轮触发：用最近 D 天</text>
+          <text x="772" y="172" style="font-size:11.5px">重估中位数与四分位距（剔守卫轮），版本号 = 序号 + 1</text>
+          <line class="ln-a" x1="790" y1="196" x2="790" y2="366" marker-end="url(#f2b)" style="stroke-dasharray:none"/>
+          <text class="lab amb" x="798" y="226">新版本首轮带参照直方图；回填附件挂在首条无缺失轮</text>
+          <circle class="dot" cx="790" cy="250" r="4"/>
+          <text x="804" y="246" style="font-size:11.5px">版本变化：清空 MCOD 状态，</text>
+          <text x="804" y="262" style="font-size:11.5px">用附件回填一个窗长（回填点不发判定）</text>
+          <circle class="dot" cx="790" cy="310" r="4"/>
+          <text x="804" y="306" style="font-size:11.5px">模型与阈值不动，</text>
+          <text x="804" y="322" style="font-size:11.5px">评分输出带上新版本号</text>
+          <circle class="dot" cx="790" cy="370" r="4"/>
+          <text x="804" y="366" style="font-size:11.5px">换参照，清空状态转移与当日缓冲，</text>
+          <text x="804" y="382" style="font-size:11.5px">不发回落事件；日记录带版本号</text>
+
+          <!-- 冷却期 -->
+          <line class="ln" x1="760" y1="70" x2="1060" y2="70" style="stroke-width:3;stroke:var(--line-strong)"/>
+          <text class="lab" x="910" y="62" text-anchor="middle">冷却期一天；同一段偏离只发一次</text>
+        </svg>
+      </div>
+      <figcaption><b>执行锚定在生效事件时间上，所以两次运行逐位相同。</b>命令经 Kafka 回到上游的到达时刻不确定，但只要它在事件时间上早于生效时刻到达，执行就只取决于事件时间与缓存内容。只有标准化算子连接命令流；点通道是 Flink 窗口算子，不能连接第二路输入，所以版本号与回填附件都随标准化轮往下传（M6a 裁决第二项）。命令回路关闭时版本号字段为空、不写出，各主题输出与改动前逐字节相同。</figcaption>
+    </figure>
+  </section>
+
+  <!-- 图三 -->
+  <section>
+    <h2>图三　聚合决策的两档节拍</h2>
+    <figure>
+      <div class="scroll">
+        <svg class="dg" viewBox="0 0 1100 480" role="img" aria-label="聚合决策函数：左边是小时节拍，五个小时标志经机队计数判全局或局部，再按六级优先次序归因，产出告警；右边是日节拍，数据层与性能层状态经三条持续规则判时间形态，查决策矩阵，经冷却期与同一段偏离只发一次的约束后产出零级命令，并写日界复核日志；日节拍的漂移结论回馈给小时归因的第四级。">
+          <defs>
+            <marker id="f3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-ink" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="f3m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-mut" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <text class="t1" x="20" y="28">小时节拍（每个当地整点）</text>
+          <text class="t1" x="580" y="28">日节拍（每个当地日界）</text>
+          <line class="tick" x1="555" y1="14" x2="555" y2="470"/>
+
+          <!-- 小时：标志 -->
+          <rect class="box" x="20" y="44" width="250" height="150" rx="4"/>
+          <text class="t1" x="34" y="66">五个小时标志（每台）</text>
+          <text x="34" y="90">点通道离群率 &gt; p_point</text>
+          <text x="34" y="112">上下文超阈窗口 ≥ 6 个中的 3 个</text>
+          <text x="34" y="134">性能层：已确认、未回落</text>
+          <text x="34" y="156">数据层：前两个日界之一偏离</text>
+          <text x="34" y="178">爆发（按箱规则推出发出时刻）</text>
+          <line class="ln" x1="270" y1="118" x2="298" y2="118" marker-end="url(#f3a)"/>
+          <rect class="box" x="300" y="80" width="230" height="76" rx="4"/>
+          <text class="t1" x="415" y="102" text-anchor="middle">机队计数</text>
+          <text x="415" y="124" text-anchor="middle">在场设备 N，门槛 max(2, ⌈3N/4⌉)</text>
+          <text class="t2" x="415" y="144" text-anchor="middle">每类标志分别判全局或局部</text>
+          <line class="ln" x1="415" y1="156" x2="415" y2="200" marker-end="url(#f3a)"/>
+          <text class="lab" x="423" y="184">逐台归因，命中即停</text>
+
+          <!-- 小时：优先次序 -->
+          <rect class="box" x="20" y="214" width="160" height="40" rx="4"/>
+          <text x="100" y="239" text-anchor="middle">① 质量问题</text>
+          <line class="ln" x1="180" y1="234" x2="196" y2="234" marker-end="url(#f3a)"/>
+          <rect class="box" x="198" y="214" width="160" height="40" rx="4"/>
+          <text x="278" y="239" text-anchor="middle">② 现场条件</text>
+          <line class="ln" x1="358" y1="234" x2="374" y2="234" marker-end="url(#f3a)"/>
+          <rect class="box" x="376" y="214" width="160" height="40" rx="4"/>
+          <text x="456" y="239" text-anchor="middle">③ 分布切换</text>
+          <polyline class="ln" points="456,254 456,270 100,270 100,284" marker-end="url(#f3a)"/>
+          <text class="lab" x="278" y="265" text-anchor="middle">都未命中则继续</text>
+          <rect class="box" x="20" y="286" width="160" height="40" rx="4"/>
+          <text x="100" y="311" text-anchor="middle">④ 漂移</text>
+          <line class="ln" x1="180" y1="306" x2="196" y2="306" marker-end="url(#f3a)"/>
+          <rect class="box" x="198" y="286" width="160" height="40" rx="4"/>
+          <text x="278" y="311" text-anchor="middle">⑤ 瞬态事件 / 环境事件</text>
+          <line class="ln" x1="358" y1="306" x2="374" y2="306" marker-end="url(#f3a)"/>
+          <rect class="box" x="376" y="286" width="160" height="40" rx="4"/>
+          <text x="456" y="311" text-anchor="middle">⑥ 异常</text>
+          <line class="ln" x1="456" y1="326" x2="456" y2="386" marker-end="url(#f3a)"/>
+          <rect class="topic-p" x="330" y="388" width="200" height="34" rx="17"/>
+          <text x="430" y="410" text-anchor="middle">告警日志 → alerts</text>
+
+          <!-- 日 -->
+          <rect class="box" x="580" y="44" width="240" height="56" rx="4"/>
+          <text class="t1" x="700" y="66" text-anchor="middle">数据层日结论（按通道）</text>
+          <text class="t2" x="700" y="86" text-anchor="middle">只认与当前参数版本相同的结论（第二批补）</text>
+          <rect class="box" x="840" y="44" width="240" height="56" rx="4"/>
+          <text class="t1" x="960" y="66" text-anchor="middle">性能层状态</text>
+          <text class="t2" x="960" y="86" text-anchor="middle">已确认未回落（回落由本模块判定）</text>
+          <line class="ln" x1="700" y1="100" x2="760" y2="124" marker-end="url(#f3a)"/>
+          <line class="ln" x1="960" y1="100" x2="900" y2="124" marker-end="url(#f3a)"/>
+          <rect class="box" x="640" y="126" width="380" height="88" rx="4"/>
+          <text class="t1" x="830" y="148" text-anchor="middle">时间形态：任一条成立即为持续</text>
+          <text x="656" y="170">· 数据层连续两日偏离</text>
+          <text x="656" y="188">· 当日偏离且性能层同日已确认</text>
+          <text x="656" y="206">· 性能层确认跨过日界仍未回落</text>
+          <line class="ln" x1="830" y1="214" x2="830" y2="238" marker-end="url(#f3a)"/>
+          <rect class="box" x="640" y="240" width="380" height="50" rx="4"/>
+          <text class="t1" x="830" y="261" text-anchor="middle">决策矩阵</text>
+          <text class="t2" x="830" y="279" text-anchor="middle">哪一层报了 × 全局或局部 × 持续或瞬态</text>
+          <line class="ln" x1="830" y1="290" x2="830" y2="314" marker-end="url(#f3a)"/>
+          <rect class="box" x="640" y="316" width="380" height="50" rx="4"/>
+          <text class="t1" x="830" y="337" text-anchor="middle">发命令前的两道约束</text>
+          <text class="t2" x="830" y="355" text-anchor="middle">冷却期一天 · 同一段偏离只发一次</text>
+          <line class="ln" x1="830" y1="366" x2="830" y2="386" marker-end="url(#f3a)"/>
+          <rect class="topic-p" x="700" y="388" width="260" height="34" rx="17"/>
+          <text x="830" y="410" text-anchor="middle">零级命令（生效 = t + Δ）→ adapt</text>
+          <rect class="plan" x="1036" y="240" width="56" height="50" rx="4" style="stroke-dasharray:none;stroke:var(--line-strong)"/>
+          <text class="lab" x="1064" y="261" text-anchor="middle">日界</text>
+          <text class="lab" x="1064" y="277" text-anchor="middle">复核</text>
+          <line class="ln" x1="1020" y1="265" x2="1034" y2="265" marker-end="url(#f3a)"/>
+
+          <!-- 日结论回馈小时归因 -->
+          <polyline class="ln-p" points="640,265 570,265 570,456 100,456 100,328" marker-end="url(#f3m)"/>
+          <text class="lab" x="335" y="450" text-anchor="middle">日节拍判为「漂移」的设备，到触发信号回落之前，小时归因为 ④</text>
+        </svg>
+      </div>
+      <figcaption><b>告警每小时发，命令每天决定一次。</b>小时节拍只用整点时已知的信息，按六级优先次序给每台设备一个归因标签；日节拍等一个日界看偏离是否还在，把「长瞬态」与「永久漂移」的不可区分性换成一个可以离线复现的判据。日界复核把当日才知道的事（整日不可判、当日的进入偏离）补记在复核日志里，不改已发出的告警。爆发标志的取法与另外四处可执行定义已由 1.23 至 1.26 版裁决确定。「只认与当前参数版本相同的结论」一条尚未实现，按 1.29 版裁决在第二批开头补上。</figcaption>
+    </figure>
+  </section>
+
+  <!-- 图四 -->
+  <section>
+    <h2>图四　每个模块怎样证明离线与在线一致</h2>
+    <figure>
+      <div class="scroll">
+        <svg class="dg" viewBox="0 0 1000 250" role="img" aria-label="等值证明的结构：Python 参考实现与 Java 离线运行器由单元测试证明逐条相同；Java 离线运行器与 Flink 在线算子共用同一个核心类，由集群短重放证明逐行相同；打开与关闭新模块的两次在线运行证明上游输出逐位相同。">
+          <defs>
+            <marker id="f4a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-ink" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <rect class="box" x="30" y="40" width="230" height="64" rx="4"/>
+          <text class="t1" x="145" y="66" text-anchor="middle">Python 参考实现</text>
+          <text class="t2" x="145" y="86" text-anchor="middle">离线实验在全量数据上运行</text>
+          <rect class="box" x="385" y="40" width="230" height="64" rx="4"/>
+          <text class="t1" x="500" y="66" text-anchor="middle">Java 离线运行器</text>
+          <text class="t2" x="500" y="86" text-anchor="middle">读转储，写同格式日志</text>
+          <rect class="box" x="740" y="40" width="230" height="64" rx="4"/>
+          <text class="t1" x="855" y="66" text-anchor="middle">Flink 在线算子</text>
+          <text class="t2" x="855" y="86" text-anchor="middle">集群短重放 03-24 至 03-31</text>
+          <line class="ln" x1="262" y1="72" x2="383" y2="72" marker-start="url(#f4a)" marker-end="url(#f4a)"/>
+          <text class="lab" x="322" y="62" text-anchor="middle">单元测试：逐条相同</text>
+          <line class="ln" x1="617" y1="72" x2="738" y2="72" marker-start="url(#f4a)" marker-end="url(#f4a)"/>
+          <text class="lab" x="677" y="62" text-anchor="middle">短重放：逐行相同</text>
+          <polyline class="ln" points="430,104 430,124 925,124 925,104" style="stroke:var(--line-strong)"/>
+          <text class="t2" x="677" y="142" text-anchor="middle">共用同一个核心类（M5aCore、OptWinDetector，M7 为 FleetDecisionFunction）</text>
+          <rect class="box" x="385" y="170" width="585" height="50" rx="4"/>
+          <text class="t1" x="677" y="191" text-anchor="middle">打开与关闭新模块的两次在线运行</text>
+          <text class="t2" x="677" y="209" text-anchor="middle">评分、m1-out 与其他层的事件逐位相同，证明新模块没有改动上游</text>
+          <text class="lab" x="145" y="140" text-anchor="middle">跨语言比较：光照的连续统计量</text>
+          <text class="lab" x="145" y="156" text-anchor="middle">容差 1e-12，其余逐位（1.11 版）</text>
+        </svg>
+      </div>
+      <figcaption><b>同一套算法有三种跑法，两两对照。</b>Python 参考实现负责离线实验与判读；Java 离线运行器与在线算子共用同一个核心类，在线只多了状态与定时器。性能层、数据层、聚合决策与适应执行第一批都按这一结构收口；适应执行的离线一侧是模拟器 M6aSimulator 与离线运行器 M6aOfflineRunner。</figcaption>
+    </figure>
+  </section>
+
+  <!-- 图五 -->
+  <section>
+    <h2>图五　集群上的运行方式</h2>
+    <figure>
+      <div class="scroll">
+        <svg class="dg" viewBox="0 0 1000 240" role="img" aria-label="运行方式：本地 Mac 用一条命令把脚本复制到集群 master 并在 tmux 会话中启动编排；编排在 master 上无人值守地复位环境、提交作业、启动重放、收集与核对；结束后用 fetch 把结果拉回本地。">
+          <defs>
+            <marker id="f5a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-ink" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="f5m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-mut" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <rect class="box" x="20" y="60" width="200" height="100" rx="4"/>
+          <text class="t1" x="120" y="86" text-anchor="middle">本地 Mac</text>
+          <text class="t2" x="120" y="108" text-anchor="middle">仓库 · 构建 jar · 原始数据</text>
+          <text class="t2" x="120" y="128" text-anchor="middle">离线第一步（eda/*.py）</text>
+          <line class="ln" x1="220" y1="92" x2="318" y2="92" marker-end="url(#f5a)"/>
+          <text class="lab" x="269" y="84" text-anchor="middle">start</text>
+          <polyline class="ln-p" points="320,132 220,132" marker-end="url(#f5m)"/>
+          <text class="lab" x="269" y="148" text-anchor="middle">fetch</text>
+          <rect class="box" x="320" y="40" width="270" height="140" rx="4"/>
+          <text class="t1" x="455" y="64" text-anchor="middle">master：tmux 编排会话</text>
+          <text x="336" y="90">复位环境 → 提交作业 → 启动重放</text>
+          <text x="336" y="112">等待排空 → 收集主题转储</text>
+          <text x="336" y="134">离线运行器 → 核对 → 写报告</text>
+          <text class="t2" x="336" y="160">提交后 Mac 可以关机</text>
+          <line class="ln" x1="590" y1="110" x2="638" y2="110" marker-start="url(#f5a)" marker-end="url(#f5a)"/>
+          <rect class="job" x="640" y="20" width="340" height="190" rx="8"/>
+          <text class="lab" x="656" y="40">集群（三台机器）</text>
+          <rect class="box" x="656" y="54" width="148" height="44" rx="4"/>
+          <text x="730" y="81" text-anchor="middle">JobManager</text>
+          <rect class="box" x="816" y="54" width="148" height="44" rx="4"/>
+          <text x="890" y="81" text-anchor="middle">Kafka × 3</text>
+          <rect class="box" x="656" y="110" width="148" height="44" rx="4"/>
+          <text x="730" y="129" text-anchor="middle">TaskManager</text>
+          <text class="t2" x="730" y="146" text-anchor="middle">worker1</text>
+          <rect class="box" x="816" y="110" width="148" height="44" rx="4"/>
+          <text x="890" y="129" text-anchor="middle">TaskManager</text>
+          <text class="t2" x="890" y="146" text-anchor="middle">worker2</text>
+          <text class="lab" x="810" y="190" text-anchor="middle">其他项目的作业与主题同在集群上，编排不触碰</text>
+        </svg>
+      </div>
+      <figcaption><b>用户只在开头和结尾在场。</b>每个验收脚本都有 start、status、fetch、stop 四个子命令：start 把受版本管理的脚本复制到 master 并在 tmux 会话里启动编排，status 随时查看进度，fetch 把 <code>docs/</code> 下的结果拉回本地。原始数据只在本地 Mac 上，凡是要读原始数据的离线第一步都在 Mac 上运行。</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>模块与代码位置</h2>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>模块</th><th>代码位置</th><th>状态</th><th>它做什么</th></tr></thead>
+        <tbody>
+          <tr><td>M1 数据接入</td><td class="k">com.leejean.m1</td><td><span class="tag done">已收口</span> 本阶段调序</td><td>解析读数、装轮、守卫与冷启动、预热一周后冻结中位数与四分位距、冻结时建参照直方图。</td></tr>
+          <tr><td>M2 点异常检测</td><td class="k">com.leejean.m2</td><td><span class="tag done">已收口</span></td><td>入口三道闸之后，用 pMCOD 在一小时滑动窗上判离群点，附带输出给上下文通道的标注轮。</td></tr>
+          <tr><td>M3 上下文异常检测</td><td class="k">com.leejean.m3</td><td><span class="tag done">已收口</span></td><td>每台一个 LSTM 自编码器，训练在独立线程，每十分钟给出主分与是否超阈。</td></tr>
+          <tr><td>M5b 性能层漂移</td><td class="k">com.leejean.m5</td><td><span class="tag done">已收口</span></td><td>在主分序列上运行 OPTWIN 检测器，再经持续性核对分出候选、确认与撤销。</td></tr>
+          <tr><td>M5a 数据层漂移</td><td class="k">com.leejean.m5a</td><td><span class="tag done">已收口</span></td><td>每个当地日界对冻结参照做分布检验并按状态转移发事件；离群率每十分钟送入检测器，报警即爆发。</td></tr>
+          <tr><td>M6a 适应执行第一批</td><td class="k">com.leejean.m6，及 m1、m2、m3、m5a 内的改动</td><td><span class="tag done">已收口</span></td><td>命令回路、紧凑缓存、零级重估与版本号传递；点通道换版本时清空并回填，数据层换参照。</td></tr>
+          <tr><td>M7 聚合决策</td><td class="k">com.leejean.m7</td><td><span class="tag done">已收口</span></td><td>告警节拍给每台设备一个归因标签，决策节拍按决策矩阵发零级命令，日界复核补记当日才知道的事。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Kafka 主题：谁写，谁读</h2>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>主题</th><th>写入方</th><th>读取方</th></tr></thead>
+        <tbody>
+          <tr><td class="k">synergia-source</td><td>重放器（注入在写入前施加）</td><td>主作业</td></tr>
+          <tr><td class="k">synergia-m1-out</td><td>标准化算子（可选）</td><td>离线工具：M2Probe、M3Grid、M5aOfflineRunner</td></tr>
+          <tr><td class="k">synergia-scores</td><td>点通道（离群点）、上下文通道（评分）</td><td>离线核对；聚合决策（规划）</td></tr>
+          <tr><td class="k">synergia-monitoring</td><td>监测聚合、点通道、上下文通道、性能层、数据层（日记录）</td><td>运维查看与离线报告</td></tr>
+          <tr><td class="k">synergia-drift</td><td>性能层、数据层（以 layer 字段区分）</td><td>离线核对；聚合决策（规划）</td></tr>
+          <tr><td class="k">synergia-alerts</td><td>聚合决策（告警与复核）</td><td>运维</td></tr>
+          <tr><td class="k">synergia-adapt</td><td>聚合决策（命令）；验收时用手工工具 syn-adapt-send.sh</td><td>标准化算子（M6a）</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>依据：<code>src/main/java/com/leejean/m2/M2Job.java</code>（提交 <code>73acf7d</code>）、代码阅读指引 <code>docs/code_reading_guide_zh.md</code>、聚合模块与适应执行第一批的交接文档、裁决书与收口记录（1.28 版、1.34 版）。</footer>
+</div>

@@ -1,6 +1,6 @@
-# 代码阅读指引：物联网多通道异常检测（M1 / M2 / M3 / M5b / M5a）
+# 代码阅读指引：物联网多通道异常检测（M1 / M2 / M3 / M5b / M5a / M7 / M6a）
 
-版本：2026-10-08。作者：代码开发代理。每完成一个模块或一项较大改动，本文随之更新，改动记在文末「更新记录」。
+版本：2026-11-08（初版 2026-10-08）。作者：代码开发代理。每完成一个模块或一项较大改动，本文随之更新，改动记在文末「更新记录」。
 用途：在逐个阅读源码之前，先建立整体图景，知道每个文件做什么、关键代码在哪几行、为什么这样设计、读的时候该
 留意什么。本文只指路，不复述代码；行号以本文写作时为准，代码改动后可能前后偏移几行。
 
@@ -21,7 +21,7 @@
 **技术栈。** Java 11、Maven、Flink 1.13.6、Kafka 2.6.3、DL4J 1.0.0-M2.1（M3 的神经网络）。三台云主机：master 上是
 Kafka、ZooKeeper、Flink JobManager 与 Prometheus；两台 worker 上各一个 Flink TaskManager 与一个 Kafka 节点。
 
-**代码规模。** 主代码约 8,800 行、38 个类，分 4 个包；测试约 3,700 行、24 个测试类。另有约 40 个部署脚本与
+**代码规模。** 主代码约 15,700 行、69 个类，分 9 个包；测试约 7,000 行、39 个测试类（2026-11-08）。另有约 40 个部署脚本与
 十余个 Python 分析脚本。
 
 ---
@@ -34,25 +34,49 @@ Kafka、ZooKeeper、Flink JobManager 与 Prometheus；两台 worker 上各一个
   ▼
 Kafka: synergia-source（8 分区，一台设备一个分区）
   │
-  ▼  M2Job（一个 Flink 作业，内含 M1 + M2 + M3）
-  ├─ Kafka Source（事件时间 = 记录时间，55 秒有界乱序，空闲时限）
+  ▼  M2Job（一个 Flink 作业）
   ├─ RawLineParser ──keyBy──► RoundAssembler ──► AlignEventTime
-  ├─ ──keyBy──► RobustScaler ──keyBy──► RawCache                    ← M1 标准化流
-  │       ├──keyBy──► MonitoringAggregator ──► synergia-monitoring（M1 快照）
-  │       └──► synergia-m1-out（可选，供离线工具与核验）
-  ├─ M2Gate ──keyBy──► 滑动窗口(3600 s / 60 s, 允许迟到 0) ──► PmcodFunction   ← M2
-  │       ├──► synergia-scores（离群点名单，channel = m2_point）
-  │       ├─(侧)► synergia-monitoring（M2 三路信号）
-  │       ├─(侧，迟到数据)► LateDropCounter（只计数）
-  │       └─(侧)► AnnotatedRound ──keyBy──► M3Function                    ← M3
-  │                   ├──► synergia-scores（channel = m3_context）
-  │                   └─(侧)► synergia-monitoring（M3 重构误差）
-  ▼
-离线：syn-replay-verify.sh / M2Probe / M3Grid / Python 分析脚本读取上述主题的转储
+  ├─ ──keyBy──► RawCache（守卫、冷启动）──keyBy──► RobustScaler            ← M1 标准化流
+  │       （--adapt-enabled 时换成 AdaptiveScalerFunction，连接 synergia-adapt）  ← M6a
+  │       ├──► MonitoringAggregator ──► synergia-monitoring（M1 快照）
+  │       ├──► synergia-m1-out（可选）
+  │       └──► M5aFunction（与点通道离群记录连接）──► synergia-drift / monitoring   ← M5a
+  ├─ M2Gate ──keyBy──► 滑动窗口(3600 s / 60 s) ──► PmcodFunction              ← M2
+  │       ├──► synergia-scores（m2_point）、monitoring（M2 三路信号）
+  │       └─(侧)► AnnotatedRound ──► M3Operator(M3Function) ──► scores（m3_context）← M3
+  │                                       └──► M5bFunction ──► synergia-drift      ← M5b
+  └─ 六路输入合并 ──keyBy(0)──► M7DecisionOperator（并行度一）                     ← M7
+          ├──► synergia-alerts（告警与复核）
+          └─(侧)► synergia-adapt（零级命令）──► 回到 AdaptiveScalerFunction
 ```
 
-总装配在 `src/main/java/com/leejean/m2/M2Job.java:60` 的 `main` 里，按「M1 段（268 行起）→ 事件时间重对齐（274 行起）
-→ M2 段（326 行起）→ M3 段（359 行起）」的顺序读，就是上图从上到下的顺序。
+总装配在 `src/main/java/com/leejean/m2/M2Job.java` 的 `main` 里：M1 段与事件时间重对齐之后，原始缓存与标准化在 390 至 420 行
+（402 行起是命令回路打开时的分支），随后依次是点通道、数据层、上下文通道、性能层，聚合决策在 559 行起。四个新模块都有开关，
+默认关闭：`--m5b-enabled`、`--m5a-enabled`、`--m7-enabled`、`--adapt-enabled`。
+
+### 2.1 架构图
+
+下面五张图截自 `docs/figs/arch/pipeline-architecture.html`（同一份图的网页版，可在浏览器里打开，深色模式也可用）。
+
+**图一　主作业的算子拓扑与 Kafka 主题。** 一条标准化轮流分出四条检测与监测支路；橙色虚线是命令回路。
+
+![图一](figs/arch/fig1.png)
+
+**图二　一条零级命令从决定到执行。** 执行锚定在生效事件时间上，所以两次运行逐位相同。
+
+![图二](figs/arch/fig2.png)
+
+**图三　聚合决策的两档节拍。** 告警每个告警节拍发，命令每个决策节拍决定一次。
+
+![图三](figs/arch/fig3.png)
+
+**图四　每个模块怎样证明离线与在线一致。** Python 参考实现、Java 离线运行器、Flink 在线算子三种跑法两两对照。
+
+![图四](figs/arch/fig4.png)
+
+**图五　集群上的运行方式。** 验收脚本在 master 的 tmux 会话里无人值守地运行，用户只在开头和结尾在场。
+
+![图五](figs/arch/fig5.png)
 
 ---
 
@@ -124,6 +148,15 @@ Kafka: synergia-source（8 分区，一台设备一个分区）
 |  | `M5aCore`（317） | 一台设备的数据层全部状态与逻辑：日记录、质量门控、状态转移、离群率爆发；在线与离线共用 |
 |  | `M5aFunction`（126） | 数据层的 Flink 算子：标准化轮与点通道离群记录两路输入，日界与十分钟两种事件时间定时器 |
 |  | `M5aOfflineRunner`（221） | Java 离线运行器：在 `m1-out` 与 `scores` 转储上运行同一个核心；另有把在线转储转成同一格式的转换模式 |
+| `m7` | `FleetDecisionFunction`（811） | 聚合决策函数：告警节拍的归因、决策节拍的命令、日界复核；在线与离线共用（M7 阶段） |
+|  | `M7Input`（159）、`M7InputAssembler`（159） | 六路输入的统一记录；把输入累计成每个告警窗口的观测并在节拍时刻驱动决策函数 |
+|  | `M7DecisionOperator`（187） | 聚合决策的 Flink 算子：并行度一、事件时间定时器、告警写主输出、命令写侧输出 |
+|  | `M7OfflineRunner`（251）、`M7DumpRunner`（271） | 离线运行器（读离线输入表）与转储运行器（读集群主题转储，按到达时刻推进节拍） |
+| `m6` | `AdaptCommand`（60）、`Backfill`（32） | 零级命令与回填附件（M6a 阶段） |
+|  | `CompactCache`（171） | 标准化算子里的紧凑原始缓存：七天、双精度、自带只写已用行的序列化器 |
+|  | `M6aOfflineRunner`（196）、`M6aSimulator`（282） | 零级重估的离线运行器与闭环前的离线模拟器 |
+| `m1`（新增） | `AdaptiveScalerFunction`（285） | 命令回路打开时的标准化算子：包住 `RobustScalerFunction`，连接命令流，执行零级 |
+| `m3`（新增） | `M6aContextEval`（289） | 离线评估上下文通道在零级前后的主分分布（1.30 版裁决第四项） |
 
 ---
 
@@ -184,8 +217,9 @@ Kafka: synergia-source（8 分区，一台设备一个分区）
 - 留意：被删失的光照值不进标定统计；「相对退化防护」默认关闭（`--relative-guard`），代码保留。
 - 测试：`ChannelTransformTest`、`RelativeDegeneracyTest`、`M1PipelineTest`。
 
-**`RawCacheFunction`**：每设备缓存最近 1,000 轮原始值；设备缺席超过「1,000 × 10 秒」后返场即标记冷启动。注释里写明
-这是实现取舍。冷启动标记一路传到 M2，触发清空该设备的 MCOD 状态。
+**`RawCacheFunction`**：设备缺席超过「1,000 × 10 秒」后返场即标记冷启动，并承载重复值游程守卫。注释里写明这是实现取舍。
+冷启动标记一路传到 M2，触发清空该设备的 MCOD 状态。2026-10-28 起（适应执行第一批裁决第一项）它在作业中位于标准化算子之前，
+原来那个只写不读的一千轮环形缓冲已删除；真正被读取的紧凑缓存在命令回路打开时的标准化算子里（5.9 节）。
 
 **重复值游程守卫 `RepeatRunGuard`**（`m1/RepeatRunGuard.java`，开发决策第十条，2026-10-12 加入）
 
@@ -585,6 +619,88 @@ M3 的输出水位线保持（补遗四，把 M3 训练移出任务线程后的�
 
 ---
 
+### 5.8 M7：聚合决策（`m7` 包）
+
+**它在数据流里的位置。** 聚合决策读上游六路输出：标准化轮、点通道离群记录、上下文评分、性能层事件、数据层事件与日记录
+（`M2Job.java:559` 起）。六路各由一个映射函数（`M7DecisionOperator` 的内部类 `Rounds`、`Outliers`、`Contexts`、`Drifts`、`Records`）
+转成同一种记录 `M7Input`，合并后按常量键分组，进入并行度为一的 `M7DecisionOperator`。告警与复核写 `synergia-alerts`，命令写
+`synergia-adapt`。开关 `--m7-enabled` 默认关闭，并且要求同时打开上下文通道、性能层与数据层。
+
+**设计出发点。** 上游各层各自报信号，但「这台设备现在是什么情况、要不要响应」需要把所有信号放在一起看（聚合模块交接文档）。
+决策分两档节拍（图三）：告警节拍（默认每个当地整点）只用当时已知的信息，按六级优先次序给每台设备一个归因标签（质量问题、
+分布切换、漂移、现场条件、瞬态或环境事件、异常）；决策节拍（默认每个当地日界）看偏离是否持续，按决策矩阵决定是否发零级命令，
+并受冷却期一天与「同一段偏离只发一次」两道约束。日界复核把当日才知道的事补记在复核日志里，不改已发出的告警。
+
+**按调用顺序阅读。**
+
+1. `M7Input`：七种记录（轮、离群、上下文、性能、日记录、状态转移、爆发）共用一个类，字段按种类解释；工厂方法 `fromRound`、
+   `fromScore`、`fromCtx`、`fromDrift`、`fromRecord` 就是上游输出到决策输入的映射。
+2. `M7InputAssembler.accept`（59 行）：把每条输入累计到所在告警窗口的观测 `HourObs`（轮数、入口轮数、守卫轮数、按「设备 | 轮时刻」
+   去重的离群轮数、上下文超阈数与主分最大值、冻结之后的变换域读数和），事件与日记录直接转交决策函数；第一条带参照的轮设置冻结
+   时刻与参照的 P10、P90。
+3. `M7InputAssembler.tick`（132 行）：节拍时刻先做该窗口的告警节拍，再判断是否为决策节拍（`isCmdTick`，121 行）。
+4. `FleetDecisionFunction.alertTick`（313 行）：逐台算五个标志（点通道离群率、上下文超阈、性能层已确认未回落、数据层前两个日界之一
+   偏离、爆发），机队计数决定每类标志是全局还是局部（门槛 max(2, ⌈3N/4⌉)），再逐台归因，命中即停。
+5. `FleetDecisionFunction.cmdTick`（554 行）：判断时间形态（数据层连续两日偏离；当日偏离且性能层同日已确认；性能层确认持续满等待
+   时长），查决策矩阵，按「每个触发类各自开一段」的规则（`fallen`，740 行）决定是否发命令；命令的生效时刻默认为下一个日界。
+6. `M7DecisionOperator.onTimer`（72 行）：事件时间定时器在窗口末加一个滑动步（60 秒）之后触发，调用 `tick`，告警与复核写主输出、
+   命令写侧输出，日界时记一行耗时与状态大小的日志，再登记下一个定时器。
+
+**状态与检查点。** 一个分键状态，存整个 `M7InputAssembler`（含决策函数）。它用 Flink 的
+`org.apache.flink.api.java.typeutils.runtime.kryo.JavaSerializer`，按用户代码类加载器解析类；Kryo 自带的同名序列化器用系统类加载器，
+2026-11-01 第一次短重放因此从第一次检查点起无限重启（`M7StateClassLoaderTest` 钉住这一点）。短重放八天状态约 0.3 MB。
+
+**等值的保证方式。** `FleetDecisionFunction` 由在线算子、离线运行器与转储运行器共用。Python 参考实现 `m7/decide.py` 与 Java 离线运行器
+在 23 种配置上三份日志逐条相同（`m7/equality_configs.py`，结果 `docs/m7/equality.md`）；`M7InputAssemblerTest` 的全量回归证明输入整理器
+在离线输入上与默认运行逐条相同；集群短重放中在线算子与转储运行器三份日志逐条相同（V-M7-3）。
+
+**读的时候留意。** 时间一律按布里斯托当地时间理解（冬令时为世界协调时，03-27 起为世界协调时加一小时）。爆发的发出时刻不在漂移主题
+的载荷里，转储运行器按数据层的箱规则推出（`M7DumpRunner.burstEmission`）。决策函数「只引用与当前参数版本相同的日结论」一条尚未
+实现，按 1.29 版裁决在适应执行第二批开头补上。
+
+### 5.9 M6a：适应执行第一批（命令回路、参数版本、紧凑缓存、零级）
+
+**它在数据流里的位置。** 命令回路打开（`--adapt-enabled true`）时，`M2Job.java:402` 起的分支把标准化算子换成
+`AdaptiveScalerFunction`，按设备键连接命令主题 `synergia-adapt`；命令源并行度为一，水位线恒为最大值，不参与连接后算子的水位线。
+其余三个模块不连接命令流：版本号与回填附件随标准化轮往下传（点通道是窗口算子，不能连接第二路输入）。回路关闭时作业仍直接用
+`RobustScalerFunction`，所有主题的输出与改动前逐字节相同（版本号字段为空，不写进 JSON）。
+
+**设计出发点。** 零级只重估标准化统计量、不动模型（图二）。命令经 Kafka 回到上游的到达时刻不确定，所以执行锚定在生效事件时间上：
+零级由「生效时刻的事件时间定时器」与「第一条时间戳不早于生效时刻的轮」二者中先到的一个触发，两者看到的缓存都恰好是生效时刻之前
+的全部轮，执行结果与到达先后无关。
+
+**按调用顺序阅读。**
+
+1. `AdaptiveScalerFunction.processElement1`（92 行）：先执行已到期的命令，再把这一轮写进紧凑缓存，最后交给内部的
+   `RobustScalerFunction` 照常预热、冻结、标准化；输出时（`tag`，121 行）冻结之后的轮带版本号，回填附件挂在第一条五个通道都有读数的
+   新版本轮上（点通道入口会丢弃有缺失的轮）。
+2. `AdaptiveScalerFunction.processElement2`（139 行）：命令到达时，生效时刻不晚于水位线记为水位线迟到，已经处理过生效时刻之后的轮
+   记为已处理轮迟到，两种都不执行、分开计数（断言八取两者之和）；否则存入状态并登记定时器。
+3. `AdaptiveScalerFunction.level0`（231 行）：零级的纯函数。取缓存中 [生效 − D, 生效) 的轮，剔除守卫打标的轮，缺失与光照删失的读数
+   不计入，交给与冻结共用的 `RobustScalerFunction.calibrate`（246 行）重估中位数与分母并建参照直方图；再取 [生效 − 窗长, 生效) 内五个
+   通道都有读数的轮，用 `RobustScalerFunction.normalize`（278 行）按新参数标准化为回填附件。离线运行器直接调用这个函数。
+4. `RobustScalerFunction.install`（320 行）：写入新参数，下一条冻结轮带上新参照直方图（与冻结后第一条轮同一机制）；版本号为命令
+   序号加一。
+5. 点通道 `PmcodFunction.slide`（191 行）：滑动步内新到的点版本号与该台当前版本不同时，与冷启动同一处清空状态，用附件回填仍在窗口
+   内的旧点（`McodCore.backfill`，65 行，只建邻居关系），回填点的判定不发出；离群记录带版本号。
+6. 数据层 `M5aCore.onRound`（117 行起）：收到第二份参照时替换参照、清空状态转移与当日缓冲、不发回落事件；生效当日已有旧版本的轮时
+   该日记为「重估日」，不可判。上下文模块只把标注轮的版本号写到评分上，模型与阈值不动。
+
+**状态与检查点。** 紧凑缓存 `CompactCache`：每轮五个原始读数（双精度，提取统计表明单精度会改变重估结果）、时间戳与缺失、删失、
+守卫掩码，按时间保留七天，每台约 3.1 MB；自带 Kryo 序列化器，只写已用的行。短重放实测标准化算子检查点单子任务最大 3.16 MB、整次
+检查点 41 MB。另有待执行的命令列表、当前版本号、最后一轮时刻与待挂载的回填附件。
+
+**等值的保证方式。** 零级函数由在线算子、离线运行器 `M6aOfflineRunner` 与离线模拟器 `M6aSimulator` 共用；Python 参考实现
+`m6a/reestimate.py` 与 Java 在四个非光照通道逐位相同、光照最大差 8.9e-16（`m6a/compare.py`）。离线模拟器在不执行命令时与全量在线运行的
+点通道离群轮逐条相同；短重放中在线执行与离线模拟七项核对逐位或逐条相同（`m6a/compare_online.py`，`docs/m6a/verify/verify_report.md`）。
+
+**读的时候留意。** 生效时刻须为滑动步（60 秒）的整数倍（命令契约），手工工具 `deploy/scripts/syn-adapt-send.sh` 会拒绝不满足的值。
+离线提取的轮表 `docs/m6a/extract/` 按原始文本逐个用 `float` 解析，并按在线成轮器的规则成轮（只有质量通道读数的时间戳也是一轮），
+见 `docs/reports/m6a_extract_check.md`。离线模拟显示，零级之后上下文通道的超阈率明显上升（离线模拟报告第十一至十三节），理论线正在
+裁决上下文通道是否跟随零级（理论回传第二十七条）。
+
+---
+
 ## 六、离线工具（同一套算法，离线复用）
 
 | 工具 | 输入 | 做什么 | 为什么存在 |
@@ -595,6 +711,11 @@ M3 的输出水位线保持（补遗四，把 M3 训练移出任务线程后的�
 | `M3ClusterSmoke` | 无 | 在每个子任务内加载 DL4J 原生库、读堆外内存 | 证明原生库与堆外预算在真实容器内可用 |
 | `OptWinOfflineRunner` | `m5b/prepare_streams.py` 生成的元素流 | 逐台运行检测器与持续性核对，写事件清单 | M5b 离线实验；在线与离线等值核对的 Java 侧 |
 | `M5aOfflineRunner` | `m1-out` 与 `scores` 转储；或漂移、监测主题转储 | 逐台运行数据层核心，写事件与日记录两份 CSV；转换模式把在线输出转成同一格式 | V-M5a-3（短重放等值）的离线一侧与比较格式 |
+| `M7OfflineRunner` | `docs/m7/inputs` 离线输入表 | 在全量数据上运行聚合决策函数，写告警、命令、复核三份日志 | 与 Python 参考实现逐条比较（V-M7-1） |
+| `M7DumpRunner` | 集群主题转储 | 按到达时刻推进节拍，复现在线算子；转换模式把在线输出转成同一格式 | V-M7-3（短重放等值）的离线一侧 |
+| `M6aOfflineRunner` | `docs/m6a/extract` 轮表 | 复现冻结并执行一条零级，写新参数、参照直方图与回填附件 | 与 Python 参考实现逐位比较 |
+| `M6aSimulator` | 轮表 | 逐轮重演标准化、零级、点通道与数据层，有命令与无命令各一次 | 离线模拟报告（V-M6a-2）与短重放等值（V-M6a-3）的离线一侧 |
+| `M6aContextEval` | 轮表与零级参数 | 按全量运行口径训练上下文模型，给新旧标准化参数下的轮评分 | 判读口径第五条与两档补做（离线模拟报告第十一至十三节） |
 
 `M3Grid` 的类注释解释了离群标记为什么要从 `scores` 转储还原，以及「到达滑动步」的规范定义，读等值核验之前应先读它。
 
@@ -612,6 +733,12 @@ M3 的输出水位线保持（补遗四，把 M3 训练移出任务线程后的�
 | `ReplayVerifyTest` | 一份干净数据四条断言全过；逐一注入故障时各自报错 |
 | `M3StateMachineTest` | 状态机跃迁、设备隔离、检查点恢复后模型仍可用 |
 | `M3CoreTest`、`M3EvalBatchTest`、`M3TrainingTest` | 损失掩码、评分标定、序列化、批推理一致、早停记录、可中断 |
+| `FleetDecisionFunctionTest` | 聚合决策函数的归因、时间形态、按类结束的段、非默认时间参数（19 项） |
+| `M7InputAssemblerTest`、`M7DecisionOperatorTest` | 输入整理器的全量回归与爆发发出时刻；在线算子（含检查点恢复）与转储运行器逐条相同 |
+| `M7StateClassLoaderTest` | 状态经用户代码类加载器读回与复制（2026-11-01 无限重启的回归） |
+| `AdaptiveScalerFunctionTest` | 回路打开无命令时与关闭时只差版本号；定时器触发与轮触发逐位相同；两种迟到不执行；零级纯函数；紧凑缓存 |
+| `PmcodVersionSwitchTest`、`M5aReferenceReplaceTest` | 点通道换版本时清空并回填、回填点不发判定；数据层换参照、重估日、不发回落 |
+| `RawCacheOrderTest` | 原始缓存移到标准化之前，全部输出字段逐位相同 |
 | `M3GridTest` | 离线网格的口径与在线一致（含离群标记只取到达滑动步） |
 | `DL4JCompatSmokeTest` | DL4J 能在 Flink MiniCluster 内训练与推理 |
 | `DeviceKeysTest`、`DeviceKeysRuntimeTest` | 八台设备落八个子任务，计算与运行时一致 |
@@ -673,6 +800,10 @@ M3 的输出水位线保持（补遗四，把 M3 训练移出任务线程后的�
 | M5a D 零 | 温度 0.38、湿度 0.73、气压 0.84、气体 0.43、光照 0.51 | `M2Job.java:212` | 1.05 版冻结 |
 | M5a 质量门控 | 缺轮比例或守卫打标比例超过 0.2 即不可判 | `M2Job.java:217-218` | 离线操作口径第三节 |
 | M5a 离群率检测器 | 与 M5b 默认组合相同（0.99、0.5、窗上限 2,016），不经持续性核对 | `M2Job.java:219-221` | 1.09 版第一节 |
+| M7 节拍 | 告警节拍 3,600 秒；决策节拍一个当地日界；等待时长一个日界；生效提前量一天 | `--m7-alert-sec`、`--m7-cmd-sec`、`--m7-wait-sec`、`--m7-delta-sec`（`M7OfflineRunner.params`） | 1.24 版裁决 |
+| M7 归因门槛 | 共模比例 3/4（max(2, ⌈3N/4⌉)）、K_site 3、p_ctx 0.5、p_point 由标定周推出 | `--m7-common-ratio`、`--m7-k-site`、`--m7-p-ctx`、`--m7-p-point` | 聚合模块交接文档与 1.23 至 1.26 版裁决 |
+| M6a 命令回路 | 默认关闭；缓存深度 7 天；重估窗口 D 1 天；回填窗长等于点通道窗长 | `--adapt-enabled`、`--adapt-cache-days`、`--adapt-reestimate-days`（`M2Job.java:286`） | M6a 交接文档第四节；D 的取值见 1.30、1.31 版裁决 |
+| 失败重启次数 | 未给出时沿用 Flink 默认；重放一律显式设置有限次数（提交脚本默认补 3，等值验证用 0） | `--restart-attempts`、`syn-submit-m2.sh` | 1.28 版收口记录第三节 |
 
 ---
 
@@ -750,4 +881,5 @@ M3 的输出水位线保持（补遗四，把 M3 训练移出任务线程后的�
 | 2026-10-27 | M5a 收口（开发设计日志 1.13 版，`docs/handover/m5a_closeout_zh.md`），收口代码为提交 `fc5a60a`；运行手册 7.3 节注明冻结配置的出处。Java 代码没有改动 |
 | 2026-10-26 | 当日缓冲抽成 `DayBuffer`，序列化只写已用部分（M5a 阶段报告第九节第 1 条，设计会话选乙）；新增 `DayBufferTest` |
 | 2026-10-26 | `M5aCoreTest` 的容差按 1.11 版裁定收紧：只有光照的分位数、偏移、宽度倍数用 1e-12，显著性改为逐位；5.7 节同步 |
+| 2026-11-08 | 补入 M7 与 M6a：第二节数据流全景按现状重画，新增 2.1 节五张架构图（`docs/figs/arch/`）；第四节包与文件地图增加 `m7`、`m6` 与两个新增类；新增 5.8 节（聚合决策）、5.9 节（适应执行第一批）；第六、七节同步离线工具与测试 |
 | 2026-10-25 | M5a 在线实现：新增 `m5a` 包（参照直方图、日统计量、核心、在线算子、离线运行器）与 5.7 节；`RobustScalerFunction` 冻结时建参照直方图，`DeviceRound` 增加 `refHistograms`；`DriftEvent` 增加 `layer`、`channel` 与数据层字段，`MonitoringSnapshot` 增加日记录字段；`M2Job` 增加 `--m5a-*` 参数；第四、六至九节同步 |
