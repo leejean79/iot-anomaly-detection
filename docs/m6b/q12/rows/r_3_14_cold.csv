@@ -1,0 +1,2 @@
+device,seed,phase,n_days,start,score_version,train_windows,excluded,es_windows,th_windows,epochs,best_epoch,train_seconds,early_stop_loss,scorer_median,scorer_iqr,s1_windows,s1_above,s1_above_rate,s2_windows,s2_above,s2_above_rate,inj_segments,inj_detected,spike_detected,step_detected,inj_windows,inj_above,other_windows,other_above
+E,3,retrain,14,cold,3,831,6,239,838,64,44,885.097,0.03389976571261596,0.04697151322050131,0.07233449079742149,992,643,0.6481854838709677,697,601,0.8622668579626973,6,6,3,3,42,42,101,101
