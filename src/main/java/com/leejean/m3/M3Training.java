@@ -179,10 +179,30 @@ public final class M3Training {
                                boolean[][][] trainMasks,
                                double[][][] earlyStopWindows,
                                EpochListener listener) throws InterruptedException {
+        return train(cfg, null, trainWindows, trainMasks, earlyStopWindows, listener);
+    }
+
+    /**
+     * 热启动训练（M6b 决定十七的一级重训）：initModel 为 {@link LstmAutoEncoder#serializeModel} 的字节时，从这组权重出发训练，
+     * 优化器状态重新开始；为 null 时与冷启动相同。/ Warm-start training from the given weights (fresh optimizer); null = cold start.
+     */
+    public static Result train(Config cfg,
+                               byte[] initModel,
+                               double[][][] trainWindows,
+                               boolean[][][] trainMasks,
+                               double[][][] earlyStopWindows,
+                               EpochListener listener) throws InterruptedException {
         long t0 = System.currentTimeMillis();
         LstmAutoEncoder ae = new LstmAutoEncoder(
                 cfg.nFeatures, cfg.hiddenSize, cfg.windowLength, cfg.reverseTarget,
                 cfg.learningRate, cfg.gradClip, cfg.seed);
+        if (initModel != null) {
+            try {
+                ae.deserializeModel(initModel);
+            } catch (java.io.IOException | ClassNotFoundException e) {
+                throw new IllegalArgumentException("热启动权重无法读取 / unreadable warm-start weights", e);
+            }
+        }
         GradientNormRecorder recorder = cfg.recordGradientNorms ? ae.recordGradientNorms() : null;
 
         double prevLoss = Double.MAX_VALUE;

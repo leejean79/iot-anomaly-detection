@@ -69,6 +69,29 @@ class M3TrainingTest {
                 "中断后至多再跑完当前 epoch：中断时 " + epochAtInterrupt + "，结束时 " + lastEpoch.get());
     }
 
+    /**
+     * M6b 决定十七：一级重训从当前权重热启动。零轮的热启动应原样带回初始权重（重构逐位相同），零轮的冷启动则是新初始化的权重。
+     * Warm start (level 1): zero epochs from the given weights returns those weights; a cold start does not.
+     */
+    @Test
+    void warmStartBeginsFromTheGivenWeights() throws Exception {
+        M3Training.Result a = M3Training.train(config(5, 3), data(64, 1L), null, data(16, 2L), null);
+        byte[] w = a.model.serializeModel();
+        M3Training.Config zero = config(0, 3);
+        zero.seed = 99L;
+        M3Training.Result warm = M3Training.train(zero, w, data(64, 3L), null, data(16, 4L), null);
+        M3Training.Result cold = M3Training.train(zero, null, data(64, 3L), null, data(16, 4L), null);
+        double[][] x = data(1, 5L)[0];
+        assertArrayEquals(flat(a.model.reconstruct(x)), flat(warm.model.reconstruct(x)), 0.0, "热启动零轮应与初始权重相同");
+        assertFalse(java.util.Arrays.equals(flat(a.model.reconstruct(x)), flat(cold.model.reconstruct(x))), "冷启动是新的权重");
+        M3Training.Result warm1 = M3Training.train(config(1, 3), w, data(64, 3L), null, data(16, 4L), null);
+        assertEquals(1, warm1.epochs);
+    }
+
+    private static double[] flat(double[][] m) {
+        return java.util.Arrays.stream(m).flatMapToDouble(java.util.Arrays::stream).toArray();
+    }
+
     private static M3Training.Config config(int maxEpochs, int patience) {
         return new M3Training.Config(5, 8, 12, 16, maxEpochs, patience,
                 new double[]{1, 1, 1, 1, 1}, true, 0.001, 0.0);

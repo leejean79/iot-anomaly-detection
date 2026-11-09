@@ -43,7 +43,7 @@ import java.util.TreeMap;
  *       以及聚合模块的决策参数（与 M7OfflineRunner 相同的选项名）。</li>
  *   <li>前置条件：八台轮表已提取；E 的注入轮表已由 m6a/inject_rounds.py 生成；docs/m7/inputs 已由 m7/prepare_inputs.py 生成。</li>
  *   <li>期望产出：out-dir 下告警、命令、复核三份日志（格式同 M7OfflineRunner）；hours.csv（逐设备小时的离群轮数、入口点数与版本）、
- *       data_days.csv（逐日逐通道的数据层记录与版本）、bursts.csv、level0/（每条执行的命令一个 JSON，格式同 M6aOfflineRunner）；
+ *       data_days.csv（逐日逐通道的数据层记录与版本）、bursts.csv、outliers.csv（到达滑动步的离群轮）、level0/（每条执行的命令一个 JSON，格式同 M6aOfflineRunner）；
  *       终端打印三份日志的条数与每台执行的零级次数。</li>
  *   <li>失败兜底：缺输入时退出码 2；内存不足时加大 -Xmx。</li>
  * </ol>
@@ -216,6 +216,15 @@ public final class ChainDriver {
                             Long.toString(m.getM5aN()), Double.toString(m.getM5aD()), Double.toString(m.getM5aP()),
                             Double.toString(m.getM5aP10()), Double.toString(m.getM5aMedian()), Double.toString(m.getM5aP90()),
                             Double.toString(m.getM5aShift()), m.getVersion() == null ? "" : m.getVersion().toString()) + "\n");
+                }
+            }
+        }
+        // 到达滑动步的离群轮（上下文模块训练净化用，开放问题第十二条实验）/ arrival-slide outlier rounds, for training sanitization
+        try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(out.resolve("outliers.csv"), StandardCharsets.UTF_8))) {
+            w.print("device,round_ts\n");
+            for (ChainDeviceSim s : sims.values()) {
+                for (long id : s.outliers) {
+                    w.print(s.dev + "," + id + "\n");
                 }
             }
         }
