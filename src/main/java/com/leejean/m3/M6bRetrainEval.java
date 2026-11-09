@@ -46,7 +46,7 @@ import java.util.zip.GZIPInputStream;
  *       --outliers docs/m6b/chain/D7/outliers.csv、--inject docs/m3_a4/full_fix/inject-truth.csv、--at 2022-03-28、
  *       --stable-days 2022-03-29,2022-03-30,2022-04-17,2022-04-23,2022-04-24、--inject-day 2022-04-05，以及训练超参数（同 M6aContextEval）。</li>
  *   <li>前置条件：E 的注入轮表、链式实验乙档的零级 JSON 与离群轮表已生成；重训前须先跑同一种子的 init。</li>
- *   <li>期望产出：out 处一行表头加一行度量；init 另在 model-dir 写 init_&lt;种子&gt;.bin。终端逐轮打印训练进度。</li>
+ *   <li>期望产出：out 处一行表头加一行度量；init 另在 model-dir 写 init_&lt;种子&gt;.bin。终端逐轮打印训练进度。可选 --diag-out &lt;文件&gt; 另写逐通道诊断：标定段、两个平稳段口径与注入日的窗口数、超阈数与逐通道平均重构误差。</li>
  *   <li>失败兜底：训练三段不齐时退出码 2；重训找不到初始模型时退出码 3。</li>
  * </ol>
  */
@@ -245,13 +245,28 @@ public final class M6bRetrainEval {
 
         // ---- 评价 / evaluation
         Eval ev = new Eval(res.model, scorer, trainStd, tf, dev, window, pts);
+        StringBuilder diag = new StringBuilder("span,windows,above,mse_T,mse_H,mse_P,mse_G,mse_L\n");
+        double[] calChan = new double[N];
+        for (int k = 0; k < thW.size(); k++) {
+            double[] pc = ev.loss.compute(thW.get(k), res.model.reconstruct(thW.get(k)), thM.get(k), window).perChannelMse;
+            for (int c = 0; c < N; c++) {
+                calChan[c] += pc[c];
+            }
+        }
+        diagRow(diag, "calibration", thW.size(), -1, calChan);
         double[] s1 = ev.span(at, dayAfter(atDay, 7));
+        diagRow(diag, "s1", s1[0], s1[1], ev.chanSum);
         double[] s2 = new double[3];
+        double[] s2Chan = new double[N];
         for (String d : a.getOrDefault("stable-days", "2022-03-29,2022-03-30,2022-04-17,2022-04-23,2022-04-24").split(",")) {
             double[] x = ev.span(day(d), dayAfter(d, 1));
             s2[0] += x[0];
             s2[1] += x[1];
+            for (int c = 0; c < N; c++) {
+                s2Chan[c] += ev.chanSum[c];
+            }
         }
+        diagRow(diag, "s2", s2[0], s2[1], s2Chan);
         String injDay = a.getOrDefault("inject-day", "2022-04-05");
         List<long[]> segs = new ArrayList<>();
         List<String> types = new ArrayList<>();
@@ -267,6 +282,10 @@ public final class M6bRetrainEval {
             }
         }
         double[] inj = ev.recall(day(injDay), dayAfter(injDay, 1), segs, types);
+        diagRow(diag, "inject_day", inj[3] + inj[5], inj[4] + inj[6], ev.chanSum);
+        if (a.containsKey("diag-out")) {                       // 逐通道诊断（可选）/ optional per-channel diagnostic
+            Files.write(Paths.get(a.get("diag-out")), diag.toString().getBytes(StandardCharsets.UTF_8));
+        }
         File out = new File(a.get("out"));
         if (out.getParentFile() != null) {
             out.getParentFile().mkdirs();
@@ -285,6 +304,15 @@ public final class M6bRetrainEval {
         }
         System.out.printf("完成：耗时 %.0f 秒、%d 轮；平稳段一超阈率 %.4f；平稳段二超阈率 %.4f；注入段检出 %d/%d%n", res.seconds, res.epochs,
                 s1[1] / s1[0], s2[1] / s2[0], (int) inj[0], segs.size());
+    }
+
+    /** 诊断行：时段、窗口数、超阈数（标定段记 -1）、逐通道平均 MSE / diagnostic row with mean per-channel MSE. */
+    private static void diagRow(StringBuilder sb, String span, double n, double above, double[] chanSum) {
+        sb.append(span).append(',').append(i(n)).append(',').append(i(above));
+        for (double v : chanSum) {
+            sb.append(',').append(String.format("%.6g", v / n));
+        }
+        sb.append('\n');
     }
 
     private static String i(double v) {
@@ -307,6 +335,7 @@ public final class M6bRetrainEval {
         final int window;
         final List<Pt> pts;
         final WeightedMseLoss loss = new WeightedMseLoss(N, null);
+        double[] chanSum = new double[N];                     // 最近一次 windows() 的逐通道 MSE 之和（诊断用）/ per-channel MSE sum
 
         Eval(LstmAutoEncoder model, M3Scorer scorer, Std std, ChannelTransform[] tf, String dev, int window, List<Pt> pts) {
             this.model = model;
@@ -327,6 +356,7 @@ public final class M6bRetrainEval {
                 }
             }
             List<long[]> out = new ArrayList<>();
+            chanSum = new double[N];
             for (int k = 0; (k + 1) * window <= in.size(); k++) {
                 double[][] w = new double[window][];
                 boolean[][] m = new boolean[window][];
@@ -335,6 +365,9 @@ public final class M6bRetrainEval {
                     m[t] = in.get(k * window + t).mask;
                 }
                 WeightedMseLoss.LossResult r = loss.compute(w, model.reconstruct(w), m, window);
+                for (int c = 0; c < N; c++) {
+                    chanSum[c] += r.perChannelMse[c];
+                }
                 boolean above = scorer.score(r.wmse, r.perChannelMse).aboveThreshold;
                 out.add(new long[]{in.get(k * window).ts, in.get(k * window + window - 1).ts, above ? 1 : 0});
             }
