@@ -94,6 +94,8 @@ public class FleetDecisionFunction implements Serializable {
         public String ctxMax = "";            // 原样输出 / emitted verbatim
         public final int[] n = new int[ACTIVE.length];
         public final double[] sum = new double[ACTIVE.length];
+        // 该节拍内轮的参数版本号的最大值（M6b 决定十四；命令回路关闭时为一）/ max parameter version of the tick's rounds (1 when the loop is off)
+        public int version = 1;
     }
 
     /** 告警、命令、复核三种输出 / the three outputs. */
@@ -217,6 +219,8 @@ public class FleetDecisionFunction implements Serializable {
     private final Map<String, List<long[]>> bursts = new HashMap<>();              // {报警元素, 发出时刻}
     private final Map<String, String[]> dataDays = new HashMap<>();                // key dev|day|ch → {evaluable, deviated, transition}
     private final Map<String, Boolean> evaluable = new HashMap<>();
+    private final Map<String, Integer> dayVersion = new HashMap<>();               // dev|day → 日结论的参数版本 / version of the day's conclusions
+    private final Map<String, Integer> curVersion = new HashMap<>();               // dev → 当前参数版本 / current parameter version
     private final Map<String, double[]> refs = new HashMap<>();                    // dev|ch → {p10, p90}
     private final Map<String, String> freezeDay = new HashMap<>();
     private final Map<String, Set<String>> flagHist = new HashMap<>();             // dev|hod → days
@@ -267,12 +271,26 @@ public class FleetDecisionFunction implements Serializable {
     }
 
     public void addDataDay(String dev, String day, String ch, boolean ev, boolean deviated, String transition) {
+        addDataDay(dev, day, ch, ev, deviated, transition, 1);
+    }
+
+    /** 带参数版本号的数据层日结论（M6b 决定十四）/ a data-layer day conclusion with its parameter version. */
+    public void addDataDay(String dev, String day, String ch, boolean ev, boolean deviated, String transition, int version) {
         dataDays.put(dev + "|" + day + "|" + ch, new String[]{ev ? "1" : "0", deviated ? "1" : "0", transition});
         evaluable.put(dev + "|" + day, ev);
+        dayVersion.put(dev + "|" + day, version);
+    }
+
+    /**
+     * 该日的数据层结论是否与该台当前版本相同（M6b 决定十四）：不同版本的日结论一律视为不存在。
+     * Whether the day's data-layer conclusions carry the device's current version; others are treated as absent.
+     */
+    private boolean sameVersion(String dev, String day) {
+        return dayVersion.getOrDefault(dev + "|" + day, 1).intValue() == curVersion.getOrDefault(dev, 1).intValue();
     }
 
     private boolean dataDev(String dev, String day, String ch) {
-        if (!p.useData) {
+        if (!p.useData || !sameVersion(dev, day)) {
             return false;
         }
         String[] r = dataDays.get(dev + "|" + day + "|" + ch);
@@ -280,7 +298,7 @@ public class FleetDecisionFunction implements Serializable {
     }
 
     private String dataTrans(String dev, String day, String ch) {
-        if (!p.useData) {
+        if (!p.useData || !sameVersion(dev, day)) {
             return "";
         }
         String[] r = dataDays.get(dev + "|" + day + "|" + ch);
@@ -288,7 +306,29 @@ public class FleetDecisionFunction implements Serializable {
     }
 
     private boolean isEvaluable(String dev, String day) {
-        return evaluable.getOrDefault(dev + "|" + day, false);
+        return sameVersion(dev, day) && evaluable.getOrDefault(dev + "|" + day, false);
+    }
+
+    /**
+     * 该台的参数版本变化（零级执行，数据层状态随之清零）：数据层通道的「同一段偏离」与漂移状态随之结束，性能层的段不受影响
+     * （性能层的版本是训练版本，与零级无关）。/ A version change ends the data-channel episodes; the perf episode is unaffected.
+     */
+    private void onVersion(String dev, int v) {
+        curVersion.put(dev, v);
+        Book b = drift.get(dev);
+        if (b != null) {
+            b.triggers.removeIf(tr -> !"perf".equals(tr));
+            if (b.triggers.isEmpty()) {
+                drift.remove(dev);
+            }
+        }
+        Map<String, Integer> ep = episode.get(dev);
+        if (ep != null) {
+            ep.keySet().removeIf(tr -> !"perf".equals(tr));
+            if (ep.isEmpty()) {
+                episode.remove(dev);
+            }
+        }
     }
 
     // ================================================================ 小时节拍 / hourly tick
@@ -321,6 +361,9 @@ public class FleetDecisionFunction implements Serializable {
             HourObs r = obs.get(dev);
             if (r == null) {
                 continue;
+            }
+            if (r.version != curVersion.getOrDefault(dev, 1)) {
+                onVersion(dev, r.version);
             }
             Info x = new Info();
             x.bad = p.qualityBad(r.rounds, r.guardRounds);

@@ -14,6 +14,9 @@
 #      不在未结束段中的类才发命令；
 #   d. 复核只用发出时刻不晚于日节拍触发时刻（日界后六十秒）的爆发，与在线一致；
 #   e. 决策节拍短于一天时，日内节拍的在场设备按前一日的可判设备计（当日数据层结论要到日界才有）。
+#   f. （M6b 决定十四）数据层日结论按参数版本过滤：hours.csv 与 data_days.csv 可带 version 列（没有或为空时为一）；某台的当前版本
+#      取它最近一个有读数的小时的版本；与当前版本不同的日结论（偏离、转移、可判）一律视为不存在；版本变化时该台数据层通道的
+#      「同一段偏离」与漂移状态随之结束，性能层的段不受影响。
 #
 # ---------------------------- 脚本交付五要素 -------------------------------
 # 1. 执行环境 / Environment: 开发机或本地 Mac，仓库根目录，python3.9+（只用标准库）。
@@ -121,6 +124,12 @@ def read(path):
         return list(csv.DictReader(fh))
 
 
+def version_of(r):
+    """可选的 version 列，没有或为空时为一 / optional version column, 1 when absent or empty."""
+    v = r.get("version")
+    return int(v) if v else 1
+
+
 class Inputs:
     def __init__(self, d):
         self.hours = {}
@@ -137,8 +146,10 @@ class Inputs:
         for r in read(os.path.join(d, "data_days.csv")):
             self.days[(r["device"], r["day"], r["channel"])] = r
         self.evaluable = {}
+        self.day_version = {}
         for (dev, day, ch), r in self.days.items():
             self.evaluable[(dev, day)] = r["evaluable"] == "1"
+            self.day_version[(dev, day)] = version_of(r)
         self.bursts = collections.defaultdict(list)
         for r in read(os.path.join(d, "bursts.csv")):
             self.bursts[r["device"]].append((int(r["ts"]), int(r["emitted_at"])))
@@ -222,18 +233,38 @@ def run(inp, p):
     seq = collections.Counter()
     day_alerts = collections.defaultdict(list)
     freeze_day = {d: local_of(inp.freeze[d])[0] for d in devs if d in inp.freeze}
+    cur_version = {}                               # dev → 当前参数版本 / current parameter version
+
+    def same_version(dev, day):
+        return inp.day_version.get((dev, day), 1) == cur_version.get(dev, 1)
 
     def data_dev(dev, day, ch):
-        if "data" not in p.layers:
+        if "data" not in p.layers or not same_version(dev, day):
             return False
         r = inp.days.get((dev, day, ch))
         return r is not None and r["deviated"] == "1"
 
     def data_trans(dev, day, ch):
-        if "data" not in p.layers:
+        if "data" not in p.layers or not same_version(dev, day):
             return ""
         r = inp.days.get((dev, day, ch))
         return "" if r is None else r["transition"]
+
+    def is_ev(dev, day):
+        return same_version(dev, day) and inp.evaluable.get((dev, day), False)
+
+    def on_version(dev, v):
+        """版本变化：数据层通道的段与漂移状态结束，性能层的段不受影响 / end the data-channel episodes."""
+        cur_version[dev] = v
+        if dev in drift:
+            drift[dev]["triggers"] = [tr for tr in drift[dev]["triggers"] if tr == "perf"]
+            if not drift[dev]["triggers"]:
+                del drift[dev]
+        if dev in episode:
+            for tr in [tr for tr in episode[dev] if tr != "perf"]:
+                del episode[dev][tr]
+            if not episode[dev]:
+                del episode[dev]
 
     day = p.first_day
     while day <= p.last_day:
@@ -246,6 +277,8 @@ def run(inp, p):
                 r = inp.hours.get((dev, hs))
                 if r is None:
                     continue
+                if version_of(r) != cur_version.get(dev, 1):
+                    on_version(dev, version_of(r))
                 rounds, adm, guard = int(r["rounds"]), int(r["admitted"]), int(r["guard_rounds"])
                 bad = quality_bad(rounds, guard, p)
                 det = "detect" in p.layers
@@ -332,11 +365,11 @@ def run(inp, p):
                     flag_hist[(dev, hod)].add(day)
             # 日内决策节拍（τ_cmd 短于一天时）/ intra-day decision ticks
             if p.cmd_sec and he < local_day_start(next_day(day)) and (he - local_day_start(day)) % p.cmd_sec == 0:
-                daily_tick(day, he, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, data_trans,
+                daily_tick(day, he, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, is_ev,
                            boundary=False)
         # ---------------- 日节拍：日界 t = 次日零点 / daily tick at the boundary
         t = local_day_start(next_day(day))
-        daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, data_trans)
+        daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, is_ev)
         # ---------------- 日界复核 / daily review
         for dev in devs:
             if (dev, day) in inp.evaluable and not inp.evaluable[(dev, day)]:
@@ -371,14 +404,14 @@ def site_condition(dev, hod, day, x, flag_hist, base, inp, p, freeze_day):
     return False
 
 
-def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, data_trans,
+def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, is_ev,
                boundary=True):
     """时刻 t 的决策节拍；boundary 为真时是当地日 day 结束的日界节拍。数据层规则只在日界判定，性能层规则每个节拍判定。
     Decision tick at t; data rules only at the day boundary, the perf rule at every tick."""
     prev = add_days(day, -1)
     day_start = local_day_start(day)
     ev_day = day if boundary else prev
-    present = [d for d in devs if inp.evaluable.get((d, ev_day), False)]
+    present = [d for d in devs if is_ev(d, ev_day)]
     T = p.threshold(len(present))
     st = {}
     for dev in devs:
@@ -389,7 +422,7 @@ def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, 
         # W = one day boundary: the spell crossed local midnight; W < 1 day: the spell has lasted W without falling back
         perf_cross = pf.confirmed and pf.since is not None and (
             pf.since < day_start if p.wait_sec == 0 else t - pf.since >= p.wait_sec)
-        ev = boundary and inp.evaluable.get((dev, day), False)
+        ev = boundary and is_ev(dev, day)
         chans = {}
         for ch in CHANNELS:
             dd = boundary and data_dev(dev, day, ch)
@@ -406,7 +439,7 @@ def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, 
     def fallen(dev, trig):
         if trig == "perf":
             return not st[dev]["perf_at_t"]
-        return boundary and inp.evaluable.get((dev, day), False) and not data_dev(dev, day, trig)
+        return boundary and is_ev(dev, day) and not data_dev(dev, day, trig)
 
     for dev in devs:
         if dev in drift:

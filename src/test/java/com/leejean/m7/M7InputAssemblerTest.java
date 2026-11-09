@@ -226,4 +226,27 @@ class M7InputAssemblerTest {
         // 250 bursts in the injected pass since the 2026-11-07 baseline correction (was 247).
         assertEquals(250, n);
     }
+    @Test
+    @DisplayName("输入映射带参数版本号：轮、日记录与数据层转移读版本号，命令回路关闭（为空）时为一 / version mapping")
+    void versionMapping() {
+        com.leejean.m1.DeviceRound r = new com.leejean.m1.DeviceRound();
+        r.setDevice("G");
+        r.setTs(FIRST);
+        r.setX(new double[5]);
+        assertEquals(1, M7Input.fromRound(r).version, "回路关闭 / loop off");
+        r.setVersion(3);
+        assertEquals(3, M7Input.fromRound(r).version);
+        com.leejean.m1.MonitoringSnapshot s = new com.leejean.m1.MonitoringSnapshot();
+        s.setDevice("G");
+        s.setM5aDay("2022-03-28");
+        s.setM5aChannel("Gas");
+        assertEquals(1, M7Input.fromRecord(s).version);
+        s.setVersion(2);
+        assertEquals(2, M7Input.fromRecord(s).version);
+        com.leejean.m5.DriftEvent e = com.leejean.m5.DriftEvent.dataState("G", FIRST, com.leejean.m5.DriftEvent.Level.DEVIATE, "Gas",
+                "2022-03-28", 0.3, 0.001, 1.0, 1.0);
+        assertEquals(1, M7Input.fromDrift(e, FIRST).version);
+        e.version = 2;
+        assertEquals(2, M7Input.fromDrift(e, FIRST).version);
+    }
 }

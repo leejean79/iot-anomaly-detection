@@ -44,6 +44,7 @@ public class M7Input implements Serializable {
     public String s1;           // 性能层：级别；日记录与转移：当地日 / level; local day
     public String s2;           // 日记录与转移：通道 / channel
     public String s3;           // 转移：DEVIATE 或 RECOVER / transition
+    public int version = 1;     // 轮、日记录与转移：参数版本号，命令回路关闭时为一（M6b 决定十四）/ parameter version, 1 when the loop is off
 
     public M7Input() {
     }
@@ -59,6 +60,7 @@ public class M7Input implements Serializable {
     /** 标准化轮：入口与冻结的判据与离线提取（eda/m7_extract.py）相同 / a standardized round. */
     public static M7Input fromRound(DeviceRound r) {
         M7Input in = of(ROUND, r.getDevice(), r.getTs());
+        in.version = r.getVersion() == null ? 1 : r.getVersion();
         boolean[] missing = r.getMissingMask();
         boolean[] censored = r.getCensoredMask();
         boolean[] stuck = r.getStuckMask();
@@ -132,6 +134,7 @@ public class M7Input implements Serializable {
                 in.s1 = e.dataDay;
                 in.s2 = e.channel;
                 in.s3 = e.level.name();
+                in.version = e.version == null ? 1 : e.version;
                 return in;
             }
             case BURST: {
@@ -154,6 +157,7 @@ public class M7Input implements Serializable {
         in.s2 = s.getM5aChannel();
         in.flag1 = s.isM5aEvaluable();
         in.flag2 = s.isM5aDeviated();
+        in.version = s.getVersion() == null ? 1 : s.getVersion();
         return in;
     }
 }

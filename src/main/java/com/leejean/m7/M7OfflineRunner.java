@@ -130,7 +130,7 @@ public final class M7OfflineRunner {
         }
         for (Map<String, String> r : read(in.resolve("data_days.csv"))) {
             f.addDataDay(r.get("device"), r.get("day"), r.get("channel"), "1".equals(r.get("evaluable")),
-                    "1".equals(r.get("deviated")), r.get("transition"));
+                    "1".equals(r.get("deviated")), r.get("transition"), version(r));
         }
         for (String day = firstDay; day.compareTo(lastDay) <= 0; day = FleetDecisionFunction.addDays(day, 1)) {
             for (long hs : FleetDecisionFunction.localHours(day)) {
@@ -162,6 +162,7 @@ public final class M7OfflineRunner {
             o.outlierRounds = Integer.parseInt(r.get("outlier_rounds"));
             o.ctxAbove = Integer.parseInt(r.get("ctx_above"));
             o.ctxMax = r.get("ctx_max");
+            o.version = version(r);
             for (int k = 0; k < FleetDecisionFunction.ACTIVE.length; k++) {
                 o.n[k] = Integer.parseInt(r.get("n_" + FleetDecisionFunction.ACTIVE[k]));
                 o.sum[k] = Double.parseDouble(r.get("sum_" + FleetDecisionFunction.ACTIVE[k]));
@@ -196,6 +197,12 @@ public final class M7OfflineRunner {
         double x = rates.get(lo);
         double y = rates.get(hi);
         return g >= 0.5 ? y - (y - x) * (1 - g) : x + (y - x) * g;
+    }
+
+    /** 可选的 version 列（链式离线实验的输入才有；没有或为空时为一）/ optional version column, 1 when absent or empty. */
+    static int version(Map<String, String> r) {
+        String v = r.get("version");
+        return v == null || v.isEmpty() ? 1 : Integer.parseInt(v);
     }
 
     static List<Map<String, String>> read(Path path) throws IOException {

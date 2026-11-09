@@ -582,4 +582,54 @@ class FleetDecisionFunctionTest {
         assertEquals(FleetDecisionFunction.SITE, got.get("D 2022-03-13 12:00"));
         assertEquals(FleetDecisionFunction.SITE, got.get("D 2022-03-13 12:10"));
     }
+    // ---------------------------------------------------------------- 按版本过滤（M6b 决定十四）/ version filtering
+    /**
+     * A 的气体从 03-02 起每日偏离到 03-08；versioned 为真时 A 在 03-06 当地零点换到版本二（03-06 起的轮与日结论都是版本二），
+     * 否则全程版本一。/ A's gas deviates 03-02..03-08; when versioned, A switches to version 2 at local midnight of 03-06.
+     */
+    private static Run versionRun(boolean versioned) {
+        FleetDecisionFunction.Params p = params();
+        String switchDay = "2022-03-06";
+        return run(p, 9, f -> {
+            String day = FIRST;
+            for (int i = 0; i < 9; i++, day = FleetDecisionFunction.addDays(day, 1)) {
+                int v = versioned && day.compareTo(switchDay) >= 0 ? 2 : 1;
+                for (String d : DEVS) {
+                    for (String ch : FleetDecisionFunction.CHANNELS) {
+                        boolean dev = d.equals("A") && ch.equals("Gas") && day.compareTo("2022-03-02") >= 0
+                                && day.compareTo("2022-03-08") <= 0;
+                        f.addDataDay(d, day, ch, true, dev, "", d.equals("A") ? v : 1);
+                    }
+                }
+            }
+        }, (d, h, o) -> {
+            if (versioned && d.equals("A") && h.compareTo(switchDay) >= 0) {
+                o.version = 2;
+            }
+            return true;
+        });
+    }
+
+    @Test
+    @DisplayName("按版本过滤：跨版本的日结论被忽略，段在版本变化时结束，新版本上的持续偏离是新的一段 / cross-version conclusions ignored")
+    void versionFiltering() {
+        Run open = versionRun(false);
+        assertEquals(1, open.commands("A"), "全程一个版本：同一段偏离只发一次 / one version: once per episode");
+        assertEquals(FleetDecisionFunction.DRIFT, open.label("A", "2022-03-06 05"));
+
+        Run closed = versionRun(true);
+        List<FleetDecisionFunction.Command> a = new ArrayList<>();
+        closed.commands.stream().filter(c -> c.device.equals("A")).forEach(a::add);
+        assertEquals(2, a.size(), "版本变化后新的一段再发一条 / a new episode after the version change");
+        assertEquals("2022-03-03", a.get(0).day);
+        // 03-06 日界：03-05 是版本一的结论，被忽略，所以不构成连续两日；03-07 日界：03-06 与 03-07 都是版本二
+        assertEquals("2022-03-07", a.get(1).day, "跨版本的前一日不算连续 / the previous day of another version is ignored");
+        assertEquals("Gas", a.get(1).triggers);
+        assertEquals("Gas：连续两日偏离", a.get(1).forms);
+        assertEquals(1, a.get(1).episodeN, "段在版本变化时结束，新段从第一次计 / the episode restarts");
+        // 换版本当日的小时：漂移状态已随段结束，前两日（版本一）的偏离不再作为数据层标志 / no drift label, no data flag
+        assertEquals(null, closed.label("A", "2022-03-06 05"));
+        assertEquals(FleetDecisionFunction.TRANSIENT, closed.label("A", "2022-03-07 05"), "03-06（版本二）的偏离作为数据层标志");
+        assertEquals(FleetDecisionFunction.DRIFT, closed.label("A", "2022-03-08 05"));
+    }
 }

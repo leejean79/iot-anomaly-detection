@@ -70,6 +70,7 @@ public class M7InputAssembler implements Serializable {
                 o.rounds++;
                 o.admitted += in.flag2 ? 1 : 0;
                 o.guardRounds += in.flag1 ? 1 : 0;
+                o.version = Math.max(o.version, in.version);
                 for (int k = 0; k < in.tv.length; k++) {
                     if (!Double.isNaN(in.tv[k])) {
                         o.n[k]++;
@@ -100,13 +101,13 @@ public class M7InputAssembler implements Serializable {
                 String[] s = dataDays.computeIfAbsent(in.device + "|" + in.s1 + "|" + in.s2, k -> new String[]{"0", "0", ""});
                 s[0] = in.flag1 ? "1" : "0";
                 s[1] = in.flag2 ? "1" : "0";
-                f.addDataDay(in.device, in.s1, in.s2, in.flag1, in.flag2, s[2]);
+                f.addDataDay(in.device, in.s1, in.s2, in.flag1, in.flag2, s[2], in.version);
                 break;
             }
             case M7Input.TRANSITION: {
                 String[] s = dataDays.computeIfAbsent(in.device + "|" + in.s1 + "|" + in.s2, k -> new String[]{"0", "0", ""});
                 s[2] = in.s3;
-                f.addDataDay(in.device, in.s1, in.s2, "1".equals(s[0]), "1".equals(s[1]), s[2]);
+                f.addDataDay(in.device, in.s1, in.s2, "1".equals(s[0]), "1".equals(s[1]), s[2], in.version);
                 break;
             }
             case M7Input.BURST:
