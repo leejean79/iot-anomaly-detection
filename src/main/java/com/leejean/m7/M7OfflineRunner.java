@@ -205,7 +205,7 @@ public final class M7OfflineRunner {
         return v == null || v.isEmpty() ? 1 : Integer.parseInt(v);
     }
 
-    static List<Map<String, String>> read(Path path) throws IOException {
+    public static List<Map<String, String>> read(Path path) throws IOException {
         List<Map<String, String>> out = new ArrayList<>();
         try (BufferedReader br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             String[] head = br.readLine().split(",", -1);

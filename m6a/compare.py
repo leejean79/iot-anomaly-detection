@@ -50,11 +50,8 @@ class Cmp:
             self.num(x, y, light, "%s[%d]" % (where, i))
 
 
-def main() -> int:
-    if len(sys.argv) != 3 or not all(os.path.exists(p) for p in sys.argv[1:]):
-        print("用法：python3 m6a/compare.py <python.json> <java.json>", file=sys.stderr)
-        return 2
-    p, j = (json.load(open(f, encoding="utf-8")) for f in sys.argv[1:])
+def compare(p, j):
+    """逐值比较两份零级 JSON，返回 Cmp（diffs 为空即相同）/ compare two level-0 JSONs."""
     c = Cmp()
     for k in ("effectiveAt", "version", "freezeTs", "windowRounds", "guardExcluded"):
         c.num(p[k], j[k], False, k)
@@ -79,6 +76,15 @@ def main() -> int:
         for i, (a, b) in enumerate(zip(p["backfill"]["xNorm"], j["backfill"]["xNorm"])):
             for ch in range(5):
                 c.num(a[ch], b[ch], ch == LIGHT, "backfill.xNorm[%d][%d]" % (i, ch))
+    return c
+
+
+def main() -> int:
+    if len(sys.argv) != 3 or not all(os.path.exists(p) for p in sys.argv[1:]):
+        print("用法：python3 m6a/compare.py <python.json> <java.json>", file=sys.stderr)
+        return 2
+    p, j = (json.load(open(f, encoding="utf-8")) for f in sys.argv[1:])
+    c = compare(p, j)
     if c.diffs:
         print("有 %d 处不同（共比较 %d 个值），前 20 处：" % (len(c.diffs), c.n))
         for d in c.diffs[:20]:

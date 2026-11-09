@@ -15,7 +15,8 @@
 # 2. 调用命令 / Invocation:
 #      python3 m6a/reestimate.py --rounds docs/m6a/extract/rounds_G.csv.gz --device G --day 2022-03-25 --out docs/m6a/sim/G_py.json
 #    可选：--effective <秒>（代替 --day）、--seq 1、--reestimate-days 1、--backfill-sec 3600、--warmup-rounds 60480、
-#    --iqr-epsilon 1e-9、--start <秒>（轮表从此刻起算，短重放取区间起点）。
+#    --iqr-epsilon 1e-9、--start <秒>（轮表从此刻起算，短重放取区间起点）、--position-only（只重估位置：中位数取重估值，
+#    分母与旁路沿用冻结，M6b 链式离线实验的丙档）。
 # 3. 前置条件 / Preconditions: 轮表已由 eda/m6a_extract.py 生成。
 # 4. 期望产出 / Expected output: out 处的 JSON（冻结参数、新参数、重估窗口轮数与剔除数、参照直方图、回填附件）；终端打印新旧参数。
 # 5. 失败兜底 / Failure fallback: 轮表不足以冻结或生效时刻早于冻结时退出码 2。
@@ -171,6 +172,7 @@ def main() -> int:
     ap.add_argument("--warmup-rounds", type=int, default=60480)
     ap.add_argument("--iqr-epsilon", type=float, default=1e-9)
     ap.add_argument("--start", type=int)
+    ap.add_argument("--position-only", action="store_true")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     eff = a.effective if a.effective is not None else int(datetime.strptime(a.day, "%Y-%m-%d").replace(tzinfo=ZONE).timestamp())
@@ -183,6 +185,10 @@ def main() -> int:
         print("ERROR: 生效时刻 %d 不晚于冻结时刻 %d" % (eff, t_freeze), file=sys.stderr)
         return 2
     cal, window, guard, bf = level0([r for r in rows if r[0] < eff], eff, a.reestimate_days * 86400, a.backfill_sec, a.iqr_epsilon)
+    if a.position_only:
+        # 只重估位置（M6b 决定十五丙档）：中位数取重估值，分母与旁路沿用冻结，回填按换上的参数重新标准化
+        cal = dict(cal, scale=list(frz["scale"]), bypass=list(frz["bypass"]))
+        bf = [(t, normalize(x, cal)) for t, x, _ in rows if eff - a.backfill_sec <= t < eff and all(v is not None for v in x)]
     res = dict(device=a.device, effectiveAt=eff, seq=a.seq, version=a.seq + 1, freezeTs=t_freeze,
                reestimateSec=a.reestimate_days * 86400, backfillSec=a.backfill_sec, windowRounds=window, guardExcluded=guard,
                freeze=dict(median=frz["median"], scale=frz["scale"], bypass=frz["bypass"]),
