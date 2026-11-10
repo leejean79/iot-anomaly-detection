@@ -28,6 +28,9 @@ public class M3ScoreRecord implements Serializable {
 
     // 参数版本号（M6a）：命令回路关闭时为空且不写进 JSON / parameter version (M6a), null and omitted when the loop is off
     private Integer version;
+    // 模型代数（M6b）：每次一级切换或二级重训完成加一；此前为空且不写进 JSON，性能层据它清空该台历史
+    // Model generation (M6b): +1 at each level-1 switch or level-2 completion; null and omitted before the first.
+    private Integer model;
 
     public M3ScoreRecord() {
         this.channel = "m3_context";   // 无参构造也固定通道标识 / no-arg ctor still sets the channel tag
@@ -85,5 +88,14 @@ public class M3ScoreRecord implements Serializable {
 
     public void setVersion(Integer version) {
         this.version = version;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Integer getModel() {
+        return model;
+    }
+
+    public void setModel(Integer model) {
+        this.model = model;
     }
 }

@@ -80,6 +80,11 @@ public class M2Gate extends ProcessFunction<DeviceRound, DevicePoint> {
         DevicePoint dp = new DevicePoint(round.getDevice(), p, censored);
         dp.setVersion(round.getVersion());        // 参数版本号与回填附件随点下发（M6a）/ version and backfill travel on the point
         dp.setBackfill(round.getBackfill());
+        if (round.getVersion() != null) {         // 回路打开：原始值与参数集附件随点下发（M6b 选项一）/ loop on: raw + params
+            dp.setRaw(round.getX().clone());
+            dp.setParamSet(round.getParamSet());
+            dp.setContextCommand(round.getContextCommand());
+        }
         out.collect(dp);
     }
 

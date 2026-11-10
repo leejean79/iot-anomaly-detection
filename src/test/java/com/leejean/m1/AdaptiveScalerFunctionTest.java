@@ -148,15 +148,30 @@ class AdaptiveScalerFunctionTest {
             on = outputs(h);
         }
         assertEquals(off.size(), on.size());
+        int paramRound = -1;
         for (int i = 0; i < off.size(); i++) {
             DeviceRound a = off.get(i);
             DeviceRound b = on.get(i);
             assertNull(a.getVersion());
             assertEquals(a.isWarmup() ? null : Integer.valueOf(1), b.getVersion(), "round " + i);
             assertNull(b.getBackfill());
+            // 冻结参数集（版本一）附在第一条点通道会接纳的冻结轮上（M6b 选项一）/ the freeze parameter set, once
+            if (b.getParamSet() != null) {
+                assertTrue(paramRound < 0, "参数集只附一次 / attached once");
+                paramRound = i;
+                assertEquals(1, b.getParamSet().version);
+                assertEquals(0, b.missingCount());
+                assertArrayEquals(RobustScalerFunction.normalize(b.getX(), b.getMissingMask(), b.getParamSet().median,
+                        b.getParamSet().scale, b.getParamSet().bypass, ChannelTransform.defaultTable()), b.getXNorm(), 0.0);
+                b.setParamSet(null);
+            }
             b.setVersion(null);
             assertEquals(json(a), json(b), "round " + i);
-            assertTrue(!json(a).contains("version") && !json(a).contains("backfill"));
+            assertTrue(!json(a).contains("version") && !json(a).contains("backfill") && !json(a).contains("paramSet"));
+        }
+        assertTrue(paramRound >= 0, "冻结之后应附版本一的参数集 / the version-1 parameter set must be attached");
+        for (int i = 0; i < paramRound; i++) {
+            assertTrue(on.get(i).isWarmup() || on.get(i).missingCount() > 0, "附在第一条无缺失的冻结轮上 / first admitted frozen round");
         }
     }
 
@@ -230,6 +245,51 @@ class AdaptiveScalerFunctionTest {
         assertArrayEquals(expect, after.getXNorm(), 0.0);
         assertEquals(10, l0.guardExcluded, "重估窗口含守卫游程的后十轮 / the window holds the last ten guard rounds");
         assertArrayEquals(l0.backfill.ts, ts);
+        // 版本二的参数集与回填附件挂在同一条轮上，等于零级纯函数的新参数（M6b 选项一）/ the version-2 parameter set
+        assertEquals(2, bfRound.getParamSet().version);
+        assertArrayEquals(l0.cal.median, bfRound.getParamSet().median, 0.0);
+        assertArrayEquals(l0.cal.scale, bfRound.getParamSet().scale, 0.0);
+        for (int i = 0; i < a.size(); i++) {
+            assertTrue(a.get(i).getParamSet() == null || i == firstBackfill || a.get(i).getParamSet().version == 1);
+        }
+    }
+
+    @Test
+    @DisplayName("一级与二级命令：数据接入不重估、版本不变，只把命令附在生效后第一条点通道会接纳的轮上转发 / levels 1 and 2 are forwarded")
+    void levelOneAndTwoAreForwarded() throws Exception {
+        List<DeviceRound> plain;
+        try (KeyedTwoInputStreamOperatorTestHarness<String, DeviceRound, AdaptCommand, DeviceRound> h = harness(adaptive())) {
+            feed(h, rounds());
+            plain = outputs(h);
+        }
+        long eff = T0 + 10L * 1000;
+        for (int level = 1; level <= 2; level++) {
+            AdaptCommand cmd = command(eff, 1);
+            cmd.level = level;
+            List<DeviceRound> fwd;
+            try (KeyedTwoInputStreamOperatorTestHarness<String, DeviceRound, AdaptCommand, DeviceRound> h = harness(adaptive())) {
+                h.processElement2(new StreamRecord<>(cmd));
+                feed(h, rounds());
+                fwd = outputs(h);
+            }
+            assertEquals(plain.size(), fwd.size());
+            int carrier = -1;
+            for (int i = 0; i < fwd.size(); i++) {
+                DeviceRound r = fwd.get(i);
+                if (r.getContextCommand() != null) {
+                    assertTrue(carrier < 0, "只转发一次 / forwarded once");
+                    carrier = i;
+                    assertEquals(level, r.getContextCommand().level);
+                    assertTrue(r.getTs() >= eff && r.missingCount() == 0);
+                    r.setContextCommand(null);
+                }
+                assertEquals(json(plain.get(i)), json(r), "除转发的命令外逐字节相同，版本号不变 / round " + i);
+            }
+            assertTrue(carrier >= 0);
+            for (int i = 0; i < carrier; i++) {
+                assertTrue(fwd.get(i).getTs() < eff || fwd.get(i).missingCount() > 0, "第一条生效后的入口轮 / first admitted round");
+            }
+        }
     }
 
     @Test

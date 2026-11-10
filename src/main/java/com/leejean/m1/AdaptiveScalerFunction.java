@@ -50,11 +50,15 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
     private transient ValueState<Integer> version;
     private transient ValueState<Long> lastRoundTs;
     private transient ValueState<Backfill> pendingBackfill;
+    private transient ValueState<com.leejean.m6.ParamSet> pendingParams;   // 待附的参数集（M6b 选项一）/ parameter set to attach
     private transient Counter lateWatermark;
     private transient Counter lateProcessed;
     private transient Counter preFreeze;
     private transient Counter executed;
     private transient Counter ignored;
+    private transient Counter forwarded;
+    // 待转发给上下文模块的一级或二级命令（M6b 第五节）：附在下一条点通道会接纳的轮上 / level-1/2 command to forward
+    private transient ValueState<AdaptCommand> pendingContext;
 
     /**
      * @param inner         原来的标准化函数（参数与关闭时相同）/ the unchanged scaler
@@ -81,11 +85,16 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
         version = getRuntimeContext().getState(new ValueStateDescriptor<>("m6-version", Types.INT));
         lastRoundTs = getRuntimeContext().getState(new ValueStateDescriptor<>("m6-last-round-ts", Types.LONG));
         pendingBackfill = getRuntimeContext().getState(new ValueStateDescriptor<>("m6-backfill", TypeInformation.of(Backfill.class)));
+        pendingParams = getRuntimeContext().getState(new ValueStateDescriptor<>("m6-params",
+                TypeInformation.of(com.leejean.m6.ParamSet.class)));
         lateWatermark = getRuntimeContext().getMetricGroup().counter("m6_late_watermark");
         lateProcessed = getRuntimeContext().getMetricGroup().counter("m6_late_processed");
         preFreeze = getRuntimeContext().getMetricGroup().counter("m6_prefreeze_commands");
         executed = getRuntimeContext().getMetricGroup().counter("m6_executed_commands");
         ignored = getRuntimeContext().getMetricGroup().counter("m6_ignored_commands");
+        forwarded = getRuntimeContext().getMetricGroup().counter("m6_forwarded_commands");
+        pendingContext = getRuntimeContext().getState(new ValueStateDescriptor<>("m6-context-cmd",
+                TypeInformation.of(AdaptCommand.class)));
     }
 
     @Override
@@ -126,12 +135,26 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
         if (v == null) {
             v = 1;
             version.update(v);
+            // 冻结参数集（版本一）待附 / the freeze parameter set (version 1) waits for an admitted round
+            RobustScalerFunction.Calibration cur = inner.current();
+            pendingParams.update(new com.leejean.m6.ParamSet(1, cur.median, cur.scale, cur.bypass));
         }
         r.setVersion(v);
         Backfill bf = pendingBackfill.value();
         if (bf != null && r.missingCount() == 0) {
             r.setBackfill(bf);
             pendingBackfill.clear();
+        }
+        // 参数集附在该版本第一条点通道会接纳的轮上（M6b 选项一，与回填同一机制）/ parameter set on the first admitted round
+        com.leejean.m6.ParamSet ps = pendingParams.value();
+        if (ps != null && r.missingCount() == 0) {
+            r.setParamSet(ps);
+            pendingParams.clear();
+        }
+        AdaptCommand cc = pendingContext.value();
+        if (cc != null && r.missingCount() == 0) {     // 一级与二级命令随入口轮转发（M6b）/ forward levels 1 and 2
+            r.setContextCommand(cc);
+            pendingContext.clear();
         }
     }
 
@@ -140,9 +163,9 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
         long wm = ctx.timerService().currentWatermark();
         Long last = lastRoundTs.value();
         long wmSec = Math.floorDiv(wm, 1000L);
-        if (cmd.level != 0) {
+        if (cmd.level < 0 || cmd.level > 2) {
             ignored.inc();
-            LOG.info("[M6a] Command ignored (level {} not in batch 1): device {} seq {} effective {} arrival watermark {}; {}",
+            LOG.info("[M6a] Command ignored (unknown level {}): device {} seq {} effective {} arrival watermark {}; {}",
                     cmd.level, cmd.device, cmd.seq, cmd.effectiveAt, wmSec, cmd.raw);
             return;
         }
@@ -194,6 +217,20 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
                     cmd.effectiveAt);
             return;
         }
+        if (cmd.level != 0) {
+            // 一级与二级：数据接入不重估参数、版本号不变，只把命令转发给上下文模块（附在下一条点通道会接纳的轮上，与零级回填
+            // 同一机制）。/ Levels 1 and 2: no re-estimation, version unchanged; forward to the context module.
+            AdaptCommand prev = pendingContext.value();
+            if (prev != null) {
+                LOG.warn("[M6a] Level {} command seq {} replaces the not-yet-forwarded level {} command seq {} (device {})",
+                        cmd.level, cmd.seq, prev.level, prev.seq, device);
+            }
+            pendingContext.update(cmd);
+            forwarded.inc();
+            LOG.info("[M6a] Level {} forwarded to the context module: device {} seq {} effective {} trigger {} version {} "
+                    + "unchanged; {}", cmd.level, device, cmd.seq, cmd.effectiveAt, trigger, version.value(), cmd.raw);
+            return;
+        }
         long t0 = System.nanoTime();
         CompactCache c = cache.value();
         Level0 r = level0(c, cmd.effectiveAt, reestimateSec, backfillSec, inner.epsilon(), inner.relativeGuardEnabled(),
@@ -205,6 +242,7 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
         int newVersion = cmd.seq + 1;
         version.update(newVersion);
         pendingBackfill.update(r.backfill);
+        pendingParams.update(new com.leejean.m6.ParamSet(newVersion, r.cal.median, r.cal.scale, r.cal.bypass));
         executed.inc();
         LOG.info("[M6a] Level 0 executed: device {} seq {} effective {} trigger {} version {} -> {}; window {} rounds, {} guard-excluded; "
                         + "backfill {} rounds; reestimate {} us, total {} us; cache {} rows {} bytes; old median {} scale {}; "

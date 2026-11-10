@@ -69,6 +69,10 @@ public class DeviceRound implements Serializable {
     // Parameter version and level-0 backfill (M6a); null and omitted from JSON when the command loop is off.
     private Integer version;
     private com.leejean.m6.Backfill backfill;
+    // 参数集附件（M6b 选项一）：冻结与每次零级之后，只在该版本第一条点通道会接纳的轮上非空 / parameter-set attachment
+    private com.leejean.m6.ParamSet paramSet;
+    // 转发给上下文模块的一级或二级命令（M6b 第五节），只在一条入口轮上非空 / forwarded level-1/2 command
+    private com.leejean.m6.AdaptCommand contextCommand;
 
     /** Jackson 反序列化需要无参构造 / No-arg constructor required by Jackson + Flink POJO. */
     public DeviceRound() {
@@ -162,6 +166,18 @@ public class DeviceRound implements Serializable {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public com.leejean.m6.Backfill getBackfill() { return backfill; }
     public void setBackfill(com.leejean.m6.Backfill backfill) { this.backfill = backfill; }
+
+    /** 参数集附件（M6b 选项一），只在每个版本第一条点通道会接纳的轮上非空 / the parameter set, on one round per version. */
+    @JsonProperty
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public com.leejean.m6.ParamSet getParamSet() { return paramSet; }
+    public void setParamSet(com.leejean.m6.ParamSet paramSet) { this.paramSet = paramSet; }
+
+    /** 转发给上下文模块的一级或二级命令（M6b），只在一条入口轮上非空 / forwarded level-1/2 command, on one round. */
+    @JsonProperty
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public com.leejean.m6.AdaptCommand getContextCommand() { return contextCommand; }
+    public void setContextCommand(com.leejean.m6.AdaptCommand contextCommand) { this.contextCommand = contextCommand; }
 
     @JsonProperty
     public boolean isWarmup() { return warmup; }

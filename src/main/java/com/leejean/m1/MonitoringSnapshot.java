@@ -56,6 +56,12 @@ public class MonitoringSnapshot implements Serializable {
     private double[] m3PerChannelErrors; // 每通道 MSE [5] / per-channel MSE
     private int m3Phase;                 // 上下文通道相位（0 收集、1 训练、3 在线；补遗四）/ M3 phase
     private long m3BufferRounds;         // 上下文通道训练缓冲占用（轮；补遗四）/ M3 training-buffer occupancy
+    // 影子评分（M6b 决定十三，只在全量重放打开；关闭时为空且不写进 JSON）：同一模型按当前版本的标准化再评分一次，只记录。
+    // Shadow scoring (decision 13; null and omitted when off): the same model scored on current-version standardization.
+    private Boolean m3Above;             // 正式评分是否超阈（按训练版本）/ formal score above threshold
+    private Boolean m3ShadowAbove;       // 影子评分是否超阈（按当前版本）/ shadow score above threshold
+    private Double m3ShadowWmse;         // 影子评分的窗口加权 MSE / shadow window weighted MSE
+    private Boolean m3Retraining;        // 二级重训中（回到收集态；M6b 第五节）/ level-2 retraining (collecting again)
 
     // ---- M5b 追加字段（M5b 交接文档决定四；windowEnd = -2 的快照才有意义）/ M5b fields (snapshots with windowEnd = -2) ----
     private int m5bWindowLen;            // 检测器当前窗长 / detector window length
@@ -203,6 +209,26 @@ public class MonitoringSnapshot implements Serializable {
     public void setM3Phase(int m3Phase) { this.m3Phase = m3Phase; }
     public long getM3BufferRounds() { return m3BufferRounds; }
     public void setM3BufferRounds(long m3BufferRounds) { this.m3BufferRounds = m3BufferRounds; }
+
+    @JsonProperty
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Boolean getM3Above() { return m3Above; }
+    public void setM3Above(Boolean m3Above) { this.m3Above = m3Above; }
+
+    @JsonProperty
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Boolean getM3ShadowAbove() { return m3ShadowAbove; }
+    public void setM3ShadowAbove(Boolean m3ShadowAbove) { this.m3ShadowAbove = m3ShadowAbove; }
+
+    @JsonProperty
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Double getM3ShadowWmse() { return m3ShadowWmse; }
+    public void setM3ShadowWmse(Double m3ShadowWmse) { this.m3ShadowWmse = m3ShadowWmse; }
+
+    @JsonProperty
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Boolean getM3Retraining() { return m3Retraining; }
+    public void setM3Retraining(Boolean m3Retraining) { this.m3Retraining = m3Retraining; }
 
     @JsonProperty
     public int getM5bWindowLen() { return m5bWindowLen; }

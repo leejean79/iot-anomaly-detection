@@ -1,9 +1,13 @@
 package com.leejean.m3;
 
+import com.leejean.m1.ChannelTransform;
 import com.leejean.m1.Channels;
 import com.leejean.m1.MonitoringSnapshot;
+import com.leejean.m1.RobustScalerFunction;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.state.MapState;
+import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.PrimitiveArrayTypeInfo;
@@ -82,6 +86,8 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
      */
     private final int roundsPerDay;
     private static final String DEVICE_G = "G";              // 设备 G Light 通道需特殊处理 / device G Light needs special handling
+    private static final boolean[] NO_MISSING = new boolean[Channels.N_DET];   // 入口轮五个通道齐全 / admitted rounds
+    private static final ChannelTransform[] TRANSFORMS = ChannelTransform.defaultTable();
 
     private final int trainDays;
     private final int earlyStopDays;
@@ -164,6 +170,28 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     private transient ValueState<Long> trainSubmitMs;           // 提交时刻（处理时间毫秒）/ submit time (processing ms)
     private transient ValueState<Integer> trainFailures;        // 已失败次数 / failed attempts so far
     private transient ValueState<String> deviceName;            // 定时器里没有元素，日志需要设备号 / for timer logs
+    // M6b 选项一（决定十三）：缓存数据接入模块附在每个版本第一条轮上的参数集，按训练版本自己从原始值标准化。
+    // Option 1 (decision 13): cache every version's parameter set and standardize raw values with the training version.
+    private transient MapState<Integer, com.leejean.m6.ParamSet> paramSets;
+    private transient ValueState<Integer> curVersion;           // 最近一条轮的参数版本 / version of the latest round
+    private transient ValueState<Integer> trainVersion;         // 训练版本（首次提交训练时取当前版本）/ training version
+    private transient ValueState<Boolean> rawCollected;         // 收集窗口存的是原始值（回路打开）/ windows hold raw values
+    private transient ListState<double[]> shadowBuffer;         // 影子评分的窗口缓冲（按当前版本）/ shadow window buffer
+    /** 影子评分开关（决定十三，只在全量重放打开）/ shadow scoring switch (full replay only). */
+    private boolean shadowScoring;
+    // M6b 决定十七：一级重训的训练长度（天）、热启动与否、训练窗口在生效之前还是之后（开放问题第十二条补跑之后定默认值）。
+    // Decision 17: level-1 training length (days), warm start, and whether the window lies before or after the effective time.
+    private int retrainDays = 7;
+    private boolean retrainWarm = true;
+    private boolean retrainAfter = false;
+    private transient ListState<HistWindow> history;            // 在线窗口的原始值历史（一级训练集来源）/ raw online windows
+    private transient ListState<double[]> windowRawBuffer;      // 当前在线窗口的原始值 / raw rounds of the current window
+    private transient ValueState<long[]> retrainSpan;           // 待做的一级训练集范围 {起, 止}（秒）/ pending level-1 span
+    private transient ValueState<Integer> retrainVersion;       // 一级训练集所用版本 / version of the level-1 training set
+    private transient ValueState<Boolean> retraining;           // 训练态中的这次训练是一级重训 / TRAINING is a level-1 retrain
+    private transient ValueState<Integer> modelGen;             // 模型代数，一级切换与二级完成各加一 / model generation
+    private transient ValueState<Boolean> level2;               // 二级重训的收集与训练期间 / during a level-2 retrain
+    private transient ValueState<Long> collectCount;            // 收集态已收的轮数（二级时归零）/ rounds collected so far
 
     private transient M3TrainExecutor executor;
     /** 本子任务各分键的缓冲头时间戳（毫秒），供 M3Operator 计算输出水位线；只在任务线程上读写。 */
@@ -326,6 +354,25 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         trainSubmitMs = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-train-submit-ms", Types.LONG));
         trainFailures = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-train-failures", Types.INT));
         deviceName = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-device", Types.STRING));
+        paramSets = getRuntimeContext().getMapState(new MapStateDescriptor<>("m3-param-sets", Types.INT,
+                TypeInformation.of(com.leejean.m6.ParamSet.class)));
+        curVersion = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-cur-version", Types.INT));
+        trainVersion = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-train-version", Types.INT));
+        rawCollected = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-raw-collected", Types.BOOLEAN));
+        shadowBuffer = getRuntimeContext().getListState(
+                new ListStateDescriptor<>("m3-shadow-buf", PrimitiveArrayTypeInfo.DOUBLE_PRIMITIVE_ARRAY_TYPE_INFO));
+        history = getRuntimeContext().getListState(new ListStateDescriptor<>("m3-history", TypeInformation.of(HistWindow.class)));
+        windowRawBuffer = getRuntimeContext().getListState(
+                new ListStateDescriptor<>("m3-win-raw", PrimitiveArrayTypeInfo.DOUBLE_PRIMITIVE_ARRAY_TYPE_INFO));
+        retrainSpan = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-retrain-span", TypeInformation.of(long[].class)));
+        retrainVersion = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-retrain-version", Types.INT));
+        retraining = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-retraining", Types.BOOLEAN));
+        modelGen = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-model-gen", Types.INT));
+        level2 = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-level2", Types.BOOLEAN));
+        collectCount = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-collect-count", Types.LONG));
+        if (shadowScoring && m3MonitoringTag == null) {
+            LOG.warn("[M3] Shadow scoring is on but the monitoring side output is off: shadow scores are not recorded");
+        }
 
         executor = new M3TrainExecutor(trainThreads);
         holdHeadTs = new HashMap<>();
@@ -369,6 +416,13 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         forwardDelaySec.update(round.getWindowEnd() - round.getTs());
         count++;                                       // 本轮计入总数 / this round counts toward the total
         roundCount.update(count);
+        // 选项一：到达即缓存参数集与当前版本（训练与排空期间的轮也在到达时登记）/ cache on arrival
+        if (round.getParamSet() != null) {
+            paramSets.put(round.getParamSet().version, round.getParamSet());
+        }
+        if (round.getVersion() != null) {
+            curVersion.update(round.getVersion());
+        }
 
         // COLLECTING 收集三段数据；TRAINING 期间到达的轮入缓冲并查询一次结果槽；ONLINE 时缓冲非空则只追加到
         // 尾部，缓冲为空则直接评分。元素路径不排空、不登记定时器：排空与查询只由每台设备唯一的一条定时器链推进，
@@ -380,7 +434,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         // barriers are processed between batches.
         switch (phase) {
             case 0:
-                handleCollecting(round, ctx, out, count, device);
+                handleCollecting(round, ctx, out, device);
                 break;
             case 1:
                 bufferRound(round, ctx, device);
@@ -390,8 +444,8 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                 Integer pending = pendingSize.value();
                 if (pending != null && pending > 0) {
                     bufferRound(round, ctx, device);
-                } else {
-                    handleOnline(round, ctx, out, device);
+                } else if (!handleOnline(round, ctx, out, device)) {
+                    redispatch(round, ctx, out, device);   // 一级或二级改变了相位 / a level-1/2 command changed the phase
                 }
                 break;
             default:
@@ -458,7 +512,8 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         }
         if (o == M3TrainExecutor.NOT_SUBMITTED) {
             Integer failures = trainFailures.value();
-            if (modelBytes.value() == null && (failures == null || failures < MAX_FAILURES)) {
+            if ((modelBytes.value() == null || Boolean.TRUE.equals(retraining.value()))
+                    && (failures == null || failures < MAX_FAILURES)) {
                 // 训练线程里的进行中训练不进检查点；恢复后结果槽为空，用受检查点保护的收集窗口重新提交。
                 // In-flight training is not checkpointed; after a restore the slot is empty, so resubmit.
                 LOG.info("[M3] Device {} is in TRAINING without a model and nothing in flight "
@@ -475,6 +530,12 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                      o.taskId, failures, MAX_FAILURES, o.error == null ? "stale task id" : o.error.toString());
             if (failures < MAX_FAILURES) {
                 submitTraining(key, device, ctx);
+            } else if (Boolean.TRUE.equals(retraining.value())) {
+                // 一级重训失败两次：放弃这次重训，旧模型继续服务（缓冲的轮由旧模型排空）/ abandon; the old model drains
+                LOG.warn("[M3] Device {} REPORT: level-1 retrain failed {} times; abandoned, the old model keeps serving",
+                         device, failures);
+                endRetrain();
+                statePhase.update(3);
             } else {
                 LOG.warn("[M3] Device {} REPORT: training failed {} times; the device stays in TRAINING",
                          device, failures);
@@ -486,14 +547,32 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
 
 
     private void handleCollecting(AnnotatedRound round, Context ctx,
-                                  Collector<M3ScoreRecord> out, long count,
+                                  Collector<M3ScoreRecord> out,
                                   String device) throws Exception {
         collectingCount.inc();
+        if (round.getContextCommand() != null) {
+            onContextCommand(round.getContextCommand(), ctx, device);   // 收集态只接受二级（重新开始收集）/ only level 2 here
+            round.setContextCommand(null);             // 只执行一次（本轮可能被重新分派或留在缓冲）/ execute once
+            if (statePhase.value() == null || statePhase.value() != 0) {
+                return;
+            }
+        }
+        // 收集态自己的计数：冷启动时与已见轮数相同；二级重训时从零起 / own counter: equals the round count at cold start
+        long count = (collectCount.value() == null ? 0L : collectCount.value()) + 1;
+        collectCount.update(count);
 
-        // 拷贝归一化特征，设备 G 的 Light 通道输入归零（决策 5），再入当前窗口缓冲
-        // Copy normalized features, zero device G's Light input (decision 5), then buffer into the window
-        double[] xNorm = round.getXNorm().clone();
-        zeroDeviceGLight(xNorm, device);
+        // 拷贝归一化特征，设备 G 的 Light 通道输入归零（决策 5），再入当前窗口缓冲。回路打开时存原始值，提交训练时按训练版本
+        // 统一标准化（选项一），归零也在那时做。
+        // Copy normalized features, zero device G's Light input (decision 5), then buffer into the window. With the loop
+        // on, raw values are stored and standardized with the training version at submission (option 1).
+        double[] xNorm;
+        if (round.getRaw() != null) {
+            xNorm = round.getRaw().clone();
+            rawCollected.update(true);
+        } else {
+            xNorm = round.getXNorm().clone();
+            zeroDeviceGLight(xNorm, device);
+        }
         windowBuffer.add(xNorm);
         boolean[] mask = WeightedMseLoss.buildMask(round.getCensoredMask());   // 删失 → 无效掩码 / censored → invalid mask
         windowMaskBuffer.add(boolToBytes(mask));       // boolean[] 存为 byte[] 以适配 Flink 状态 / store as byte[] for Flink state
@@ -550,6 +629,10 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         windowMaskBuffer.clear();
         windowOutlierBuffer.clear();
 
+        if (Boolean.TRUE.equals(level2.value()) && m3MonitoringTag != null) {
+            emitRetrainingMarker(ctx, round.getWindowEnd(), device);   // 二级重训中的质量标记（每窗一条）/ per window
+        }
+
         // 三段数据齐备 → 把训练提交给训练执行器（补遗四）/ all three segments collected → submit training
         if (count >= trainRounds + esRounds + thRounds) {
             deviceName.update(device);
@@ -584,6 +667,24 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         List<byte[]> thMaskFlats = new ArrayList<>();
         for (byte[] m : threshMasks.get()) thMaskFlats.add(m);
 
+        // 选项一：收集窗口存的是原始值时，按训练版本统一标准化。训练版本在第一次提交时取当前版本并记入状态，从检查点恢复后
+        // 重新提交沿用同一版本，保证逐位可复现。/ Option 1: standardize raw windows with the training version, fixed at
+        // the first submission so a resubmission after a restore uses the same version.
+        boolean isRetrain = Boolean.TRUE.equals(retraining.value());
+        if (!isRetrain && Boolean.TRUE.equals(rawCollected.value())) {
+            Integer tv = trainVersion.value();
+            if (tv == null) {
+                tv = curVersion.value();
+                trainVersion.update(tv);
+            }
+            com.leejean.m6.ParamSet ps = params(tv, device);
+            trainFlats = standardize(trainFlats, ps, device);
+            esFlats = standardize(esFlats, ps, device);
+            thFlats = standardize(thFlats, ps, device);
+            LOG.info("[M3] Device {} training version {}: collected raw windows standardized with its parameter set",
+                     device, tv);
+        }
+
         Long excluded = trainExcluded.value();
         // 记下子任务编号：同一子任务上的设备共用一个任务线程（代理键使每个子任务只承载一台设备）。
         // The subtask index is logged; surrogate keys put one device on each subtask.
@@ -598,11 +699,14 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         M3Training.Config cfg = new M3Training.Config(
                 N_FEATURES, hiddenSize, windowLength, batchSize, maxEpochs,
                 earlyStopPatience, channelWeights, reverseTarget, learningRate, gradClip);
+        // 一级重训（决定十七）：热启动从当前模型的权重出发，冷启动从同一种子新建；三段已按当前版本标准化。
+        // Level-1 retrain: warm start from the current weights, or a fresh model; segments already standardized.
+        byte[] init = isRetrain && retrainWarm ? modelBytes.value() : null;
         M3TrainExecutor.TrainTask task = new M3TrainExecutor.TrainTask(
-                key, device, taskId, M3TrainExecutor.Purpose.COLD_START, cfg, LstmAutoEncoder.SEED, zThreshold,
-                new M3TrainExecutor.SanitizeOptions(),
+                key, device, taskId, isRetrain ? M3TrainExecutor.Purpose.RETRAIN : M3TrainExecutor.Purpose.COLD_START,
+                cfg, LstmAutoEncoder.SEED, zThreshold, new M3TrainExecutor.SanitizeOptions(),
                 unflattenWindows(trainFlats), unflattenMasks(trainMaskFlats), unflattenWindows(esFlats),
-                unflattenWindows(thFlats), unflattenMasks(thMaskFlats));
+                unflattenWindows(thFlats), unflattenMasks(thMaskFlats), init);
         final String dev = device;
         executor.submit(task, (epoch, trainLoss, esLoss, epochSeconds) ->
                 // 逐 epoch 落日志是看到训练仍在推进的唯一途径，也是逐设备训练墙钟时间的数据来源。
@@ -627,6 +731,32 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         trainedWindow.update(windowLength);            // 一并记住窗口长度，防止参数变更后静默错配 / and the window length
         modelBytes.update(o.modelBytes);               // 模型参数写入 Flink 状态 / persist model params to Flink state
         scorerBytes.update(o.scorerBytes);             // 评分器写入 Flink 状态 / persist the calibrated scorer
+
+        // 一级切换（决定十七）：取当前版本参数集，输出版本号改为新训练版本；未满的窗口按新版本从原始值重新标准化，使切换
+        // 落在窗口边界上。二级完成同样计一代。/ Level-1 switch: adopt the retrain version; rebuild the partial window.
+        boolean wasRetrain = Boolean.TRUE.equals(retraining.value());
+        if (wasRetrain || Boolean.TRUE.equals(level2.value())) {
+            int gen = (modelGen.value() == null ? 0 : modelGen.value()) + 1;
+            modelGen.update(gen);
+            if (wasRetrain) {
+                Integer old = trainVersion.value();
+                trainVersion.update(retrainVersion.value());
+                List<double[]> raws = new ArrayList<>();
+                for (double[] r : windowRawBuffer.get()) raws.add(r);
+                List<double[]> rebuilt = new ArrayList<>();
+                com.leejean.m6.ParamSet ps = params(retrainVersion.value(), device);
+                for (double[] r : raws) rebuilt.add(standardize(r, ps, device));
+                windowBuffer.update(rebuilt);
+                LOG.info("[M3] Device {} level-1 switch: model generation {}, training version {} -> {}; "
+                         + "{} rounds of the open window re-standardized", device, gen, old, retrainVersion.value(),
+                         rebuilt.size());
+                endRetrain();
+            } else {
+                level2.clear();
+                LOG.info("[M3] Device {} level-2 retrain complete: model generation {}, training version {}",
+                         device, gen, trainVersion.value());
+            }
+        }
 
         // 三段数据已用完，清空释放状态 / segments consumed, clear to free state
         trainWindows.clear();
@@ -750,14 +880,28 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
             drainStartMs.put(key, System.currentTimeMillis());
         }
         int n = Math.min(drainBatch, all.size());
+        int done = 0;
         for (int i = 0; i < n; i++) {
             BufferedRound b = all.get(i);
             if (out instanceof TimestampedCollector) {
                 ((TimestampedCollector<M3ScoreRecord>) out).setAbsoluteTimestamp(b.recordTs);
             }
-            handleOnline(b.round, ctx, out, b.round.getDevice());
+            Integer ph = statePhase.value();
+            if (ph != null && ph == 1) {
+                break;                                 // 一级重训开始：其余的轮留在缓冲里 / a retrain started: keep the rest
+            }
+            if (ph != null && ph == 0) {
+                handleCollecting(b.round, ctx, out, b.round.getDevice());   // 二级之后回到收集 / after level 2
+            } else if (!handleOnline(b.round, ctx, out, b.round.getDevice())) {
+                Integer now = statePhase.value();
+                if (now != null && now == 1) {
+                    break;                             // 本轮留在缓冲头 / this round stays at the head
+                }
+                handleCollecting(b.round, ctx, out, b.round.getDevice());
+            }
+            done = i + 1;
         }
-        List<BufferedRound> rest = new ArrayList<>(all.subList(n, all.size()));
+        List<BufferedRound> rest = new ArrayList<>(all.subList(done, all.size()));
         pendingRounds.update(rest);
         pendingSize.update(rest.size());
         bufferSizes.put(key, rest.size());
@@ -815,18 +959,46 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         }
     }
 
-    private void handleOnline(AnnotatedRound round, Context ctx,
-                              Collector<M3ScoreRecord> out, String device) throws Exception {
-        // 与 COLLECTING 相同的入窗逻辑（含设备 G Light 归零）/ same window-fill as COLLECTING (incl. device G Light zeroing)
-        double[] xNorm = round.getXNorm().clone();
-        zeroDeviceGLight(xNorm, device);
+    /**
+     * 在线评分一轮。返回假表示本轮携带的一级或二级命令改变了相位、本轮未被消费，由调用方按新相位重新分派（一级生效前侧的
+     * 重训开始后进缓冲，二级之后进收集）。/ Score one round; false when a level-1/2 command changed the phase first.
+     */
+    private boolean handleOnline(AnnotatedRound round, Context ctx,
+                                 Collector<M3ScoreRecord> out, String device) throws Exception {
+        if (round.getContextCommand() != null) {
+            onContextCommand(round.getContextCommand(), ctx, device);
+            round.setContextCommand(null);             // 只执行一次（本轮可能被重新分派或留在缓冲）/ execute once
+            Integer ph = statePhase.value();
+            if (ph == null || ph != 3) {
+                return false;
+            }
+        }
+        // 与 COLLECTING 相同的入窗逻辑（含设备 G Light 归零）；选项一下按训练版本从原始值标准化
+        // Same window-fill as COLLECTING (incl. device G Light zeroing); under option 1, standardize raw values with the
+        // training version.
+        Integer tv = trainVersion.value();
+        double[] xNorm;
+        if (round.getRaw() != null && tv != null) {
+            xNorm = standardize(round.getRaw(), params(tv, device), device);
+            windowRawBuffer.add(round.getRaw().clone());   // 一级训练集与切换时的重新标准化用 / for level 1
+            windowOutlierBuffer.add(round.isOutlier());
+            if (shadowScoring) {
+                // 影子：数据接入模块按当前版本给出的标准化值（与第一批的输入相同）/ shadow: the current-version values
+                double[] sx = round.getXNorm().clone();
+                zeroDeviceGLight(sx, device);
+                shadowBuffer.add(sx);
+            }
+        } else {
+            xNorm = round.getXNorm().clone();
+            zeroDeviceGLight(xNorm, device);
+        }
         windowBuffer.add(xNorm);
         boolean[] mask = WeightedMseLoss.buildMask(round.getCensoredMask());
         windowMaskBuffer.add(boolToBytes(mask));
 
         int bufSize = 0;
         for (double[] ignored : windowBuffer.get()) bufSize++;
-        if (bufSize < windowLength) return;            // 未满窗则等待 / wait until the window is full
+        if (bufSize < windowLength) return true;       // 未满窗则等待 / wait until the window is full
 
         List<double[]> xNorms = new ArrayList<>();
         for (double[] x : windowBuffer.get()) xNorms.add(x);
@@ -835,11 +1007,15 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
 
         windowBuffer.clear();                          // 立即清空以攒下一窗 / clear immediately for the next window
         windowMaskBuffer.clear();
+        List<double[]> shadowRows = new ArrayList<>();
+        for (double[] x : shadowBuffer.get()) shadowRows.add(x);
+        shadowBuffer.clear();
+        appendHistory(round.getTs(), maskBytes, device);
 
         // 从状态取回模型与评分器；缺任一则跳过（理论上进入 ONLINE 后必有）/ fetch model & scorer; skip if either is missing
         byte[] mBytes = modelBytes.value();
         byte[] sBytes = scorerBytes.value();
-        if (mBytes == null || sBytes == null) return;
+        if (mBytes == null || sBytes == null) return true;
 
         // 模型是按某一组 (隐藏层宽度, 窗口长度) 训练出来的。若作业参数此后被改动，用旧模型继续打分
         // 会得到无意义的分数，而且不会有任何外在症状。补遗三 §3 要求这种情况不得静默发生，故在此
@@ -886,7 +1062,9 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         // 发出评分记录到 synergia-scores / emit the score record to synergia-scores
         M3ScoreRecord rec = new M3ScoreRecord(device, round.getWindowEnd(), sr.mainScore,
                 sr.mahaScore, lr.wmse, lr.perChannelMse, sr.aboveThreshold, hs, windowLength);
-        rec.setVersion(round.getVersion());        // 模型与阈值不动，只换版本号（M6a）/ model untouched, version passed through
+        // 选项一：输出版本号为训练版本；回路关闭时仍为轮上的版本（空）/ option 1: the training version; null when the loop is off
+        rec.setVersion(tv != null ? tv : round.getVersion());
+        rec.setModel(modelGen.value());                // 一级或二级之后的模型代数 / model generation after level 1/2
         out.collect(rec);
 
         onlineCount.inc();
@@ -902,7 +1080,238 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
             snap.setM3Phase(3);
             Integer buffered = bufferSizes.get(ctx.getCurrentKey());
             snap.setM3BufferRounds(buffered == null ? 0 : buffered);   // 排空期间为本批开始前的占用 / pre-batch size
+            if (shadowScoring && shadowRows.size() == windowLength) {
+                // 影子评分：同一模型与评分器，按当前版本标准化的窗口；只记录，不发评分记录 / record only
+                double[][] sw = shadowRows.toArray(new double[0][]);
+                WeightedMseLoss.LossResult sl = lossCalc.compute(sw, ae.reconstruct(sw), masks, windowLength);
+                snap.setM3Above(sr.aboveThreshold);
+                snap.setM3ShadowAbove(scorer.score(sl.wmse, sl.perChannelMse).aboveThreshold);
+                snap.setM3ShadowWmse(sl.wmse);
+            }
             ctx.output(m3MonitoringTag, snap);
+        }
+        // 一级生效后侧：训练集收满之后提交（本窗已由旧模型评分）/ after-side level 1: submit once the span is covered
+        long[] span = retrainSpan.value();
+        if (span != null && round.getTs() >= span[1]) {
+            submitRetrain(ctx, device);
+        }
+        return true;
+    }
+
+    /** 本轮在新相位下重新分派 / re-dispatch a round after a phase change. */
+    private void redispatch(AnnotatedRound round, Context ctx, Collector<M3ScoreRecord> out, String device)
+            throws Exception {
+        Integer ph = statePhase.value();
+        if (ph != null && ph == 1) {
+            bufferRound(round, ctx, device);
+        } else {
+            handleCollecting(round, ctx, out, device);
+        }
+    }
+
+    /**
+     * 一级或二级命令（M6b 决定十七）。一级：只在在线态接受；生效前侧立即用历史中生效前 N 天的窗口提交重训，生效后侧记下范围，
+     * 收满 N 天后提交。二级：回到收集态，按首次训练的数据段从头训练，期间上下文输出与性能层静默。
+     * Level 1 (online only): before-side submits at once from history, after-side waits N days. Level 2: back to COLLECTING.
+     */
+    private void onContextCommand(com.leejean.m6.AdaptCommand cmd, Context ctx, String device) throws Exception {
+        int ph = statePhase.value() == null ? 0 : statePhase.value();
+        if (cmd.level == 2) {
+            if (ph == 1) {
+                LOG.warn("[M3] Device {} REPORT: level-2 command seq {} ignored while a training is in flight", device, cmd.seq);
+                return;
+            }
+            statePhase.update(0);
+            collectCount.update(0L);
+            windowBuffer.clear();
+            windowMaskBuffer.clear();
+            windowOutlierBuffer.clear();
+            windowRawBuffer.clear();
+            shadowBuffer.clear();
+            trainWindows.clear();
+            trainMasks.clear();
+            earlyStopWindows.clear();
+            earlyStopMasks.clear();
+            threshWindows.clear();
+            threshMasks.clear();
+            trainExcluded.clear();
+            modelBytes.clear();
+            scorerBytes.clear();
+            trainVersion.clear();
+            rawCollected.clear();
+            trainFailures.clear();
+            history.clear();
+            endRetrain();
+            level2.update(true);
+            LOG.info("[M3] Device {} level 2 (seq {}, effective {}): back to COLLECTING; context output and the "
+                     + "performance layer are silent until the new model is online", device, cmd.seq, cmd.effectiveAt);
+            return;
+        }
+        if (ph != 3 || retrainSpan.value() != null) {
+            LOG.warn("[M3] Device {} REPORT: level-1 command seq {} ignored (phase {}, retrain pending {})", device, cmd.seq,
+                     ph, retrainSpan.value() != null);
+            return;
+        }
+        long n = retrainDays * daySec();
+        long from = retrainAfter ? cmd.effectiveAt : cmd.effectiveAt - n;
+        long to = retrainAfter ? cmd.effectiveAt + n : cmd.effectiveAt;
+        retrainSpan.update(new long[]{from, to});
+        LOG.info("[M3] Device {} level 1 (seq {}, effective {}): training set [{}, {}) ({} days {} the effective time, {} start)",
+                 device, cmd.seq, cmd.effectiveAt, from, to, retrainDays, retrainAfter ? "after" : "before",
+                 retrainWarm ? "warm" : "cold");
+        if (!retrainAfter) {
+            submitRetrain(ctx, device);
+        }
+    }
+
+    /**
+     * 提交一级重训：取历史中末轮落在范围内的窗口，按当前版本标准化，七比二比七划成训练、早停、标定三段，训练段剔除含离群轮
+     * 的窗口；写入三段状态后走与冷启动相同的训练态（缓冲、保持水位线、结果在任务线程收回），因此两次运行逐位相同。
+     * Submit a level-1 retrain through the same TRAINING path as the cold start, so runs are bit-reproducible.
+     */
+    private void submitRetrain(Context ctx, String device) throws Exception {
+        long[] span = retrainSpan.value();
+        List<HistWindow> ws = new ArrayList<>();
+        for (HistWindow h : history.get()) {
+            if (h.endTs >= span[0] && h.endTs < span[1]) {
+                ws.add(h);
+            }
+        }
+        int w = ws.size();
+        int tr = w * 7 / 16;
+        int es = w * 2 / 16;
+        if (tr == 0 || es == 0 || w - tr - es == 0) {
+            LOG.warn("[M3] Device {} REPORT: level-1 retrain abandoned, only {} history windows in [{}, {})",
+                     device, w, span[0], span[1]);
+            endRetrain();
+            return;
+        }
+        Integer v = curVersion.value();
+        com.leejean.m6.ParamSet ps = params(v, device);
+        List<double[]> trW = new ArrayList<>();
+        List<byte[]> trM = new ArrayList<>();
+        List<double[]> esW = new ArrayList<>();
+        List<byte[]> esM = new ArrayList<>();
+        List<double[]> thW = new ArrayList<>();
+        List<byte[]> thM = new ArrayList<>();
+        long excluded = 0;
+        List<double[]> one = new ArrayList<>(1);
+        for (int k = 0; k < w; k++) {
+            HistWindow h = ws.get(k);
+            one.clear();
+            one.add(h.raw);
+            double[] x = standardize(one, ps, device).get(0);
+            if (k < tr) {
+                if (h.outlier) {
+                    excluded++;
+                } else {
+                    trW.add(x);
+                    trM.add(h.mask);
+                }
+            } else if (k < tr + es) {
+                esW.add(x);
+                esM.add(h.mask);
+            } else {
+                thW.add(x);
+                thM.add(h.mask);
+            }
+        }
+        trainWindows.update(trW);
+        trainMasks.update(trM);
+        earlyStopWindows.update(esW);
+        earlyStopMasks.update(esM);
+        threshWindows.update(thW);
+        threshMasks.update(thM);
+        trainExcluded.update(excluded);
+        retrainVersion.update(v);
+        retraining.update(true);
+        trainFailures.clear();
+        LOG.info("[M3] Device {} level-1 retrain: {} history windows standardized with version {}", device, w, v);
+        submitTraining(ctx.getCurrentKey(), device, ctx);
+        ctx.timerService().registerProcessingTimeTimer(
+                ctx.timerService().currentProcessingTime() + pollIntervalSec * 1000L);
+    }
+
+    /**
+     * 一天的事件时间秒数：每天轮数乘十秒一轮。生产上为 86,400；单元测试调小每天轮数时随之缩短，与训练段按轮数折天的口径一致。
+     * Seconds per day: rounds per day times the 10 s round period (86,400 in production).
+     */
+    private long daySec() {
+        return roundsPerDay * 10L;
+    }
+
+    /** 一级重训的状态复位 / reset the level-1 retrain state. */
+    private void endRetrain() throws Exception {
+        retrainSpan.clear();
+        retrainVersion.clear();
+        retraining.clear();
+    }
+
+    /**
+     * 在线窗口的原始值入历史，并淘汰早于「最近窗口减 N 加一天」的窗口（待做的一级范围内的不淘汰）；超出两天的量时才重写，
+     * 使重写的代价摊薄。/ Append the window's raw values to history and evict old windows (amortized).
+     */
+    private void appendHistory(long endTs, List<byte[]> maskBytes, String device) throws Exception {
+        List<double[]> raws = new ArrayList<>();
+        for (double[] r : windowRawBuffer.get()) raws.add(r);
+        List<Boolean> outs = new ArrayList<>();
+        for (Boolean o : windowOutlierBuffer.get()) outs.add(o);
+        windowRawBuffer.clear();
+        windowOutlierBuffer.clear();
+        if (raws.size() != windowLength) {
+            return;                                    // 回路关闭（没有原始值）/ loop off: no raw values
+        }
+        HistWindow h = new HistWindow();
+        h.endTs = endTs;
+        h.raw = flattenWindow(raws);
+        h.mask = flattenMasks(maskBytes);
+        h.outlier = outs.contains(Boolean.TRUE);
+        history.add(h);
+        int perDay = Math.max(1, roundsPerDay / windowLength);
+        long size = 0;
+        for (HistWindow ignored : history.get()) size++;
+        if (size > (long) (retrainDays + 2) * perDay) {
+            long keepFrom = endTs - (retrainDays + 1) * daySec();
+            long[] span = retrainSpan.value();
+            if (span != null) {
+                keepFrom = Math.min(keepFrom, span[0]);
+            }
+            List<HistWindow> kept = new ArrayList<>();
+            for (HistWindow x : history.get()) {
+                if (x.endTs >= keepFrom) {
+                    kept.add(x);
+                }
+            }
+            history.update(kept);
+        }
+    }
+
+    /** 二级重训中的质量标记：相位为收集、重训中为真 / the level-2 quality marker. */
+    private void emitRetrainingMarker(Context ctx, long ts, String device) {
+        MonitoringSnapshot snap = new MonitoringSnapshot();
+        snap.setDevice(device);
+        snap.setTs(ts);
+        snap.setWindowEnd(STATUS_SNAPSHOT_WINDOW_END);
+        snap.setM3Phase(0);
+        snap.setM3Retraining(true);
+        ctx.output(m3MonitoringTag, snap);
+    }
+
+    /**
+     * 在线窗口的原始值历史（一级训练集来源）。Flink POJO。/ A raw online window kept for level-1 retraining.
+     */
+    public static class HistWindow implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
+        /** 窗口末轮时间戳（秒）/ timestamp of the window's last round (s). */
+        public long endTs;
+        /** 原始值，扁平 [时间步 × 通道] / raw values, flat. */
+        public double[] raw;
+        /** 掩码，扁平 / masks, flat. */
+        public byte[] mask;
+        /** 窗口内是否有点通道离群轮 / whether the window holds a point-channel outlier round. */
+        public boolean outlier;
+
+        public HistWindow() {
         }
     }
 
@@ -914,6 +1323,58 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
      */
     static double evaluateLoss(LstmAutoEncoder ae, double[][][] data, double[] channelWeights) {
         return M3Training.evaluateLoss(ae, data, channelWeights);
+    }
+
+    /**
+     * 一级重训的参数（决定十七）：训练长度（天）、热启动与否、训练窗口在生效之后（真）还是之前（假）。默认七天、热启动、
+     * 生效之前，开放问题第十二条补跑裁决之后填入选定值。/ Level-1 parameters: days, warm start, window after the effective time.
+     */
+    public M3Function withRetrain(int days, boolean warm, boolean after) {
+        this.retrainDays = days;
+        this.retrainWarm = warm;
+        this.retrainAfter = after;
+        return this;
+    }
+
+    /** 打开影子评分（决定十三；只在全量重放打开，须同时打开监测侧输出）/ turn shadow scoring on (full replay only). */
+    public M3Function withShadowScoring(boolean on) {
+        this.shadowScoring = on;
+        return this;
+    }
+
+    /** 训练版本的参数集；缺失时直接失败而不是凑合评分 / the parameter set of a version; fail loudly when absent. */
+    private com.leejean.m6.ParamSet params(Integer v, String device) throws Exception {
+        com.leejean.m6.ParamSet ps = v == null ? null : paramSets.get(v);
+        if (ps == null) {
+            throw new IllegalStateException("设备 " + device + " 缺少版本 " + v + " 的参数集，无法按训练版本标准化 / "
+                    + "missing the parameter set of version " + v);
+        }
+        return ps;
+    }
+
+    /**
+     * 按参数集标准化一轮原始值（与数据接入模块同一个函数 {@link RobustScalerFunction#normalize}；入口轮无缺失），再做设备 G 的
+     * 光照归零。/ Standardize one admitted raw round with a parameter set, then zero device G's Light.
+     */
+    static double[] standardize(double[] raw, com.leejean.m6.ParamSet ps, String device) {
+        double[] x = RobustScalerFunction.normalize(raw, NO_MISSING, ps.median, ps.scale, ps.bypass, TRANSFORMS);
+        zeroDeviceGLight(x, device);
+        return x;
+    }
+
+    /** 逐窗逐步标准化扁平的原始窗口 / standardize flat raw windows step by step. */
+    private List<double[]> standardize(List<double[]> flats, com.leejean.m6.ParamSet ps, String device) {
+        List<double[]> out = new ArrayList<>(flats.size());
+        double[] step = new double[N_FEATURES];
+        for (double[] f : flats) {
+            double[] g = new double[f.length];
+            for (int t = 0; t < windowLength; t++) {
+                System.arraycopy(f, t * N_FEATURES, step, 0, N_FEATURES);
+                System.arraycopy(standardize(step, ps, device), 0, g, t * N_FEATURES, N_FEATURES);
+            }
+            out.add(g);
+        }
+        return out;
     }
 
     /** 窗口 [时间步][通道] 摊平成一维（行优先）供 Flink 状态存储 / flatten [step][channel] to 1-D (row-major) for state. */

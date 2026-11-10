@@ -16,7 +16,7 @@ public class AdaptCommand implements Serializable {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public String device;
-    /** 级别：本阶段只执行零级 / level: only level 0 is executed in batch 1. */
+    /** 级别：零级由数据接入模块执行；一级与二级转发给上下文模块（M6b）/ level 0 executed here; 1 and 2 forwarded. */
     public int level;
     /**
      * 生效事件时间（秒），须为点通道滑动步（60 秒）的整数倍（1.29 版裁决第五项写入命令契约）；聚合模块的日界满足，手工工具拒绝不满足的值。

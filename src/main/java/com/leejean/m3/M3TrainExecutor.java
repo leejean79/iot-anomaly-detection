@@ -70,12 +70,23 @@ public final class M3TrainExecutor {
         final double[][][] earlyStopData;
         final double[][][] threshData;
         final boolean[][][] threshMask;
+        /** 热启动的初始权重（一级重训，M6b 决定十七）；空表示从种子初始化 / warm-start weights, null for a fresh model. */
+        final byte[] initModel;
         final long submitNanos = System.nanoTime();
 
         public TrainTask(String key, String device, long taskId, Purpose purpose, M3Training.Config config,
                          long seed, double zThreshold, SanitizeOptions sanitize,
                          double[][][] trainData, boolean[][][] trainMask, double[][][] earlyStopData,
                          double[][][] threshData, boolean[][][] threshMask) {
+            this(key, device, taskId, purpose, config, seed, zThreshold, sanitize, trainData, trainMask, earlyStopData,
+                    threshData, threshMask, null);
+        }
+
+        public TrainTask(String key, String device, long taskId, Purpose purpose, M3Training.Config config,
+                         long seed, double zThreshold, SanitizeOptions sanitize,
+                         double[][][] trainData, boolean[][][] trainMask, double[][][] earlyStopData,
+                         double[][][] threshData, boolean[][][] threshMask, byte[] initModel) {
+            this.initModel = initModel;
             this.key = key;
             this.device = device;
             this.taskId = taskId;
@@ -233,7 +244,8 @@ public final class M3TrainExecutor {
         LOG.info("[M3] Device {} training started on {} after {}s in the executor queue (task {}, {})",
                 t.device, Thread.currentThread().getName(), String.format("%.1f", waitSec), t.taskId, t.purpose);
         try {
-            M3Training.Result r = M3Training.train(t.config, t.trainData, t.trainMask, t.earlyStopData, listener);
+            M3Training.Result r = M3Training.train(t.config, t.initModel, t.trainData, t.trainMask, t.earlyStopData,
+                    listener);
             M3Function.logTrained(t.device, t.config, r);
             M3Scorer scorer = M3Function.calibrate(r.model, t.threshData, t.threshMask,
                     t.config.channelWeights, t.zThreshold);

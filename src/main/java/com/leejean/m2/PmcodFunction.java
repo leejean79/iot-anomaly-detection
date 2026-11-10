@@ -163,6 +163,9 @@ public class PmcodFunction
                 // 每轮发一条 AnnotatedRound 到 M3 侧输出 / emit one AnnotatedRound per round to the M3 side output
                 AnnotatedRound ar = new AnnotatedRound(device, mp.id, xNorm, isOutlier, censored, mp.coldStart, windowEndSec);
                 ar.setVersion(dp.getVersion());
+                ar.setRaw(dp.getRaw());                // 原始值与参数集附件（M6b 选项一）/ raw values and parameter set
+                ar.setParamSet(dp.getParamSet());
+                ar.setContextCommand(dp.getContextCommand());
                 ctx.output(m3AnnotatedTag, ar);
             }
         }

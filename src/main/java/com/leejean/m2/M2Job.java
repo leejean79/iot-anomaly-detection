@@ -286,11 +286,22 @@ public class M2Job {
         boolean adaptEnabled = params.getBoolean("adapt-enabled", false);
         int adaptCacheDays = params.getInt("adapt-cache-days", 7);              // 紧凑缓存深度 / compact cache depth
         int adaptReestimateDays = params.getInt("adapt-reestimate-days", 1);    // 重估窗口 D / re-estimation window
+        // ---- 适应执行第二批（M6b 决定十三、十七）：一级重训参数与影子评分开关 / level-1 parameters and shadow scoring ----
+        // 一级默认七天、热启动、训练窗口在生效之前；开放问题第十二条补跑裁决之后改为选定值。影子评分只在全量重放打开。
+        int m3RetrainDays = params.getInt("m3-retrain-days", 7);
+        boolean m3RetrainWarm = params.getBoolean("m3-retrain-warm", true);
+        String m3RetrainSide = params.get("m3-retrain-side", "before");
+        if (!m3RetrainSide.equals("before") && !m3RetrainSide.equals("after")) {
+            throw new IllegalArgumentException("--m3-retrain-side 只能取 before 或 after: " + m3RetrainSide);
+        }
+        boolean m3ShadowScoring = params.getBoolean("m3-shadow-scoring", false);
         if (m7Enabled && !(m3Enabled && m5bEnabled && m5aEnabled)) {
             throw new IllegalArgumentException("--m7-enabled 须同时开启 --m3-enabled、--m5b-enabled、--m5a-enabled");
         }
         System.out.println("M5b enabled:     " + (m5bEnabled && m3Enabled));
         System.out.println("M5a enabled:     " + m5aEnabled);
+        System.out.println("M3 level 1:      " + m3RetrainDays + " days, " + (m3RetrainWarm ? "warm" : "cold") + " start, window "
+                + m3RetrainSide + " the effective time; shadow scoring " + m3ShadowScoring);
         if (m5aEnabled) {
             System.out.println("M5a data layer:  alpha=" + m5aAlpha + " (Bonferroni /5) D0=" + m5aD0Spec + " missing-max=" + m5aMissingMax
                     + " guard-max=" + m5aGuardMax + " burst OPTWIN confidence=" + m5aConfidence + " robustness=" + m5aRobustness
@@ -517,7 +528,9 @@ public class M2Job {
                             m3MaxEpochs, m3EarlyStopPatience,
                             m3HiddenSize, m3BatchSize, m3ReverseTarget,
                             m3LearningRate, m3GradClip, m3MonTag, m3RoundsPerDay,
-                            m3TrainThreads, m3DrainBatch, m3PollIntervalSec)));
+                            m3TrainThreads, m3DrainBatch, m3PollIntervalSec)
+                            .withRetrain(m3RetrainDays, m3RetrainWarm, m3RetrainSide.equals("after"))
+                            .withShadowScoring(m3ShadowScoring)));
 
             // M3 上下文评分 → synergia-scores
             m3Scored.addSink(new FlinkKafkaProducer<>(scoresTopic,

@@ -89,6 +89,33 @@ class M5bFunctionTest {
     }
 
     @Test
+    @DisplayName("模型代数改变（M6b 一级切换或二级完成）：清空检测器与持续性核对，之后的事件等于新起一个检测器的离线结果")
+    void modelGenerationChangeClearsTheDetector() throws Exception {
+        List<Double> xs = meanShift();
+        List<long[]> ts = new ArrayList<>();
+        for (int i = 0; i < xs.size(); i++) {
+            ts.add(new long[]{START + 600L * i});
+        }
+        int k = 400;
+        List<String> want = new ArrayList<>(offline(ts.subList(0, k), xs.subList(0, k), 2016));
+        want.addAll(offline(ts.subList(k, xs.size()), xs.subList(k, xs.size()), 2016));
+        List<String> got;
+        try (KeyedOneInputStreamOperatorTestHarness<String, M3ScoreRecord, DriftEvent> h =
+                     harness(M5bFunction.Granularity.TEN_MINUTES, 2016)) {
+            h.open();
+            for (int i = 0; i < xs.size(); i++) {
+                M3ScoreRecord r = rec(ts.get(i)[0], xs.get(i));
+                if (i >= k) {
+                    r.setModel(1);
+                }
+                h.processElement(r, ts.get(i)[0] * 1000L);
+            }
+            got = events(h);
+        }
+        assertEquals(want, got);
+    }
+
+    @Test
     @DisplayName("十分钟粒度：在线事件与离线逻辑逐条相同；中途做检查点并恢复，事件不变")
     void tenMinutesEqualsOfflineAndSurvivesRestore() throws Exception {
         List<Double> xs = meanShift();

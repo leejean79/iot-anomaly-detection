@@ -16,6 +16,9 @@ public class DevicePoint implements Serializable {
     private boolean[] censoredMask;
     private Integer version;                          // 参数版本号（M6a），回路关闭时为空 / parameter version, null when off
     private com.leejean.m6.Backfill backfill;         // 零级回填附件（M6a）/ level-0 backfill
+    private com.leejean.m6.ParamSet paramSet;         // 参数集附件（M6b 选项一）/ parameter-set attachment
+    private double[] raw;                             // 原始检测值，回路打开时随点下发给上下文模块 / raw values (loop on)
+    private com.leejean.m6.AdaptCommand contextCommand;   // 转发给上下文模块的一级或二级命令（M6b）/ level-1/2 command
 
     public DevicePoint() {
     }
@@ -69,5 +72,29 @@ public class DevicePoint implements Serializable {
 
     public void setBackfill(com.leejean.m6.Backfill backfill) {
         this.backfill = backfill;
+    }
+
+    public com.leejean.m6.ParamSet getParamSet() {
+        return paramSet;
+    }
+
+    public void setParamSet(com.leejean.m6.ParamSet paramSet) {
+        this.paramSet = paramSet;
+    }
+
+    public double[] getRaw() {
+        return raw;
+    }
+
+    public com.leejean.m6.AdaptCommand getContextCommand() {
+        return contextCommand;
+    }
+
+    public void setContextCommand(com.leejean.m6.AdaptCommand contextCommand) {
+        this.contextCommand = contextCommand;
+    }
+
+    public void setRaw(double[] raw) {
+        this.raw = raw;
     }
 }

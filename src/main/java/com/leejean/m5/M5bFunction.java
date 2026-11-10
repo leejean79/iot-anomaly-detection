@@ -6,6 +6,7 @@ import com.leejean.m3.M3ScoreRecord;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimeDomain;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
@@ -35,6 +36,8 @@ import java.util.Arrays;
  * <p>交接文档决定五要求设备冷启动、相位回到收集态时清空该台的状态；现有的上下文异常检测模块在线之后不会回到收集态（重训属于
  * 适应执行模块），评分流里也没有相位信号，所以本阶段没有触发这一清空的输入，{@link OptWinDetector#clear} 与
  * {@link DriftGate#clear} 留作接口。/ No cold-start signal exists in this stage; the clear() hooks are kept for the adaptation module.
+ * M6b 起，评分记录带模型代数（一级切换与二级完成各加一），代数改变时清空该台状态（第五节「性能层清空该台历史」）。
+ * Since M6b, score records carry a model generation; a change clears the device's state.
  */
 public class M5bFunction extends KeyedProcessFunction<String, M3ScoreRecord, DriftEvent> {
     private static final long serialVersionUID = 1L;
@@ -60,6 +63,7 @@ public class M5bFunction extends KeyedProcessFunction<String, M3ScoreRecord, Dri
     private transient ValueState<DriftGate> gate;
     private transient ValueState<HourBucket> bucket;
     private transient ValueState<long[]> marks;      // [最近元素时刻, 最近候选, 最近确认, 快照定时器] / last element, candidate, confirm, timer
+    private transient ValueState<Integer> lastModel;  // 最近评分的模型代数（M6b）/ model generation of the latest score
 
     /** 小时累积 / hourly accumulator. */
     public static final class HourBucket implements Serializable {
@@ -108,11 +112,21 @@ public class M5bFunction extends KeyedProcessFunction<String, M3ScoreRecord, Dri
         bucket = getRuntimeContext().getState(new ValueStateDescriptor<>("m5b-hour-bucket",
                 TypeInformation.of(HourBucket.class)));
         marks = getRuntimeContext().getState(new ValueStateDescriptor<>("m5b-marks", TypeInformation.of(long[].class)));
+        lastModel = getRuntimeContext().getState(new ValueStateDescriptor<>("m5b-last-model", Types.INT));
     }
 
     @Override
     public void processElement(M3ScoreRecord r, Context ctx, Collector<DriftEvent> out) throws Exception {
         long[] m = marksOrNew();
+        // M6b：一级切换或二级完成后模型代数改变，新模型的误差分布与旧的不可比，清空该台的检测器、持续性核对与未关闭的小时。
+        // 回路关闭时代数恒为空，不触发。/ A new model generation clears the device's detector, gate and open hour.
+        if (!java.util.Objects.equals(r.getModel(), lastModel.value())) {
+            detector.clear();
+            gate.clear();
+            bucket.clear();
+            lastModel.update(r.getModel());
+            LOG.info("[M5b] Device {} model generation {}: detector, gate and hourly bucket cleared", r.getDevice(), r.getModel());
+        }
         if (m[3] == 0) {                                // 首个元素时开始快照定时器 / start the snapshot timer
             m[3] = ctx.timerService().currentProcessingTime() + SNAPSHOT_INTERVAL_MS;
             ctx.timerService().registerProcessingTimeTimer(m[3]);

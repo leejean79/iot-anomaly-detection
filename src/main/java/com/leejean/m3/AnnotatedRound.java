@@ -26,6 +26,12 @@ public class AnnotatedRound implements Serializable {
 
     // 参数版本号（M6a）：命令回路关闭时为空且不写进 JSON / parameter version (M6a), null and omitted when the loop is off
     private Integer version;
+    // 原始检测值与参数集附件（M6b 选项一）：回路关闭时为空且不写进 JSON；上下文模块有它们时按训练版本自己标准化。
+    // Raw values and the parameter-set attachment (option 1); null and omitted when the loop is off.
+    private double[] raw;
+    private com.leejean.m6.ParamSet paramSet;
+    // 数据接入模块转发的一级或二级命令（M6b 第五节）/ the level-1/2 command forwarded by the data-access module
+    private com.leejean.m6.AdaptCommand contextCommand;
 
     public AnnotatedRound() {
     }
@@ -69,5 +75,32 @@ public class AnnotatedRound implements Serializable {
 
     public void setVersion(Integer version) {
         this.version = version;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public double[] getRaw() {
+        return raw;
+    }
+
+    public void setRaw(double[] raw) {
+        this.raw = raw;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public com.leejean.m6.ParamSet getParamSet() {
+        return paramSet;
+    }
+
+    public void setParamSet(com.leejean.m6.ParamSet paramSet) {
+        this.paramSet = paramSet;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public com.leejean.m6.AdaptCommand getContextCommand() {
+        return contextCommand;
+    }
+
+    public void setContextCommand(com.leejean.m6.AdaptCommand contextCommand) {
+        this.contextCommand = contextCommand;
     }
 }
