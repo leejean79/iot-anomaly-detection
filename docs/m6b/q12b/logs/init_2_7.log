@@ -1,0 +1,18 @@
+Picked up JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStoreType=JKS -Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=44755 -Dhttp.nonProxyHosts=localhost|127.0.0.1|::1|127.*|0.*|::|169.254.*|api.anthropic.com|api-staging.anthropic.com|api-pr-preview.anthropic.com|mcp-proxy.anthropic.com|mcp-proxy-staging.anthropic.com|registry.npmjs.org|jsr.io|npm.jsr.io|pypi.org|files.pythonhosted.org|index.crates.io|proxy.golang.org|host.docker.internal|10.*|172.16.*|172.17.*|172.18.*|172.19.*|172.20.*|172.21.*|172.22.*|172.23.*|172.24.*|172.25.*|172.26.*|172.27.*|172.28.*|172.29.*|172.30.*|172.31.*|192.168.*|100.64.0.0/10|*.svc.cluster.local|*.svc.cluster.local -Djdk.http.auth.tunneling.disabledSchemes= -Djdk.http.auth.proxying.disabledSchemes=
+WARNING: sun.reflect.Reflection.getCallerClass is not supported. This will impact performance.
+E init ?? 2 N=7 none???? 997????? 11????? 288???? 1008???? 1646698833 ? 1648146140
+01:56:11.979 [main] INFO  Nd4jBackend - Loaded [CpuBackend] backend
+01:56:12.491 [main] INFO  NativeOpsHolder - Number of threads used for linear algebra: 2
+01:56:12.493 [main] INFO  CpuNDArrayFactory - Binary level Generic x86 optimization level AVX512
+01:56:12.512 [main] INFO  Nd4jBlas - Number of threads used for OpenMP BLAS: 2
+01:56:12.521 [main] INFO  DefaultOpExecutioner - Backend used: [CPU]; OS: [Linux]
+01:56:12.521 [main] INFO  DefaultOpExecutioner - Cores: [4]; Memory: [3.0GB];
+01:56:12.521 [main] INFO  DefaultOpExecutioner - Blas vendor: [OPENBLAS]
+01:56:12.528 [main] INFO  CpuBackend - Backend build information:
+ GCC: "7.5.0"
+STD version: 201103L
+DEFAULT_ENGINE: samediff::ENGINE_CPU
+HAVE_FLATBUFFERS
+HAVE_OPENBLAS
+01:56:12.613 [main] INFO  MultiLayerNetwork - Starting MultiLayerNetwork with WorkspaceModes set to [training: ENABLED; inference: ENABLED], cacheMode set to [NONE]
+????? 4 ??0 ????????? 0.0665???????? 0.0717?????? 4/6
