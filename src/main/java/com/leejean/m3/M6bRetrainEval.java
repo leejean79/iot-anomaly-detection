@@ -44,9 +44,12 @@ import java.util.zip.GZIPInputStream;
  *       --out docs/m6b/q12/rows/r_42_7_warm.csv}。其余选项有默认值：--rounds docs/m6b/extract/rounds_E_inj.csv.gz、--device E、
  *       --freeze-params docs/m6b/chain/D7/level0/E_1.json（取 freeze）、--cur-params docs/m6b/chain/D7/level0/E_2.json（取 new，版本三）、
  *       --outliers docs/m6b/chain/D7/outliers.csv、--inject docs/m3_a4/full_fix/inject-truth.csv、--at 2022-03-28、
- *       --stable-days 2022-03-29,2022-03-30,2022-04-17,2022-04-23,2022-04-24、--inject-day 2022-04-05，以及训练超参数（同 M6aContextEval）。</li>
+ *       --stable-days 2022-03-29,2022-03-30,2022-04-17,2022-04-23,2022-04-24、--inject-day 2022-04-05、--common-days 2022-04-17,2022-04-23,2022-04-24，以及训练超参数（同 M6aContextEval）。
+ *       1.39 版裁决的补跑档：档乙加 {@code --freeze-channels 1,2}（湿度与气压用冻结参数）；档丙再加 {@code --train-side after}
+ *       （训练集取生效后 N 个当地日，口径一改为训练集之后七个当地日、不含注入日，口径二不计落在训练集内的平稳日）；
+ *       {@code --phase init --eval-only 1} 读入已有初始模型只做标定与评价（不覆盖模型文件）。</li>
  *   <li>前置条件：E 的注入轮表、链式实验乙档的零级 JSON 与离群轮表已生成；重训前须先跑同一种子的 init。</li>
- *   <li>期望产出：out 处一行表头加一行度量；init 另在 model-dir 写 init_&lt;种子&gt;.bin。终端逐轮打印训练进度。可选 --diag-out &lt;文件&gt; 另写逐通道诊断：标定段、两个平稳段口径与注入日的窗口数、超阈数与逐通道平均重构误差。</li>
+ *   <li>期望产出：out 处一行表头加一行度量；init 另在 model-dir 写 init_&lt;种子&gt;.bin。终端逐轮打印训练进度。可选 --diag-out &lt;文件&gt; 另写逐通道诊断：标定段、三个平稳段口径与注入日的窗口数、超阈数与逐通道平均重构误差。</li>
  *   <li>失败兜底：训练三段不齐时退出码 2；重训找不到初始模型时退出码 3。</li>
  * </ol>
  */
@@ -69,6 +72,18 @@ public final class M6bRetrainEval {
         final double[] median;
         final double[] scale;
         final boolean[] bypass;
+
+        /** 复制 base，并把 channels 中的通道换成 other 的参数（1.39 版裁决档乙）/ base with some channels taken from other. */
+        Std(Std base, Std other, Set<Integer> channels) {
+            median = base.median.clone();
+            scale = base.scale.clone();
+            bypass = base.bypass.clone();
+            for (int c : channels) {
+                median[c] = other.median[c];
+                scale[c] = other.scale[c];
+                bypass[c] = other.bypass[c];
+            }
+        }
 
         Std(JsonNode n) {
             median = new double[N];
@@ -125,6 +140,17 @@ public final class M6bRetrainEval {
             }
         }
         ChannelTransform[] tf = ChannelTransform.defaultTable();
+        // 1.39 版裁决的补跑档：--freeze-channels 指定的通道（下标，逗号分隔，档乙为 1,2 即湿度与气压）在重训时改用冻结参数；
+        // --train-side after 时训练集取生效之后的 N 个当地日（档丙）；--eval-only 1 时初始模型不重新训练，读入已有权重只做标定与评价。
+        // Supplementary arms of ruling 1.39: frozen channels, training side, and evaluation-only for the initial model.
+        Set<Integer> frozenCh = new java.util.TreeSet<>();
+        for (String c : a.getOrDefault("freeze-channels", "").split(",")) {
+            if (!c.isEmpty()) {
+                frozenCh.add(Integer.parseInt(c));
+            }
+        }
+        String side = a.getOrDefault("train-side", "before");
+        boolean evalOnly = "1".equals(a.getOrDefault("eval-only", "0"));
 
         // ---- 入口轮：冻结之后、五个通道都有读数 / admitted rounds
         List<Pt> pts = new ArrayList<>();
@@ -162,6 +188,8 @@ public final class M6bRetrainEval {
         Std trainStd;
         List<Pt> span = new ArrayList<>();
         long[] cut;                                            // 训练、早停、标定的窗口数 / windows per segment
+        long trainFrom = 0;                                    // 重训训练集的时间范围（初始模型不用）/ retraining span
+        long trainTo = 0;
         if ("init".equals(phase)) {
             trainStd = v1;
             long perDay = 8640L;
@@ -173,10 +201,11 @@ public final class M6bRetrainEval {
             long w = span.size() / window;
             cut = new long[]{7 * perDay / window, 2 * perDay / window, w - 9 * perDay / window};
         } else {
-            trainStd = cur;
-            long from = at - nDays * 86400L;
+            trainStd = frozenCh.isEmpty() ? cur : new Std(cur, v1, frozenCh);
+            trainFrom = "after".equals(side) ? at : at - nDays * 86400L;
+            trainTo = "after".equals(side) ? dayAfter(atDay, nDays) : at;
             for (Pt p : pts) {
-                if (p.ts >= from && p.ts < at) {
+                if (p.ts >= trainFrom && p.ts < trainTo) {
                     span.add(p);
                 }
             }
@@ -221,7 +250,7 @@ public final class M6bRetrainEval {
         }
         byte[] init = null;
         File initFile = new File(modelDir, "init_" + seed + ".bin");
-        if ("retrain".equals(phase) && "warm".equals(start)) {
+        if (("retrain".equals(phase) && "warm".equals(start)) || ("init".equals(phase) && evalOnly)) {
             if (!initFile.exists()) {
                 System.err.println("ERROR: 缺少初始模型 " + initFile + "；先跑 --phase init --seed " + seed);
                 System.exit(3);
@@ -230,13 +259,14 @@ public final class M6bRetrainEval {
         }
         System.out.printf("%s %s 种子 %d N=%d %s：训练窗 %d（净化剔除 %d）、早停窗 %d、标定窗 %d；三段自 %d 至 %d%n", dev, phase, seed,
                 nDays, start, trW.size(), excluded, esW.size(), thW.size(), span.get(0).ts, span.get(span.size() - 1).ts);
-        M3Training.Config cfg = new M3Training.Config(N, hidden, window, batch, maxEpochs, patience, null, true, lr, clip);
+        // 只评价时训练零轮：零轮热启动等于给定权重（M3TrainingTest.warmStartBeginsFromTheGivenWeights）/ zero epochs = given weights
+        M3Training.Config cfg = new M3Training.Config(N, hidden, window, batch, evalOnly ? 0 : maxEpochs, patience, null, true, lr, clip);
         cfg.seed = seed;
         M3Training.Result res = M3Training.train(cfg, init, trW.toArray(new double[0][][]), trM.toArray(new boolean[0][][]),
                 esW.toArray(new double[0][][]), (epoch, trainLoss, esLoss, sec) -> System.out.printf(
                         "  epoch %d：训练误差 %.6g，早停误差 %.6g，%.1f 秒%n", epoch, trainLoss, esLoss, sec));
         M3Scorer scorer = M3Function.calibrate(res.model, thW.toArray(new double[0][][]), thM.toArray(new boolean[0][][]), null, z);
-        if ("init".equals(phase)) {
+        if ("init".equals(phase) && !evalOnly) {
             modelDir.mkdirs();
             try (FileOutputStream fo = new FileOutputStream(initFile)) {
                 fo.write(res.model.serializeModel());
@@ -254,11 +284,36 @@ public final class M6bRetrainEval {
             }
         }
         diagRow(diag, "calibration", thW.size(), -1, calChan);
-        double[] s1 = ev.span(at, dayAfter(atDay, 7));
+        // 口径一：训练集之后的七个当地日（档甲、档乙为生效后七日；档丙为训练集之后七日），不含注入日。初始模型只评价时可带
+        // --train-side after --n N，在与档丙同 N 相同的日子上评价。
+        // Span 1: seven local days after the training span, injection day excluded.
+        String injDay = a.getOrDefault("inject-day", "2022-04-05");
+        LocalDate s1Start = "after".equals(side) ? LocalDate.parse(atDay).plusDays(nDays) : LocalDate.parse(atDay);
+        double[] s1 = new double[2];
+        double[] s1Chan = new double[N];
+        long s1From = day(s1Start.toString());
+        long s1To = day(s1Start.plusDays(7).toString());
+        long injFrom = day(injDay);
+        long injTo = dayAfter(injDay, 1);
+        // 不含注入日时为一段连续时段（与档甲相同）；含注入日时在注入日处断开为两段 / one span, or two around the injection day
+        long[][] parts = injFrom >= s1From && injFrom < s1To
+                ? new long[][]{{s1From, injFrom}, {injTo, s1To}} : new long[][]{{s1From, s1To}};
+        for (long[] part : parts) {
+            double[] x = ev.span(part[0], part[1]);
+            s1[0] += x[0];
+            s1[1] += x[1];
+            for (int c = 0; c < N; c++) {
+                s1Chan[c] += ev.chanSum[c];
+            }
+        }
+        ev.chanSum = s1Chan;
         diagRow(diag, "s1", s1[0], s1[1], ev.chanSum);
         double[] s2 = new double[3];
         double[] s2Chan = new double[N];
         for (String d : a.getOrDefault("stable-days", "2022-03-29,2022-03-30,2022-04-17,2022-04-23,2022-04-24").split(",")) {
+            if (day(d) < trainTo && dayAfter(d, 1) > trainFrom) {   // 落在训练集内的平稳日不计（档丙）/ skip days inside training
+                continue;
+            }
             double[] x = ev.span(day(d), dayAfter(d, 1));
             s2[0] += x[0];
             s2[1] += x[1];
@@ -267,7 +322,18 @@ public final class M6bRetrainEval {
             }
         }
         diagRow(diag, "s2", s2[0], s2[1], s2Chan);
-        String injDay = a.getOrDefault("inject-day", "2022-04-05");
+        // 口径三：三档共同的平稳日（都在各档训练集之后），供档间比较 / span 3: stable days common to all arms
+        double[] s3 = new double[2];
+        double[] s3Chan = new double[N];
+        for (String d : a.getOrDefault("common-days", "2022-04-17,2022-04-23,2022-04-24").split(",")) {
+            double[] x = ev.span(day(d), dayAfter(d, 1));
+            s3[0] += x[0];
+            s3[1] += x[1];
+            for (int c = 0; c < N; c++) {
+                s3Chan[c] += ev.chanSum[c];
+            }
+        }
+        diagRow(diag, "s3", s3[0], s3[1], s3Chan);
         List<long[]> segs = new ArrayList<>();
         List<String> types = new ArrayList<>();
         for (String l : Files.readAllLines(Paths.get(a.getOrDefault("inject", "docs/m3_a4/full_fix/inject-truth.csv")))) {
@@ -293,14 +359,18 @@ public final class M6bRetrainEval {
         try (PrintWriter pw = new PrintWriter(out, "UTF-8")) {
             pw.println("device,seed,phase,n_days,start,score_version,train_windows,excluded,es_windows,th_windows,epochs,best_epoch,"
                     + "train_seconds,early_stop_loss,scorer_median,scorer_iqr,s1_windows,s1_above,s1_above_rate,s2_windows,s2_above,"
-                    + "s2_above_rate,inj_segments,inj_detected,spike_detected,step_detected,inj_windows,inj_above,other_windows,other_above");
-            pw.println(String.join(",", dev, Long.toString(seed), phase, "init".equals(phase) ? "" : Integer.toString(nDays),
+                    + "s2_above_rate,inj_segments,inj_detected,spike_detected,step_detected,inj_windows,inj_above,other_windows,other_above,"
+                    + "train_side,freeze_channels,s3_windows,s3_above,s3_above_rate");
+            boolean keyN = !"init".equals(phase) || evalOnly;   // 只评价的初始模型行带 N，以便与档丙同 N 对照 / eval-only init rows carry N
+            pw.println(String.join(",", dev, Long.toString(seed), phase, keyN ? Integer.toString(nDays) : "",
                     "init".equals(phase) ? "" : start, "init".equals(phase) ? "1" : Integer.toString(curVersion),
                     Integer.toString(trW.size()), Integer.toString(excluded), Integer.toString(esW.size()), Integer.toString(thW.size()),
                     Integer.toString(res.epochs), Integer.toString(res.bestEpoch), Double.toString(res.seconds),
                     Double.toString(res.earlyStopLoss), Double.toString(scorer.getMedian()), Double.toString(scorer.getIqr()),
                     i(s1[0]), i(s1[1]), Double.toString(s1[1] / s1[0]), i(s2[0]), i(s2[1]), Double.toString(s2[1] / s2[0]),
-                    i(segs.size()), i(inj[0]), i(inj[1]), i(inj[2]), i(inj[3]), i(inj[4]), i(inj[5]), i(inj[6])));
+                    i(segs.size()), i(inj[0]), i(inj[1]), i(inj[2]), i(inj[3]), i(inj[4]), i(inj[5]), i(inj[6]),
+                    keyN ? side : "", String.join(";", frozenCh.stream().map(String::valueOf).toArray(String[]::new)),
+                    i(s3[0]), i(s3[1]), Double.toString(s3[1] / s3[0])));
         }
         System.out.printf("完成：耗时 %.0f 秒、%d 轮；平稳段一超阈率 %.4f；平稳段二超阈率 %.4f；注入段检出 %d/%d%n", res.seconds, res.epochs,
                 s1[1] / s1[0], s2[1] / s2[0], (int) inj[0], segs.size());
