@@ -106,6 +106,10 @@ checks=(
     "com/leejean/m2/M2Job.class|adapt-enabled|命令回路总开关（适应执行第一批）"
     "com/leejean/m1/AdaptiveScalerFunction.class|Level 0 executed|标准化算子执行零级（适应执行第一批）"
     "com/leejean/m2/PmcodFunction.class|m2_state_version_clears|点通道换版本时清空并回填（适应执行第一批）"
+    "com/leejean/m3/M3Function.class|level-1 switch|上下文模块一级切换与模型代数（适应执行第二批）"
+    "com/leejean/m2/M2Job.class|m3-retrain-day-sec|一级按真实的天计（短重放用，1.41 版第四节）"
+    "com/leejean/m2/M2Job.class|adapt-keep-channels|湿度与气压不随零级重估（开发决策第十二条）"
+    "com/leejean/m7/FleetDecisionFunction.class|只有性能层持续|决策矩阵升级格（1.41 版第三节）"
 )
 
 fail=0

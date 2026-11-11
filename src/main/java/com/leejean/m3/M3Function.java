@@ -182,6 +182,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     // M6b 决定十七：一级重训的训练长度（天）、热启动与否、训练窗口在生效之前还是之后（开放问题第十二条补跑之后定默认值）。
     // Decision 17: level-1 training length (days), warm start, and whether the window lies before or after the effective time.
     private int retrainDays = 7;
+    private long retrainDaySec;                                 // 一级的「一天」秒数，0 表示每天轮数乘十秒 / level-1 day length
     private boolean retrainWarm = true;
     private boolean retrainAfter = false;
     private transient ListState<HistWindow> history;            // 在线窗口的原始值历史（一级训练集来源）/ raw online windows
@@ -1245,11 +1246,11 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     }
 
     /**
-     * 一天的事件时间秒数：每天轮数乘十秒一轮。生产上为 86,400；单元测试调小每天轮数时随之缩短，与训练段按轮数折天的口径一致。
+     * 一级所用的一天的事件时间秒数：设置了 withRetrainDaySec 时取它，否则为每天轮数乘十秒一轮（单元测试调小每天轮数时随之缩短）。
      * Seconds per day: rounds per day times the 10 s round period (86,400 in production).
      */
     private long daySec() {
-        return roundsPerDay * 10L;
+        return retrainDaySec > 0 ? retrainDaySec : roundsPerDay * 10L;
     }
 
     /** 一级重训的状态复位 / reset the level-1 retrain state. */
@@ -1345,6 +1346,16 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         this.retrainDays = days;
         this.retrainWarm = warm;
         this.retrainAfter = after;
+        return this;
+    }
+
+    /**
+     * 一级训练集范围与历史保留所用的「一天」秒数（作业默认 86,400）。短重放把冷启动的每天轮数调小以便训练尽早触发，一级仍按真实的
+     * 天计（1.41 版裁决第四节：旧模型服务三天）。未设置时取每天轮数乘十秒（单元测试用）。
+     * Seconds per day for the level-1 span and history (86,400 in the job); unset means rounds per day times 10 s.
+     */
+    public M3Function withRetrainDaySec(long sec) {
+        this.retrainDaySec = sec;
         return this;
     }
 

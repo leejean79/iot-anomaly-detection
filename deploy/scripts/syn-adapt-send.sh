@@ -12,7 +12,7 @@
 #      bash deploy/scripts/syn-adapt-send.sh --device G --day 2022-03-28 --seq 2    # 第二条命令
 #      bash deploy/scripts/syn-adapt-send.sh --device G --effective 1648422000      # 直接给生效时刻（秒，须为 60 的整数倍）
 #      bash deploy/scripts/syn-adapt-send.sh --device G --day 2022-03-28 --dry-run  # 只打印命令，不写主题
-#    可选 --topic（默认 synergia-adapt）。
+#    可选 --topic（默认 synergia-adapt）、--level 0|1|2（默认 0；一级与二级由数据接入模块转发给上下文模块，M6b）。
 # 3. 前置条件 / Preconditions: 命令主题已建（syn-create-topics.sh，一个分区）；作业以 --adapt-enabled true 运行或即将提交。
 #    命令须在数据流的水位线越过生效时刻之前写入，否则记为迟到、不执行；在提交作业之后、重放到达生效日之前写入即可。
 # 4. 期望产出 / Expected output: 打印写入的一行 JSON；作业的 TaskManager 日志出现「[M6a] Command stored」，到生效时刻出现
@@ -30,6 +30,7 @@ DEVICE=""
 DAY=""
 EFFECTIVE=""
 SEQ=1
+LEVEL=0
 TOPIC="${SYN_TOPIC_ADAPT:-synergia-adapt}"
 DRY=0
 while [[ $# -gt 0 ]]; do
@@ -38,6 +39,7 @@ while [[ $# -gt 0 ]]; do
         --day) DAY="$2"; shift 2 ;;
         --effective) EFFECTIVE="$2"; shift 2 ;;
         --seq) SEQ="$2"; shift 2 ;;
+        --level) LEVEL="$2"; shift 2 ;;
         --topic) TOPIC="$2"; shift 2 ;;
         --dry-run) DRY=1; shift ;;
         *) echo "Unknown arg: $1" >&2; exit 2 ;;
@@ -46,11 +48,13 @@ done
 [ -n "$DEVICE" ] || { echo "ERROR: 需要 --device" >&2; exit 2; }
 [ -n "$DAY" ] || [ -n "$EFFECTIVE" ] || { echo "ERROR: 需要 --day 或 --effective" >&2; exit 2; }
 
-LINE="$(python3 - "$DEVICE" "$DAY" "$EFFECTIVE" "$SEQ" <<'PY'
+[[ "$LEVEL" =~ ^[012]$ ]] || { echo "ERROR: --level 只能是 0、1 或 2" >&2; exit 2; }
+
+LINE="$(python3 - "$DEVICE" "$DAY" "$EFFECTIVE" "$SEQ" "$LEVEL" <<'PY'
 import json, sys
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-dev, day, eff, seq = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+dev, day, eff, seq, level = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), int(sys.argv[5])
 z = ZoneInfo("Europe/London")
 if day:
     d = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=z)
@@ -63,7 +67,7 @@ else:
     dday = datetime.fromtimestamp(decided, z).strftime("%Y-%m-%d")
 if eff % 60:
     sys.exit("ERROR: 生效时刻 %d 不是 60 的整数倍" % eff)
-print(json.dumps({"device": dev, "day": dday, "decidedAt": decided, "effectiveAt": eff, "seq": seq, "level": 0,
+print(json.dumps({"device": dev, "day": dday, "decidedAt": decided, "effectiveAt": eff, "seq": seq, "level": level,
                   "scope": "手工", "label": "手工命令", "triggers": "", "forms": "", "co": 0, "coDevices": "",
                   "episodeN": 0, "type": "command"}, ensure_ascii=False, separators=(",", ":")))
 PY

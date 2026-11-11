@@ -298,6 +298,8 @@ public class M2Job {
             throw new IllegalArgumentException("--m3-retrain-side 只能取 before 或 after: " + m3RetrainSide);
         }
         boolean m3ShadowScoring = params.getBoolean("m3-shadow-scoring", false);
+        // 一级的「一天」秒数：默认真实的一天；短重放调小每天轮数时一级仍按真实的天计（1.41 版裁决第四节）/ level-1 day length
+        long m3RetrainDaySec = params.getLong("m3-retrain-day-sec", 86400L);
         // 决策矩阵升级格（1.41 版裁决第三节）：在线默认打开；一级的 N 与训练窗口位置与上下文模块同源，二级的收集长度取冷启动的三段之和
         // Upgrade cells on by default online; N and side shared with the context module; level-2 collection = the three segments.
         m7Opts.putIfAbsent("upgrade-cells", "true");
@@ -311,7 +313,7 @@ public class M2Job {
         System.out.println("M5b enabled:     " + (m5bEnabled && m3Enabled));
         System.out.println("M5a enabled:     " + m5aEnabled);
         System.out.println("M3 level 1:      " + m3RetrainDays + " days, " + (m3RetrainWarm ? "warm" : "cold") + " start, window "
-                + m3RetrainSide + " the effective time; shadow scoring " + m3ShadowScoring);
+                + m3RetrainSide + " the effective time; day " + m3RetrainDaySec + " s; shadow scoring " + m3ShadowScoring);
         if (m5aEnabled) {
             System.out.println("M5a data layer:  alpha=" + m5aAlpha + " (Bonferroni /5) D0=" + m5aD0Spec + " missing-max=" + m5aMissingMax
                     + " guard-max=" + m5aGuardMax + " burst OPTWIN confidence=" + m5aConfidence + " robustness=" + m5aRobustness
@@ -541,6 +543,7 @@ public class M2Job {
                             m3LearningRate, m3GradClip, m3MonTag, m3RoundsPerDay,
                             m3TrainThreads, m3DrainBatch, m3PollIntervalSec)
                             .withRetrain(m3RetrainDays, m3RetrainWarm, m3RetrainSide.equals("after"))
+                            .withRetrainDaySec(m3RetrainDaySec)
                             .withShadowScoring(m3ShadowScoring)));
 
             // M3 上下文评分 → synergia-scores
