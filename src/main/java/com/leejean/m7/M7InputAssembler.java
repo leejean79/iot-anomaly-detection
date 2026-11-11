@@ -92,6 +92,7 @@ public class M7InputAssembler implements Serializable {
                     o.ctxMax = Double.toString(in.v1);
                 }
                 f.addPerfElement(in.device, in.ts, in.v1);
+                f.setModel(in.device, in.ts, in.model);          // 模型代数（1.41 版裁决第二节第五条）/ model generation
                 break;
             }
             case M7Input.PERF:

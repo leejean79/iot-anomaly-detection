@@ -168,6 +168,12 @@ public final class M3TrainExecutor {
      */
     static volatile java.util.concurrent.CountDownLatch testGate;
 
+    /**
+     * 仅供测试：非空且对某个任务返回真时，该任务按失败处理（用于一级重训失败两次的单元测试）。
+     * Test-only: when set and true for a task, that task fails (used by the level-1 failure test).
+     */
+    static volatile java.util.function.Predicate<TrainTask> testFail;
+
     private final ExecutorService pool;
     private final Map<String, Future<Outcome>> slots = new ConcurrentHashMap<>();
     private boolean closed;
@@ -244,6 +250,10 @@ public final class M3TrainExecutor {
         LOG.info("[M3] Device {} training started on {} after {}s in the executor queue (task {}, {})",
                 t.device, Thread.currentThread().getName(), String.format("%.1f", waitSec), t.taskId, t.purpose);
         try {
+            java.util.function.Predicate<TrainTask> fail = testFail;
+            if (fail != null && fail.test(t)) {
+                throw new IllegalStateException("test-injected training failure");
+            }
             M3Training.Result r = M3Training.train(t.config, t.initModel, t.trainData, t.trainMask, t.earlyStopData,
                     listener);
             M3Function.logTrained(t.device, t.config, r);

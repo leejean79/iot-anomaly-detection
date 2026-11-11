@@ -44,6 +44,7 @@ public class M7Input implements Serializable {
     public String s1;           // 性能层：级别；日记录与转移：当地日 / level; local day
     public String s2;           // 日记录与转移：通道 / channel
     public String s3;           // 转移：DEVIATE 或 RECOVER / transition
+    public int model;           // 上下文：模型代数，从未换过为零（1.41 版裁决第二节第五条）/ model generation, 0 if never changed
     public int version = 1;     // 轮、日记录与转移：参数版本号，命令回路关闭时为一（M6b 决定十四）/ parameter version, 1 when the loop is off
 
     public M7Input() {
@@ -107,6 +108,7 @@ public class M7Input implements Serializable {
         M7Input in = of(CTX, r.getDevice(), r.getWindowEnd());
         in.v1 = r.getMainScore();
         in.flag1 = r.isAboveThreshold();
+        in.model = r.getModel() == null ? 0 : r.getModel();
         return in;
     }
 

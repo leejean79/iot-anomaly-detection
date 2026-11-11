@@ -66,6 +66,13 @@ public class FleetDecisionFunction implements Serializable {
         public long alertSec = 3600;                          // 告警节拍 τ_alert：3600 或 600 / alert tick period
         public long cmdSec;                                   // 决策节拍 τ_cmd；0 表示一个当地日 / 0 means one local day
         public long waitSec;                                  // 等待时长 W；0 表示一个日界 / 0 means one day boundary
+        // ---- 决策矩阵升级格（1.41 版裁决第三节；默认关闭，使离线运行器与收口基线逐字节相同）/ upgrade cells (off by default)
+        public boolean upgradeCells;
+        public int kUpDays = 7;                               // K_up（当地日）/ K_up in local days
+        public int upCooldownDays = 7;                        // 一级与二级的冷却期：重训完成后七个当地日 / level-1/2 cooldown
+        public int retrainDays = 3;                           // 一级的 N（与上下文模块同源；按秒计）/ level-1 N, in 86,400 s units
+        public boolean retrainAfter = true;                   // 一级训练窗口在生效之后 / level-1 training window after the effect
+        public int level2Days = 16;                           // 二级的收集长度（训练加早停加标定，按秒计）/ level-2 collection
 
         /** 一个告警节拍的名义轮数（每十秒一轮）/ nominal rounds per alert tick. */
         double nominal() {
@@ -115,6 +122,9 @@ public class FleetDecisionFunction implements Serializable {
         public int pointFlag;                 // 该节拍的检测标志，主标签被覆盖时仍可查 / detection flags kept in the payload
         public int ctxFlag;
         public String note;
+        // 该节拍末上下文模块的模型代数（1.41 版裁决第二节第五条；从未换过模型时为空、不写进 JSON）/ model generation
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        public Integer model;
     }
 
     public static final class Command implements Serializable {
@@ -132,6 +142,11 @@ public class FleetDecisionFunction implements Serializable {
         public int co;
         public String coDevices;
         public int episodeN;
+        // 决定依据（1.41 版裁决第二、三节；升级格关闭且未换过模型时为空、不写进 JSON）/ basis of the decision
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        public String cell;                   // 命中的决策矩阵格 / the decision-matrix cell
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        public Integer model;                 // 决定时刻上下文模块的模型代数 / model generation at the decision
     }
 
     public static final class Review implements Serializable {
@@ -229,6 +244,12 @@ public class FleetDecisionFunction implements Serializable {
     private final TreeMap<String, Book> drift = new TreeMap<>();
     private final Map<String, Map<String, Integer>> episode = new HashMap<>();     // dev → {触发类: 第几次} / per trigger class
     private final Map<String, Long> cooldownUntil = new HashMap<>();
+    // 升级格的状态（1.41 版裁决第三节）/ upgrade-cell state
+    private final Map<String, Long> cooldown1Until = new HashMap<>();               // 一级的冷却截止 / level-1 cooldown end
+    private final Map<String, Long> cooldown2Until = new HashMap<>();               // 二级的冷却截止 / level-2 cooldown end
+    private final Map<String, Long> level1Done = new HashMap<>();                   // dev → 最近一条一级的重训完成时刻
+    private final Map<String, Long> level0Eff = new HashMap<>();                    // dev|ch → 最近一条含该通道的零级的生效时刻
+    private final Map<String, TreeMap<Long, Integer>> modelGen = new HashMap<>();   // dev → {时刻 → 模型代数}（只记变化）
     private final Map<String, Integer> seq = new HashMap<>();
     private final List<Alert> dayAlerts = new ArrayList<>();
 
@@ -261,6 +282,25 @@ public class FleetDecisionFunction implements Serializable {
     public void addPerfElement(String dev, long ts, double mainScore) {
         addDevice(dev);
         perf.get(dev).add(new double[]{ts, 1, 0, mainScore, 0});
+    }
+
+    /**
+     * 上下文评分所带的模型代数（1.41 版裁决第二节第五条；空或零表示从未换过模型）：只记变化，节拍按时刻查。
+     * The model generation carried by a contextual score; only changes are kept, looked up by time.
+     */
+    public void setModel(String dev, long ts, int gen) {
+        TreeMap<Long, Integer> m = modelGen.computeIfAbsent(dev, k -> new TreeMap<>());
+        Map.Entry<Long, Integer> prev = m.floorEntry(ts);
+        if (gen > 0 && (prev == null || prev.getValue() != gen)) {
+            m.put(ts, gen);
+        }
+    }
+
+    /** 时刻 t 时的模型代数，从未换过时为空 / model generation at t, null if never changed. */
+    Integer modelAt(String dev, long t) {
+        TreeMap<Long, Integer> m = modelGen.get(dev);
+        Map.Entry<Long, Integer> e = m == null ? null : m.floorEntry(t);
+        return e == null ? null : e.getValue();
     }
 
     public void addBurst(String dev, long ts, long emittedAt) {
@@ -522,6 +562,7 @@ public class FleetDecisionFunction implements Serializable {
             a.pointFlag = x.pflag ? 1 : 0;
             a.ctxFlag = x.cflag ? 1 : 0;
             a.note = note;
+            a.model = modelAt(dev, hs + p.alertSec);
             out.add(a);
             dayAlerts.add(a);
         }
@@ -571,6 +612,60 @@ public class FleetDecisionFunction implements Serializable {
             }
         }
         return false;
+    }
+
+    // ================================================================ 决策矩阵升级格 / upgrade cells
+    /**
+     * 决策矩阵的格（1.41 版裁决第三节）。按次序判定，先命中者为准：
+     * <ol>
+     *   <li>二级：触发含性能层，且性能层当前确认段开始于最近一条一级的重训完成之后 K_up 个当地日内；</li>
+     *   <li>一级：只有性能层持续；</li>
+     *   <li>一级：两层同报，即某个数据层触发通道的形态为「两层同日同报」，或性能层持续与数据层触发同时出现；</li>
+     *   <li>一级：只有数据层持续，且某个触发通道的当前持续段开始于该通道最近一条零级生效之后 K_up 个当地日内；</li>
+     *   <li>零级：其余（只有数据层持续）。</li>
+     * </ol>
+     * 返回格的说明（以级别开头），供命令的决定依据使用。/ The decision-matrix cell, checked in order.
+     */
+    private String cell(String dev, String day, DevState s, List<String> triggers, List<String> forms) {
+        boolean perfTrig = triggers.contains("perf");
+        List<String> data = new ArrayList<>();
+        for (String tr : triggers) {
+            if (!"perf".equals(tr)) {
+                data.add(tr);
+            }
+        }
+        PerfTracker pf = perf.get(dev);
+        Long done = level1Done.get(dev);
+        if (perfTrig && done != null && pf.since != null && pf.since >= done && pf.since < addLocalDays(done, p.kUpDays)) {
+            return "二级：一级之后 K_up 天内性能层新确认段";
+        }
+        if (perfTrig && data.isEmpty()) {
+            return "一级：只有性能层持续";
+        }
+        boolean sameDay = false;
+        for (String f : forms) {
+            sameDay = sameDay || f.endsWith("两层同日同报");
+        }
+        if (sameDay || (perfTrig && !data.isEmpty())) {
+            return "一级：两层同报";
+        }
+        for (String ch : data) {
+            Long e0 = level0Eff.get(dev + "|" + ch);
+            if (e0 == null) {
+                continue;
+            }
+            // 当前持续段的起点：从当日向前连续偏离的第一天，不早于零级生效的当地日（换版本时数据层状态已清零）
+            String first = day;
+            String floor = localDay(e0);
+            while (first.compareTo(floor) > 0 && dataDev(dev, addDays(first, -1), ch)) {
+                first = addDays(first, -1);
+            }
+            long start = dayStart(first);
+            if (start >= e0 && start < addLocalDays(e0, p.kUpDays)) {
+                return "一级：零级之后 K_up 天内同一通道新持续段";
+            }
+        }
+        return "零级：只有数据层持续";
     }
 
     // ================================================================ 日节拍与复核 / daily tick and review
@@ -693,7 +788,12 @@ public class FleetDecisionFunction implements Serializable {
                     }
                 }
             }
-            if (cooldownUntil.getOrDefault(dev, 0L) > t) {
+            // 决策矩阵的格（升级格关闭时一律零级）与按级别的冷却：各级只阻止同级（1.41 版裁决第三节第三问）
+            // The decision-matrix cell (level 0 when the upgrade cells are off); each level's cooldown blocks only that level.
+            String cell = p.upgradeCells ? cell(dev, day, s, triggers, forms) : null;
+            int level = cell == null ? 0 : cell.startsWith("二级") ? 2 : cell.startsWith("一级") ? 1 : 0;
+            Map<String, Long> cd = level == 0 ? cooldownUntil : level == 1 ? cooldown1Until : cooldown2Until;
+            if (cd.getOrDefault(dev, 0L) > t) {
                 continue;
             }
             Map<String, Integer> ep = episode.getOrDefault(dev, Collections.emptyMap());
@@ -724,9 +824,31 @@ public class FleetDecisionFunction implements Serializable {
             } else {
                 c.effectiveAt = p.cmdSec == 0 ? addLocalDays(t, 1) : t + p.cmdSec;
             }
-            cooldownUntil.put(dev, addLocalDays(c.effectiveAt, 1));
+            if (level == 0) {
+                cooldownUntil.put(dev, addLocalDays(c.effectiveAt, 1));
+                if (p.upgradeCells) {
+                    for (String tr : triggers) {
+                        if (!"perf".equals(tr)) {
+                            level0Eff.put(dev + "|" + tr, c.effectiveAt);
+                        }
+                    }
+                }
+            } else {
+                // 重训完成的时刻由命令自己算出（第三节第一问）：一级生效前侧为生效时刻，生效后侧为生效加 N 天；二级为生效加收集长度
+                // Completion computed from the command itself; cooldown is seven local days after completion.
+                long done = level == 1 ? c.effectiveAt + (p.retrainAfter ? p.retrainDays * 86400L : 0L)
+                        : c.effectiveAt + p.level2Days * 86400L;
+                if (level == 1) {
+                    level1Done.put(dev, done);
+                    cooldown1Until.put(dev, addLocalDays(done, p.upCooldownDays));
+                } else {
+                    cooldown2Until.put(dev, addLocalDays(done, p.upCooldownDays));
+                }
+            }
             c.seq = n;
-            c.level = 0;
+            c.level = level;
+            c.cell = cell;
+            c.model = modelAt(dev, t);
             c.scope = scope;
             c.label = DRIFT;
             c.triggers = String.join("|", triggers);

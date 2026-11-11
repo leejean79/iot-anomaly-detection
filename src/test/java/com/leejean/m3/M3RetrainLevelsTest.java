@@ -206,6 +206,30 @@ class M3RetrainLevelsTest {
     }
 
     @Test
+    @DisplayName("一级重训失败两次：放弃，旧模型继续服务，监测快照上标一次「一级失败」")
+    void levelOneFailureIsMarkedOnce() throws Exception {
+        int cmdAt = TO_TRAINING + 3 * ROUNDS_PER_DAY;
+        int n = cmdAt + 2 * ROUNDS_PER_DAY;
+        long eff = ts(cmdAt);
+        List<AnnotatedRound> rs = rounds(n, n, cmdAt, command(1, eff));
+        Run r;
+        M3TrainExecutor.testFail = t -> t.purpose == M3TrainExecutor.Purpose.RETRAIN;   // 重训任务一律失败 / retrains fail
+        try {
+            r = run(fn(2, true, false), rs, true);
+        } finally {
+            M3TrainExecutor.testFail = null;
+        }
+        long marks = r.snaps.stream().filter(s -> Boolean.TRUE.equals(s.getM3Level1Failed())).count();
+        assertEquals(1, marks, "一级失败只标一次");
+        MonitoringSnapshot m = r.snaps.stream().filter(s -> Boolean.TRUE.equals(s.getM3Level1Failed())).findFirst().get();
+        assertEquals(eff, m.getTs(), "时间戳为训练集范围的止点（生效前侧即生效时刻）");
+        for (M3ScoreRecord s : r.scores) {
+            assertNull(s.getModel(), "旧模型继续服务");
+        }
+        assertEquals((n - TO_TRAINING) / WINDOW, r.scores.size(), "每个在线窗口恰好一条评分");
+    }
+
+    @Test
     @DisplayName("二级：回到收集态，四天内上下文通道无评分并每窗发出重训中标记；新模型上线后代数为一")
     void levelTwoSilencesAndMarks() throws Exception {
         int cmdAt = TO_TRAINING + 2 * ROUNDS_PER_DAY;

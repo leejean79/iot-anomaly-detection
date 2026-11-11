@@ -280,7 +280,6 @@ public class M2Job {
             }
         }
         m7Opts.putIfAbsent("p-point", com.leejean.m7.M7DumpRunner.DEFAULT_P_POINT);
-        com.leejean.m7.FleetDecisionFunction.Params m7Params = com.leejean.m7.M7OfflineRunner.params(m7Opts);
         // ---- 适应执行第一批（M6a 交接文档第四节；默认关闭）：标准化算子按设备键连接命令主题，执行零级 ----
         // M6a (off by default): the scaler consumes the command topic and executes level 0.
         boolean adaptEnabled = params.getBoolean("adapt-enabled", false);
@@ -291,14 +290,21 @@ public class M2Job {
         // Channels that keep the freeze parameters at level 0: Humidity and Pressure by default; "none" re-estimates all.
         boolean[] adaptKeepChannels = com.leejean.m1.Channels.parseSet(params.get("adapt-keep-channels", "Humidity,Pressure"));
         // ---- 适应执行第二批（M6b 决定十三、十七）：一级重训参数与影子评分开关 / level-1 parameters and shadow scoring ----
-        // 一级默认七天、热启动、训练窗口在生效之前；开放问题第十二条补跑裁决之后改为选定值。影子评分只在全量重放打开。
-        int m3RetrainDays = params.getInt("m3-retrain-days", 7);
+        // 一级默认三天、训练窗口在生效之后（1.41 版裁决第四节）；启动方式待确认，暂沿用热启动。影子评分只在全量重放打开。
+        int m3RetrainDays = params.getInt("m3-retrain-days", 3);
         boolean m3RetrainWarm = params.getBoolean("m3-retrain-warm", true);
-        String m3RetrainSide = params.get("m3-retrain-side", "before");
+        String m3RetrainSide = params.get("m3-retrain-side", "after");
         if (!m3RetrainSide.equals("before") && !m3RetrainSide.equals("after")) {
             throw new IllegalArgumentException("--m3-retrain-side 只能取 before 或 after: " + m3RetrainSide);
         }
         boolean m3ShadowScoring = params.getBoolean("m3-shadow-scoring", false);
+        // 决策矩阵升级格（1.41 版裁决第三节）：在线默认打开；一级的 N 与训练窗口位置与上下文模块同源，二级的收集长度取冷启动的三段之和
+        // Upgrade cells on by default online; N and side shared with the context module; level-2 collection = the three segments.
+        m7Opts.putIfAbsent("upgrade-cells", "true");
+        m7Opts.put("retrain-days", Integer.toString(m3RetrainDays));
+        m7Opts.put("retrain-side", m3RetrainSide);
+        m7Opts.put("level2-days", Integer.toString(m3TrainDays + m3EarlyStopDays + m3ThreshDays));
+        com.leejean.m7.FleetDecisionFunction.Params m7Params = com.leejean.m7.M7OfflineRunner.params(m7Opts);
         if (m7Enabled && !(m3Enabled && m5bEnabled && m5aEnabled)) {
             throw new IllegalArgumentException("--m7-enabled 须同时开启 --m3-enabled、--m5b-enabled、--m5a-enabled");
         }

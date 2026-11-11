@@ -62,6 +62,7 @@ public class MonitoringSnapshot implements Serializable {
     private Boolean m3ShadowAbove;       // 影子评分是否超阈（按当前版本）/ shadow score above threshold
     private Double m3ShadowWmse;         // 影子评分的窗口加权 MSE / shadow window weighted MSE
     private Boolean m3Retraining;        // 二级重训中（回到收集态；M6b 第五节）/ level-2 retraining (collecting again)
+    private Boolean m3Level1Failed;      // 一级重训失败两次、已放弃（1.41 版裁决第二节第六条）/ level-1 retrain abandoned
 
     // ---- M5b 追加字段（M5b 交接文档决定四；windowEnd = -2 的快照才有意义）/ M5b fields (snapshots with windowEnd = -2) ----
     private int m5bWindowLen;            // 检测器当前窗长 / detector window length
@@ -229,6 +230,11 @@ public class MonitoringSnapshot implements Serializable {
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     public Boolean getM3Retraining() { return m3Retraining; }
     public void setM3Retraining(Boolean m3Retraining) { this.m3Retraining = m3Retraining; }
+
+    @JsonProperty
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Boolean getM3Level1Failed() { return m3Level1Failed; }
+    public void setM3Level1Failed(Boolean m3Level1Failed) { this.m3Level1Failed = m3Level1Failed; }
 
     @JsonProperty
     public int getM5bWindowLen() { return m5bWindowLen; }

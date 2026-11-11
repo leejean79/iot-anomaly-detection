@@ -534,6 +534,18 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                 // 一级重训失败两次：放弃这次重训，旧模型继续服务（缓冲的轮由旧模型排空）/ abandon; the old model drains
                 LOG.warn("[M3] Device {} REPORT: level-1 retrain failed {} times; abandoned, the old model keeps serving",
                          device, failures);
+                if (m3MonitoringTag != null) {
+                    // 监测快照上标一次「一级失败」（1.41 版裁决第二节第六条），时间戳取训练集范围的止点，使离线工具能数出来
+                    // One "level-1 failed" marker on the monitoring snapshot, stamped with the span end (ruling 1.41 §2.6).
+                    long[] span = retrainSpan.value();
+                    MonitoringSnapshot snap = new MonitoringSnapshot();
+                    snap.setDevice(device);
+                    snap.setTs(span == null ? 0L : span[1]);
+                    snap.setWindowEnd(STATUS_SNAPSHOT_WINDOW_END);
+                    snap.setM3Phase(3);
+                    snap.setM3Level1Failed(true);
+                    ctx.output(m3MonitoringTag, snap);
+                }
                 endRetrain();
                 statePhase.update(3);
             } else {

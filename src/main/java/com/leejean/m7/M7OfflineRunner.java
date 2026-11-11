@@ -73,6 +73,13 @@ public final class M7OfflineRunner {
         if (a.containsKey("p-point")) {
             p.pPoint = Double.parseDouble(a.get("p-point"));
         }
+        // 决策矩阵升级格（1.41 版裁决第三节；默认关闭）/ upgrade cells (off by default)
+        p.upgradeCells = Boolean.parseBoolean(a.getOrDefault("upgrade-cells", "false"));
+        p.kUpDays = Integer.parseInt(a.getOrDefault("k-up-days", "7"));
+        p.upCooldownDays = Integer.parseInt(a.getOrDefault("up-cooldown-days", "7"));
+        p.retrainDays = Integer.parseInt(a.getOrDefault("retrain-days", "3"));
+        p.retrainAfter = !"before".equals(a.getOrDefault("retrain-side", "after"));
+        p.level2Days = Integer.parseInt(a.getOrDefault("level2-days", "16"));
         return p;
     }
 
