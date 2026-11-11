@@ -290,9 +290,9 @@ public class M2Job {
         // Channels that keep the freeze parameters at level 0: Humidity and Pressure by default; "none" re-estimates all.
         boolean[] adaptKeepChannels = com.leejean.m1.Channels.parseSet(params.get("adapt-keep-channels", "Humidity,Pressure"));
         // ---- 适应执行第二批（M6b 决定十三、十七）：一级重训参数与影子评分开关 / level-1 parameters and shadow scoring ----
-        // 一级默认三天、训练窗口在生效之后（1.41 版裁决第四节）；启动方式待确认，暂沿用热启动。影子评分只在全量重放打开。
+        // 一级默认：训练窗口在生效之后、N 三天、冷启动（1.40 版裁决）。影子评分只在全量重放打开。
         int m3RetrainDays = params.getInt("m3-retrain-days", 3);
-        boolean m3RetrainWarm = params.getBoolean("m3-retrain-warm", true);
+        boolean m3RetrainWarm = params.getBoolean("m3-retrain-warm", false);
         String m3RetrainSide = params.get("m3-retrain-side", "after");
         if (!m3RetrainSide.equals("before") && !m3RetrainSide.equals("after")) {
             throw new IllegalArgumentException("--m3-retrain-side 只能取 before 或 after: " + m3RetrainSide);

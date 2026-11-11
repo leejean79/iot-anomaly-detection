@@ -15,6 +15,7 @@
 #    补跑时指向一份副本，以便开发期间重新打包不影响运行）；Q12_INIT_EVAL=1 时不训练初始模型，而是读入 Q12_MODELS 中已有的
 #    初始模型只做评价，对 Q12_INIT_NS（默认同 Q12_NS）的每个 N 各一行（档丙的口径一随 N 变化）。设置 Q12_ARGS 或 Q12_INIT_EVAL 时，每次运行另写
 #    Q12_DIR/diag/ 下的逐通道诊断。补跑的编排见 m6b/q12_supp.sh。
+#    Q12_SEG=1 时每次运行另写 $DIR/seg/<标签>.csv：注入日每一段的重叠窗口数、超阈数、最大窗口误差与门槛（1.40 版裁决的逐段检出核对）。
 # 3. 前置条件 / Preconditions: docs/m6b/extract/rounds_E_inj.csv.gz、docs/m6b/chain/D7/level0/E_1.json 与 E_2.json、
 #    docs/m6b/chain/D7/outliers.csv 已生成（见 m6a/inject_rounds.py 与 ChainDriver）。
 # 4. 期望产出 / Expected output: Q12_DIR/rows/ 下每次运行一个结果行文件，Q12_DIR/logs/ 下逐个日志，Q12_DIR/models/ 下初始模型；
@@ -47,6 +48,7 @@ job() {   # 参数：种子 阶段 N 启动方式 / seed phase n start
     fi
     [ -s "$DIR/rows/$tag.csv" ] && return 0
     [ -n "$DIAG" ] && opt+=(--diag-out "$DIR/diag/$tag.csv")
+    [ "${Q12_SEG:-0}" = 1 ] && mkdir -p "$DIR/seg" && opt+=(--seg-out "$DIR/seg/$tag.csv")   # 逐段检出（1.40 版）
     # shellcheck disable=SC2086
     "$JAVA" -Xmx3g -cp "$JAR" com.leejean.m3.M6bRetrainEval --phase "$phase" --seed "$seed" --n "$n" --start "$start" \
         --model-dir "$MODELS" $EXTRA "${opt[@]}" --out "$DIR/rows/$tag.csv.tmp" > "$DIR/logs/$tag.log" 2>&1 \
@@ -54,7 +56,7 @@ job() {   # 参数：种子 阶段 N 启动方式 / seed phase n start
     echo "$(date -u +%H:%M:%S) $tag $([ -s "$DIR/rows/$tag.csv" ] && echo 完成 || echo 失败)"
 }
 export -f job
-export DIR JAR JAVA EXTRA MODELS INIT_EVAL DIAG
+export DIR JAR JAVA EXTRA MODELS INIT_EVAL DIAG Q12_SEG="${Q12_SEG:-0}"
 
 echo "$(date -u +%H:%M:%S) 初始模型：种子 $SEEDS"
 if [ "$INIT_EVAL" = 1 ]; then

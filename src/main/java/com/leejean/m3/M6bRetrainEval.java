@@ -49,7 +49,7 @@ import java.util.zip.GZIPInputStream;
  *       （训练集取生效后 N 个当地日，口径一改为训练集之后七个当地日、不含注入日，口径二不计落在训练集内的平稳日）；
  *       {@code --phase init --eval-only 1} 读入已有初始模型只做标定与评价（不覆盖模型文件）。</li>
  *   <li>前置条件：E 的注入轮表、链式实验乙档的零级 JSON 与离群轮表已生成；重训前须先跑同一种子的 init。</li>
- *   <li>期望产出：out 处一行表头加一行度量；init 另在 model-dir 写 init_&lt;种子&gt;.bin。终端逐轮打印训练进度。可选 --diag-out &lt;文件&gt; 另写逐通道诊断：标定段、三个平稳段口径与注入日的窗口数、超阈数与逐通道平均重构误差。</li>
+ *   <li>期望产出：out 处一行表头加一行度量；init 另在 model-dir 写 init_&lt;种子&gt;.bin。终端逐轮打印训练进度。可选 --diag-out &lt;文件&gt; 另写逐通道诊断：标定段、三个平稳段口径与注入日的窗口数、超阈数与逐通道平均重构误差。可选 --seg-out &lt;文件&gt; 另写注入日每一段的重叠窗口数、超阈窗口数、最大窗口误差与门槛（1.40 版裁决的逐段检出核对）。</li>
  *   <li>失败兜底：训练三段不齐时退出码 2；重训找不到初始模型时退出码 3。</li>
  * </ol>
  */
@@ -336,6 +336,7 @@ public final class M6bRetrainEval {
         diagRow(diag, "s3", s3[0], s3[1], s3Chan);
         List<long[]> segs = new ArrayList<>();
         List<String> types = new ArrayList<>();
+        List<String> mags = new ArrayList<>();
         for (String l : Files.readAllLines(Paths.get(a.getOrDefault("inject", "docs/m3_a4/full_fix/inject-truth.csv")))) {
             String[] f = l.split(",");
             if (!f[0].equals(dev) || f[0].equals("device")) {
@@ -345,10 +346,23 @@ public final class M6bRetrainEval {
             if (s >= day(injDay) && s < dayAfter(injDay, 1)) {
                 segs.add(new long[]{s, Long.parseLong(f[3])});
                 types.add(f[4]);
+                mags.add(f[5]);
             }
         }
         double[] inj = ev.recall(day(injDay), dayAfter(injDay, 1), segs, types);
         diagRow(diag, "inject_day", inj[3] + inj[5], inj[4] + inj[6], ev.chanSum);
+        if (a.containsKey("seg-out")) {                        // 逐段检出（可选，1.40 版裁决）/ optional per-segment detection
+            StringBuilder sb = new StringBuilder("seed,phase,n_days,start,train_side,segment,type,magnitude,start_ts,end_ts,"
+                    + "windows,above,max_wmse,threshold\n");
+            for (int k = 0; k < segs.size(); k++) {
+                double[] g = ev.segStats.get(k);
+                sb.append(String.join(",", Long.toString(seed), phase, phase.equals("init") && !evalOnly ? "" : Integer.toString(nDays),
+                        phase.equals("init") ? "" : start, side, Integer.toString(k + 1), types.get(k), mags.get(k),
+                        Long.toString(segs.get(k)[0]), Long.toString(segs.get(k)[1]), Integer.toString((int) g[0]),
+                        Integer.toString((int) g[1]), Double.toString(g[2]), Double.toString(scorer.getThreshold()))).append('\n');
+            }
+            Files.write(Paths.get(a.get("seg-out")), sb.toString().getBytes(StandardCharsets.UTF_8));
+        }
         if (a.containsKey("diag-out")) {                       // 逐通道诊断（可选）/ optional per-channel diagnostic
             Files.write(Paths.get(a.get("diag-out")), diag.toString().getBytes(StandardCharsets.UTF_8));
         }
@@ -419,6 +433,7 @@ public final class M6bRetrainEval {
 
         /** 时段内的窗口：每个窗口为 {首轮时刻, 末轮时刻, 是否超阈} / windows of a span. */
         List<long[]> windows(long t0, long t1) {
+            lastWmse.clear();
             List<Pt> in = new ArrayList<>();
             for (Pt p : pts) {
                 if (p.ts >= t0 && p.ts < t1) {
@@ -440,6 +455,7 @@ public final class M6bRetrainEval {
                 }
                 boolean above = scorer.score(r.wmse, r.perChannelMse).aboveThreshold;
                 out.add(new long[]{in.get(k * window).ts, in.get(k * window + window - 1).ts, above ? 1 : 0});
+                lastWmse.add(r.wmse);
             }
             return out;
         }
@@ -454,20 +470,30 @@ public final class M6bRetrainEval {
             return new double[]{ws.size(), above};
         }
 
+        /** 最近一次 windows 调用中各窗口的加权误差；最近一次 recall 中各段的统计 / per-window wmse; per-segment stats. */
+        final List<Double> lastWmse = new ArrayList<>();
+        final List<double[]> segStats = new ArrayList<>();
+
         /** {检出段数, 尖峰检出, 阶跃检出, 注入窗口数, 其中超阈, 其余窗口数, 其中超阈} / recall over injection segments. */
         double[] recall(long t0, long t1, List<long[]> segs, List<String> types) {
             List<long[]> ws = windows(t0, t1);
             double[] r = new double[7];
             boolean[] inInj = new boolean[ws.size()];
+            segStats.clear();
             for (int s = 0; s < segs.size(); s++) {
                 boolean hit = false;
+                double[] g = {0, 0, Double.NEGATIVE_INFINITY};      // 重叠窗口数、其中超阈、最大窗口误差 / windows, above, max wmse
                 for (int k = 0; k < ws.size(); k++) {
                     long[] w = ws.get(k);
                     if (w[1] >= segs.get(s)[0] && w[0] < segs.get(s)[1]) {
                         inInj[k] = true;
                         hit |= w[2] == 1;
+                        g[0]++;
+                        g[1] += w[2];
+                        g[2] = Math.max(g[2], lastWmse.get(k));
                     }
                 }
+                segStats.add(g);
                 if (hit) {
                     r[0]++;
                     r["spike".equals(types.get(s)) ? 1 : 2]++;
