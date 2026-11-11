@@ -23,6 +23,25 @@ public final class Channels implements Serializable {
     };
     public static final int N_DET = DETECTION.length;   // 5
 
+    /**
+     * 把逗号分隔的检测通道名解析为掩码；空串或 none 为全假（1.41 版裁决第一节「不随零级重估的通道集合」用）。
+     * Parse a comma-separated list of detection channel names into a mask; "" or "none" gives all false.
+     */
+    public static boolean[] parseSet(String spec) {
+        boolean[] m = new boolean[N_DET];
+        if (spec == null || spec.trim().isEmpty() || spec.trim().equalsIgnoreCase("none")) {
+            return m;
+        }
+        for (String name : spec.split(",")) {
+            int idx = java.util.Arrays.asList(DETECTION).indexOf(name.trim());
+            if (idx < 0) {
+                throw new IllegalArgumentException("未知的检测通道 / unknown detection channel: " + name);
+            }
+            m[idx] = true;
+        }
+        return m;
+    }
+
     // Light 通道在 x[] 中的下标（右删失判据用）/ Light index (for right-censoring, DF-11)
     public static final int LIGHT_INDEX = 4;
 

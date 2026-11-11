@@ -38,7 +38,7 @@ import java.util.TreeMap;
  * <ol>
  *   <li>执行环境：开发机或本地 Mac，仓库根目录，JDK 11，先 mvn package；堆至少 4 GB（-Xmx6g）。</li>
  *   <li>调用命令：{@code java -Xmx6g -cp target/iot-anomaly-detection-1.0-SNAPSHOT.jar com.leejean.m6.ChainDriver --variant D1
- *       --out-dir docs/m6b/chain/D1}；--variant 取 open（命令只发出不执行，驱动正确性对照）、D1、D7、pos（只重估位置）；可选
+ *       --out-dir docs/m6b/chain/D1}；--variant 取 open（命令只发出不执行，驱动正确性对照）、D1、D7、pos（只重估位置）；--keep-channels Humidity,Pressure 使这些通道不随零级重估（1.41 版裁决第一节，默认 none）；可选
  *       --rounds-dir docs/m6a/extract、--rounds-E docs/m6b/extract/rounds_E_inj.csv.gz（E 的注入轮表）、--inputs docs/m7/inputs，
  *       以及聚合模块的决策参数（与 M7OfflineRunner 相同的选项名）。</li>
  *   <li>前置条件：八台轮表已提取；E 的注入轮表已由 m6a/inject_rounds.py 生成；docs/m7/inputs 已由 m7/prepare_inputs.py 生成。</li>
@@ -102,7 +102,9 @@ public final class ChainDriver {
         Map<String, ChainDeviceSim> sims = new TreeMap<>();
         for (String dev : R.keySet()) {
             String path = "E".equals(dev) ? roundsE : roundsDir + "/rounds_" + dev + ".csv.gz";
-            sims.put(dev, new ChainDeviceSim(dev, path, variant, R.get(dev), tables));
+            ChainDeviceSim sim = new ChainDeviceSim(dev, path, variant, R.get(dev), tables);
+            sim.keepChannels(com.leejean.m1.Channels.parseSet(a.getOrDefault("keep-channels", "none")));
+            sims.put(dev, sim);
         }
         Map<String, int[]> fed = new HashMap<>();                          // 设备 → {已送记录数, 已送转移数, 已送爆发数}
         List<FleetDecisionFunction.Alert> alerts = new ArrayList<>();
@@ -249,6 +251,14 @@ public final class ChainDriver {
         o.put("freezeTs", s.freezeTs());
         o.put("windowRounds", x.l0.windowRounds);
         o.put("guardExcluded", x.l0.guardExcluded);
+        if (s.keepChannels() != null) {
+            ArrayNode k = o.putArray("keepChannels");             // 不随零级重估的通道下标（1.41 版）/ kept channel indices
+            for (int c = 0; c < s.keepChannels().length; c++) {
+                if (s.keepChannels()[c]) {
+                    k.add(c);
+                }
+            }
+        }
         o.set("freeze", params(om, s.frozen()));
         o.set("new", params(om, x.used));
         ArrayNode hist = o.putArray("hist");

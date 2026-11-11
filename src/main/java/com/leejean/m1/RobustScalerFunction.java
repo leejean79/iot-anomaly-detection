@@ -301,7 +301,7 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
         return frozen.value() != null && frozen.value();
     }
 
-    /** 当前键的参数（中位数、分母、旁路、替代）/ the current key's parameters. */
+    /** 当前键的参数（中位数、分母、旁路、替代与参照直方图）/ the current key's parameters and reference histograms. */
     Calibration current() throws Exception {
         Calibration c = new Calibration();
         System.arraycopy(median.value(), 0, c.median, 0, Channels.N_DET);
@@ -309,6 +309,9 @@ public class RobustScalerFunction extends KeyedProcessFunction<String, DeviceRou
         System.arraycopy(bypass.value(), 0, c.bypass, 0, Channels.N_DET);
         if (substituted.value() != null) {
             System.arraycopy(substituted.value(), 0, c.substituted, 0, Channels.N_DET);
+        }
+        if (refHist.value() != null) {                // 当前参照直方图（零级换回冻结参照时用）/ current reference histograms
+            System.arraycopy(refHist.value(), 0, c.hist, 0, Channels.N_DET);
         }
         return c;
     }

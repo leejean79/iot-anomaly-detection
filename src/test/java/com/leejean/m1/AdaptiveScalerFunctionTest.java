@@ -176,6 +176,92 @@ class AdaptiveScalerFunctionTest {
     }
 
     @Test
+    @DisplayName("湿度与气压不随零级重估：两通道换回冻结参数与冻结参照直方图，其余三通道照常重估，回填按换回后的参数标准化")
+    void keptChannelsKeepTheFreezeParametersAndReference() throws Exception {
+        List<DeviceRound> in = rounds();
+        long eff = T0 + 10L * 1000;
+        boolean[] keep = {false, true, true, false, false};
+        List<DeviceRound> a;
+        try (KeyedTwoInputStreamOperatorTestHarness<String, DeviceRound, AdaptCommand, DeviceRound> h =
+                     harness(adaptive().withKeepChannels(keep))) {
+            h.processElement2(new StreamRecord<>(command(eff, 1)));
+            feed(h, in);
+            a = outputs(h);
+        }
+        com.leejean.m6.ParamSet v1 = null;
+        com.leejean.m6.ParamSet v2 = null;
+        com.leejean.m5a.RefHistogram[] freezeRef = null;
+        com.leejean.m5a.RefHistogram[] newRef = null;
+        DeviceRound bfRound = null;
+        for (DeviceRound r : a) {
+            if (r.getParamSet() != null && r.getParamSet().version == 1) {
+                v1 = r.getParamSet();
+            }
+            if (r.getParamSet() != null && r.getParamSet().version == 2) {
+                v2 = r.getParamSet();
+                bfRound = r;
+            }
+            if (r.getRefHistograms() != null) {
+                if (freezeRef == null) {
+                    freezeRef = r.getRefHistograms();
+                } else {
+                    newRef = r.getRefHistograms();
+                }
+            }
+        }
+        assertNotNull(v1);
+        assertNotNull(v2);
+        assertNotNull(newRef);
+        CompactCache c = new CompactCache(7 * 86400L);
+        for (DeviceRound r : in) {
+            if (r.getTs() < eff) {
+                c.add(r.getTs(), r.getX(), CompactCache.maskOf(r.getMissingMask(), r.getCensoredMask(), r.getStuckMask()));
+            }
+        }
+        AdaptiveScalerFunction.Level0 full = AdaptiveScalerFunction.level0(c, eff, D, WINDOW, 1e-9, false,
+                ChannelTransform.defaultTable());
+        for (int ch = 0; ch < Channels.N_DET; ch++) {
+            double expMed = keep[ch] ? v1.median[ch] : full.cal.median[ch];
+            double expScale = keep[ch] ? v1.scale[ch] : full.cal.scale[ch];
+            assertEquals(expMed, v2.median[ch], 0.0, "median " + ch);
+            assertEquals(expScale, v2.scale[ch], 0.0, "scale " + ch);
+            double[] expEdges = (keep[ch] ? freezeRef[ch] : full.cal.hist[ch]).getEdges();
+            assertArrayEquals(expEdges, newRef[ch].getEdges(), 0.0, "reference edges " + ch);
+        }
+        // 前半段与后半段湿度的位置不同，所以全部重估时湿度的中位数会变；这里核对它确实没变 / the test is sensitive
+        assertTrue(full.cal.median[1] != v1.median[1]);
+        // 回填与生效后的轮按换回后的参数标准化；湿度与气压的标准化值与版本一相同 / backfill and later rounds
+        for (int k = 0; k < bfRound.getBackfill().ts.length; k++) {
+            assertEquals(full.backfill.ts[k], bfRound.getBackfill().ts[k]);
+        }
+        for (DeviceRound r : a) {
+            if (r.getTs() >= eff) {
+                double[] e2 = RobustScalerFunction.normalize(r.getX(), r.getMissingMask(), v2.median, v2.scale, v2.bypass,
+                        ChannelTransform.defaultTable());
+                double[] e1 = RobustScalerFunction.normalize(r.getX(), r.getMissingMask(), v1.median, v1.scale, v1.bypass,
+                        ChannelTransform.defaultTable());
+                assertArrayEquals(e2, r.getXNorm(), 0.0);
+                assertEquals(e1[1], r.getXNorm()[1], 0.0);
+                assertEquals(e1[2], r.getXNorm()[2], 0.0);
+            }
+        }
+        // 集合为全假时与原函数逐位相同 / an all-false set equals the original function
+        AdaptiveScalerFunction.Level0 none = AdaptiveScalerFunction.level0(c, eff, D, WINDOW, 1e-9, false,
+                ChannelTransform.defaultTable(), null, new boolean[Channels.N_DET]);
+        assertArrayEquals(full.cal.median, none.cal.median, 0.0);
+        assertArrayEquals(full.cal.scale, none.cal.scale, 0.0);
+        // 冻结参数作为算子状态须能经 Kryo 往返（检查点）/ the kept freeze calibration survives a Kryo round trip
+        KryoSerializer<RobustScalerFunction.Calibration> ks = new KryoSerializer<>(RobustScalerFunction.Calibration.class,
+                new ExecutionConfig());
+        DataOutputSerializer out = new DataOutputSerializer(4096);
+        ks.serialize(full.cal, out);
+        RobustScalerFunction.Calibration back = ks.deserialize(new DataInputDeserializer(out.getCopyOfBuffer()));
+        assertArrayEquals(full.cal.median, back.median, 0.0);
+        assertArrayEquals(full.cal.scale, back.scale, 0.0);
+        assertArrayEquals(full.cal.hist[1].getEdges(), back.hist[1].getEdges(), 0.0);
+    }
+
+    @Test
     @DisplayName("命令早到（轮触发）与命令在水位线之前到达（定时器触发），输出逐位相同 / round-triggered equals timer-triggered execution")
     void executionIsDeterministic() throws Exception {
         List<DeviceRound> in = rounds();

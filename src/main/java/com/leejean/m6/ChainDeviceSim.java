@@ -65,6 +65,7 @@ final class ChainDeviceSim {
     final String dev;
     private final Variant variant;
     private final double r;
+    private boolean[] keep;                                             // 不随零级重估的通道（1.41 版）/ kept channels
     private final ChannelTransform[] tf = ChannelTransform.defaultTable();
     private final M5aCore.Params m5p = new M5aCore.Params(new double[]{0.38, 0.73, 0.84, 0.43, 0.51}, 0.01, 0.2, 0.2, 10,
             (int) SLIDE_SEC);
@@ -106,6 +107,19 @@ final class ChainDeviceSim {
         for (int c = 0; c < Channels.N_DET; c++) {
             res.add(new ArrayList<>());
         }
+    }
+
+    /** 设置不随零级重估的通道集合（1.41 版裁决第一节；全假为全部重估）/ set the channels that keep the freeze parameters. */
+    void keepChannels(boolean[] k) {
+        boolean any = false;
+        for (boolean b : k) {
+            any |= b;
+        }
+        keep = any ? k.clone() : null;
+    }
+
+    boolean[] keepChannels() {
+        return keep;
     }
 
     /** 排入一条零级命令；开环时只记录不执行 / schedule a level-0 command (ignored in the open loop). */
@@ -260,7 +274,7 @@ final class ChainDeviceSim {
         x.eff = eff;
         x.seq = seq;
         x.version = seq + 1;
-        x.l0 = AdaptiveScalerFunction.level0(cache, eff, dSec, WINDOW_SEC, EPS, false, ChannelTransform.defaultTable());
+        x.l0 = AdaptiveScalerFunction.level0(cache, eff, dSec, WINDOW_SEC, EPS, false, ChannelTransform.defaultTable(), frozen, keep);
         if (variant == Variant.POS) {
             // 只重估位置：中位数取七天重估值，分母与旁路沿用首次冻结；参照直方图取七天窗口；回填按实际换上的参数重新标准化
             RobustScalerFunction.Calibration u = new RobustScalerFunction.Calibration();

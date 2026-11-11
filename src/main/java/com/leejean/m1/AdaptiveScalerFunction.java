@@ -44,6 +44,8 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
     private final long cacheDepthSec;
     private final long reestimateSec;
     private final long backfillSec;
+    // 不随零级重估的通道（1.41 版裁决第一节；空表示全部重估）/ channels that keep the freeze parameters (null: re-estimate all)
+    private boolean[] keepChannels;
 
     private transient ValueState<CompactCache> cache;
     private transient ListState<AdaptCommand> pending;
@@ -59,6 +61,8 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
     private transient Counter forwarded;
     // 待转发给上下文模块的一级或二级命令（M6b 第五节）：附在下一条点通道会接纳的轮上 / level-1/2 command to forward
     private transient ValueState<AdaptCommand> pendingContext;
+    // 冻结参数与冻结参照直方图（不随零级重估的通道换回它们）/ the freeze calibration, for the kept channels
+    private transient ValueState<RobustScalerFunction.Calibration> frozenCal;
 
     /**
      * @param inner         原来的标准化函数（参数与关闭时相同）/ the unchanged scaler
@@ -74,6 +78,21 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
         this.cacheDepthSec = cacheDepthSec;
         this.reestimateSec = reestimateSec;
         this.backfillSec = backfillSec;
+    }
+
+    /**
+     * 设置不随零级重估的通道集合（1.41 版裁决第一节，开发决策第十二条；作业默认为湿度与气压）。为空或全假时零级全部重估。
+     * Channels that keep the freeze parameters and reference histogram at every level 0.
+     */
+    public AdaptiveScalerFunction withKeepChannels(boolean[] keep) {
+        boolean any = false;
+        if (keep != null) {
+            for (boolean k : keep) {
+                any |= k;
+            }
+        }
+        this.keepChannels = any ? keep.clone() : null;
+        return this;
     }
 
     @Override
@@ -95,6 +114,8 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
         forwarded = getRuntimeContext().getMetricGroup().counter("m6_forwarded_commands");
         pendingContext = getRuntimeContext().getState(new ValueStateDescriptor<>("m6-context-cmd",
                 TypeInformation.of(AdaptCommand.class)));
+        frozenCal = getRuntimeContext().getState(new ValueStateDescriptor<>("m6-frozen-cal",
+                TypeInformation.of(RobustScalerFunction.Calibration.class)));
     }
 
     @Override
@@ -138,6 +159,9 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
             // 冻结参数集（版本一）待附 / the freeze parameter set (version 1) waits for an admitted round
             RobustScalerFunction.Calibration cur = inner.current();
             pendingParams.update(new com.leejean.m6.ParamSet(1, cur.median, cur.scale, cur.bypass));
+            if (keepChannels != null) {
+                frozenCal.update(cur);                // 冻结参数与参照，供不重估的通道换回 / kept for the kept channels
+            }
         }
         r.setVersion(v);
         Backfill bf = pendingBackfill.value();
@@ -234,7 +258,7 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
         long t0 = System.nanoTime();
         CompactCache c = cache.value();
         Level0 r = level0(c, cmd.effectiveAt, reestimateSec, backfillSec, inner.epsilon(), inner.relativeGuardEnabled(),
-                inner.transforms());
+                inner.transforms(), keepChannels == null ? null : frozenCal.value(), keepChannels);
         long t1 = System.nanoTime();
         RobustScalerFunction.Calibration old = inner.current();
         Integer oldVersion = version.value();
@@ -268,6 +292,17 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
      */
     public static Level0 level0(CompactCache c, long eff, long reestimateSec, long backfillSec, double epsilon,
                                 boolean relativeGuard, ChannelTransform[] tf) {
+        return level0(c, eff, reestimateSec, backfillSec, epsilon, relativeGuard, tf, null, null);
+    }
+
+    /**
+     * 带「不随零级重估的通道集合」的零级（1.41 版裁决第一节，开发决策第十二条）：keep 为真的通道在重估之后换回冻结参数（中位数、
+     * 分母、旁路与替代标记都不变），参照直方图也换回冻结时的参照；回填按换回之后的参数标准化。keep 为空或全假时与原函数逐位相同。
+     * Level 0 with a set of channels that keep the freeze parameters and reference histogram.
+     */
+    public static Level0 level0(CompactCache c, long eff, long reestimateSec, long backfillSec, double epsilon,
+                                boolean relativeGuard, ChannelTransform[] tf, RobustScalerFunction.Calibration frozen,
+                                boolean[] keep) {
         int n = Channels.N_DET;
         List<List<Double>> samples = new ArrayList<>(n);
         for (int ch = 0; ch < n; ch++) {
@@ -296,6 +331,17 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
             }
         }
         r.cal = RobustScalerFunction.calibrate(samples, epsilon, relativeGuard);
+        if (keep != null) {
+            for (int ch = 0; ch < n; ch++) {
+                if (keep[ch]) {
+                    r.cal.median[ch] = frozen.median[ch];
+                    r.cal.scale[ch] = frozen.scale[ch];
+                    r.cal.bypass[ch] = frozen.bypass[ch];
+                    r.cal.substituted[ch] = frozen.substituted[ch];
+                    r.cal.hist[ch] = frozen.hist[ch];
+                }
+            }
+        }
         List<Long> ts = new ArrayList<>();
         List<double[]> xn = new ArrayList<>();
         List<boolean[]> cens = new ArrayList<>();

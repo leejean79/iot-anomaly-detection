@@ -10,7 +10,7 @@
 # 1. 执行环境 / Environment: 开发机或本地 Mac，仓库根目录，python3.9+（只用标准库）。
 # 2. 调用命令 / Invocation: python3 m6b/chain_report.py [--chain-dir docs/m6b/chain] [--out docs/m6b/chain/report_tables.md]
 #    可选：--inputs docs/m7/inputs、--baseline docs/m7/run、--stable docs/m3_inject/v34/v34_daily.csv、
-#    --inject docs/m3_a4/full_fix/inject-truth.csv
+#    --inject docs/m3_a4/full_fix/inject-truth.csv、--variants open,D7,D7K（只出这几档；第一档须为 open）
 # 3. 前置条件 / Preconditions: 已运行 ChainDriver 的 open、D1、D7、pos 四档。
 # 4. 期望产出 / Expected output: --out 处的 Markdown 表格；终端打印每档的命令数与丙型实例数。
 # 5. 失败兜底 / Failure fallback: 缺少某一档的输出时退出码 2。
@@ -27,7 +27,9 @@ sys.path.insert(0, os.path.join(HERE, "m7"))
 import decide as D                     # noqa: E402
 from report_tables import APRIL, SHORT, SUN_DAYS, LABELS, counts, table   # noqa: E402
 
-VARIANTS = [("open", "开环对照"), ("D1", "甲：重估一天"), ("D7", "乙：重估七天"), ("pos", "丙：只重估位置")]
+NAMES = {"open": "开环对照", "D1": "甲：重估一天", "D7": "乙：重估七天", "pos": "丙：只重估位置",
+         "D7K": "乙档加开关：湿度与气压不重估"}
+VARIANTS = [(v, NAMES[v]) for v in ("open", "D1", "D7", "pos")]
 ARMS = VARIANTS[1:]
 CH = list(D.CHANNELS)
 
@@ -109,7 +111,11 @@ def main() -> int:
     ap.add_argument("--stable", default="docs/m3_inject/v34/v34_daily.csv")
     ap.add_argument("--inject", default="docs/m3_a4/full_fix/inject-truth.csv")
     ap.add_argument("--out", default="docs/m6b/chain/report_tables.md")
+    ap.add_argument("--variants", default="open,D1,D7,pos", help="第一档须为 open；D7K 为 1.41 版裁决第一节的开关档")
     a = ap.parse_args()
+    global VARIANTS, ARMS
+    VARIANTS = [(v, NAMES[v]) for v in a.variants.split(",")]
+    ARMS = VARIANTS[1:]
     for v, _ in VARIANTS:
         if not os.path.exists(os.path.join(a.chain_dir, v, "commands.csv")):
             print("ERROR: 缺少 %s/%s 的输出" % (a.chain_dir, v), file=sys.stderr)

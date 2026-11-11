@@ -16,7 +16,8 @@
 #      python3 m6a/reestimate.py --rounds docs/m6a/extract/rounds_G.csv.gz --device G --day 2022-03-25 --out docs/m6a/sim/G_py.json
 #    可选：--effective <秒>（代替 --day）、--seq 1、--reestimate-days 1、--backfill-sec 3600、--warmup-rounds 60480、
 #    --iqr-epsilon 1e-9、--start <秒>（轮表从此刻起算，短重放取区间起点）、--position-only（只重估位置：中位数取重估值，
-#    分母与旁路沿用冻结，M6b 链式离线实验的丙档）。
+#    分母与旁路沿用冻结，M6b 链式离线实验的丙档）、--keep-channels Humidity,Pressure（这些通道换回冻结参数与冻结参照直方图，
+#    1.41 版裁决第一节）。
 # 3. 前置条件 / Preconditions: 轮表已由 eda/m6a_extract.py 生成。
 # 4. 期望产出 / Expected output: out 处的 JSON（冻结参数、新参数、重估窗口轮数与剔除数、参照直方图、回填附件）；终端打印新旧参数。
 # 5. 失败兜底 / Failure fallback: 轮表不足以冻结或生效时刻早于冻结时退出码 2。
@@ -160,6 +161,19 @@ def level0(rows, eff, d_sec, bf_sec, eps):
     return cal, window, guard, bf
 
 
+def keep_frozen(cal, frz, keep):
+    """不随零级重估的通道换回冻结参数与冻结参照直方图（1.41 版裁决第一节）/ kept channels take the freeze values back."""
+    cal = {k: list(v) for k, v in cal.items()}
+    for c in keep:
+        for k in ("median", "scale", "bypass", "hist"):
+            cal[k][c] = frz[k][c]
+    return cal
+
+
+def backfill(rows, eff, bf_sec, cal):
+    return [(t, normalize(x, cal)) for t, x, _ in rows if eff - bf_sec <= t < eff and all(v is not None for v in x)]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", required=True)
@@ -173,6 +187,7 @@ def main() -> int:
     ap.add_argument("--iqr-epsilon", type=float, default=1e-9)
     ap.add_argument("--start", type=int)
     ap.add_argument("--position-only", action="store_true")
+    ap.add_argument("--keep-channels", default="", help="不随零级重估的通道名，逗号分隔，例如 Humidity,Pressure")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     eff = a.effective if a.effective is not None else int(datetime.strptime(a.day, "%Y-%m-%d").replace(tzinfo=ZONE).timestamp())
@@ -189,6 +204,10 @@ def main() -> int:
         # 只重估位置（M6b 决定十五丙档）：中位数取重估值，分母与旁路沿用冻结，回填按换上的参数重新标准化
         cal = dict(cal, scale=list(frz["scale"]), bypass=list(frz["bypass"]))
         bf = [(t, normalize(x, cal)) for t, x, _ in rows if eff - a.backfill_sec <= t < eff and all(v is not None for v in x)]
+    keep = [CHANNELS.index(n.strip()) for n in a.keep_channels.split(",") if n.strip()]
+    if keep:
+        cal = keep_frozen(cal, frz, keep)
+        bf = backfill(rows, eff, a.backfill_sec, cal)
     res = dict(device=a.device, effectiveAt=eff, seq=a.seq, version=a.seq + 1, freezeTs=t_freeze,
                reestimateSec=a.reestimate_days * 86400, backfillSec=a.backfill_sec, windowRounds=window, guardExcluded=guard,
                freeze=dict(median=frz["median"], scale=frz["scale"], bypass=frz["bypass"]),

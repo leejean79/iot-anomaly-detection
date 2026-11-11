@@ -285,7 +285,11 @@ public class M2Job {
         // M6a (off by default): the scaler consumes the command topic and executes level 0.
         boolean adaptEnabled = params.getBoolean("adapt-enabled", false);
         int adaptCacheDays = params.getInt("adapt-cache-days", 7);              // 紧凑缓存深度 / compact cache depth
-        int adaptReestimateDays = params.getInt("adapt-reestimate-days", 1);    // 重估窗口 D / re-estimation window
+        // 重估窗口 D：七天（链式实验裁决第一项选定乙档）/ re-estimation window D: seven days (chained-experiment ruling)
+        int adaptReestimateDays = params.getInt("adapt-reestimate-days", 7);
+        // 不随零级重估的通道（1.41 版裁决第一节，开发决策第十二条）：默认湿度与气压，取 none 回到全部重估
+        // Channels that keep the freeze parameters at level 0: Humidity and Pressure by default; "none" re-estimates all.
+        boolean[] adaptKeepChannels = com.leejean.m1.Channels.parseSet(params.get("adapt-keep-channels", "Humidity,Pressure"));
         // ---- 适应执行第二批（M6b 决定十三、十七）：一级重训参数与影子评分开关 / level-1 parameters and shadow scoring ----
         // 一级默认七天、热启动、训练窗口在生效之前；开放问题第十二条补跑裁决之后改为选定值。影子评分只在全量重放打开。
         int m3RetrainDays = params.getInt("m3-retrain-days", 7);
@@ -312,7 +316,8 @@ public class M2Job {
                     + " wmax=" + m5bWMax + " granularity=" + m5bGranularity + " K=" + m5bK + " -> " + driftTopic);
         }
         System.out.println("Adapt (M6a):     " + adaptEnabled + (adaptEnabled ? " commands<-" + adaptTopic + " cache="
-                + adaptCacheDays + " d, D=" + adaptReestimateDays + " d, backfill=" + windowSec + " s" : ""));
+                + adaptCacheDays + " d, D=" + adaptReestimateDays + " d, backfill=" + windowSec + " s, keep="
+                + java.util.Arrays.toString(adaptKeepChannels) : ""));
         System.out.println("M7 enabled:      " + m7Enabled + (m7Enabled ? " options=" + m7Opts + " -> " + alertsTopic + " / "
                 + adaptTopic : ""));
         System.out.println("========================================");
@@ -426,7 +431,7 @@ public class M2Job {
             cached = guarded
                     .connect(commands.keyBy(DeviceKeys.selector(surrogate, com.leejean.m6.AdaptCommand::getDevice)))
                     .process(new com.leejean.m1.AdaptiveScalerFunction(scaler, adaptCacheDays * 86400L,
-                            adaptReestimateDays * 86400L, windowSec))
+                            adaptReestimateDays * 86400L, windowSec).withKeepChannels(adaptKeepChannels))
                     .name("RobustScaler");
         } else {
             cached = guarded.process(scaler).name("RobustScaler");
