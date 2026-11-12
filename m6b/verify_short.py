@@ -17,7 +17,8 @@
 # 2. 调用命令 / Invocation: python3 m6b/verify_short.py --dir docs/m6b/verify [--effective-day 2022-03-29] [--window 60] [--n-days 3]
 # 3. 前置条件 / Preconditions: --dir 下 a/ 与 b/ 各有 scores.jsonl、monitoring_G.jsonl、drift.jsonl、m1out.sha、m1out_G.jsonl、
 #    tm_log_G.txt（编排脚本收集）；只有 a 时跳过第一项。
-# 4. 期望产出 / Expected output: --dir/verify_report.md；终端逐项打印「[通过]」或「[失败]」。
+# 4. 期望产出 / Expected output: --dir/verify_report.md；--dir/monitoring_diff.txt（两次运行的监测快照去掉随墙钟变化的字段后
+#    仍对不上的行）；终端逐项打印「[通过]」或「[失败]」。
 # 5. 失败兜底 / Failure fallback: 任何一项失败时退出码 1；缺文件时退出码 2。
 # ============================================================================
 import argparse
@@ -59,7 +60,7 @@ def normalize(x):
     return json.dumps(y, sort_keys=True)
 
 
-def compare_monitoring(xa, xb):
+def compare_monitoring(xa, xb, dump=None):
     """返回（去掉随墙钟变化的字段后是否相同，说明）/ (equal after removing wall-clock fields, text)."""
     from collections import Counter, defaultdict
     raw_a = Counter(json.dumps(x, sort_keys=True) for x in xa)
@@ -80,6 +81,15 @@ def compare_monitoring(xa, xb):
                 if x.get(k) != y.get(k):
                     fields[k] += 1
     raw_diff = sum(only_a.values())
+    if dump:
+        # 去掉随墙钟变化的字段后仍对不上的行，原样写出（各最多五十行）/ unmatched lines after normalization, verbatim
+        na = Counter(normalize(x) for x in xa)
+        nb = Counter(normalize(x) for x in xb)
+        with open(dump, "w", encoding="utf-8") as fh:
+            for tag, extra in (("只在运行 a", na - nb), ("只在运行 b", nb - na)):
+                fh.write("## %s（去掉随墙钟变化的字段后），共 %d 行\n" % (tag, sum(extra.values())))
+                for line in list(extra.elements())[:50]:
+                    fh.write(line + "\n")
     txt = "monitoring_G.jsonl %d/%d 行，原样不同 %d 行%s；去掉%s与状态快照时间戳后%s" % (
         len(xa), len(xb), raw_diff,
         ("（不同的字段：" + "、".join("%s %d 行" % kv for kv in fields.most_common()) + "）") if fields else "",
@@ -124,7 +134,8 @@ def main() -> int:
         # G 的监测快照：逐字段比较。训练缓冲占用（m3BufferRounds）与训练态状态快照（windowEnd = -1）的时间戳取自处理时间下的
         # 缓冲与水位线，按补遗四的设计随训练的墙钟快慢而变；去掉这两项后要求逐位相同，并列出原样比较时不同的字段。
         # Monitoring snapshots: compared with the two wall-clock-dependent fields removed; differing raw fields are listed.
-        ok_m, txt_m = compare_monitoring(*(jsonl(os.path.join(a.dir, r, "monitoring_G.jsonl")) for r in runs))
+        ok_m, txt_m = compare_monitoring(*(jsonl(os.path.join(a.dir, r, "monitoring_G.jsonl")) for r in runs),
+                                         dump=os.path.join(a.dir, "monitoring_diff.txt"))
         rows.append(txt_m)
         same &= ok_m
         sa, sb = (open(os.path.join(a.dir, r, "m1out.sha"), encoding="utf-8").read().strip() for r in runs)
