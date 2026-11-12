@@ -2,7 +2,8 @@
 # ============================================================================
 # m6b/verify_short.py
 # 适应执行第二批 V-M6b-3 短重放的核对（1.41 版裁决第四节）：读 deploy/scripts/syn-m6b-verify.sh 取回的两次运行（a、b），逐项核对
-#   一、两次运行逐位相同：全部评分、漂移事件、m1-out 摘要；G 的监测快照去掉随训练墙钟变化的两项（训练缓冲占用、训练态状态快照的时间戳）后逐位相同，并列出原样不同的字段；
+#   一、两次运行逐位相同：全部评分、漂移事件、m1-out 摘要；G 的监测快照中按处理时间发出的状态快照（训练态 windowEnd = -1、性能层
+#       windowEnd = -2）只报条数，其余快照去掉训练缓冲占用（排空期间随墙钟变化）后逐位相同，并列出原样不同的字段；
 #   二、一级命令转发一次：数据接入模块的「Level 1 forwarded」恰好一条，且没有执行零级；
 #   三、一级训练集范围：上下文模块记录的范围为 [生效, 生效 + 3 × 86,400)，生效后侧、冷启动；
 #   四、切换：G 的上下文评分在切换前模型代数为空，切换后为一；第一条新模型评分的窗口末不早于生效后三天；版本号前后一致（无零级）；
@@ -53,16 +54,23 @@ def digest(ls):
 WALL_CLOCK = ("m3BufferRounds",)
 
 
+# 按处理时间发出的状态快照：训练态快照（windowEnd = -1，训练期间按轮询定时器发出）与性能层快照（windowEnd = -2，每六十秒
+# 处理时间发出一次）。它们的条数与采样到的元素随墙钟快慢而变，按设计不参与逐位比较，只报条数。
+# Status snapshots emitted on processing-time timers: excluded from the bitwise comparison, counts reported.
+PROC_TIME = (-1, -2)
+
+
 def normalize(x):
     y = {k: v for k, v in x.items() if k not in WALL_CLOCK}
-    if y.get("windowEnd") == -1:                    # 训练态状态快照的时间戳为发出时的水位线 / watermark at emission
-        y.pop("ts", None)
     return json.dumps(y, sort_keys=True)
 
 
 def compare_monitoring(xa, xb, dump=None):
     """返回（去掉随墙钟变化的字段后是否相同，说明）/ (equal after removing wall-clock fields, text)."""
     from collections import Counter, defaultdict
+    status = [sum(1 for x in xs if x.get("windowEnd") in PROC_TIME) for xs in (xa, xb)]
+    xa = [x for x in xa if x.get("windowEnd") not in PROC_TIME]
+    xb = [x for x in xb if x.get("windowEnd") not in PROC_TIME]
     raw_a = Counter(json.dumps(x, sort_keys=True) for x in xa)
     raw_b = Counter(json.dumps(x, sort_keys=True) for x in xb)
     norm_equal = Counter(normalize(x) for x in xa) == Counter(normalize(x) for x in xb)
@@ -90,8 +98,8 @@ def compare_monitoring(xa, xb, dump=None):
                 fh.write("## %s（去掉随墙钟变化的字段后），共 %d 行\n" % (tag, sum(extra.values())))
                 for line in list(extra.elements())[:50]:
                     fh.write(line + "\n")
-    txt = "monitoring_G.jsonl %d/%d 行，原样不同 %d 行%s；去掉%s与状态快照时间戳后%s" % (
-        len(xa), len(xb), raw_diff,
+    txt = "monitoring_G.jsonl 按处理时间发出的状态快照 %d/%d 条不参与比较；其余 %d/%d 行，原样不同 %d 行%s；去掉%s后%s" % (
+        status[0], status[1], len(xa), len(xb), raw_diff,
         ("（不同的字段：" + "、".join("%s %d 行" % kv for kv in fields.most_common()) + "）") if fields else "",
         "、".join(WALL_CLOCK), "相同" if norm_equal else "仍不同")
     return norm_equal, txt
@@ -131,8 +139,8 @@ def main() -> int:
             na, nb = (len(lines(os.path.join(a.dir, r, f))) for r in runs)
             rows.append("%s %d/%d 行%s" % (f, na, nb, "相同" if da == db else "不同"))
             same &= da == db
-        # G 的监测快照：逐字段比较。训练缓冲占用（m3BufferRounds）与训练态状态快照（windowEnd = -1）的时间戳取自处理时间下的
-        # 缓冲与水位线，按补遗四的设计随训练的墙钟快慢而变；去掉这两项后要求逐位相同，并列出原样比较时不同的字段。
+        # G 的监测快照：按处理时间发出的状态快照只报条数；其余快照的训练缓冲占用（m3BufferRounds）在排空期间取处理时间下的
+        # 缓冲大小，按补遗四的设计随训练的墙钟快慢而变；去掉它后要求逐位相同，并列出原样比较时不同的字段。
         # Monitoring snapshots: compared with the two wall-clock-dependent fields removed; differing raw fields are listed.
         ok_m, txt_m = compare_monitoring(*(jsonl(os.path.join(a.dir, r, "monitoring_G.jsonl")) for r in runs),
                                          dump=os.path.join(a.dir, "monitoring_diff.txt"))
