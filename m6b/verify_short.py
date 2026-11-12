@@ -2,11 +2,11 @@
 # ============================================================================
 # m6b/verify_short.py
 # 适应执行第二批 V-M6b-3 短重放的核对（1.41 版裁决第四节）：读 deploy/scripts/syn-m6b-verify.sh 取回的两次运行（a、b），逐项核对
-#   一、两次运行逐位相同：全部评分、G 的监测快照、漂移事件、m1-out 摘要；
+#   一、两次运行逐位相同：全部评分、漂移事件、m1-out 摘要；G 的监测快照去掉随训练墙钟变化的两项（训练缓冲占用、训练态状态快照的时间戳）后逐位相同，并列出原样不同的字段；
 #   二、一级命令转发一次：数据接入模块的「Level 1 forwarded」恰好一条，且没有执行零级；
 #   三、一级训练集范围：上下文模块记录的范围为 [生效, 生效 + 3 × 86,400)，生效后侧、冷启动；
 #   四、切换：G 的上下文评分在切换前模型代数为空，切换后为一；第一条新模型评分的窗口末不早于生效后三天；版本号前后一致（无零级）；
-#   五、每个在线窗口恰好一条评分：相邻两条评分之间，点通道会接纳的 G 的轮恰好一个窗口长（六十轮），窗口末互不相同；
+#   五、每个在线窗口恰好一条评分：每六十个点通道会接纳的 G 的轮恰好一条评分（评分的窗口末为窗口末轮的到达滑动步末端），窗口末互不相同；
 #   六、性能层在模型代数改变时清空一次；
 #   七、没有一级失败标记。
 # 结果写成 verify_report.md 并打印到终端；只报事实，不改任何参数。
@@ -49,12 +49,51 @@ def digest(ls):
     return hashlib.sha256("\n".join(sorted(ls)).encode("utf-8")).hexdigest()
 
 
+WALL_CLOCK = ("m3BufferRounds",)
+
+
+def normalize(x):
+    y = {k: v for k, v in x.items() if k not in WALL_CLOCK}
+    if y.get("windowEnd") == -1:                    # 训练态状态快照的时间戳为发出时的水位线 / watermark at emission
+        y.pop("ts", None)
+    return json.dumps(y, sort_keys=True)
+
+
+def compare_monitoring(xa, xb):
+    """返回（去掉随墙钟变化的字段后是否相同，说明）/ (equal after removing wall-clock fields, text)."""
+    from collections import Counter, defaultdict
+    raw_a = Counter(json.dumps(x, sort_keys=True) for x in xa)
+    raw_b = Counter(json.dumps(x, sort_keys=True) for x in xb)
+    norm_equal = Counter(normalize(x) for x in xa) == Counter(normalize(x) for x in xb)
+    only_a = raw_a - raw_b
+    fields = Counter()
+    by_norm = defaultdict(list)
+    for line in (raw_b - raw_a).elements():
+        x = json.loads(line)
+        by_norm[normalize(x)].append(x)
+    for line in only_a.elements():
+        x = json.loads(line)
+        cand = by_norm.get(normalize(x))
+        if cand:
+            y = cand.pop()
+            for k in set(x) | set(y):
+                if x.get(k) != y.get(k):
+                    fields[k] += 1
+    raw_diff = sum(only_a.values())
+    txt = "monitoring_G.jsonl %d/%d 行，原样不同 %d 行%s；去掉%s与状态快照时间戳后%s" % (
+        len(xa), len(xb), raw_diff,
+        ("（不同的字段：" + "、".join("%s %d 行" % kv for kv in fields.most_common()) + "）") if fields else "",
+        "、".join(WALL_CLOCK), "相同" if norm_equal else "仍不同")
+    return norm_equal, txt
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default="docs/m6b/verify")
     ap.add_argument("--effective-day", default="2022-03-29")
     ap.add_argument("--window", type=int, default=60)
     ap.add_argument("--n-days", type=int, default=3)
+    ap.add_argument("--slide", type=int, default=60, help="点通道滑动步（秒）")
     a = ap.parse_args()
     eff = int(datetime.strptime(a.effective_day, "%Y-%m-%d").replace(tzinfo=ZoneInfo("Europe/London")).timestamp())
     runs = [r for r in ("a", "b") if os.path.isdir(os.path.join(a.dir, r))]
@@ -77,11 +116,17 @@ def main() -> int:
     if len(runs) == 2:
         rows = []
         same = True
-        for f in ("scores.jsonl", "monitoring_G.jsonl", "drift.jsonl", "m1out_G.jsonl"):
+        for f in ("scores.jsonl", "drift.jsonl", "m1out_G.jsonl"):
             da, db = (digest(lines(os.path.join(a.dir, r, f))) for r in runs)
             na, nb = (len(lines(os.path.join(a.dir, r, f))) for r in runs)
             rows.append("%s %d/%d 行%s" % (f, na, nb, "相同" if da == db else "不同"))
             same &= da == db
+        # G 的监测快照：逐字段比较。训练缓冲占用（m3BufferRounds）与训练态状态快照（windowEnd = -1）的时间戳取自处理时间下的
+        # 缓冲与水位线，按补遗四的设计随训练的墙钟快慢而变；去掉这两项后要求逐位相同，并列出原样比较时不同的字段。
+        # Monitoring snapshots: compared with the two wall-clock-dependent fields removed; differing raw fields are listed.
+        ok_m, txt_m = compare_monitoring(*(jsonl(os.path.join(a.dir, r, "monitoring_G.jsonl")) for r in runs))
+        rows.append(txt_m)
+        same &= ok_m
         sa, sb = (open(os.path.join(a.dir, r, "m1out.sha"), encoding="utf-8").read().strip() for r in runs)
         rows.append("m1-out 摘要%s" % ("相同" if sa == sb else "不同"))
         same &= sa == sb
@@ -116,20 +161,33 @@ def main() -> int:
                   len(sc), first_new["windowEnd"] if first_new else "无",
                   (first_new["windowEnd"] - eff) / 86400 if first_new else float("nan"), len(bad), versions,
                   sw[0] if sw else "无"))
-        # 五、每个在线窗口恰好一条评分
+        # 五、每个在线窗口恰好一条评分。评分的窗口末是窗口最后一轮「到达的滑动步」的末端（点通道按到达滑动步转交，
+        # 末端 = ⌊ts / 滑动⌋ × 滑动 + 滑动），不是最后一轮的时间戳。所以按接纳轮的序号核对：存在偏移 c0，使第 k 条评分的窗口末
+        # 恰为第 c0 + 60k 个接纳轮的到达滑动步末端（k 从一起），对全部评分成立，即每 60 个接纳轮恰好一条评分、无丢失无重复。
+        # Score k ends at the arrival-slide end of admitted round c0 + 60k for one offset c0, for every k.
         adm = sorted(x["ts"] for x in jsonl(os.path.join(d, "m1out_G.jsonl"))
                      if not x.get("warmup") and not any(x.get("missingMask") or []))
-        import bisect
         ends = [s["windowEnd"] for s in sc]
-        gaps = []
-        for i in range(1, len(ends)):
-            k = bisect.bisect_right(adm, ends[i]) - bisect.bisect_right(adm, ends[i - 1])
-            if k != a.window:
-                gaps.append((ends[i - 1], ends[i], k))
-        ok = len(set(ends)) == len(ends) and not gaps and len(ends) > 0
-        check("运行 %s：每个在线窗口恰好一条评分" % r, ok, "评分 %d 条，窗口末重复 %d 个，相邻评分之间接纳轮数不等于 %d 的 %d 处%s" % (
-            len(ends), len(ends) - len(set(ends)), a.window, len(gaps),
-            ("，前三处 " + "；".join("(%d, %d] 有 %d 轮" % g for g in gaps[:3])) if gaps else ""))
+        slide_end = lambda t: (t // a.slide + 1) * a.slide
+        best = None
+        for c0 in range(len(adm)):
+            if c0 + a.window - 1 >= len(adm) or slide_end(adm[c0 + a.window - 1]) > ends[0]:
+                break
+            if slide_end(adm[c0 + a.window - 1]) != ends[0]:
+                continue
+            miss = next((k for k in range(len(ends)) if c0 + a.window * (k + 1) - 1 >= len(adm)
+                         or slide_end(adm[c0 + a.window * (k + 1) - 1]) != ends[k]), None)
+            if best is None or (miss if miss is not None else len(ends)) > best[1]:
+                best = (c0, miss if miss is not None else len(ends))
+            if miss is None:
+                break
+        ok = best is not None and best[1] == len(ends) and len(set(ends)) == len(ends)
+        check("运行 %s：每个在线窗口恰好一条评分" % r, ok,
+              "评分 %d 条，窗口末重复 %d 个；%s" % (len(ends), len(ends) - len(set(ends)),
+                  "找不到与第一条评分对齐的接纳轮" if best is None else
+                  "从第 %d 个接纳轮起每 %d 轮一条，与 %d 条评分中的前 %d 条逐条对上%s" % (
+                      best[0] + 1, a.window, len(ends), best[1],
+                      "" if best[1] == len(ends) else "，第 %d 条（窗口末 %d）对不上" % (best[1] + 1, ends[best[1]]))))
         # 六、性能层清空
         cl = [l for l in log if "[M5b] Device G model generation 1" in l]
         check("运行 %s：性能层在模型代数改变时清空一次" % r, len(cl) == 1, "清空记录 %d 条" % len(cl))
