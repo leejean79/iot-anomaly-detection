@@ -14,9 +14,9 @@
   http://172.16.0.162:8081 可达，可用 slot: 8/8
 
 ───────── 2/8 磁盘可用空间（清理前）/ free space before cleanup
-  fa-master: 清理前可用 19 GB
-  fa-worker1: 清理前可用 27 GB
-  fa-worker2: 清理前可用 28 GB
+  fa-master: 清理前可用 21 GB
+  fa-worker1: 清理前可用 29 GB
+  fa-worker2: 清理前可用 29 GB
 
 ───────── 3/8 停止重放器并清掉续跑位点 / stop replayer, drop the resume offset
 
@@ -24,11 +24,11 @@
   没有本项目作业在跑。
 
 ───────── 5/8 清理 TaskManager 缓存与旧日志、判磁盘门槛 / clear TaskManager caches, then the disk gate
-  fa-worker1: 缓存与日志 402 MB -> 5 MB
-  fa-worker2: 缓存与日志 402 MB -> 6 MB
-  fa-master: 清理后可用 19 GB
-  fa-worker1: 清理后可用 27 GB
-  fa-worker2: 清理后可用 28 GB
+  fa-worker1: 缓存与日志 6 MB -> 2 MB
+  fa-worker2: 缓存与日志 6 MB -> 2 MB
+  fa-master: 清理后可用 21 GB
+  fa-worker1: 清理后可用 29 GB
+  fa-worker2: 清理后可用 29 GB
 
 ───────── 5b/8 重启 Flink 容器 / restart Flink containers
   目的：Flink 的指标计数器是**每 JVM** 的。上一轮运行留下的计数若不清零，本轮的对账恒等式
@@ -66,7 +66,7 @@
   [PASS] 重放器已停 无残留容器，续跑位点已清
   [PASS] 无作业在跑 RUNNING 作业数 0
   [PASS] TaskManager 缓存清理 JavaCPP 原生库缓存与旧 TaskManager 日志
-  [FAIL] 磁盘门槛   不达标: fa-master(19GB) —— 见 docs/cluster_disk_cleanup_zh.md
+  [PASS] 磁盘门槛   三台均 >= 20 GB
   [PASS] Flink 已重启 REST 就绪，slot 4/4
   [PASS] topic 已清零 四个 topic 末端偏移均为 0
   [PASS] retention.ms=-1 四个 topic 均为 -1
@@ -78,5 +78,5 @@
   [PASS] akka.framesize 268435456b（期望值来自 .env）
   [SKIP] jar 一致     本地 target/ 下没有 iot-anomaly-detection-1.0-SNAPSHOT.jar（先 mvn -DskipTests package）
 ====================================================================
-  ⛔ 有项目未达标（见上方 FAIL）。**不要开跑**——在残留环境上跑出的结果不可用，
-     只会再浪费一轮时间。逐项解决后重跑本脚本。
+  ✅ 环境已复位，可以开始本阶段实验。
+     下一步通常是：syn-create-topics.sh（若 topic 被删后未重建）→ 提交作业 → 启动重放。
