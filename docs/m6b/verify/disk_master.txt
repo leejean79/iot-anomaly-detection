@@ -1,0 +1,117 @@
+
+================================================================
+  节点 / node: fa-master   (8.155.146.254)   kafka 容器: kafka-1
+================================================================
+### 1. 文件系统 / filesystem
+  Filesystem      Size  Used Avail Use% Mounted on
+  /dev/vda3        40G   17G   21G  45% /
+----------------------------------------------------------------
+### 2. Docker 总览 / docker system df
+  TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+  Images          9         7         5.23GB    74.93kB (0%)
+  Containers      7         6         651.4MB   57.34kB (0%)
+  Local Volumes   5         5         5.097GB   0B (0%)
+  Build Cache     0         0         0B        0B
+----------------------------------------------------------------
+### 3. 各容器可写层大小（Kafka 数据就在这里）/ container writable layers
+  623MB (virtual 1.3GB)	jobmanager	Up 40 seconds
+  28.2MB (virtual 505MB)	kafka-1	Up 16 seconds
+  8.19kB (virtual 25.7MB)	node-exporter	Up 40 seconds
+  57.3kB (virtual 567MB)	zookeeper	Up 40 seconds
+  57.3kB (virtual 650MB)	dumper-insects_abrupt_imbalanced_BACKLOG_THEN_NEW_FOREST_default_p4_r1_iksWindowSize-2000_iksPValue-0.001_aggK-2	Exited (0) 5 months ago
+  4.1kB (virtual 240MB)	prometheus	Up 40 seconds
+  4.1kB (virtual 353MB)	grafana	Up 40 seconds
+----------------------------------------------------------------
+### 4. 镜像（含未被任何容器使用的）/ images
+  1.34GB	fa-iforest/flink:1.13.6-java11	8852cf871082
+  1.28GB	fa-iforest/flink:1.13.6	75232ddd6874
+  25.9kB	hello-world:latest	0e760fdfbc48
+  446MB	grafana/grafana:10.0.0	4d5308c296c4
+  37.4MB	prom/node-exporter:v1.6.1	81f94e50ea37
+  334MB	prom/prometheus:v2.45.0	9309deb7c981
+  679MB	wurstmeister/kafka:2.13-2.6.3	0693a9163d7e
+  819MB	wurstmeister/zookeeper:latest	7a7fd44a7210
+  -- 悬空镜像 / dangling --
+  1.34GB	8852cf871082
+  1.28GB	228861270f0d
+----------------------------------------------------------------
+### 5. Kafka 各 topic 数据量（容器内 du，按 topic 汇总）/ kafka per-topic
+  topic                                                  MB
+  __consumer_offsets                                     33
+  synergia-source                                         5
+  synergia-scores                                         3
+  synergia-monitoring                                     1
+  synergia-drift                                          1
+  synergia-alerts                                         1
+  synergia-adapt                                          1
+
+  本项目 synergia-* 合计: 12 MB
+  其他（含旧项目 FA-iForest 与 __consumer_offsets）合计: 33 MB
+----------------------------------------------------------------
+### 5b. Docker 数据卷实测 / docker volumes (measured with du)
+  /var/lib/docker/volumes 实测合计: 1152 MB
+  卷总数: 5   其中无容器引用（dangling）: 0
+  -- 最大的若干个卷（含是否被容器引用）/ largest volumes --
+       605 MB  使用中 in-use compose_prom-data
+       542 MB  使用中 in-use d2887f29430f04bf85e245b4c993cbb935e666465af21c8c41e7eecf812f4671
+         5 MB  使用中 in-use 02930f0002782a8d325c3d0a42cde03514f14daea3b63b231017794094c22adb
+         1 MB  使用中 in-use compose_grafana-data
+         1 MB  使用中 in-use 3e192c781b214e52e15c83ad044cdaa03414f2c4a89cadba9b3d2e0f39e0a652
+  无容器引用的卷合计: 0 MB   （docker volume prune 可回收，**不可撤销**）
+----------------------------------------------------------------
+### 6. /opt/fa-iforest 下的占用 / remote home
+        2932 MB  /opt/fa-iforest/datasets
+         980 MB  /opt/fa-iforest/a4full
+         909 MB  /opt/fa-iforest/stepc
+         632 MB  /opt/fa-iforest/fa-iforest-flink.tar
+         486 MB  /opt/fa-iforest/jars
+         300 MB  /opt/fa-iforest/mon_full.jsonl
+         100 MB  /opt/fa-iforest/m6averify
+          89 MB  /opt/fa-iforest/m6bverify
+           8 MB  /opt/fa-iforest/m7verify
+           7 MB  /opt/fa-iforest/m5averify
+           5 MB  /opt/fa-iforest/m5bverify
+           1 MB  /opt/fa-iforest/syn-replay.log
+           1 MB  /opt/fa-iforest/replay-state
+           1 MB  /opt/fa-iforest/monitoring
+           1 MB  /opt/fa-iforest/mon.jsonl
+           1 MB  /opt/fa-iforest/m1out.jsonl
+           1 MB  /opt/fa-iforest/m1_pivot_check.py
+           1 MB  /opt/fa-iforest/logs
+           1 MB  /opt/fa-iforest/compose
+           0 MB  /opt/fa-iforest/stepc.ready
+  -- jars 目录明细 / jars --
+    total 486M
+    -rw-r--r-- 1  501 staff 272M Sep 15 09:23 FA-iForest-1.0-SNAPSHOT.jar
+    -rw-r--r-- 1 root root  215M Nov 12 08:29 iot-anomaly-detection-1.0-SNAPSHOT.jar
+----------------------------------------------------------------
+### 7. 容器 json 日志 / container json logs
+          32 MB  /var/lib/docker/containers/ae7b74fd07e16189fcd34904c51b7ec050e31a6409247fa095c076ef5491823f/ae7b74fd07e16189fcd34904c51b7ec050e31a6409247fa095c076ef5491823f-json.log
+          22 MB  /var/lib/docker/containers/4c75edbd634a5b3f282e96f963f4deae9d753c9b329c236ba15d866063543a72/4c75edbd634a5b3f282e96f963f4deae9d753c9b329c236ba15d866063543a72-json.log
+           3 MB  /var/lib/docker/containers/b670b663a7878c6c32ba4048a81773282997e2c367173c0d6dbdd3e103619182/b670b663a7878c6c32ba4048a81773282997e2c367173c0d6dbdd3e103619182-json.log
+           3 MB  /var/lib/docker/containers/9ba6e7272e582ca7356f9e51d019f1e86ff16c9e33af043079a29c15884f9e71/9ba6e7272e582ca7356f9e51d019f1e86ff16c9e33af043079a29c15884f9e71-json.log
+           3 MB  /var/lib/docker/containers/96a8686161015a4add711f052aa83994c509b0b732d58bac8379fb650d537222/96a8686161015a4add711f052aa83994c509b0b732d58bac8379fb650d537222-json.log
+           1 MB  /var/lib/docker/containers/a7519664e97ebea05b9300adc25b76cc42707368aaffe221ce00904318ca9ff3/a7519664e97ebea05b9300adc25b76cc42707368aaffe221ce00904318ca9ff3-json.log
+           1 MB  /var/lib/docker/containers/9bcad6db91f7719d4299796bb54463ab2564170664f9a8b65c34b98e9fa8e24d/9bcad6db91f7719d4299796bb54463ab2564170664f9a8b65c34b98e9fa8e24d-json.log
+  容器日志目录合计: 62 MB
+----------------------------------------------------------------
+### 8. systemd journal 与其他大目录 / journal and other large dirs
+  Archived and active journals take up 120.0M in the file system.
+         139 MB  /var/log
+          18 MB  /root
+           1 MB  /tmp
+----------------------------------------------------------------
+### 9. 可安全回收候选（实测，仅统计不删除）/ reclaim candidates (measured, nothing deleted)
+  镜像 tar 包 /opt/fa-iforest/fa-iforest-flink.tar : 632 MB   （docker load 之后即无用）
+  悬空镜像数量: 2 个   （docker image prune 可回收，不影响在用镜像）
+  容器 json 日志合计: 62 MB   （truncate 可回收，注意会丢失历史日志）
+  无容器引用的 Docker 卷: 0 MB   （历次 Kafka 容器留下的孤儿卷，通常是最大的一块）
+  /opt/fa-iforest/jars 合计: 486 MB   （每个本项目 fat jar 约 214 MB，旧版本可删）
+
+================================================================
+  盘点结束。本脚本是只读的，没有删除任何内容。
+  清理步骤与安全边界见 docs/cluster_disk_cleanup_zh.md（2.0 版）。
+  最重要的一条：占用主体是历次容器遗留的**孤儿匿名卷**（第 5b 小节），不是容器可写层。
+  因此不可撤销的动作是 docker volume prune，而不是删除容器；且一律不可加 -a 执行
+  docker system prune（会连 fa-iforest/flink 镜像一起删掉）。
+================================================================
