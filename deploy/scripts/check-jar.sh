@@ -110,6 +110,8 @@ checks=(
     "com/leejean/m2/M2Job.class|m3-retrain-day-sec|一级按真实的天计（短重放用，1.41 版第四节）"
     "com/leejean/m2/M2Job.class|adapt-keep-channels|湿度与气压不随零级重估（开发决策第十二条）"
     "com/leejean/m7/FleetDecisionFunction.class|只有性能层持续|决策矩阵升级格（1.41 版第三节）"
+    "com/leejean/m3/M3Function.class|level-1 switch check|一级切换前验证（1.43 版，只记录）"
+    "com/leejean/m7/FleetDecisionFunction.class|性能层确认段因模型切换而结束|性能层跟踪随模型代数清空（1.44 版）"
 )
 
 fail=0
