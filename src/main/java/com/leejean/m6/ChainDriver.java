@@ -38,7 +38,7 @@ import java.util.TreeMap;
  * <ol>
  *   <li>执行环境：开发机或本地 Mac，仓库根目录，JDK 11，先 mvn package；堆至少 4 GB（-Xmx6g）。</li>
  *   <li>调用命令：{@code java -Xmx6g -cp target/iot-anomaly-detection-1.0-SNAPSHOT.jar com.leejean.m6.ChainDriver --variant D1
- *       --out-dir docs/m6b/chain/D1}；--variant 取 open（命令只发出不执行，驱动正确性对照）、D1、D7、pos（只重估位置）；--keep-channels Humidity,Pressure 使这些通道不随零级重估（1.41 版裁决第一节，默认 none）；可选
+ *       --out-dir docs/m6b/chain/D1}；--variant 取 open（命令只发出不执行，驱动正确性对照）、D1、D7、pos（只重估位置）；--upgrade-cells true 打开升级格，此时在第一条一级或二级命令的决定时刻停止并写 stopped_at.txt（1.44 版裁决）；--keep-channels Humidity,Pressure 使这些通道不随零级重估（1.41 版裁决第一节，默认 none）；可选
  *       --rounds-dir docs/m6a/extract、--rounds-E docs/m6b/extract/rounds_E_inj.csv.gz（E 的注入轮表）、--inputs docs/m7/inputs，
  *       以及聚合模块的决策参数（与 M7OfflineRunner 相同的选项名）。</li>
  *   <li>前置条件：八台轮表已提取；E 的注入轮表已由 m6a/inject_rounds.py 生成；docs/m7/inputs 已由 m7/prepare_inputs.py 生成。</li>
@@ -112,6 +112,7 @@ public final class ChainDriver {
         List<FleetDecisionFunction.Review> review = new ArrayList<>();
         Map<String, String> trans = new HashMap<>();                       // 设备|日|通道 → DEVIATE 或 RECOVER
 
+        FleetDecisionFunction.Command stop = null;                         // 第一条一级或二级命令（1.44 版）/ first level-1/2
         String first = a.getOrDefault("first-day", "2022-03-08");
         String last = a.getOrDefault("last-day", "2022-04-30");
         for (String day = first; day.compareTo(last) <= 0; day = FleetDecisionFunction.addDays(day, 1)) {
@@ -150,12 +151,23 @@ public final class ChainDriver {
                         && (he - FleetDecisionFunction.dayStart(day)) % p.cmdSec == 0) {
                     int n = commands.size();
                     f.cmdTick(he, commands, review);
-                    schedule(commands, n, sims);
+                    stop = schedule(commands, n, sims);
+                    if (stop != null) {
+                        break;
+                    }
                 }
+            }
+            if (stop != null) {
+                break;
             }
             int n = commands.size();
             f.dayTick(day, commands, review);
-            schedule(commands, n, sims);
+            stop = schedule(commands, n, sims);
+            if (stop != null) {
+                // 链式驱动不模拟上下文模块的重训，遇到第一条一级或二级命令就在其决定时刻停止，等值段到此为止（1.44 版裁决）
+                // The chain does not simulate retraining: stop at the decision time of the first level-1/2 command.
+                break;
+            }
         }
 
         Files.createDirectories(out.resolve("level0"));
@@ -170,15 +182,26 @@ public final class ChainDriver {
             }
             ex.append(s.dev).append('=').append(s.execs.size()).append(' ');
         }
+        if (stop != null) {
+            Files.write(out.resolve("stopped_at.txt"), (stop.device + "," + stop.day + "," + stop.decidedAt + ","
+                    + stop.effectiveAt + "," + stop.level + "," + stop.cell + "\n").getBytes(StandardCharsets.UTF_8));
+            System.out.println("在第一条 " + stop.level + " 级命令的决定时刻停止：" + stop.device + " " + stop.day + "（" + stop.cell + "）");
+        }
         System.out.println("p_point = " + p.pPoint);
         System.out.println(variant + "：告警 " + alerts.size() + " 条；命令 " + commands.size() + " 条；复核 " + review.size()
                 + " 条；执行的零级 " + ex.toString().trim());
     }
 
-    private static void schedule(List<FleetDecisionFunction.Command> commands, int from, Map<String, ChainDeviceSim> sims) {
+    /** 排入新命令中的零级；遇到一级或二级命令时返回它（不排入）/ schedule level-0 commands; return the first level-1/2. */
+    private static FleetDecisionFunction.Command schedule(List<FleetDecisionFunction.Command> commands, int from,
+                                                          Map<String, ChainDeviceSim> sims) {
         for (FleetDecisionFunction.Command c : commands.subList(from, commands.size())) {
+            if (c.level != 0) {
+                return c;
+            }
             sims.get(c.device).schedule(c.effectiveAt, c.seq);
         }
+        return null;
     }
 
     /** 收口输入的观测换上模拟器重算的离群轮数与版本 / the closeout observation with the simulated outliers and version. */
