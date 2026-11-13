@@ -49,6 +49,11 @@ def main() -> int:
             missing.append(t)
             continue
         seg[t] = rows(sp)
+        # 门槛是 z 分（中位数与四分位距取自该次运行的评分器），比值按 z 分算 / the threshold is a z-score
+        rr = rows(rp)[0]
+        for r in seg[t]:
+            z = (float(r["max_wmse"]) - float(rr["scorer_median"])) / float(rr["scorer_iqr"])
+            r["ratio"] = z / float(r["threshold"])
         if os.path.exists(op):
             x, y = rows(rp)[0], rows(op)[0]
             diff = [k for k in x if k not in SKIP and x.get(k) != y.get(k)]
@@ -58,7 +63,8 @@ def main() -> int:
             mismatch.append("%s：原结果行不存在" % t)
     out = ["# 逐段检出核对（m6b/q12_seg_report.py 生成）\n\n",
            "档丙（湿度与气压用冻结参数、训练集取生效后 N 天）二十次重训与五个初始模型，在注入日 04-05 的六段注入上逐段检出。"
-           "「比值」为重叠窗口中最大窗口误差除以门槛，不低于一即检出。\n\n",
+           "「比值」为重叠窗口中最大的主分（z =（窗口误差 − 中位数）÷ 四分位距，中位数与四分位距取自该次运行的评分器）除以门槛 2.22，"
+           "不低于一即检出。\n\n",
            "复现核对：重跑的结果行与 `docs/m6b/q12c/rows/` 逐字段相同（耗时除外）的运行 %d 个，不一致 %d 个，缺失 %d 个。\n\n" % (
                len(seg) - len(mismatch), len(mismatch), len(missing))]
     if mismatch:
@@ -81,7 +87,7 @@ def main() -> int:
         for k in range(len(segs)):
             got = [seg[t][k] for t in ts if t in seg]
             det = sum(1 for r in got if int(r["above"]) > 0)
-            ratio = statistics.median(float(r["max_wmse"]) / float(r["threshold"]) for r in got) if got else float("nan")
+            ratio = statistics.median(r["ratio"] for r in got) if got else float("nan")
             cells.append("%d/%d（%.2f）" % (det, len(got), ratio))
         body.append([g] + cells)
     out.append("## 各组每段的检出（检出的种子数 / 种子数，括号内为比值的中位数）\n\n")
@@ -92,10 +98,10 @@ def main() -> int:
         for t in ts:
             if t not in seg:
                 continue
-            body.append([g, t.split("_")[1]] + ["%s %.2f" % ("检出" if int(r["above"]) > 0 else "—", float(r["max_wmse"]) / float(r["threshold"]))
-                                                for r in seg[t]] + ["%.4g" % float(seg[t][0]["threshold"])])
+            body.append([g, t.split("_")[1]] + ["%s %.2f" % ("检出" if int(r["above"]) > 0 else "—", r["ratio"])
+                                                for r in seg[t]] + [])
     out.append("\n## 逐次运行（每段：是否检出、比值）\n\n")
-    out.append(table(["模型", "种子"] + ["第 " + n for n in names] + ["门槛"], body))
+    out.append(table(["模型", "种子"] + ["第 " + n for n in names], body))
     open(a.out, "w", encoding="utf-8").write("".join(out))
     print("已写出 %s；复现一致 %d，不一致 %d，缺失 %d" % (a.out, len(seg) - len(mismatch), len(mismatch), len(missing)))
     return 1 if (missing or mismatch) else 0
