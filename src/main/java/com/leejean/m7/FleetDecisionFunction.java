@@ -161,11 +161,13 @@ public class FleetDecisionFunction implements Serializable {
     /** 性能层的确认与回落 / perf confirmation and fallback. */
     static final class PerfTracker implements Serializable {
         private static final long serialVersionUID = 1L;
-        final List<double[]> items = new ArrayList<>();   // {ts, kind(0 事件,1 元素), level(1=确认), value, magnitude}
+        final List<double[]> items = new ArrayList<>();   // {ts, kind(0 事件,1 元素,2 模型代数改变), level(1=确认), value, magnitude}
         int i;
         boolean sorted = true;
         boolean confirmed;
         long confirmTs;
+        // 因模型切换而结束的确认段的时刻（1.44 版裁决第七条；日界复核时写出后清空）/ confirmation segments ended by a switch
+        final List<Long> switchEnded = new ArrayList<>();
         Long since;
         double threshold;
         Double magnitude;
@@ -187,7 +189,17 @@ public class FleetDecisionFunction implements Serializable {
             while (i < items.size() && items.get(i)[0] <= t) {
                 double[] it = items.get(i++);
                 long ts = (long) it[0];
-                if (it[1] == 0) {
+                if (it[1] == 2) {
+                    // 模型代数改变：旧门限与新评分器不在同一尺度，清空跟踪；进行中的确认段记为因模型切换而结束
+                    // Model generation changed: clear the tracking; an open confirmation segment ends because of the switch.
+                    if (confirmed) {
+                        switchEnded.add(ts);
+                    }
+                    confirmed = false;
+                    since = null;
+                    magnitude = null;
+                    post.clear();
+                } else if (it[1] == 0) {
                     if (it[2] == 1) {
                         if (!confirmed) {
                             since = ts;
@@ -293,6 +305,8 @@ public class FleetDecisionFunction implements Serializable {
         Map.Entry<Long, Integer> prev = m.floorEntry(ts);
         if (gen > 0 && (prev == null || prev.getValue() != gen)) {
             m.put(ts, gen);
+            addDevice(dev);
+            perf.get(dev).add(new double[]{ts, 2, 0, 0, 0});   // 性能层跟踪随模型代数清空（1.44 版）/ clear on a new generation
         }
     }
 
@@ -862,6 +876,19 @@ public class FleetDecisionFunction implements Serializable {
             return;
         }
         // 日界复核 / daily review
+        for (String dev : devices) {
+            PerfTracker pt = perf.get(dev);
+            for (long e : pt.switchEnded) {
+                Review r = new Review();
+                r.device = dev;
+                r.day = day;
+                r.kind = "性能层确认段因模型切换而结束";
+                r.hourStart = Long.toString(e);
+                r.detail = "模型代数 " + modelAt(dev, e);
+                review.add(r);
+            }
+            pt.switchEnded.clear();
+        }
         for (String dev : devices) {
             Boolean ev = evaluable.get(dev + "|" + day);
             if (ev != null && !ev) {

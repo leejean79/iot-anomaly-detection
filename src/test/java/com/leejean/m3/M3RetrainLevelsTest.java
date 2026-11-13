@@ -230,6 +230,26 @@ class M3RetrainLevelsTest {
     }
 
     @Test
+    @DisplayName("一级切换前验证：只记录时照常切换并记下比值；强制执行且不通过时不切换，旧模型继续服务")
+    void switchCheckRecordsAndOptionallyRejects() throws Exception {
+        int cmdAt = TO_TRAINING + 3 * ROUNDS_PER_DAY + 3;
+        int n = cmdAt + 2 * ROUNDS_PER_DAY;
+        long eff = ts(cmdAt);
+        Run rec = run(fn(2, false, false), rounds(n, n, cmdAt, command(1, eff)), true);
+        MonitoringSnapshot c = rec.snaps.stream().filter(s -> s.getM3SwitchCheckRatio() != null).findFirst().get();
+        assertTrue(c.getM3SwitchCheckRatio() > 0);
+        assertTrue(rec.scores.stream().anyMatch(s -> s.getModel() != null), "只记录：照常切换");
+        // 门槛取零，任何比值都判为不通过；强制执行 / limit 0 rejects any ratio; enforced
+        Run rej = run(fn(2, false, false).withSwitchCheck(0.0, true), rounds(n, n, cmdAt, command(1, eff)), true);
+        MonitoringSnapshot r = rej.snaps.stream().filter(s -> s.getM3SwitchCheckRatio() != null).findFirst().get();
+        assertEquals(Boolean.TRUE, r.getM3SwitchCheckReject());
+        for (M3ScoreRecord s : rej.scores) {
+            assertNull(s.getModel(), "不通过且强制执行：旧模型继续服务");
+        }
+        assertEquals((n - TO_TRAINING) / WINDOW, rej.scores.size(), "每个在线窗口恰好一条评分");
+    }
+
+    @Test
     @DisplayName("二级：回到收集态，四天内上下文通道无评分并每窗发出重训中标记；新模型上线后代数为一")
     void levelTwoSilencesAndMarks() throws Exception {
         int cmdAt = TO_TRAINING + 2 * ROUNDS_PER_DAY;

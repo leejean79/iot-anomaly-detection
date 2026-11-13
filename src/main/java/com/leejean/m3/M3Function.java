@@ -183,6 +183,10 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     // Decision 17: level-1 training length (days), warm start, and whether the window lies before or after the effective time.
     private int retrainDays = 7;
     private long retrainDaySec;                                 // 一级的「一天」秒数，0 表示每天轮数乘十秒 / level-1 day length
+    // 一级切换前验证（1.43 版裁决的设计补充，用户确认只记录）：新模型标定误差中位数超过旧模型的倍数门槛则判为不该切换；
+    // enforce 为假时照常切换、只记录 / pre-switch check: record only unless enforced
+    private double switchCheckRatio = 3.0;
+    private boolean switchCheckEnforce;
     private boolean retrainWarm = true;
     private boolean retrainAfter = false;
     private transient ListState<HistWindow> history;            // 在线窗口的原始值历史（一级训练集来源）/ raw online windows
@@ -555,7 +559,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
             }
             return;
         }
-        applyOutcome(key, device, o);
+        applyOutcome(key, device, o, ctx);
     }
 
 
@@ -732,8 +736,12 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     /**
      * 把训练结果写入状态并转为在线态（只在任务线程上调用）/ apply a result to state and go ONLINE (task thread).
      */
-    private void applyOutcome(String key, String device, M3TrainExecutor.Outcome o) throws Exception {
+    private void applyOutcome(String key, String device, M3TrainExecutor.Outcome o, Context ctx) throws Exception {
         lastApplyThread = Thread.currentThread();
+        if (Boolean.TRUE.equals(retraining.value()) && scorerBytes.value() != null
+                && !switchCheck(device, o, ctx)) {
+            return;                                    // 验证不通过且强制执行：旧模型继续服务 / rejected and enforced
+        }
         lastTrainEpochs = o.result.epochs;
         lastTrainModels++;
         lastQueueWaitSec = o.queueWaitSec;
@@ -785,6 +793,49 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                  + "{} buffered rounds to drain", device, String.format("%.1f", o.queueWaitSec),
                  String.format("%.1f", o.wallSec), pending == null ? 0 : pending);
         LOG.info("[M3] Device {} entering ONLINE", device);
+    }
+
+    /**
+     * 一级切换前验证（1.43 版裁决）：比较新、旧模型在各自标定集上的窗口误差中位数（即评分器的中位数）。比值超过门槛判为
+     * 「不该切换」；无论是否强制执行都写一条日志，并在监测快照上记一条（比值与判定）。强制执行且不通过时放弃这次重训、
+     * 旧模型继续服务，返回假。/ Compare the new and old calibration medians; record always, reject only when enforced.
+     */
+    private boolean switchCheck(String device, M3TrainExecutor.Outcome o, Context ctx) throws Exception {
+        M3Scorer old;
+        try (java.io.ObjectInputStream ois = new java.io.ObjectInputStream(
+                new java.io.ByteArrayInputStream(scorerBytes.value()))) {
+            old = (M3Scorer) ois.readObject();
+        }
+        double ratio = o.scorer.getMedian() / old.getMedian();
+        boolean reject = !(ratio <= switchCheckRatio);
+        LOG.info("[M3] Device {} level-1 switch check: new calibration median {}, old {}, ratio {} (limit {}): {}{}",
+                 device, o.scorer.getMedian(), old.getMedian(), ratio, switchCheckRatio,
+                 reject ? "would reject" : "passes", switchCheckEnforce ? " (enforced)" : " (record only)");
+        long[] span = retrainSpan.value();
+        if (m3MonitoringTag != null && ctx != null) {
+            MonitoringSnapshot snap = new MonitoringSnapshot();
+            snap.setDevice(device);
+            snap.setTs(span == null ? 0L : span[1]);
+            snap.setWindowEnd(STATUS_SNAPSHOT_WINDOW_END);
+            snap.setM3Phase(1);
+            snap.setM3SwitchCheckRatio(ratio);
+            snap.setM3SwitchCheckReject(reject);
+            ctx.output(m3MonitoringTag, snap);
+        }
+        if (reject && switchCheckEnforce) {
+            LOG.warn("[M3] Device {} REPORT: level-1 switch rejected by the pre-switch check; the old model keeps serving",
+                     device);
+            endRetrain();
+            trainWindows.clear();
+            trainMasks.clear();
+            earlyStopWindows.clear();
+            earlyStopMasks.clear();
+            threshWindows.clear();
+            threshMasks.clear();
+            statePhase.update(3);
+            return false;
+        }
+        return true;
     }
 
     /** 训练结束的日志与两条上报判据（训练线程上调用）/ the "trained" log line and the two report rules. */
@@ -1356,6 +1407,16 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
      */
     public M3Function withRetrainDaySec(long sec) {
         this.retrainDaySec = sec;
+        return this;
+    }
+
+    /**
+     * 一级切换前验证的门槛与是否强制执行（1.43 版裁决；作业默认门槛三倍、只记录）。
+     * Pre-switch check: ratio limit and whether it is enforced (default 3.0, record only).
+     */
+    public M3Function withSwitchCheck(double ratio, boolean enforce) {
+        this.switchCheckRatio = ratio;
+        this.switchCheckEnforce = enforce;
         return this;
     }
 

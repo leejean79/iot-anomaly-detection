@@ -201,6 +201,28 @@ class FleetDecisionUpgradeCellsTest {
     }
 
     @Test
+    @DisplayName("模型代数改变时清空性能层跟踪：进行中的确认段因模型切换而结束，不触发命令，并写进日界复核")
+    void modelSwitchEndsTheConfirmationSegment() {
+        FleetDecisionFunction.Params p = params(true);
+        List<FleetDecisionFunction.Review> review = new ArrayList<>();
+        FleetDecisionFunction f = new FleetDecisionFunction(p);
+        for (String d : DEVS) {
+            f.addDevice(d);
+            f.setFreeze(d, FleetDecisionFunction.dayStart(FIRST) + 60);
+        }
+        dataDays(f, 3, (k, v) -> { });
+        perf(f, "B", at(FIRST, 20), -1);                    // 不加切换时 03-02 会发一条只有性能层持续的一级 / would be level 1
+        f.setModel("B", at("2022-03-02", 6), 1);            // 跨过日界之前换了模型 / a switch before the next boundary
+        List<FleetDecisionFunction.Command> cmds = new ArrayList<>();
+        String day = FIRST;
+        for (int i = 0; i < 3; i++, day = FleetDecisionFunction.addDays(day, 1)) {
+            f.dayTick(day, cmds, review);
+        }
+        assertEquals(0, cmds.size(), "确认段因模型切换而结束，不触发命令");
+        assertEquals(1, review.stream().filter(r -> r.kind.equals("性能层确认段因模型切换而结束") && r.device.equals("B")).count());
+    }
+
+    @Test
     @DisplayName("命令与告警带上下文模块的模型代数；从未换过模型时为空")
     void modelGenerationOnOutputs() {
         List<FleetDecisionFunction.Alert> alerts = new ArrayList<>();

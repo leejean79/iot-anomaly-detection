@@ -63,6 +63,8 @@ public class MonitoringSnapshot implements Serializable {
     private Double m3ShadowWmse;         // 影子评分的窗口加权 MSE / shadow window weighted MSE
     private Boolean m3Retraining;        // 二级重训中（回到收集态；M6b 第五节）/ level-2 retraining (collecting again)
     private Boolean m3Level1Failed;      // 一级重训失败两次、已放弃（1.41 版裁决第二节第六条）/ level-1 retrain abandoned
+    private Double m3SwitchCheckRatio;   // 一级切换前验证：新旧标定误差中位数之比（1.43 版）/ pre-switch check ratio
+    private Boolean m3SwitchCheckReject; // 一级切换前验证：是否判为不该切换 / whether the check would reject
 
     // ---- M5b 追加字段（M5b 交接文档决定四；windowEnd = -2 的快照才有意义）/ M5b fields (snapshots with windowEnd = -2) ----
     private int m5bWindowLen;            // 检测器当前窗长 / detector window length
@@ -235,6 +237,16 @@ public class MonitoringSnapshot implements Serializable {
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     public Boolean getM3Level1Failed() { return m3Level1Failed; }
     public void setM3Level1Failed(Boolean m3Level1Failed) { this.m3Level1Failed = m3Level1Failed; }
+
+    @JsonProperty
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Double getM3SwitchCheckRatio() { return m3SwitchCheckRatio; }
+    public void setM3SwitchCheckRatio(Double v) { this.m3SwitchCheckRatio = v; }
+
+    @JsonProperty
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Boolean getM3SwitchCheckReject() { return m3SwitchCheckReject; }
+    public void setM3SwitchCheckReject(Boolean v) { this.m3SwitchCheckReject = v; }
 
     @JsonProperty
     public int getM5bWindowLen() { return m5bWindowLen; }
