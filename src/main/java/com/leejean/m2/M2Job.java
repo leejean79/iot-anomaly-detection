@@ -127,6 +127,10 @@ public class M2Job {
         // Checkpoint timeout in minutes; default 10 is Flink's own default. The acceptance runs temporarily
         // passed 60 or 120 while training blocked the task thread; addendum 4 restores 10.
         int ckptTimeoutMin = params.getInt("checkpoint-timeout-min", 10);
+        // 两次检查点之间的最短间隔（毫秒，默认 0 即不限制）。检查点状态在 JobManager 堆里；V-M6b-4 第一次全量重放中一次检查点在
+        // JobManager 一侧迟迟不能完成，其后每 30 秒又开始一次，十次并存、堆耗尽（2026-11-14 用户确认加此参数）。
+        // Minimum pause between checkpoints (ms, 0 = none); prevents checkpoints piling up behind a stalled one.
+        long ckptMinPauseMs = params.getLong("checkpoint-min-pause-ms", 0L);
         // M2 窗口与算法参数（占位默认；(R,k) 终值由探针交回设计会话裁决）
         int windowSec = params.getInt("window-sec", 3600);       // W
         int slideSec = params.getInt("slide-sec", 60);           // S
@@ -239,7 +243,7 @@ public class M2Job {
                 + (params.has("warmup-rounds") ? " (explicit --warmup-rounds)" : " (from --calib-days)"));
         System.out.println("Relative guard:  " + (relativeGuard ? "ON" : "OFF (default)"));
         com.leejean.m1.CheckpointCeiling.print(ckptMaxStateMb);   // 打印两个上限与生效值 / both ceilings
-        System.out.println("Ckpt interval/timeout: " + checkpointMs + " ms / " + ckptTimeoutMin + " min");
+        System.out.println("Ckpt interval/timeout: " + checkpointMs + " ms / " + ckptTimeoutMin + " min; min pause " + ckptMinPauseMs + " ms");
         System.out.println("Restart attempts: " + (restartAttempts < 0 ? "Flink default" : restartAttempts + " (delay "
                 + restartDelaySec + " s)"));
         System.out.println("Ckpt tolerable failures: " + ckptTolerableFailures
@@ -366,6 +370,9 @@ public class M2Job {
                             org.apache.flink.api.common.time.Time.seconds(restartDelaySec)));
         }
         env.getCheckpointConfig().setCheckpointTimeout(ckptTimeoutMin * 60_000L);
+        if (ckptMinPauseMs > 0) {
+            env.getCheckpointConfig().setMinPauseBetweenCheckpoints(ckptMinPauseMs);
+        }
 
         Properties consumerProps = new Properties();
         consumerProps.setProperty("bootstrap.servers", brokers);

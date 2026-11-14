@@ -20,7 +20,7 @@
 #      bash deploy/scripts/syn-m6b-full.sh stop           # 中止：停重放、取消本项目作业、结束采样
 #    可选 --runs a,b|a|b（默认 a,b；只跑 b 时沿用 master 上已有的 a 的结果）。
 # 3. 前置条件 / Preconditions: 已按 syn-m3-a4-stepc.sh setup-master 做过 master 的准备；新 jar 已上传（syn-upload-m1.sh --jar-only），
-#    check-jar.sh 全部 PASS；三台节点磁盘可用不少于 22 GB（每次复位门槛为 20 GB，短重放一次在 master 上留下约一 GB）；运行期间
+#    check-jar.sh 全部 PASS；JobManager 进程内存不少于 3,072 MB（JM_HEAP_MB，第一次全量重放堆耗尽之后提高）；三台节点磁盘可用不少于 22 GB（每次复位门槛为 20 GB，短重放一次在 master 上留下约一 GB）；运行期间
 #    不做其他集群操作。启动横幅须含「switch check 3.0 record only; shadow scoring true」与「M7 enabled:      true」。
 # 4. 期望产出 / Expected output: docs/m6b/full/ 下 progress.txt、full_report_tables.md（核对与四张表）、a/ 与 b/ 两个运行目录。
 #    m1-out 与监测快照的完整转储较大，留在 master 上算摘要后删除，只保留摘要与核对需要的子集。
@@ -163,7 +163,7 @@ JID=""
 JAR="${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}"
 BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
 # 生产参数（与补遗四全量重放相同）/ production parameters as in the A4 full replay
-EXTRA_BASE="--m3-enabled true --window-sec 3600 --m3-train-days 7 --m3-earlystop-days 2 --m3-thresh-days 7 --m3-window-length 60 --m3-hidden-size 60 --m3-batch-size 64 --m3-learning-rate 0.001 --m3-grad-clip 39072.0 --m3-max-epochs 300 --m3-earlystop-patience 20 --m3-reverse-target true --checkpoint-ms 30000 --checkpoint-timeout-min 10 --checkpoint-tolerable-failures 3 --idle-wall 60 --train-threads 2"
+EXTRA_BASE="--m3-enabled true --window-sec 3600 --m3-train-days 7 --m3-earlystop-days 2 --m3-thresh-days 7 --m3-window-length 60 --m3-hidden-size 60 --m3-batch-size 64 --m3-learning-rate 0.001 --m3-grad-clip 39072.0 --m3-max-epochs 300 --m3-earlystop-patience 20 --m3-reverse-target true --checkpoint-ms 30000 --checkpoint-timeout-min 10 --checkpoint-tolerable-failures 3 --checkpoint-min-pause-ms 30000 --idle-wall 60 --train-threads 2"
 # 全部模块、命令回路与聚合模块打开，有限重启三次（1.45 版裁决第四项）/ every module, loop and M7 on; three restarts
 EXTRA_BASE="$EXTRA_BASE --m5b-enabled true --m5b-confidence 0.99 --m5b-robustness 0.5 --m5b-granularity 10min --m5b-k 36 --m5a-enabled true --adapt-enabled true --m7-enabled true --restart-attempts 3"
 # 默认参数写明，防止旧 jar 的默认值混入 / defaults spelled out
@@ -218,6 +218,10 @@ run_one() {
     rm -rf "$R" "$W"; mkdir -p "$R" "$W"
     prog "== 运行 $RUN 开始：$START 至 ${END}，倍速 ${SPEED}，全部模块、命令回路、聚合模块、升级格与影子评分打开 =="
     LOW=$(disk_ok) || fail "磁盘可用空间不足 22 GB：$LOW（见 docs/cluster_disk_cleanup_zh.md）"
+    # JobManager 进程内存不少于 3,072 MB（第一次全量重放 JobManager 堆耗尽，2026-11-14 用户确认提高）/ JM memory check
+    JMMEM=$(ssh fa-master "docker exec jobmanager grep -E '^jobmanager.memory.process.size' /opt/flink/conf/flink-conf.yaml | tail -1" 2>/dev/null \
+        | sed -E 's/.*: *([0-9]+)m.*/\1/')
+    [ "${JMMEM:-0}" -ge 3072 ] 2>/dev/null || fail "JobManager 进程内存为 ${JMMEM:-读不到} MB，不足 3,072 MB（先按运行手册提高 JM_HEAP_MB 并重建 jobmanager 容器）"
     bash "$SCRIPT_DIR/syn-reset-env.sh" --yes > "$R/reset.log" 2>&1 || fail "复位未通过（见 $R/reset.log）"
     bash "$SCRIPT_DIR/syn-create-topics.sh" > "$R/topics.log" 2>&1 || fail "创建 topic 失败（见 $R/topics.log）"
     grep -q 'synergia-adapt' "$R/topics.log" && grep -q 'synergia-alerts' "$R/topics.log" \
@@ -229,6 +233,7 @@ run_one() {
     printf 'RUN=%s\nSINCE=%s\nJID=%s\n' "$RUN" "$SINCE" "$JID" > "$R/run.env"
     prog "作业已提交：${JID}；$(grep -E 'M3 level 1' "$R/submit.log" | tr -s ' ')"
     grep -q 'Restart attempts: 3' "$R/submit.log" || fail "启动横幅里重启次数不是 3（见 $R/submit.log）"
+    grep -q 'min pause 30000 ms' "$R/submit.log" || fail "启动横幅里检查点最短间隔不是 30 秒（jar 可能是旧的，见 $R/submit.log）"
     grep -q 'Adapt (M6a):     true' "$R/submit.log" || fail "启动横幅里命令回路不是打开状态（见 $R/submit.log）"
     grep -q 'keep=\[false, true, true, false, false\]' "$R/submit.log" || fail "启动横幅里湿度与气压不是不重估（jar 可能是旧的，见 $R/submit.log）"
     grep -q 'M7 enabled:      true' "$R/submit.log" || fail "启动横幅里聚合算子不是打开状态（见 $R/submit.log）"

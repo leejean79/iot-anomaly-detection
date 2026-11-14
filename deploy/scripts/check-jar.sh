@@ -112,6 +112,7 @@ checks=(
     "com/leejean/m7/FleetDecisionFunction.class|只有性能层持续|决策矩阵升级格（1.41 版第三节）"
     "com/leejean/m3/M3Function.class|level-1 switch check|一级切换前验证（1.43 版，只记录）"
     "com/leejean/m7/FleetDecisionFunction.class|性能层确认段因模型切换而结束|性能层跟踪随模型代数清空（1.44 版）"
+    "com/leejean/m2/M2Job.class|checkpoint-min-pause-ms|检查点最短间隔（第一次全量重放 JobManager 堆耗尽之后加）"
 )
 
 fail=0
