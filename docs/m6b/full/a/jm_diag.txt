@@ -1,0 +1,643 @@
+]1341;command_started;command=6563686f20223d3d20636f6e7461696e65727322== containers
+jobmanager Up 9 hours
+kafka-1 Up 15 hours
+node-exporter Up 15 hours
+zookeeper Up 15 hours
+dumper-insects_abrupt_imbalanced_BACKLOG_THEN_NEW_FOREST_default_p4_r1_iksWindowSize-2000_iksPValue-0.001_aggK-2 Exited (0) 5 months ago
+prometheus Up 15 hours
+grafana Up 15 hours
+== jobmanager state
+OOMKilled=false ExitCode=0 Restarts=1 StartedAt=2026-11-13T17:30:22.91860893Z FinishedAt=2026-11-13T17:30:22.783506209Z
+== memory
+               total        used        free      shared  buff/cache   available
+Mem:            7266        2300        1348           3        3617        4667
+Swap:              0           0           0
+== kernel OOM
+== jobmanager memory config
+jobmanager.memory.process.size: 1600m
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+jobmanager.memory.process.size: 2048m
+# akka.framesize：Flink 内部 RPC 单条消息上限，默认 10 MB。本集群无共享文件系统，用
+# akka.framesize caps a single Flink RPC (default 10 MB). With JobManagerCheckpointStorage the
+akka.framesize: 268435456b
+== jobmanager errors
+2026-11-13 17:29:16,843 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 061cf10201f408c1595e02cf7d3b7427 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:16,844 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task be01589de243028da67b4d1601fa04f0 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:16,852 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 7c0c2d0afeb707151ecb263850ea48ba of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:16,853 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task eb081a866aa8c215a90b6c429af91dec of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:16,869 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 4ffe29131128536a43c85c4098822984 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:16,881 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 54c997895f45167317d1f0f7e6f28629 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:16,930 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 4ad75386e404536082739324800928a7 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:16,931 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 159db801d87f406e2b173875bc061b5e of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:16,950 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 6a44f3cde3ea740123b4585d57af9dc2 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:16,956 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task ad8a34fb834ca7de3673cf11985926e0 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:16,959 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 6555947d3efed9ff483bdcce3c7df87d of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:16,968 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 6a7be8f1853c7f8114fde80115a943f9 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:16,977 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 3d8db31b424a54577eef524dfa6521ae of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:16,984 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task b34adb487bbe8f1c6e9783f7743cc596 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:16,989 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task de1ac161e09202366c2c379d14eed984 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:17,034 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 37bd3fac9a6da58cff3afd779a8bdbef of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:17,082 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 07ac0a2ddf88f5ccd6d43b067b2960d8 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:17,084 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 971215d4c5f6da52fe31789679d21b94 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:17,085 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 0963209096e5744a8f2ab401159f9289 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:17,086 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task b5266e0681eb214de0a4f6a80599d9c5 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:17,104 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 1981a2b30dfd50514273f22047b4db6b of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:17,106 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task a53d298d6f12615fe5d2d6e2786707a9 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:17,159 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 481 from task 51b66b27eaa7aa4b0bbda2d51f79d186 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,631 INFO  org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Triggering checkpoint 482 (type=CHECKPOINT) @ 1794590986631 for job 6eef9634133fa69d055fbb5294952848.
+2026-11-13 17:29:46,639 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task b84d1a50d7418ae385dbc5a05f6c98b5 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,639 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 80c2d8d68b524a76d3cc78a3970696c2 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,639 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 5558006c560a17d5813ac3febd4eeddf of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,639 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 415824def641c3a11a7d8ac8daf14ea5 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,640 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 67d71bc43ea4de51976758e07d42e9b9 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,640 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 49674629f7921058e1f4084f18302a6b of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,640 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 14ef0baf5c2d3070388e5bab78af7178 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,640 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task d69c859ce52e87c575a33bfb7f31d43a of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,640 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 4e25467b32047813031b1640de7327a9 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,641 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 37672bbfa3639eb5b3ece84cf49af8cf of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,642 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task a6d0baf891563e2448d232bf39ee4805 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,642 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 9ee20980fe278a1868338d33df814d4c of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,642 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 5c7fe5d465ca51651a63e60962aa5ec9 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,642 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task bfe98d178cfa1c6526f410a32d55c8e2 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,642 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 0692f295e877df4c70ba345af475d2a7 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,643 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 9c2735080af0bcfc184a027b0f5416fe of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,643 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 9c0dda8c667b9965f9e9e41cb2a0197a of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,644 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task c2e126fccefca307b4aa387c78494043 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,644 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 289fbf56d7987e054f9dfd21f2399b92 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,644 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 4e0e6c0351bf2f1b1ca57fb9477d689c of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,644 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 75e4015116b7dbefd22af7120ee88e25 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,644 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 4c5f65c2c4d1f57a08a08cf26611bca1 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,644 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 0fd4364c86575cc4d3cfa1c573661d85 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,644 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 3c08b096f5bcf6e22a12691099fa2af2 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,648 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 6b85958e2ea31b7df6971911e9b303a9 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,653 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task f7d5ea5f8fa4e3801605e5fcd46c1b59 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,655 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task e62876e83c69396f09c64c26069ffe05 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,656 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 9688dfbdc8295aaaa4845f455c43c39e of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,656 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task b0b5a93798522810bd2ac2ce1d87ddc7 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,657 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 475e8aace4eaba65d1bfdd0152ad9906 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,661 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task e18c5a91755ed9bd4f8e6cce2564d6de of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,661 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task b76576f1c2e4b2ca2173b556a73d9b50 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,662 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 83707a023a23f9150f25bb375c3a8c95 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,763 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 6a7be8f1853c7f8114fde80115a943f9 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,816 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task b34adb487bbe8f1c6e9783f7743cc596 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,833 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 3d8db31b424a54577eef524dfa6521ae of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,834 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 29b23fdc8ff14b2fd4eb7fb1f923d479 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,835 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 850fc3d1b9112c82aa5243775e25a9fd of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,835 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 3aeeab15a24f076092086ffa3dbbcc20 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,836 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 843fd604ceb2794be5723f081f81edff of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,842 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 061cf10201f408c1595e02cf7d3b7427 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,844 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task ea28d2be47574f4f005d6611f2c786e0 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,845 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task c368947eacddbe0a66279488358feba7 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,845 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 2f80b76e561d3291f5066778a0fd8782 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,845 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 36694ad4a1fd95a2107607d50c7ab3a0 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,852 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 54c997895f45167317d1f0f7e6f28629 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,871 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task de1ac161e09202366c2c379d14eed984 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,873 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 4ffe29131128536a43c85c4098822984 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,873 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 1a6ebc3233012554dca8deedf3c10580 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,874 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task be01589de243028da67b4d1601fa04f0 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,886 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 7eee164e3be33791d5d17a7c32c2bd4e of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,891 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task d56653ba974fdbdadc04a854fc13fd24 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,896 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 1981a2b30dfd50514273f22047b4db6b of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,898 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 7c0c2d0afeb707151ecb263850ea48ba of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,903 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task b5266e0681eb214de0a4f6a80599d9c5 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,923 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task a53d298d6f12615fe5d2d6e2786707a9 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,924 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 15e8d09c5a2395dc8ae6b81e44a1f3e5 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,929 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 0963209096e5744a8f2ab401159f9289 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:46,943 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task fe23a8d5ddb877f474bc81537473a808 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,975 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task eb081a866aa8c215a90b6c429af91dec of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,976 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 9df0462e50a295bfcd52f2cbbadaeadc of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,980 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 99b509ddbda0bbd42126ef3b656688ab of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,980 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 901bff660a834d94549ec04d59cc1d0b of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,980 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 90f31d281026ff65596b37641741b7ab of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,980 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task ff168b94f962bbbb8b5256666bca30a8 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:46,988 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 971215d4c5f6da52fe31789679d21b94 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:47,044 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 4ad75386e404536082739324800928a7 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:47,047 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 51b66b27eaa7aa4b0bbda2d51f79d186 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.164:44013-be02f8 @ 172.16.0.164 (dataPort=36237).
+2026-11-13 17:29:47,049 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 6555947d3efed9ff483bdcce3c7df87d of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:47,109 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 07ac0a2ddf88f5ccd6d43b067b2960d8 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:47,110 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 6a44f3cde3ea740123b4585d57af9dc2 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:47,116 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task ad8a34fb834ca7de3673cf11985926e0 of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:47,151 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 159db801d87f406e2b173875bc061b5e of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:29:47,230 DEBUG org.apache.flink.runtime.checkpoint.CheckpointCoordinator    [] - Received acknowledge message for checkpoint 482 from task 37bd3fac9a6da58cff3afd779a8bdbef of job 6eef9634133fa69d055fbb5294952848 at 172.16.0.163:41291-0a06e5 @ 172.16.0.163 (dataPort=39217).
+2026-11-13 17:30:17,260 ERROR org.apache.flink.runtime.util.FatalExitExceptionHandler      [] - FATAL: Thread 'flink-akka.remote.default-remote-dispatcher-6' produced an uncaught exception. Stopping the process...
+java.lang.OutOfMemoryError: Java heap space
+2026-11-13 17:30:34,890 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:34,939 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:35,196 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:36,183 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:46,236 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:49,997 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:50,008 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:56,277 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:05,040 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:05,051 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:06,320 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:16,362 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:20,083 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:20,095 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:26,404 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:35,131 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:35,144 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:36,446 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:46,495 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:47,800 ERROR org.apache.flink.runtime.rest.handler.job.JobCancellationHandler [] - Exception occurred in REST handler: Job could not be found.
+== jobmanager last 200 lines
+2026-11-13 17:30:24,963 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,963 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,963 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,963 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, master
+2026-11-13 17:30:24,963 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,963 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,964 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,964 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,964 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,964 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,964 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,964 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,965 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,965 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, master
+2026-11-13 17:30:24,965 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,965 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,965 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,965 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,965 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,965 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,966 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,966 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,966 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,966 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, master
+2026-11-13 17:30:24,966 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,966 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,966 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,966 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,967 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,967 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,967 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,967 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,967 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,967 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, master
+2026-11-13 17:30:24,968 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,968 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,968 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,968 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,968 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,968 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,968 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,969 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,969 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,969 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, master
+2026-11-13 17:30:24,969 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,969 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,969 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,969 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,969 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,970 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,970 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,970 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,970 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,970 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, master
+2026-11-13 17:30:24,970 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,970 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,971 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,971 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,971 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,971 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,971 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,971 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,971 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,971 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, master
+2026-11-13 17:30:24,972 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,972 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,972 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,972 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,972 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,972 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,972 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,972 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,973 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,973 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, master
+2026-11-13 17:30:24,973 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,973 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,973 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,973 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,973 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,973 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,973 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,974 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,974 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,974 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, master
+2026-11-13 17:30:24,974 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,974 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,974 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,974 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,974 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,975 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,975 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,975 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,975 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,975 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, master
+2026-11-13 17:30:24,975 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,976 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,976 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,976 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,976 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,976 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,976 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,976 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,976 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,976 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, master
+2026-11-13 17:30:24,977 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,977 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,977 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,977 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,977 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,977 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,977 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,977 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,977 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,977 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, master
+2026-11-13 17:30:24,978 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,978 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,978 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,978 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,978 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,978 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,978 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,979 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,979 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:24,979 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.address, 172.16.0.162
+2026-11-13 17:30:24,979 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.rpc.port, 6123
+2026-11-13 17:30:24,979 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: jobmanager.memory.process.size, 2048m
+2026-11-13 17:30:24,979 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: akka.framesize, 268435456b
+2026-11-13 17:30:24,979 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: parallelism.default, 8
+2026-11-13 17:30:24,979 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.address, 0.0.0.0
+2026-11-13 17:30:24,979 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: rest.bind-address, 0.0.0.0
+2026-11-13 17:30:24,980 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporters, prom
+2026-11-13 17:30:24,980 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.factory.class, org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+2026-11-13 17:30:24,980 INFO  org.apache.flink.configuration.GlobalConfiguration           [] - Loading configuration property: metrics.reporter.prom.port, 9249
+2026-11-13 17:30:25,004 INFO  org.apache.flink.runtime.entrypoint.ClusterEntrypoint        [] - Starting StandaloneSessionClusterEntrypoint.
+2026-11-13 17:30:25,046 INFO  org.apache.flink.runtime.entrypoint.ClusterEntrypoint        [] - Install default filesystem.
+2026-11-13 17:30:25,050 INFO  org.apache.flink.core.fs.FileSystem                          [] - Hadoop is not in the classpath/dependencies. The extended set of supported File Systems via Hadoop is not available.
+2026-11-13 17:30:25,089 INFO  org.apache.flink.runtime.entrypoint.ClusterEntrypoint        [] - Install security context.
+2026-11-13 17:30:25,098 INFO  org.apache.flink.runtime.security.modules.HadoopModuleFactory [] - Cannot create Hadoop Security Module because Hadoop cannot be found in the Classpath.
+2026-11-13 17:30:25,103 INFO  org.apache.flink.runtime.security.modules.JaasModule         [] - Jaas file will be created as /tmp/jaas-4982135539368562970.conf.
+2026-11-13 17:30:25,110 INFO  org.apache.flink.runtime.security.contexts.HadoopSecurityContextFactory [] - Cannot install HadoopSecurityContext because Hadoop cannot be found in the Classpath.
+2026-11-13 17:30:25,112 INFO  org.apache.flink.runtime.entrypoint.ClusterEntrypoint        [] - Initializing cluster services.
+2026-11-13 17:30:25,137 INFO  org.apache.flink.runtime.rpc.akka.AkkaRpcServiceUtils        [] - Trying to start actor system, external address 172.16.0.162:6123, bind address 0.0.0.0:6123.
+2026-11-13 17:30:25,882 INFO  akka.event.slf4j.Slf4jLogger                                 [] - Slf4jLogger started
+2026-11-13 17:30:25,906 INFO  akka.remote.Remoting                                         [] - Starting remoting
+2026-11-13 17:30:26,026 INFO  akka.remote.Remoting                                         [] - Remoting started; listening on addresses :[akka.tcp://flink@172.16.0.162:6123]
+2026-11-13 17:30:26,139 INFO  org.apache.flink.runtime.rpc.akka.AkkaRpcServiceUtils        [] - Actor system started at akka.tcp://flink@172.16.0.162:6123
+2026-11-13 17:30:26,172 INFO  org.apache.flink.runtime.blob.BlobServer                     [] - Created BLOB server storage directory /tmp/blobStore-6b5f7d6b-aa4a-4ac1-aff9-065f57d6cf11
+2026-11-13 17:30:26,178 INFO  org.apache.flink.runtime.blob.BlobServer                     [] - Started BLOB server at 0.0.0.0:6124 - max concurrent requests: 50 - max backlog: 1000
+2026-11-13 17:30:26,249 INFO  org.apache.flink.metrics.prometheus.PrometheusReporter       [] - Started PrometheusReporter HTTP server on port 9249.
+2026-11-13 17:30:26,252 INFO  org.apache.flink.runtime.metrics.MetricRegistryImpl          [] - Reporting metrics for reporter prom of type org.apache.flink.metrics.prometheus.PrometheusReporter.
+2026-11-13 17:30:26,256 INFO  org.apache.flink.runtime.rpc.akka.AkkaRpcServiceUtils        [] - Trying to start actor system, external address 172.16.0.162:0, bind address 0.0.0.0:0.
+2026-11-13 17:30:26,282 INFO  akka.event.slf4j.Slf4jLogger                                 [] - Slf4jLogger started
+2026-11-13 17:30:26,288 INFO  akka.remote.Remoting                                         [] - Starting remoting
+2026-11-13 17:30:26,317 INFO  akka.remote.Remoting                                         [] - Remoting started; listening on addresses :[akka.tcp://flink-metrics@172.16.0.162:41255]
+2026-11-13 17:30:26,325 INFO  org.apache.flink.runtime.rpc.akka.AkkaRpcServiceUtils        [] - Actor system started at akka.tcp://flink-metrics@172.16.0.162:41255
+2026-11-13 17:30:26,340 INFO  org.apache.flink.runtime.rpc.akka.AkkaRpcService             [] - Starting RPC endpoint for org.apache.flink.runtime.metrics.dump.MetricQueryService at akka://flink-metrics/user/rpc/MetricQueryService .
+2026-11-13 17:30:26,366 INFO  org.apache.flink.runtime.dispatcher.FileExecutionGraphInfoStore [] - Initializing FileExecutionGraphInfoStore: Storage directory /tmp/executionGraphStore-9950bc95-b31a-4620-b46e-ab9bda27ae88, expiration time 3600000, maximum cache size 52428800 bytes.
+2026-11-13 17:30:26,412 INFO  org.apache.flink.runtime.dispatcher.DispatcherRestEndpoint   [] - Upload directory /tmp/flink-web-8b9d74d3-5e44-4824-8dbd-e8434e7a150a/flink-web-upload does not exist. 
+2026-11-13 17:30:26,413 INFO  org.apache.flink.runtime.dispatcher.DispatcherRestEndpoint   [] - Created directory /tmp/flink-web-8b9d74d3-5e44-4824-8dbd-e8434e7a150a/flink-web-upload for file uploads.
+2026-11-13 17:30:26,414 INFO  org.apache.flink.runtime.dispatcher.DispatcherRestEndpoint   [] - Starting rest endpoint.
+2026-11-13 17:30:26,608 INFO  org.apache.flink.runtime.webmonitor.WebMonitorUtils          [] - Determined location of main cluster component log file: /opt/flink/log/flink--standalonesession-75-master.log
+2026-11-13 17:30:26,608 INFO  org.apache.flink.runtime.webmonitor.WebMonitorUtils          [] - Determined location of main cluster component stdout file: /opt/flink/log/flink--standalonesession-75-master.out
+2026-11-13 17:30:26,751 INFO  org.apache.flink.runtime.dispatcher.DispatcherRestEndpoint   [] - Rest endpoint listening at 0.0.0.0:8081
+2026-11-13 17:30:26,753 INFO  org.apache.flink.runtime.dispatcher.DispatcherRestEndpoint   [] - http://0.0.0.0:8081 was granted leadership with leaderSessionID=00000000-0000-0000-0000-000000000000
+2026-11-13 17:30:26,758 INFO  org.apache.flink.runtime.dispatcher.DispatcherRestEndpoint   [] - Web frontend listening at http://0.0.0.0:8081.
+2026-11-13 17:30:26,780 INFO  org.apache.flink.runtime.rpc.akka.AkkaRpcService             [] - Starting RPC endpoint for org.apache.flink.runtime.resourcemanager.StandaloneResourceManager at akka://flink/user/rpc/resourcemanager_0 .
+2026-11-13 17:30:26,795 INFO  org.apache.flink.runtime.dispatcher.runner.DefaultDispatcherRunner [] - DefaultDispatcherRunner was granted leadership with leader id 00000000-0000-0000-0000-000000000000. Creating new DispatcherLeaderProcess.
+2026-11-13 17:30:26,802 INFO  org.apache.flink.runtime.dispatcher.runner.SessionDispatcherLeaderProcess [] - Start SessionDispatcherLeaderProcess.
+2026-11-13 17:30:26,804 INFO  org.apache.flink.runtime.resourcemanager.StandaloneResourceManager [] - Starting the resource manager.
+2026-11-13 17:30:26,807 INFO  org.apache.flink.runtime.resourcemanager.StandaloneResourceManager [] - ResourceManager akka.tcp://flink@172.16.0.162:6123/user/rpc/resourcemanager_0 was granted leadership with fencing token 00000000000000000000000000000000
+2026-11-13 17:30:26,807 INFO  org.apache.flink.runtime.dispatcher.runner.SessionDispatcherLeaderProcess [] - Recover all persisted job graphs.
+2026-11-13 17:30:26,809 INFO  org.apache.flink.runtime.dispatcher.runner.SessionDispatcherLeaderProcess [] - Successfully recovered 0 persisted job graphs.
+2026-11-13 17:30:26,822 INFO  org.apache.flink.runtime.rpc.akka.AkkaRpcService             [] - Starting RPC endpoint for org.apache.flink.runtime.dispatcher.StandaloneDispatcher at akka://flink/user/rpc/dispatcher_1 .
+2026-11-13 17:30:34,890 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:34,939 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:35,196 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:36,183 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:46,236 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:49,997 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:50,008 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:30:56,277 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.flink.shaded.akka.org.jboss.netty.util.internal.ByteBufferUtil (file:/opt/flink/lib/flink-dist_2.12-1.13.6.jar) to method java.nio.DirectByteBuffer.cleaner()
+WARNING: Please consider reporting this to the maintainers of org.apache.flink.shaded.akka.org.jboss.netty.util.internal.ByteBufferUtil
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+2026-11-13 17:31:05,040 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:05,051 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:05,188 INFO  org.apache.flink.runtime.resourcemanager.StandaloneResourceManager [] - Registering TaskManager with ResourceID 172.16.0.164:44013-be02f8 (akka.tcp://flink@172.16.0.164:44013/user/rpc/taskmanager_0) at ResourceManager
+2026-11-13 17:31:05,438 INFO  org.apache.flink.runtime.resourcemanager.StandaloneResourceManager [] - Registering TaskManager with ResourceID 172.16.0.163:41291-0a06e5 (akka.tcp://flink@172.16.0.163:41291/user/rpc/taskmanager_0) at ResourceManager
+2026-11-13 17:31:06,320 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:16,362 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:20,083 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:20,095 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:26,404 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:35,131 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:35,144 ERROR org.apache.flink.runtime.rest.handler.job.checkpoints.CheckpointingStatisticsHandler [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:36,446 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:46,495 ERROR org.apache.flink.runtime.rest.handler.job.JobDetailsHandler  [] - Exception occurred in REST handler: Job 6eef9634133fa69d055fbb5294952848 not found
+2026-11-13 17:31:47,800 ERROR org.apache.flink.runtime.rest.handler.job.JobCancellationHandler [] - Exception occurred in REST handler: Job could not be found.
