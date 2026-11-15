@@ -19,6 +19,9 @@
 #      bash deploy/scripts/syn-m6b-full.sh fetch          # 跑完后取回到本地 docs/m6b/full/
 #      bash deploy/scripts/syn-m6b-full.sh stop           # 中止：停重放、取消本项目作业、结束采样
 #    可选 --runs a,b|a|b（默认 a,b；只跑 b 时沿用 master 上已有的 a 的结果）。
+#    可选 --proof：限速开关对照（1.47 版裁决第一节第 2 条），默认 2022-03-01 至 03-27（含冷启动的集中训练），运行 a 限速打开、运行 b
+#    关闭，命令回路关闭；结果在 docs/m6b/throttle/（throttle_report.md），master 上的会话为 syn-m6b-throttle。status、fetch、stop
+#    同样加 --proof。合计约 9 至 10 小时。
 #    可选 --resume a：运行 a 的重放与收集前半段已完成、在「监测快照的规范化摘要」或其后失败时，只从这一步续做运行 a，
 #    再照 --runs 接着跑 b 与核对；不复位、不重放，要求 master 上 a/run.env、a/scores.jsonl、a/adapt.jsonl 与 m3march/monitoring.jsonl 仍在。
 # 3. 前置条件 / Preconditions: 已按 syn-m3-a4-stepc.sh setup-master 做过 master 的准备；新 jar 已上传（syn-upload-m1.sh --jar-only），
@@ -54,17 +57,34 @@ RUNS=a,b
 START=2022-03-01
 END=2022-05-01
 RESUME=""
+PROOF=0
+END_SET=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --runs) RUNS="$2"; shift 2 ;;
         --start) START="$2"; shift 2 ;;
-        --end) END="$2"; shift 2 ;;
+        --end) END="$2"; END_SET=1; shift 2 ;;
+        --proof) PROOF=1; shift ;;
         --resume) RESUME="$2"; shift 2 ;;
         *) echo "ERROR: 未知参数 $1" >&2; exit 2 ;;
     esac
 done
 [ -z "$RESUME" ] || [ "$RESUME" = a ] || { echo "ERROR: --resume 只能是 a" >&2; exit 2; }
 RESARG=""; [ -n "$RESUME" ] && RESARG="--resume $RESUME"
+# 限速开关对照（1.47 版裁决第一节第 2 条）：运行 a 限速打开、运行 b 关闭；命令回路关闭（打开时，限速关闭的那次会出现迟到命令，
+# 输出本来就会不同）；时段含冷启动的集中训练，限速才会真正起作用。目录、会话与 master 上的副本都与全量重放分开。
+# Throttle on/off proof: run a throttled, run b not; the command loop is off; separate directory, session and copy.
+if [ "$PROOF" = 1 ]; then
+    RESARG="$RESARG --proof"
+    [ "$END_SET" = 1 ] || END=2022-03-27
+    DIR=docs/m6b/throttle
+    PROGRESS=$DIR/progress.txt
+    LOG=$DIR/verify.log
+    PIDF=$DIR/verify.pid
+    TSESSION="syn-m6b-throttle"
+    RREPO="$RH/m6bthrottle/repo"
+    WORKM="$RH/m6bthrottle/work"
+fi
 [[ "$RUNS" =~ ^(a,b|a|b)$ ]] || { echo "ERROR: --runs 只能是 a,b、a 或 b" >&2; exit 2; }
 [[ "$START" =~ ^2022-[0-9]{2}-[0-9]{2}$ && "$END" =~ ^2022-[0-9]{2}-[0-9]{2}$ ]] || { echo "ERROR: --start、--end 须为 2022-MM-DD" >&2; exit 2; }
 
@@ -222,7 +242,7 @@ disk_ok() {   # 三台节点可用空间不少于 22 GB（复位门槛 20 GB 之
 run_one() {
     RUN="$1"; local R="$DIR/$RUN"; local W="$WORKM/$RUN"; JID=""
     rm -rf "$R" "$W"; mkdir -p "$R" "$W"
-    prog "== 运行 $RUN 开始：$START 至 ${END}，倍速 ${SPEED}，全部模块、命令回路、聚合模块、升级格与影子评分打开 =="
+    prog "== 运行 $RUN 开始：$START 至 ${END}，倍速 ${SPEED}，$( [ "$PROOF" = 1 ] && echo "限速对照（命令回路关闭；限速$( [ "$RUN" = a ] && echo 打开 || echo 关闭)）" || echo "全部模块、命令回路、聚合模块、升级格与影子评分打开") =="
     LOW=$(disk_ok) || fail "磁盘可用空间不足 22 GB：$LOW（见 docs/cluster_disk_cleanup_zh.md）"
     # JobManager 进程内存不少于 3,072 MB（第一次全量重放 JobManager 堆耗尽，2026-11-14 用户确认提高）/ JM memory check
     JMMEM=$(ssh fa-master "docker exec jobmanager grep -E '^jobmanager.memory.process.size' /opt/flink/conf/flink-conf.yaml | tail -1" 2>/dev/null \
@@ -233,15 +253,21 @@ run_one() {
     grep -q 'synergia-adapt' "$R/topics.log" && grep -q 'synergia-alerts' "$R/topics.log" \
         || fail "topic 清单里缺少 synergia-adapt 或 synergia-alerts（见 $R/topics.log）"
     SINCE=$(ssh fa-master date -u +%Y-%m-%dT%H:%M:%SZ)
-    bash "$SCRIPT_DIR/syn-submit-m2.sh" --extra "$EXTRA_BASE" > "$R/submit.log" 2>&1 || fail "提交失败（见 $R/submit.log）"
+    local EXTRA="$EXTRA_BASE"
+    [ "$PROOF" = 1 ] && EXTRA="${EXTRA/--adapt-enabled true/--adapt-enabled false}"
+    bash "$SCRIPT_DIR/syn-submit-m2.sh" --extra "$EXTRA" > "$R/submit.log" 2>&1 || fail "提交失败（见 $R/submit.log）"
     JID=$(grep -oE 'JobID [a-f0-9]{32}' "$R/submit.log" | awk '{print $2}' | head -1)
     [ -n "$JID" ] || fail "提交输出里没有 JobID"
     printf 'RUN=%s\nSINCE=%s\nJID=%s\n' "$RUN" "$SINCE" "$JID" > "$R/run.env"
     prog "作业已提交：${JID}；$(grep -E 'M3 level 1' "$R/submit.log" | tr -s ' ')"
     grep -q 'Restart attempts: 3' "$R/submit.log" || fail "启动横幅里重启次数不是 3（见 $R/submit.log）"
     grep -q 'min pause 30000 ms' "$R/submit.log" || fail "启动横幅里检查点最短间隔不是 30 秒（jar 可能是旧的，见 $R/submit.log）"
-    grep -q 'Adapt (M6a):     true' "$R/submit.log" || fail "启动横幅里命令回路不是打开状态（见 $R/submit.log）"
-    grep -q 'keep=\[false, true, true, false, false\]' "$R/submit.log" || fail "启动横幅里湿度与气压不是不重估（jar 可能是旧的，见 $R/submit.log）"
+    if [ "$PROOF" = 1 ]; then
+        grep -q 'Adapt (M6a):     false' "$R/submit.log" || fail "限速对照要求命令回路关闭（见 $R/submit.log）"
+    else
+        grep -q 'Adapt (M6a):     true' "$R/submit.log" || fail "启动横幅里命令回路不是打开状态（见 $R/submit.log）"
+        grep -q 'keep=\[false, true, true, false, false\]' "$R/submit.log" || fail "启动横幅里湿度与气压不是不重估（jar 可能是旧的，见 $R/submit.log）"
+    fi
     grep -q 'M7 enabled:      true' "$R/submit.log" || fail "启动横幅里聚合算子不是打开状态（见 $R/submit.log）"
     grep -q 'M7 model state:  events from the context module' "$R/submit.log" \
         || fail "启动横幅里没有模型状态事件（1.47 版第三节；jar 可能是旧的，见 $R/submit.log）"
@@ -250,7 +276,9 @@ run_one() {
     bash "$SCRIPT_DIR/syn-m3-watch.sh" stop --out-dir /tmp/m6bfwatch_leftover >/dev/null 2>&1
     bash "$SCRIPT_DIR/syn-m3-watch.sh" start --jid "$JID" --since "$SINCE" >> "$R/watch.log" 2>&1 || fail "采样没有启动（见 $R/watch.log）"
     bash "$SCRIPT_DIR/syn-replay.sh" stop >/dev/null 2>&1
-    bash "$SCRIPT_DIR/syn-replay.sh" --speedup "$SPEED" --start "$START" --end "$END" --inject-file "$SPEC" \
+    local SKEWARG=""
+    [ "$PROOF" = 1 ] && [ "$RUN" = b ] && SKEWARG="--replay-max-skew-sec 0"
+    bash "$SCRIPT_DIR/syn-replay.sh" --speedup "$SPEED" --start "$START" --end "$END" --inject-file "$SPEC" $SKEWARG \
         > "$R/replay_start.log" 2>&1 || fail "重放没有启动（见 $R/replay_start.log）"
     for _ in $(seq 1 900); do
         ssh fa-master "tmux has-session -t syn-replay 2>/dev/null" || break
@@ -259,8 +287,10 @@ run_one() {
     done
     ssh fa-master "tmux has-session -t syn-replay 2>/dev/null" && fail "重放 15 小时仍未结束"
     # 重放器按下游水位线限速（1.47 版第一节）：记下阈值与暂停次数 / record the throttle limit and pauses
-    prog "重放器限速：$(grep -E '^Max skew:|^Skew pauses:' "$RH/syn-replay.log" 2>/dev/null | tail -n 2 | tr -s ' ' | tr '\n' ' ')"
-    grep -q '^Max skew:      43200 s' "$RH/syn-replay.log" 2>/dev/null || prog "警告：重放器日志里没有找到 43,200 秒的限速阈值（jar 可能是旧的）"
+    grep -E '^Max skew:|^Skew pauses:' "$RH/syn-replay.log" 2>/dev/null | tail -n 2 | tr -s ' ' > "$R/throttle.txt"
+    prog "重放器限速：$(tr '\n' ' ' < "$R/throttle.txt")"
+    [ "$PROOF" = 1 ] && [ "$RUN" = b ] || grep -q '^Max skew: 43200 s' "$R/throttle.txt" \
+        || prog "警告：重放器日志里没有找到 43,200 秒的限速阈值（jar 可能是旧的）"
     for _ in $(seq 1 120); do
         [ "$(drained_devices)" -ge 8 ] && break
         job_alive || fail "作业在排空期间停止（原因见 $R/jm_failure.log）"
@@ -275,6 +305,9 @@ run_one() {
     done
     prog "重放结束并排空（$N 台设备完成冷启动排空）"
     # 重放完整性八条断言（含迟到命令为零）/ the eight replay-integrity assertions, late commands included
+    if [ "$PROOF" = 1 ]; then
+        echo skip > "$R/replay_verify.rc"      # 对照只比两次输出，不做断言（时段不是两个月）/ the proof compares outputs only
+    else
     TOTAL=$(python3 -c "import csv; r=list(csv.reader(open('docs/m3_marapr_eda_rounds.csv'))); print(sum(int(x) for row in r[1:] for x in row[1:]))")
     bash "$SCRIPT_DIR/syn-replay-verify.sh" --start-utc 2022-03-01T00:00:00Z --end-utc 2022-05-01T00:00:00Z --expected-total "$TOTAL" \
         --tol-pct 0.2 --max-messages 6000000 --report-name "m2_replay_verify_m6bfull_$RUN.csv" --since "$SINCE" --adapt \
@@ -282,6 +315,7 @@ run_one() {
     echo $? > "$R/replay_verify.rc"
     cp -f "docs/m2_replay_verify_m6bfull_$RUN.csv" "$R/" 2>/dev/null
     prog "八条断言：退出码 $(cat "$R/replay_verify.rc")（$(tail -n 1 "$R/replay_verify.txt")）"
+    fi
     bash "$SCRIPT_DIR/syn-m3-march-collect.sh" --out-dir "$R" --since "$SINCE" --max-messages 8000000 > "$R/collect.log" 2>&1 \
         || fail "收集失败（见 $R/collect.log）"
     dump_topic synergia-drift "$R/drift.jsonl"
@@ -339,8 +373,12 @@ fi
 [ -s "$DIR/a/scores.jsonl" ] || fail "没有运行 a 的结果（缺 $DIR/a/scores.jsonl），请用 start 跑全部两次"
 [[ ",$RUNS," == *",b,"* ]] && run_one b
 bash "$SCRIPT_DIR/syn-reset-env.sh" --yes > "$DIR/reset_final.log" 2>&1
-python3 m6b/full_check.py --dir "$DIR" --chain docs/m6b/chain/D7K_up_s > "$DIR/check.txt" 2>&1
+if [ "$PROOF" = 1 ]; then
+    python3 m6b/full_check.py --proof --dir "$DIR" > "$DIR/check.txt" 2>&1
+else
+    python3 m6b/full_check.py --dir "$DIR" --chain docs/m6b/chain/D7K_up_s > "$DIR/check.txt" 2>&1
+fi
 RC=$?
-prog "核对：$(grep -c '^\[通过\]' "$DIR/check.txt") 项通过，$(grep -c '^\[失败\]' "$DIR/check.txt") 项失败（见 $DIR/full_report_tables.md）"
+prog "核对：$(grep -c '^\[通过\]' "$DIR/check.txt") 项通过，$(grep -c '^\[失败\]' "$DIR/check.txt") 项失败（见 $DIR/$( [ "$PROOF" = 1 ] && echo throttle_report.md || echo full_report_tables.md)）"
 rm -f "$PIDF"
 prog "== 编排结束：$( [ $RC -eq 0 ] && echo 全部核对通过 || echo 有核对项未通过 )。请在本地执行 bash deploy/scripts/syn-m6b-full.sh fetch 取回 =="

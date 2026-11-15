@@ -130,11 +130,36 @@ def csv_rows(path):
         return list(csv.DictReader(fh))
 
 
+def stage2(root, runs, check, title):
+    """两次运行的九类输出逐位相同（排除按处理时间产生的诊断量）/ the nine outputs bit-identical across two runs."""
+    if len(runs) != 2:
+        check(title, False, "只有运行 %s，无法比较" % (runs[0] if runs else "（无）"))
+        return
+    rows, same = [], True
+    for f in ("scores.jsonl", "drift.jsonl", "alerts.jsonl", "adapt.jsonl", "m5a_records.jsonl", "shadow.jsonl",
+              "m3_markers.jsonl"):
+        la, lb = (lines(os.path.join(root, r, f)) for r in runs)
+        if la is None or lb is None:
+            rows.append("%s 缺失" % f)
+            same = False
+            continue
+        eq = sorted(map(strip_wall, la)) == sorted(map(strip_wall, lb))
+        rows.append("%s %d/%d 行%s" % (f, len(la), len(lb), "相同" if eq else "不同"))
+        same &= eq
+    for f in ("m1out.sha", "monitoring_norm.sha"):
+        sa, sb = ((lines(os.path.join(root, r, f)) or ["缺失"])[0] for r in runs)
+        rows.append("%s %s" % (f, "相同" if sa == sb and sa != "缺失" else "不同"))
+        same &= sa == sb and sa != "缺失"
+    check(title, same, "；".join(rows))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default="docs/m6b/full")
     ap.add_argument("--chain", default="docs/m6b/chain/D7K_up_s")
     ap.add_argument("--normalize-monitoring")
+    ap.add_argument("--proof", action="store_true",
+                    help="限速开关对照（1.47 版第一节第 2 条）：运行 a 限速打开、运行 b 关闭，只核对零重启、两次逐位相同与暂停次数")
     a = ap.parse_args()
     if a.normalize_monitoring:
         return normalize_monitoring(a.normalize_monitoring)
@@ -148,12 +173,27 @@ def main() -> int:
         results.append((name, ok, detail))
         print("[%s] %s：%s" % ("通过" if ok else "失败", name, detail))
 
+    if a.proof:
+        body = []
+        for r in runs:
+            d = os.path.join(a.dir, r)
+            restarts = sum(1 for l in lines(os.path.join(d, "jm_states.txt")) or [] if "to RESTARTING" in l)
+            check("运行 %s：零重启" % r, restarts == 0, "作业转入重启 %d 次" % restarts)
+            th = lines(os.path.join(d, "throttle.txt")) or ["（无记录）"]
+            body.append([r, "打开（43,200 秒）" if r == "a" else "关闭", " ".join(th)])
+        stage2(a.dir, runs, check, "限速开与关两次运行逐位相同")
+        with open(os.path.join(a.dir, "throttle_report.md"), "w", encoding="utf-8") as fh:
+            fh.write("# 重放器限速开关对照（m6b/full_check.py --proof 生成）\n\n")
+            fh.write(table(["核对项", "结果", "详情"], [[n, "通过" if ok else "失败", dt] for n, ok, dt in results]))
+            fh.write("\n" + table(["运行", "限速", "重放器日志中的限速记录"], body))
+        return 0 if results and all(ok for _, ok, _ in results) else 1
+
     # ---------------- 一、断言八条
     for r in runs:
         d = os.path.join(a.dir, r)
         rc = (lines(os.path.join(d, "replay_verify.rc")) or ["缺失"])[0]
         tail = (lines(os.path.join(d, "replay_verify.txt")) or ["（无输出）"])[-1]
-        restarts = sum(1 for l in lines(os.path.join(d, "jm_states.txt")) or [] if "RESTARTING" in l)
+        restarts = sum(1 for l in lines(os.path.join(d, "jm_states.txt")) or [] if "to RESTARTING" in l)   # 只数转入 / count entries only
         check("运行 %s：断言八条与重启次数" % r, rc == "0" and restarts == 0,
               "核验退出码 %s（%s）；作业转入重启 %d 次" % (rc, tail, restarts))
 
@@ -241,25 +281,7 @@ def main() -> int:
             out.append("运行 %s：第一段内上下文评分 %d 条（上下文通道仍在收集时为零）。\n\n" % (r, ctx_before))
 
     # ---------------- 三、等值第二段
-    if len(runs) == 2:
-        rows, same = [], True
-        for f in ("scores.jsonl", "drift.jsonl", "alerts.jsonl", "adapt.jsonl", "m5a_records.jsonl", "shadow.jsonl",
-                  "m3_markers.jsonl"):
-            la, lb = (lines(os.path.join(a.dir, r, f)) for r in runs)
-            if la is None or lb is None:
-                rows.append("%s 缺失" % f)
-                same = False
-                continue
-            eq = sorted(map(strip_wall, la)) == sorted(map(strip_wall, lb))
-            rows.append("%s %d/%d 行%s" % (f, len(la), len(lb), "相同" if eq else "不同"))
-            same &= eq
-        for f in ("m1out.sha", "monitoring_norm.sha"):
-            sa, sb = ((lines(os.path.join(a.dir, r, f)) or ["缺失"])[0] for r in runs)
-            rows.append("%s %s" % (f, "相同" if sa == sb and sa != "缺失" else "不同"))
-            same &= sa == sb and sa != "缺失"
-        check("等值第二段：两次在线运行逐位相同", same, "；".join(rows))
-    else:
-        check("等值第二段：两次在线运行逐位相同", False, "只有运行 %s，无法比较" % (runs[0] if runs else "（无）"))
+    stage2(a.dir, runs, check, "等值第二段：两次在线运行逐位相同")
 
     base = os.path.join(a.dir, runs[0]) if runs else None
     if base:
