@@ -288,7 +288,10 @@ PY
     # 断言八：迟到命令为零（命令回路打开的运行）/ assertion 8: zero late commands when the loop is on
     if [ "$ADAPT" -eq 1 ]; then
         N_ASSERT="八"
-        Q8="max_over_time({__name__=~\"flink_taskmanager_job_task_operator_m6_late_(watermark|processed)\"}[${RANGE_SEC}s])"
+        # 两个指标分别求和再相加。不能用 {__name__=~"...(watermark|processed)"} 一次取：max_over_time 去掉指标名后两组序列
+        # 标签相同，Prometheus 报「vector cannot contain metrics with the same labelset」，结果为空（全量重放运行 a 因此判为读不到）。
+        # Sum each metric separately: a regex __name__ selector under max_over_time yields duplicate label sets and an error.
+        Q8="sum(max_over_time(flink_taskmanager_job_task_operator_m6_late_watermark[${RANGE_SEC}s])) + sum(max_over_time(flink_taskmanager_job_task_operator_m6_late_processed[${RANGE_SEC}s]))"
         LATE8="$(on_master "curl -s --max-time 30 'http://localhost:9090/api/v1/query' --data-urlencode 'query=${Q8}'" \
             | python3 -c "
 import json,sys
