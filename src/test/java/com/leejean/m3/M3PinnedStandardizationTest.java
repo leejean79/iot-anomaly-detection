@@ -109,7 +109,7 @@ class M3PinnedStandardizationTest {
             }
             if (snaps != null && h.getSideOutput(MON) != null) {
                 for (StreamRecord<MonitoringSnapshot> s : h.getSideOutput(MON)) {
-                    if (s.getValue().getM3Phase() == 3) {
+                    if (s.getValue().getM3Phase() == 3 && s.getValue().getWindowEnd() != M3Function.MODEL_EVENT_WINDOW_END) {
                         snaps.add(s.getValue());
                     }
                 }

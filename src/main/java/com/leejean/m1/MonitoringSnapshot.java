@@ -65,6 +65,8 @@ public class MonitoringSnapshot implements Serializable {
     private Boolean m3Level1Failed;      // 一级重训失败两次、已放弃（1.41 版裁决第二节第六条）/ level-1 retrain abandoned
     private Double m3SwitchCheckRatio;   // 一级切换前验证：新旧标定误差中位数之比（1.43 版）/ pre-switch check ratio
     private Boolean m3SwitchCheckReject; // 一级切换前验证：是否判为不该切换 / whether the check would reject
+    private String m3ModelEvent;         // 模型状态事件 online、offline、switch（1.47 版第三节、1.48 版第二项）/ model-state event
+    private Integer m3ModelGen;          // 模型状态事件时的模型代数 / model generation at the event
 
     // ---- M5b 追加字段（M5b 交接文档决定四；windowEnd = -2 的快照才有意义）/ M5b fields (snapshots with windowEnd = -2) ----
     private int m5bWindowLen;            // 检测器当前窗长 / detector window length
@@ -247,6 +249,16 @@ public class MonitoringSnapshot implements Serializable {
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     public Boolean getM3SwitchCheckReject() { return m3SwitchCheckReject; }
     public void setM3SwitchCheckReject(Boolean v) { this.m3SwitchCheckReject = v; }
+
+    @JsonProperty
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public String getM3ModelEvent() { return m3ModelEvent; }
+    public void setM3ModelEvent(String v) { this.m3ModelEvent = v; }
+
+    @JsonProperty
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Integer getM3ModelGen() { return m3ModelGen; }
+    public void setM3ModelGen(Integer v) { this.m3ModelGen = v; }
 
     @JsonProperty
     public int getM5bWindowLen() { return m5bWindowLen; }

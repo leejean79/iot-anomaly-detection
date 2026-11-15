@@ -114,6 +114,9 @@ public class M7InputAssembler implements Serializable {
             case M7Input.BURST:
                 f.addBurst(in.device, in.ts, in.ts2);
                 break;
+            case M7Input.MODEL:
+                f.addModelEvent(in.device, in.ts, in.s1);
+                break;
             default:
                 throw new IllegalArgumentException("未知的输入类别 / unknown kind " + in.kind);
         }

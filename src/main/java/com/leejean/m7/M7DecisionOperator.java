@@ -172,6 +172,19 @@ public class M7DecisionOperator extends KeyedProcessFunction<Integer, M7Input, S
         }
     }
 
+    /** 上下文模块的模型状态事件（1.47 版第三节）/ model-state events from the context module. */
+    public static final class ModelEvents extends ProcessFunction<MonitoringSnapshot, M7Input> {
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public void processElement(MonitoringSnapshot s, Context ctx, Collector<M7Input> out) {
+            M7Input in = M7Input.fromModelEvent(s);
+            if (in != null) {
+                out.collect(in);
+            }
+        }
+    }
+
     /** 数据层日记录 / data-layer daily records. */
     public static final class Records extends ProcessFunction<MonitoringSnapshot, M7Input> {
         private static final long serialVersionUID = 1L;

@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 决策矩阵升级格的单元测试（1.41 版裁决第三节）：只有性能层持续为一级；两层同报为一级；只有数据层持续为零级；零级之后 K_up 天内
@@ -38,12 +39,22 @@ class FleetDecisionUpgradeCellsTest {
     private static List<FleetDecisionFunction.Command> run(FleetDecisionFunction.Params p, int days,
                                                            Consumer<FleetDecisionFunction> setup,
                                                            List<FleetDecisionFunction.Alert> alerts) {
+        return run(p, days, setup, alerts, null, true);
+    }
+
+    private static List<FleetDecisionFunction.Command> run(FleetDecisionFunction.Params p, int days,
+                                                           Consumer<FleetDecisionFunction> setup,
+                                                           List<FleetDecisionFunction.Alert> alerts,
+                                                           List<FleetDecisionFunction.Review> review, boolean online) {
         FleetDecisionFunction f = new FleetDecisionFunction(p);
         for (String d : DEVS) {
             f.addDevice(d);
             f.setFreeze(d, FleetDecisionFunction.dayStart(FIRST) + 60);
             for (String ch : FleetDecisionFunction.ACTIVE) {
                 f.setRef(d, ch, 9.0, 11.0);
+            }
+            if (online) {
+                f.addPerfElement(d, FleetDecisionFunction.dayStart(FIRST), 0.0);   // 首条上下文评分：模型自始在线 / online from the start
             }
         }
         setup.accept(f);
@@ -67,7 +78,7 @@ class FleetDecisionUpgradeCellsTest {
                     alerts.addAll(a);
                 }
             }
-            f.dayTick(day, cmds, new ArrayList<>());
+            f.dayTick(day, cmds, review == null ? new ArrayList<>() : review);
         }
         return cmds;
     }
@@ -209,6 +220,7 @@ class FleetDecisionUpgradeCellsTest {
         for (String d : DEVS) {
             f.addDevice(d);
             f.setFreeze(d, FleetDecisionFunction.dayStart(FIRST) + 60);
+            f.addPerfElement(d, FleetDecisionFunction.dayStart(FIRST), 0.0);
         }
         dataDays(f, 3, (k, v) -> { });
         perf(f, "B", at(FIRST, 20), -1);                    // 不加切换时 03-02 会发一条只有性能层持续的一级 / would be level 1
@@ -239,5 +251,109 @@ class FleetDecisionUpgradeCellsTest {
                 assertNull(a.model);
             }
         }
+    }
+
+    @Test
+    @DisplayName("模型不在线时不发一级（1.47 版第三节）：只有性能层持续时只记录；结论含数据层通道时改发零级；不占一级冷却")
+    void levelOneSuppressedWhileTheModelIsOffline() {
+        // 只有性能层持续，模型从未上线 / perf only, the model never online
+        List<FleetDecisionFunction.Review> review = new ArrayList<>();
+        List<FleetDecisionFunction.Command> c = run(params(true), 3, f -> {
+            dataDays(f, 3, (k, v) -> { });
+            perf(f, "B", at(FIRST, 20), -1);
+        }, null, review, false);
+        assertEquals(0, c.size());
+        // 只记录不占同段一次的标记，所以性能层持续期间每个日界各记一条（03-02、03-03）/ one review row per boundary
+        assertEquals(2, review.stream().filter(r -> r.device.equals("B") && r.kind.equals("一级被抑制：模型不在线")
+                && r.detail.equals("一级：只有性能层持续；只记录")).count(), desc(review));
+        // 两层同报，模型不在线：改发零级 / two layers while offline: level 0
+        review.clear();
+        List<FleetDecisionFunction.Command> d = run(params(true), 3, f -> {
+            dataDays(f, 3, deviate("A", "Gas", "2022-03-02"));
+            perf(f, "A", at("2022-03-02", 12), -1);
+        }, null, review, false);
+        assertEquals(1, d.size());
+        assertEquals(0, d.get(0).level);
+        assertEquals("零级：一级被抑制（模型不在线）", d.get(0).cell);
+        assertEquals(1, review.stream().filter(r -> r.kind.equals("一级被抑制：模型不在线")
+                && r.detail.equals("一级：两层同报；改发零级")).count(), desc(review));
+        // 模型 03-03 上线之后，新的性能层确认段照常发一级（被抑制的那次没有占冷却）/ no cooldown was taken
+        List<FleetDecisionFunction.Command> e = run(params(true), 5, f -> {
+            dataDays(f, 5, (k, v) -> { });
+            perf(f, "B", at(FIRST, 20), at("2022-03-02", 6));
+            f.addPerfElement("B", FleetDecisionFunction.dayStart("2022-03-03"), 0.0);
+            perf(f, "B", at("2022-03-03", 6), -1);
+        }, null, new ArrayList<>(), false);
+        assertEquals(1, e.size(), descC(e));
+        assertEquals("2022-03-04", e.get(0).day);
+        assertEquals(1, e.get(0).level);
+    }
+
+    @Test
+    @DisplayName("在线作业（模型状态事件）：一级冷却与二级观察窗以一级切换完成事件起算；没有完成事件不开冷却、不开观察窗")
+    void levelOneCooldownAndLevelTwoWindowFromTheSwitchEvent() {
+        FleetDecisionFunction.Params p = params(true);
+        p.modelEvents = true;
+        long switchAt = FleetDecisionFunction.dayStart("2022-03-07");
+        Consumer<FleetDecisionFunction> base = f -> {
+            dataDays(f, 12, (k, v) -> { });
+            for (String d : DEVS) {
+                f.addModelEvent(d, FleetDecisionFunction.dayStart(FIRST), "online");
+            }
+            perf(f, "B", at(FIRST, 20), at("2022-03-03", 6));             // 一级 03-02 决定 / level 1 decided 03-02
+            perf(f, "B", at("2022-03-04", 6), at("2022-03-06", 6));       // 完成前的段 / before completion
+            perf(f, "B", at("2022-03-07", 12), -1);                       // 完成后半天的新确认段 / after completion
+        };
+        // 有完成事件：第二段在完成之前（03-05 决定），此时还没有冷却，照常发一级（上下文模块会因重训进行中而忽略它，见实现说明）；
+        // 第三段在完成后的观察窗内为二级 / with the switch event: no cooldown before completion; the third segment is level 2
+        List<FleetDecisionFunction.Command> c = run(p, 12, f -> {
+            base.accept(f);
+            f.addModelEvent("B", switchAt, "switch");
+        }, null, new ArrayList<>(), true);
+        assertEquals(3, c.size(), descC(c));
+        assertEquals(1, c.get(0).level);
+        assertEquals("2022-03-05", c.get(1).day);
+        assertEquals(1, c.get(1).level);
+        assertEquals("2022-03-08", c.get(2).day);
+        assertEquals(2, c.get(2).level);
+        // 没有完成事件（例如那条一级没有执行）：不开观察窗，第三段不是二级而是一级 / without the event: no window
+        List<FleetDecisionFunction.Command> d = run(p, 12, base, null, new ArrayList<>(), true);
+        assertEquals(3, d.size(), descC(d));
+        assertEquals(1, d.get(2).level);
+        // 完成事件之后的冷却：完成后七个当地日内的新一级被挡住 / the cooldown after the switch blocks a new level 1
+        // 确认段开始于完成之前（不是二级），持续跨过日界本应是一级，被完成后的冷却（到 03-09）挡住 / blocked by the cooldown
+        Consumer<FleetDecisionFunction> h = f -> {
+            dataDays(f, 9, (k, v) -> { });
+            for (String dv : DEVS) {
+                f.addModelEvent(dv, FleetDecisionFunction.dayStart(FIRST), "online");
+            }
+            f.addModelEvent("B", FleetDecisionFunction.dayStart("2022-03-02"), "switch");
+            perf(f, "B", at(FIRST, 20), -1);
+        };
+        assertEquals(0, run(p, 7, h, null, new ArrayList<>(), true).size());
+        List<FleetDecisionFunction.Review> rv = new ArrayList<>();
+        List<FleetDecisionFunction.Command> g = run(p, 9, h, null, rv, true);
+        assertEquals(1, g.size(), descC(g) + desc(rv));
+        assertEquals("2022-03-08", g.get(0).day);                       // 冷却 03-09 零时结束 / cooldown ends at 03-09 00:00
+        // 下线（二级回到收集态）之后不发一级 / offline after a level 2
+        List<FleetDecisionFunction.Review> review = new ArrayList<>();
+        List<FleetDecisionFunction.Command> e = run(p, 12, f -> {
+            base.accept(f);
+            f.addModelEvent("B", FleetDecisionFunction.dayStart("2022-03-04"), "offline");   // 03-02 的一级（03-03 零时决定）之后
+        }, null, review, true);
+        assertEquals(1, e.size(), descC(e));
+        assertTrue(review.stream().anyMatch(r -> r.device.equals("B") && r.kind.equals("一级被抑制：模型不在线")));
+    }
+
+    private static String desc(List<FleetDecisionFunction.Review> r) {
+        StringBuilder b = new StringBuilder();
+        for (FleetDecisionFunction.Review x : r) b.append(x.device).append(' ').append(x.day).append(' ').append(x.kind).append(' ').append(x.detail).append('\n');
+        return b.toString();
+    }
+
+    private static String descC(List<FleetDecisionFunction.Command> c) {
+        StringBuilder b = new StringBuilder();
+        for (FleetDecisionFunction.Command x : c) b.append(x.device).append(' ').append(x.day).append(' ').append(x.level).append(' ').append(x.cell).append('\n');
+        return b.toString();
     }
 }

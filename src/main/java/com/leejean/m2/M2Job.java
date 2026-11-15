@@ -314,6 +314,8 @@ public class M2Job {
         m7Opts.put("retrain-side", m3RetrainSide);
         m7Opts.put("level2-days", Integer.toString(m3TrainDays + m3EarlyStopDays + m3ThreshDays));
         com.leejean.m7.FleetDecisionFunction.Params m7Params = com.leejean.m7.M7OfflineRunner.params(m7Opts);
+        // 模型状态取自上下文模块的事件（1.47 版第三节、1.48 版第二项）/ model state from the context module's events
+        m7Params.modelEvents = true;
         if (m7Enabled && !(m3Enabled && m5bEnabled && m5aEnabled)) {
             throw new IllegalArgumentException("--m7-enabled 须同时开启 --m3-enabled、--m5b-enabled、--m5a-enabled");
         }
@@ -336,6 +338,10 @@ public class M2Job {
                 + java.util.Arrays.toString(adaptKeepChannels) : ""));
         System.out.println("M7 enabled:      " + m7Enabled + (m7Enabled ? " options=" + m7Opts + " -> " + alertsTopic + " / "
                 + adaptTopic : ""));
+        if (m7Enabled) {
+            System.out.println("M7 model state:  events from the context module (level 1/2 suppressed while offline; level-1 cooldown"
+                    + " and level-2 window from switch events)");
+        }
         System.out.println("========================================");
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -511,6 +517,7 @@ public class M2Job {
         DataStream<MonitoringSnapshot> m7DataRecords = null;
         DataStream<M3ScoreRecord> m7Contexts = null;
         DataStream<com.leejean.m5.DriftEvent> m7PerfEvents = null;
+        DataStream<MonitoringSnapshot> m7ModelEvents = null;
         if (m5aEnabled) {
             OutputTag<MonitoringSnapshot> m5aRecordTag = new OutputTag<MonitoringSnapshot>("m5a-day-records") { };
             SingleOutputStreamOperator<com.leejean.m5.DriftEvent> dataDrift = cached
@@ -571,6 +578,7 @@ public class M2Job {
                             producerProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE))
                     .name("Kafka Sink [" + monitoringTopic + " / M3]");
             m7Contexts = m3Scored;
+            m7ModelEvents = m3Scored.getSideOutput(m3MonTag);
 
             // M5b 性能层：接在 M3 之后、同一作业、同一代理键，消费评分窗，事件写 synergia-drift，快照并入 synergia-monitoring
             // M5b: after M3 in the same job with the same surrogate keys; events to synergia-drift, snapshots to monitoring
@@ -603,7 +611,8 @@ public class M2Job {
                             m7Contexts.process(new com.leejean.m7.M7DecisionOperator.Contexts()).name("M7-In-Contexts"),
                             m7PerfEvents.process(new com.leejean.m7.M7DecisionOperator.Drifts()).name("M7-In-Perf"),
                             m7DataEvents.process(new com.leejean.m7.M7DecisionOperator.Drifts()).name("M7-In-DataEvents"),
-                            m7DataRecords.process(new com.leejean.m7.M7DecisionOperator.Records()).name("M7-In-DataRecords"));
+                            m7DataRecords.process(new com.leejean.m7.M7DecisionOperator.Records()).name("M7-In-DataRecords"),
+                            m7ModelEvents.process(new com.leejean.m7.M7DecisionOperator.ModelEvents()).name("M7-In-ModelEvents"));
             SingleOutputStreamOperator<String> m7Out = m7In
                     .keyBy(x -> 0, org.apache.flink.api.common.typeinfo.Types.INT)
                     .process(new com.leejean.m7.M7DecisionOperator(m7Params, m7CommandTag))

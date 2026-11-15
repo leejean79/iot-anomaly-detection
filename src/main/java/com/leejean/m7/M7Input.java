@@ -26,6 +26,7 @@ public class M7Input implements Serializable {
     public static final int DAY_RECORD = 4;     // 数据层日记录（按通道）/ data-layer daily record per channel
     public static final int TRANSITION = 5;     // 数据层状态转移 DEVIATE、RECOVER / data-layer transition
     public static final int BURST = 6;          // 离群率爆发 / outlier-rate burst
+    public static final int MODEL = 7;          // 上下文模块的模型状态事件 online、offline、switch / model-state event
 
     /** 温度、气体、光照在检测通道中的下标，与 {@link FleetDecisionFunction#ACTIVE} 同序 / indices of the active channels. */
     static final int[] ACTIVE_INDEX = {0, 3, Channels.LIGHT_INDEX};
@@ -100,6 +101,17 @@ public class M7Input implements Serializable {
         }
         M7Input in = of(OUTLIER, e.getDevice(), e.getRoundTs());
         in.ts2 = e.getWindowEnd();
+        return in;
+    }
+
+    /** 上下文模块的模型状态事件（windowEnd 为 -4 的监测快照）；其余返回 null / a model-state event, else null. */
+    public static M7Input fromModelEvent(com.leejean.m1.MonitoringSnapshot s) {
+        if (s.getWindowEnd() != com.leejean.m3.M3Function.MODEL_EVENT_WINDOW_END || s.getM3ModelEvent() == null) {
+            return null;
+        }
+        M7Input in = of(MODEL, s.getDevice(), s.getTs());
+        in.s1 = s.getM3ModelEvent();
+        in.model = s.getM3ModelGen() == null ? 0 : s.getM3ModelGen();
         return in;
     }
 

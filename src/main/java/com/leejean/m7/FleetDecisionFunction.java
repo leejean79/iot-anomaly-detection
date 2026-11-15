@@ -73,6 +73,10 @@ public class FleetDecisionFunction implements Serializable {
         public int retrainDays = 3;                           // 一级的 N（与上下文模块同源；按秒计）/ level-1 N, in 86,400 s units
         public boolean retrainAfter = true;                   // 一级训练窗口在生效之后 / level-1 training window after the effect
         public int level2Days = 16;                           // 二级的收集长度（训练加早停加标定，按秒计）/ level-2 collection
+        // 模型状态由上下文模块的事件给出（在线作业；1.47 版第三节、1.48 版第二项）：模型不在线时不发一级与二级，一级冷却与二级观察窗
+        // 以「一级切换完成」事件起算。关闭时（离线运行器、链式驱动）以上下文评分的首条时刻为上线时刻，一级完成仍按命令推算。
+        // Model state from the context module's events (online job); otherwise online = first contextual score.
+        public boolean modelEvents;
 
         /** 一个告警节拍的名义轮数（每十秒一轮）/ nominal rounds per alert tick. */
         double nominal() {
@@ -262,6 +266,9 @@ public class FleetDecisionFunction implements Serializable {
     private final Map<String, Long> level1Done = new HashMap<>();                   // dev → 最近一条一级的重训完成时刻
     private final Map<String, Long> level0Eff = new HashMap<>();                    // dev|ch → 最近一条含该通道的零级的生效时刻
     private final Map<String, TreeMap<Long, Integer>> modelGen = new HashMap<>();   // dev → {时刻 → 模型代数}（只记变化）
+    private final Map<String, TreeMap<Long, Boolean>> onlineAt = new HashMap<>();   // dev → {时刻 → 是否在线}（模型状态事件）
+    private final Map<String, java.util.TreeSet<Long>> switchAt = new HashMap<>();  // dev → 一级切换完成的时刻
+    private final Map<String, Long> firstCtx = new HashMap<>();                     // dev → 首条上下文评分的时刻
     private final Map<String, Integer> seq = new HashMap<>();
     private final List<Alert> dayAlerts = new ArrayList<>();
 
@@ -293,6 +300,7 @@ public class FleetDecisionFunction implements Serializable {
 
     public void addPerfElement(String dev, long ts, double mainScore) {
         addDevice(dev);
+        firstCtx.merge(dev, ts, Math::min);
         perf.get(dev).add(new double[]{ts, 1, 0, mainScore, 0});
     }
 
@@ -300,6 +308,32 @@ public class FleetDecisionFunction implements Serializable {
      * 上下文评分所带的模型代数（1.41 版裁决第二节第五条；空或零表示从未换过模型）：只记变化，节拍按时刻查。
      * The model generation carried by a contextual score; only changes are kept, looked up by time.
      */
+    /**
+     * 上下文模块的模型状态事件（1.47 版裁决第三节、1.48 版补充裁决第二项）：online 上线（冷启动或二级完成）、offline 下线（二级回到
+     * 收集态）、switch 一级切换完成。ts 为事件时间。/ A model-state event from the context module.
+     */
+    public void addModelEvent(String dev, long ts, String event) {
+        addDevice(dev);
+        if ("online".equals(event)) {
+            onlineAt.computeIfAbsent(dev, k -> new TreeMap<>()).put(ts, true);
+        } else if ("offline".equals(event)) {
+            onlineAt.computeIfAbsent(dev, k -> new TreeMap<>()).put(ts, false);
+        } else if ("switch".equals(event)) {
+            switchAt.computeIfAbsent(dev, k -> new java.util.TreeSet<>()).add(ts);
+        }
+    }
+
+    /** 时刻 t 上下文模型是否在线 / whether the contextual model is online at t. */
+    boolean modelOnline(String dev, long t) {
+        if (p.modelEvents) {
+            TreeMap<Long, Boolean> m = onlineAt.get(dev);
+            Map.Entry<Long, Boolean> e = m == null ? null : m.floorEntry(t);
+            return e != null && e.getValue();
+        }
+        Long f = firstCtx.get(dev);
+        return f != null && f <= t;
+    }
+
     public void setModel(String dev, long ts, int gen) {
         TreeMap<Long, Integer> m = modelGen.computeIfAbsent(dev, k -> new TreeMap<>());
         Map.Entry<Long, Integer> prev = m.floorEntry(ts);
@@ -756,6 +790,17 @@ public class FleetDecisionFunction implements Serializable {
                 }
             }
         }
+        if (p.upgradeCells && p.modelEvents) {
+            // 一级冷却与二级观察窗以收到的「一级切换完成」事件起算（1.48 版第二项）/ from the level-1 switch events
+            for (String dev : devices) {
+                java.util.TreeSet<Long> sw = switchAt.get(dev);
+                Long done = sw == null ? null : sw.floor(t);
+                if (done != null) {
+                    level1Done.put(dev, done);
+                    cooldown1Until.put(dev, addLocalDays(done, p.upCooldownDays));
+                }
+            }
+        }
         for (String dev : devices) {
             DevState s = st.get(dev);
             List<String> triggers = new ArrayList<>();
@@ -806,6 +851,26 @@ public class FleetDecisionFunction implements Serializable {
             // The decision-matrix cell (level 0 when the upgrade cells are off); each level's cooldown blocks only that level.
             String cell = p.upgradeCells ? cell(dev, day, s, triggers, forms) : null;
             int level = cell == null ? 0 : cell.startsWith("二级") ? 2 : cell.startsWith("一级") ? 1 : 0;
+            if (level > 0 && !modelOnline(dev, t)) {
+                // 模型不在线时不发一级与二级（1.47 版第三节）：写入复核、不占冷却；结论同时满足零级（有数据层触发通道）时照常发零级
+                // Level 1/2 suppressed while the model is offline: reviewed, no cooldown; level 0 when data channels trigger.
+                boolean hasData = false;
+                for (String tr : triggers) {
+                    hasData = hasData || !"perf".equals(tr);
+                }
+                Review r = new Review();
+                r.device = dev;
+                r.day = day;
+                r.kind = (level == 1 ? "一级" : "二级") + "被抑制：模型不在线";
+                r.hourStart = Long.toString(t);
+                r.detail = cell + (hasData ? "；改发零级" : "；只记录");
+                review.add(r);
+                if (!hasData) {
+                    continue;
+                }
+                cell = "零级：" + (level == 1 ? "一级" : "二级") + "被抑制（模型不在线）";
+                level = 0;
+            }
             Map<String, Long> cd = level == 0 ? cooldownUntil : level == 1 ? cooldown1Until : cooldown2Until;
             if (cd.getOrDefault(dev, 0L) > t) {
                 continue;
@@ -853,8 +918,10 @@ public class FleetDecisionFunction implements Serializable {
                 long done = level == 1 ? c.effectiveAt + (p.retrainAfter ? p.retrainDays * 86400L : 0L)
                         : c.effectiveAt + p.level2Days * 86400L;
                 if (level == 1) {
-                    level1Done.put(dev, done);
-                    cooldown1Until.put(dev, addLocalDays(done, p.upCooldownDays));
+                    if (!p.modelEvents) {             // 在线作业以切换完成事件起算（1.48 版第二项）/ online: from the switch event
+                        level1Done.put(dev, done);
+                        cooldown1Until.put(dev, addLocalDays(done, p.upCooldownDays));
+                    }
                 } else {
                     cooldown2Until.put(dev, addLocalDays(done, p.upCooldownDays));
                 }

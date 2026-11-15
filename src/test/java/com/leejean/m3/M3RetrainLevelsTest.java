@@ -180,6 +180,11 @@ class M3RetrainLevelsTest {
             }
         }
         assertTrue(before > 0 && after > 0);
+        // 模型状态事件（1.47 版第三节、1.48 版第二项）：冷启动上线，一级切换完成于训练集止点（生效前侧为生效时刻）/ model events
+        List<MonitoringSnapshot> ev = events(fast);
+        assertEquals("online,switch", names(ev));
+        assertEquals(eff, ev.get(1).getTs());
+        assertEquals(Integer.valueOf(1), ev.get(1).getM3ModelGen());
         // 生效时刻所在的窗口跨过切换：它由新模型评分（未满的部分按新版本重新标准化）/ the straddling window uses the new model
         assertEquals((n - TO_TRAINING) / WINDOW, fast.scores.size(), "每个在线窗口恰好一条评分，无丢失无重复");
     }
@@ -267,5 +272,30 @@ class M3RetrainLevelsTest {
             }
         }
         assertEquals(ROUNDS_PER_DAY / WINDOW, newScores);
+        // 模型状态事件：冷启动上线、二级下线（生效时刻）、新模型上线（代数一，不晚于它的第一条评分）/ online, offline, online
+        List<MonitoringSnapshot> ev = events(r);
+        assertEquals("online,offline,online", names(ev));
+        assertEquals(eff, ev.get(1).getTs());
+        assertEquals(Integer.valueOf(1), ev.get(2).getM3ModelGen());
+        long firstNew = r.scores.stream().filter(x -> x.getWindowEnd() >= eff).mapToLong(M3ScoreRecord::getWindowEnd).min().getAsLong();
+        assertTrue(ev.get(2).getTs() <= firstNew);
+    }
+
+    private static List<MonitoringSnapshot> events(Run r) {
+        List<MonitoringSnapshot> ev = new ArrayList<>();
+        for (MonitoringSnapshot s : r.snaps) {
+            if (s.getWindowEnd() == M3Function.MODEL_EVENT_WINDOW_END) {
+                ev.add(s);
+            }
+        }
+        return ev;
+    }
+
+    private static String names(List<MonitoringSnapshot> ev) {
+        StringBuilder b = new StringBuilder();
+        for (MonitoringSnapshot s : ev) {
+            b.append(b.length() == 0 ? "" : ",").append(s.getM3ModelEvent());
+        }
+        return b.toString();
     }
 }
