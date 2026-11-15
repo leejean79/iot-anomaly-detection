@@ -1,0 +1,87 @@
+]1341;command_started;command=6563686f20223d3d20e8a784e88c83e58c96e69198e8a681e79a84e68aa5e99499e4b88e20707974686f6e20e78988e69cac203d3d22== 规范化摘要的报错与 python 版本 ==
+Python 3.10.12
+/opt/fa-iforest/m3march/:
+total 1289556
+drwxrwxrwx  2 root root       4096 Nov 15 09:47 .
+drwxr-xr-x 15 root root       4096 Nov 15 09:46 ..
+-rw-r--r--  1 root root 1305034894 Nov 15 09:47 monitoring.jsonl
+-rw-r--r--  1 root root   15454038 Nov 15 09:46 scores.jsonl
+
+/opt/fa-iforest/m6bfull/repo/docs/m6b/full/a/:
+total 78624
+drwxr-xr-x 2 root root     4096 Nov 15 09:56 .
+drwxr-xr-x 4 root root     4096 Nov 15 09:56 ..
+-rw-r--r-- 1 root root    16110 Nov 15 09:47 adapt.jsonl
+-rw-r--r-- 1 root root  1682937 Nov 15 09:47 alerts.jsonl
+-rw-r--r-- 1 root root      585 Nov 15 09:47 collect.log
+-rw-r--r-- 1 root root      247 Nov 15 09:47 collect_summary.txt
+-rw-r--r-- 1 root root   522858 Nov 15 09:47 drift.jsonl
+-rw-r--r-- 1 root root      747 Nov 15 09:47 inject-truth.csv
+-rw-r--r-- 1 root root    15869 Nov 15 09:56 jm_failure.log
+-rw-r--r-- 1 root root       73 Nov 15 09:49 m1out.sha
+-rw-r--r-- 1 root root     1106 Nov 14 20:30 m2_metrics_final.txt
+-rw-r--r-- 1 root root      576 Nov 15 09:46 m2_replay_verify_m6bfull_a.csv
+-rw-r--r-- 1 root root   812444 Nov 15 09:50 m3_markers.jsonl
+-rw-r--r-- 1 root root 13632042 Nov 15 09:47 m3_scores.jsonl
+-rw-r--r-- 1 root root    63492 Nov 15 09:47 m3_tm_log.txt
+-rw-r--r-- 1 root root  2349456 Nov 15 09:50 m5a_records.jsonl
+-rw-r--r-- 1 root root        0 Nov 15 09:50 monitoring_norm.err
+-rw-r--r-- 1 root root        0 Nov 15 09:50 monitoring_norm.sha
+-rw-r--r-- 1 root root     2091 Nov 14 10:57 replay_start.log
+-rw-r--r-- 1 root root        2 Nov 15 09:46 replay_verify.rc
+-rw-r--r-- 1 root root     3209 Nov 15 09:46 replay_verify.txt
+-rw-r--r-- 1 root root     4326 Nov 14 10:56 reset.log
+-rw-r--r-- 1 root root       70 Nov 14 10:57 run.env
+-rw-r--r-- 1 root root 15454038 Nov 15 09:47 scores.jsonl
+-rw-r--r-- 1 root root 45878322 Nov 15 09:50 shadow.jsonl
+-rw-r--r-- 1 root root     3506 Nov 14 10:57 submit.log
+-rw-r--r-- 1 root root     3813 Nov 14 10:56 topics.log
+-rw-r--r-- 1 root root      208 Nov 14 10:57 watch.log
+== Prometheus 里的相关指标名 ==
+"flink_taskmanager_job_task_operator_m2_gate_late_drop"
+"flink_taskmanager_job_task_operator_m6_executed_commands"
+"flink_taskmanager_job_task_operator_m6_forwarded_commands"
+"flink_taskmanager_job_task_operator_m6_ignored_commands"
+"flink_taskmanager_job_task_operator_m6_late_processed"
+"flink_taskmanager_job_task_operator_m6_late_watermark"
+"flink_taskmanager_job_task_operator_m6_prefreeze_commands"
+== 设备 B 的命令（命令主题）==
+{"device":"B","day":"2022-03-14","decidedAt":1647302400,"effectiveAt":1647388800,"seq":1,"level":0,"scope":"局部","label":"漂移","triggers":"Gas","forms":"Gas：连续两日偏离","co":3,"coDevices":"B|C|E","episodeN":1,"cell":"零级：只有数据层持续","type":"command"}
+{"device":"B","day":"2022-03-24","decidedAt":1648166400,"effectiveAt":1648252800,"seq":2,"level":0,"scope":"全局","label":"漂移","triggers":"Temperature|Gas","forms":"Temperature：连续两日偏离；Gas：连续两日偏离","co":6,"coDevices":"A|B|C|D|E|F","episodeN":1,"cell":"零级：只有数据层持续","type":"command"}
+{"device":"B","day":"2022-04-01","decidedAt":1648854000,"effectiveAt":1648940400,"seq":3,"level":1,"scope":"局部","label":"漂移","triggers":"Temperature|perf","forms":"Temperature：连续两日偏离；性能层确认跨过日界","co":5,"coDevices":"A|B|C|D|E","episodeN":1,"cell":"一级：两层同报","type":"command"}
+{"device":"B","day":"2022-04-04","decidedAt":1649113200,"effectiveAt":1649199600,"seq":4,"level":0,"scope":"局部","label":"漂移","triggers":"Gas","forms":"Gas：连续两日偏离","co":3,"coDevices":"A|B|F","episodeN":1,"cell":"零级：只有数据层持续","type":"command"}
+{"device":"B","day":"2022-04-09","decidedAt":1649545200,"effectiveAt":1649631600,"seq":5,"level":0,"scope":"局部","label":"漂移","triggers":"Temperature","forms":"Temperature：连续两日偏离","co":2,"coDevices":"B|H","episodeN":1,"cell":"零级：只有数据层持续","model":1,"type":"command"}
+{"device":"B","day":"2022-04-13","decidedAt":1649890800,"effectiveAt":1649977200,"seq":6,"level":1,"scope":"局部","label":"漂移","triggers":"Temperature|Light","forms":"Temperature：连续两日偏离；Light：连续两日偏离","co":2,"coDevices":"B|H","episodeN":1,"cell":"一级：零级之后 K_up 天内同一通道新持续段","model":1,"type":"command"}
+{"device":"B","day":"2022-04-23","decidedAt":1650754800,"effectiveAt":1650841200,"seq":7,"level":2,"scope":"局部","label":"漂移","triggers":"Temperature|Light|perf","forms":"Temperature：连续两日偏离；Light：两层同日同报；性能层确认跨过日界","co":4,"coDevices":"B|C|F|H","episodeN":1,"cell":"二级：一级之后 K_up 天内性能层新确认段","model":2,"type":"comma
+{"device":"B","day":"2022-04-29","decidedAt":1651273200,"effectiveAt":1651359600,"seq":8,"level":1,"scope":"局部","label":"漂移","triggers":"Temperature|Light","forms":"Temperature：连续两日偏离；Light：连续两日偏离","co":2,"coDevices":"B|H","episodeN":1,"cell":"一级：零级之后 K_up 天内同一通道新持续段","model":2,"type":"command"}
+== 设备 B 的上下文模块日志 ==
+2026-11-14 10:31:32,267 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 47/300: train loss=0.3131711448033651, early-stop loss=0.02763979888765261, 1.545s
+2026-11-14 10:31:35,262 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 48/300: train loss=0.30507068570454915, early-stop loss=0.02529124720841547, 2.995s
+2026-11-14 10:31:36,757 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 49/300: train loss=0.29658486874898277, early-stop loss=0.025826964906920838, 1.494s
+2026-11-14 10:31:38,597 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 50/300: train loss=0.29020914300282796, early-stop loss=0.027250514318035813, 1.84s
+2026-11-14 10:31:40,185 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 51/300: train loss=0.28252134323120115, early-stop loss=0.026046757704077543, 1.588s
+2026-11-14 10:31:41,708 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 52/300: train loss=0.2767607838312785, early-stop loss=0.02821264139366984, 1.523s
+2026-11-14 10:31:43,213 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 53/300: train loss=0.2699646615982056, early-stop loss=0.026339580302618685, 1.505s
+2026-11-14 10:31:44,722 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 54/300: train loss=0.2650383857091268, early-stop loss=0.028370206979713337, 1.509s
+2026-11-14 10:31:46,526 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 55/300: train loss=0.2608259449005127, early-stop loss=0.0262485087355187, 1.804s
+2026-11-14 10:31:48,010 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 56/300: train loss=0.2596755231221517, early-stop loss=0.028663571457480785, 1.484s
+2026-11-14 10:31:49,720 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 57/300: train loss=0.26193680334091185, early-stop loss=0.02609812361380719, 1.71s
+2026-11-14 10:31:51,221 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 58/300: train loss=0.2745994346936544, early-stop loss=0.030258655938358806, 1.501s
+2026-11-14 10:31:52,861 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 59/300: train loss=0.2923114228248596, early-stop loss=0.02622055529872874, 1.64s
+2026-11-14 10:31:54,526 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 60/300: train loss=0.3182489465077718, early-stop loss=0.031594692737907985, 1.665s
+2026-11-14 10:31:56,009 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 61/300: train loss=0.3060887983640035, early-stop loss=0.026149848595399483, 1.483s
+2026-11-14 10:31:57,580 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 62/300: train loss=0.27758229955037433, early-stop loss=0.028923631150161333, 1.571s
+2026-11-14 10:31:59,131 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 63/300: train loss=0.24458149449030556, early-stop loss=0.02771838131970584, 1.551s
+2026-11-14 10:32:00,967 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 64/300: train loss=0.23158632739384966, early-stop loss=0.026412450956666635, 1.836s
+2026-11-14 10:32:02,519 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 65/300: train loss=0.22542646392186483, early-stop loss=0.028353725816248447, 1.552s
+2026-11-14 10:32:04,114 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 66/300: train loss=0.22345396788914998, early-stop loss=0.026244628072908123, 1.595s
+2026-11-14 10:32:04,432 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B trained: hidden=60, window=60, batch=64, 66 epochs (last improvement at epoch 46, longest plateau 10), early-stop loss=0.026244628072908123, 107.85s
+2026-11-14 10:32:14,225 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device B calibrated: median=0.07027088662149686, IQR=0.06747826964530598, threshold=2.22
+2026-11-14 10:32:14,469 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B level-1 switch check: new calibration median 0.07027088662149686, old 0.20180454057645508, ratio 0.3482126141501471 (limit 3.0): passes (record only)
+2026-11-14 10:32:14,470 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B level-1 switch: model generation 2, training version 5 -> 6; 0 rounds of the open window re-standardized
+2026-11-14 10:32:14,470 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B result collected on the task thread (queue wait 0.0s, training+calibration 117.6s); 1749 buffered rounds to drain
+2026-11-14 10:32:14,470 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B entering ONLINE
+2026-11-14 10:32:20,292 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B buffer drained in 3.7s
+2026-11-14 11:29:48,435 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B level 2 (seq 7, effective 1650841200): back to COLLECTING; context output and the performance layer are silent until the new model is online
+2026-11-14 11:54:37,321 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B excluded training window ending at round 1651068044
+2026-11-14 12:27:01,430 WARN  com.leejean.m3.M3Function                                    [] - [M3] Device B REPORT: level-1 command seq 8 ignored (phase 0, retrain pending false)
