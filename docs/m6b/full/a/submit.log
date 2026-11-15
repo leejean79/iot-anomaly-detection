@@ -19,7 +19,7 @@ Relative guard:  OFF (default)
 Ckpt max state:  128 MB/subtask (memory-backed)
 Ckpt akka.framesize: 256.0 MB
 Ckpt effective ceiling: 128.0 MB  [由 --checkpoint-max-state-mb 决定 / bound by --checkpoint-max-state-mb]
-Ckpt interval/timeout: 30000 ms / 10 min
+Ckpt interval/timeout: 30000 ms / 10 min; min pause 30000 ms
 Restart attempts: 3 (delay 10 s)
 Ckpt tolerable failures: 3  (job restarts on consecutive failure no. 4)
 Stuck guard:     OFF (no --stuck-run-thresholds)
@@ -52,7 +52,7 @@ WARNING: Illegal reflective access by org.apache.flink.api.java.ClosureCleaner (
 WARNING: Please consider reporting this to the maintainers of org.apache.flink.api.java.ClosureCleaner
 WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
 WARNING: All illegal access operations will be denied in a future release
-Job has been submitted with JobID 6eef9634133fa69d055fbb5294952848
-[wait] M2Job (6eef9634133fa69d055fbb5294952848) to be RUNNING ...
-  M2Job is RUNNING (JobID 6eef9634133fa69d055fbb5294952848)
+Job has been submitted with JobID 44aaa851c3c816247feeeb72611d0fb5
+[wait] M2Job (44aaa851c3c816247feeeb72611d0fb5) to be RUNNING ...
+  M2Job is RUNNING (JobID 44aaa851c3c816247feeeb72611d0fb5)
 下一步 / Next: bash /opt/fa-iforest/m6bfull/repo/deploy/scripts/syn-replay.sh --speedup 600 --start <day> --end <day>

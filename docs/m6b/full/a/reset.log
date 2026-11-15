@@ -14,9 +14,9 @@
   http://172.16.0.162:8081 可达，可用 slot: 8/8
 
 ───────── 2/8 磁盘可用空间（清理前）/ free space before cleanup
-  fa-master: 清理前可用 22 GB
-  fa-worker1: 清理前可用 29 GB
-  fa-worker2: 清理前可用 29 GB
+  fa-master: 清理前可用 21 GB
+  fa-worker1: 清理前可用 26 GB
+  fa-worker2: 清理前可用 27 GB
 
 ───────── 3/8 停止重放器并清掉续跑位点 / stop replayer, drop the resume offset
 
@@ -24,11 +24,11 @@
   没有本项目作业在跑。
 
 ───────── 5/8 清理 TaskManager 缓存与旧日志、判磁盘门槛 / clear TaskManager caches, then the disk gate
-  fa-worker1: 缓存与日志 6 MB -> 2 MB
-  fa-worker2: 缓存与日志 6 MB -> 2 MB
-  fa-master: 清理后可用 22 GB
-  fa-worker1: 清理后可用 29 GB
-  fa-worker2: 清理后可用 29 GB
+  fa-worker1: 缓存与日志 405 MB -> 9 MB
+  fa-worker2: 缓存与日志 405 MB -> 9 MB
+  fa-master: 清理后可用 21 GB
+  fa-worker1: 清理后可用 26 GB
+  fa-worker2: 清理后可用 27 GB
 
 ───────── 5b/8 重启 Flink 容器 / restart Flink containers
   目的：Flink 的指标计数器是**每 JVM** 的。上一轮运行留下的计数若不清零，本轮的对账恒等式

@@ -1,0 +1,84 @@
+== 时间与负载 ==
+Sun Nov 15 09:25:31 CST 2026
+ 09:25:31 up 1 day, 13:46,  4 users,  load average: 0.00, 0.02, 0.01
+== 内存 ==
+               total        used        free      shared  buff/cache   available
+Mem:            7266        4866         201           3        2198        2109
+Swap:              0           0           0
+== 编排相关进程（运行时长、CPU、常驻内存 KB）==
+    PID    PPID     ELAPSED %CPU   RSS COMMAND
+ 184809       1    22:31:03  0.0  6820 tmux new-session -d -s syn-m6b-full SYN_STEPC_ON_MASTER=1 bash deploy/scripts/syn-m6b-full.sh start --runs a,b --start 2022-03-01 --end 2022-05-01; sleep 5; while [ -f docs/m6b/full/verify.pid ] && kill -0 $(cat docs/m6b/
+ 184810  184809    22:31:03  0.0  2952 bash -c SYN_STEPC_ON_MASTER=1 bash deploy/scripts/syn-m6b-full.sh start --runs a,b --start 2022-03-01 --end 2022-05-01; sleep 5; while [ -f docs/m6b/full/verify.pid ] && kill -0 $(cat docs/m6b/full/verify.pid) 2>/dev/null
+ 184818       1    22:31:03  0.0  1852 bash /opt/fa-iforest/m6bfull/repo/deploy/scripts/syn-m6b-full.sh run --runs a,b --start 2022-03-01 --end 2022-05-01
+ 210163  184809    22:28:21  0.0  1460 bash -c SYN_ON_MASTER=1 bash /opt/fa-iforest/m3watch/scripts/syn-m3-coldstart-watch.sh --jid 44aaa851c3c816247feeeb72611d0fb5 --out /opt/fa-iforest/m3watch/ckpt_timeline.csv 2>&1 | tee -a /opt/fa-iforest/m3watch/timeline.
+ 210166  210163    22:28:21  0.0  2560 bash /opt/fa-iforest/m3watch/scripts/syn-m3-coldstart-watch.sh --jid 44aaa851c3c816247feeeb72611d0fb5 --out /opt/fa-iforest/m3watch/ckpt_timeline.csv
+ 210170  184809    22:28:21  0.0  1412 bash -c SYN_ON_MASTER=1 bash /opt/fa-iforest/m3watch/scripts/syn-ckpt-watch.sh --jid 44aaa851c3c816247feeeb72611d0fb5 --interval 20 --framesize-mb 256 --out /opt/fa-iforest/m3watch/ckpt_sizes.csv 2>&1 | tee -a /opt/fa-ifo
+ 210174  210170    22:28:21  0.0  2924 bash /opt/fa-iforest/m3watch/scripts/syn-ckpt-watch.sh --jid 44aaa851c3c816247feeeb72611d0fb5 --interval 20 --framesize-mb 256 --out /opt/fa-iforest/m3watch/ckpt_sizes.csv
+ 519926  184818    12:54:51  0.0  2668 bash /opt/fa-iforest/m6bfull/repo/deploy/scripts/syn-replay-verify.sh --start-utc 2022-03-01T00:00:00Z --end-utc 2022-05-01T00:00:00Z --expected-total 4005039 --tol-pct 0.2 --max-messages 6000000 --report-name m2_replay_v
+ 521512  521511    12:52:33  0.0 22960 docker exec kafka-1 kafka-console-consumer.sh --bootstrap-server 172.16.0.162:9092,172.16.0.163:9092,172.16.0.164:9092 --topic synergia-monitoring --from-beginning --timeout-ms 60000
+== 容器 ==
+jobmanager	Up 23 hours	fa-iforest/flink:1.13.6-java11
+kafka-1	Up 38 hours	wurstmeister/kafka:2.13-2.6.3
+node-exporter	Up 38 hours	prom/node-exporter:v1.6.1
+zookeeper	Up 38 hours	wurstmeister/zookeeper:latest
+prometheus	Up 38 hours	prom/prometheus:v2.45.0
+grafana	Up 38 hours	grafana/grafana:10.0.0
+jobmanager	15.37%	2.737GiB / 7.096GiB
+kafka-1	1.06%	1.279GiB / 7.096GiB
+node-exporter	0.00%	14.62MiB / 7.096GiB
+zookeeper	0.05%	192.7MiB / 7.096GiB
+prometheus	3.24%	193MiB / 7.096GiB
+grafana	0.02%	83.55MiB / 7.096GiB
+== 运行 a 的目录 ==
+total 44
+drwxr-xr-x 2 root root 4096 Nov 14 20:30 .
+drwxr-xr-x 4 root root 4096 Nov 14 10:54 ..
+-rw-r--r-- 1 root root 1106 Nov 14 20:30 m2_metrics_final.txt
+-rw-r--r-- 1 root root 2091 Nov 14 10:57 replay_start.log
+-rw-r--r-- 1 root root 1685 Nov 14 20:32 replay_verify.txt
+-rw-r--r-- 1 root root 4326 Nov 14 10:56 reset.log
+-rw-r--r-- 1 root root   70 Nov 14 10:57 run.env
+-rw-r--r-- 1 root root 3506 Nov 14 10:57 submit.log
+-rw-r--r-- 1 root root 3813 Nov 14 10:56 topics.log
+-rw-r--r-- 1 root root  208 Nov 14 10:57 watch.log
+== replay_verify.txt 末尾 ==
+====================================
+[verify] 转储 synergia-m1-out（最多 6000000 条）→ /opt/fa-iforest/m2probe/m1out.jsonl
+====================================
+[verify] 转储 4004971 行；运行 ReplayVerify（start=2022-03-01T00:00:00Z end=2022-05-01T00:00:00Z calib-days=7）
+========== 重放完整性核验 / replay-integrity verification ==========
+总轮数 4004971；解析失败 0；设备数 8
+[断言一 轮数对账] PASS —— 实测 4004971 vs 期望 4005039（容差 0.2%）
+[断言二 零重复]   PASS —— 同设备同时间戳重复计数 0
+[断言三 边界对齐] PASS —— 最早 2022-03-01T00:00:01Z（期望 2022-03-01T00:00Z）；最晚 2022-04-30T23:58:32Z（期望 2022-04-30T23:59:50Z）；容差 120s
+[断言四 冻结落第八天] PASS —— 期望冻结时刻 ∈ [2022-03-08T00:00Z, 2022-03-10T00:00Z)；逐台：
+    A：冻结 2022-03-08T00:28:52Z（第 8 天）
+    B：冻结 2022-03-08T10:23:42Z（第 8 天）
+    C：冻结 2022-03-08T00:26:48Z（第 8 天）
+    D：冻结 2022-03-08T00:21:55Z（第 8 天）
+    E：冻结 2022-03-08T00:20:33Z（第 8 天）
+    F：冻结 2022-03-08T00:23:17Z（第 8 天）
+    G：冻结 2022-03-08T00:28Z（第 8 天）
+    H：冻结 2022-03-08T05:15:24Z（第 8 天）
+[verify] 逐设备汇总 → /work/m2_replay_verify.csv
+退出码 0：四条断言全部通过，允许进入标定/探针。
+[verify] 逐设备汇总已拉回：/opt/fa-iforest/m6bfull/repo/docs/m2_replay_verify_m6bfull_a.csv
+[断言五 零重启]   PASS —— 作业 44aaa851c3c816247feeeb72611d0fb5 重启次数 0。
+[断言六 迟到丢弃] PASS —— 2026-11-14T02:56:51Z 以来点通道迟到丢弃合计 0。
+== collect.log 末尾 ==
+tail: cannot open '/opt/fa-iforest/m6bfull/repo/docs/m6b/full/a/collect.log' for reading: No such file or directory
+== verify.log 末尾 ==
+[2026-11-13 21:26:33] == 编排开始：运行 a,b，2022-03-01 至 2022-05-01，倍速 150，有限重启三次 ==
+[2026-11-13 21:26:33] == 运行 a 开始：2022-03-01 至 2022-05-01，倍速 150，全部模块、命令回路、聚合模块、升级格与影子评分打开 ==
+[2026-11-13 21:29:10] 作业已提交：6eef9634133fa69d055fbb5294952848；M3 level 1: 3 days, cold start, window after the effective time; day 86400 s; switch check 3.0 record only; shadow scoring true
+[2026-11-14 01:31:45] 失败：作业在重放期间停止（重启次数用尽或被取消；原因见 docs/m6b/full/a/jm_failure.log）。已停止；请先 fetch，再把 progress.txt 与相关日志发给我。
+[2026-11-14 10:54:28] == 编排开始：运行 a,b，2022-03-01 至 2022-05-01，倍速 150，有限重启三次 ==
+[2026-11-14 10:54:28] == 运行 a 开始：2022-03-01 至 2022-05-01，倍速 150，全部模块、命令回路、聚合模块、升级格与影子评分打开 ==
+[2026-11-14 10:57:07] 作业已提交：44aaa851c3c816247feeeb72611d0fb5；M3 level 1: 3 days, cold start, window after the effective time; day 86400 s; switch check 3.0 record only; shadow scoring true
+[2026-11-14 20:30:40] 重放结束并排空（8 台设备完成冷启动排空）
+== tmux 会话 ==
+syn-m3-watch: 3 windows (created Sat Nov 14 10:57:10 2026)
+syn-m6b-full: 1 windows (created Sat Nov 14 10:54:28 2026)
+== 磁盘 ==
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda3        40G   20G   18G  52% /
