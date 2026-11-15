@@ -19,6 +19,8 @@
 #      bash deploy/scripts/syn-m6b-full.sh fetch          # 跑完后取回到本地 docs/m6b/full/
 #      bash deploy/scripts/syn-m6b-full.sh stop           # 中止：停重放、取消本项目作业、结束采样
 #    可选 --runs a,b|a|b（默认 a,b；只跑 b 时沿用 master 上已有的 a 的结果）。
+#    可选 --resume a：运行 a 的重放与收集前半段已完成、在「监测快照的规范化摘要」或其后失败时，只从这一步续做运行 a，
+#    再照 --runs 接着跑 b 与核对；不复位、不重放，要求 master 上 a/run.env、a/scores.jsonl、a/adapt.jsonl 与 m3march/monitoring.jsonl 仍在。
 # 3. 前置条件 / Preconditions: 已按 syn-m3-a4-stepc.sh setup-master 做过 master 的准备；新 jar 已上传（syn-upload-m1.sh --jar-only），
 #    check-jar.sh 全部 PASS；JobManager 进程内存不少于 3,072 MB（JM_HEAP_MB，第一次全量重放堆耗尽之后提高）；三台节点磁盘可用不少于 22 GB（每次复位门槛为 20 GB，短重放一次在 master 上留下约一 GB）；运行期间
 #    不做其他集群操作。启动横幅须含「switch check 3.0 record only; shadow scoring true」与「M7 enabled:      true」。
@@ -51,14 +53,18 @@ CMD="${1:-}"; shift || true
 RUNS=a,b
 START=2022-03-01
 END=2022-05-01
+RESUME=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --runs) RUNS="$2"; shift 2 ;;
         --start) START="$2"; shift 2 ;;
         --end) END="$2"; shift 2 ;;
+        --resume) RESUME="$2"; shift 2 ;;
         *) echo "ERROR: 未知参数 $1" >&2; exit 2 ;;
     esac
 done
+[ -z "$RESUME" ] || [ "$RESUME" = a ] || { echo "ERROR: --resume 只能是 a" >&2; exit 2; }
+RESARG=""; [ -n "$RESUME" ] && RESARG="--resume $RESUME"
 [[ "$RUNS" =~ ^(a,b|a|b)$ ]] || { echo "ERROR: --runs 只能是 a,b、a 或 b" >&2; exit 2; }
 [[ "$START" =~ ^2022-[0-9]{2}-[0-9]{2}$ && "$END" =~ ^2022-[0-9]{2}-[0-9]{2}$ ]] || { echo "ERROR: --start、--end 须为 2022-MM-DD" >&2; exit 2; }
 
@@ -71,7 +77,7 @@ case "$CMD" in
         if [ "$ON_MASTER" = 1 ]; then
             alive && { echo "ERROR: 已有编排在运行（PID $(cat "$PIDF")）。" >&2; exit 3; }
             mkdir -p "$DIR"
-            nohup bash "$SCRIPT_DIR/$(basename "$0")" run --runs "$RUNS" --start "$START" --end "$END" >> "$LOG" 2>&1 &
+            nohup bash "$SCRIPT_DIR/$(basename "$0")" run --runs "$RUNS" --start "$START" --end "$END" $RESARG >> "$LOG" 2>&1 &
             echo $! > "$PIDF"
             exit 0
         fi
@@ -95,7 +101,7 @@ case "$CMD" in
         N0=$(ssh fa-master "cat $RREPO/$PROGRESS 2>/dev/null | wc -l" | tr -d ' ')
         NEW="tail -n +$((N0 + 1)) $RREPO/$PROGRESS 2>/dev/null"
         echo "[m6b-full] 3/4 在 master 上启动 tmux 会话 $TSESSION ……"
-        ssh fa-master "cd $RREPO && tmux new-session -d -s $TSESSION 'SYN_STEPC_ON_MASTER=1 bash deploy/scripts/syn-m6b-full.sh start --runs $RUNS --start $START --end $END; sleep 5; while [ -f $DIR/verify.pid ] && kill -0 \$(cat $DIR/verify.pid) 2>/dev/null; do sleep 30; done'" \
+        ssh fa-master "cd $RREPO && tmux new-session -d -s $TSESSION 'SYN_STEPC_ON_MASTER=1 bash deploy/scripts/syn-m6b-full.sh start --runs $RUNS --start $START --end $END $RESARG; sleep 5; while [ -f $DIR/verify.pid ] && kill -0 \$(cat $DIR/verify.pid) 2>/dev/null; do sleep 30; done'" \
             || { echo "ERROR: tmux 会话创建失败（见上方报错）。" >&2; exit 1; }
         echo "[m6b-full] 4/4 等待第一行进度……"
         for _ in $(seq 1 12); do
@@ -152,7 +158,7 @@ case "$CMD" in
     run)
         ;;
     *)
-        echo "用法 / usage: $0 start [--runs a,b|a|b] [--start 2022-MM-DD --end 2022-MM-DD] | status | fetch | stop" >&2
+        echo "用法 / usage: $0 start [--runs a,b|a|b] [--resume a] [--start 2022-MM-DD --end 2022-MM-DD] | status | fetch | stop" >&2
         exit 2 ;;
 esac
 [ "$CMD" = run ] || exit 0
@@ -282,6 +288,15 @@ run_one() {
     grep -E '"windowEnd":-3[,}]' "$MON" > "$R/m5a_records.jsonl" 2>/dev/null || true
     grep -F '"m3ShadowAbove"' "$MON" > "$R/shadow.jsonl" 2>/dev/null || true
     grep -E '"m3SwitchCheckRatio"|"m3Level1Failed"|"m3Retraining"' "$MON" > "$R/m3_markers.jsonl" 2>/dev/null || true
+    finish_one
+}
+
+# 收集的后半段：从监测快照的规范化摘要起。--resume a 时只做这一段（作业已结束，Kafka 主题与 $RH/m3march 仍在）。
+# Second half of the collection, from the monitoring digest on; --resume a runs only this part.
+finish_one() {
+    local R="$DIR/$RUN"; local W="$WORKM/$RUN"; local MON="$RH/m3march/monitoring.jsonl"
+    [ -s "$MON" ] && [ -s "$R/scores.jsonl" ] && [ -s "$R/adapt.jsonl" ] \
+        || fail "续做所需的文件不全（$MON、$R/scores.jsonl 或 $R/adapt.jsonl）"
     python3 m6b/full_check.py --normalize-monitoring "$MON" > "$R/monitoring_norm.sha" 2>"$R/monitoring_norm.err" \
         || fail "监测快照的规范化摘要失败（见 $R/monitoring_norm.err）"
     : > "$R/tm_log.txt"
@@ -309,8 +324,13 @@ run_one() {
     prog "== 运行 $RUN 完成 =="
 }
 
-prog "== 编排开始：运行 ${RUNS}，$START 至 ${END}，倍速 ${SPEED}，有限重启三次 =="
-[[ ",$RUNS," == *",a,"* ]] && run_one a
+prog "== 编排开始：运行 ${RUNS}，$START 至 ${END}，倍速 ${SPEED}，有限重启三次${RESUME:+；运行 a 从收集的后半段续做} =="
+if [ "$RESUME" = a ]; then
+    source "$DIR/a/run.env"    # RUN、SINCE、JID
+    finish_one
+elif [[ ",$RUNS," == *",a,"* ]]; then
+    run_one a
+fi
 [ -s "$DIR/a/scores.jsonl" ] || fail "没有运行 a 的结果（缺 $DIR/a/scores.jsonl），请用 start 跑全部两次"
 [[ ",$RUNS," == *",b,"* ]] && run_one b
 bash "$SCRIPT_DIR/syn-reset-env.sh" --yes > "$DIR/reset_final.log" 2>&1

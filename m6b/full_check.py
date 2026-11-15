@@ -46,13 +46,16 @@ import statistics
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(HERE, "m7"))
 import compare_logs as CL      # noqa: E402
 
-ZONE = ZoneInfo("Europe/London")
+try:   # 规范化摘要在 master 上运行，那里的 python3 可能没有 zoneinfo；只有核对与报告需要时区 / only the report needs it
+    from zoneinfo import ZoneInfo
+    ZONE = ZoneInfo("Europe/London")
+except Exception:   # noqa: BLE001
+    ZONE = None
 WALL = ("m3BufferRounds",)
 PROC_TIME = (-1, -2)
 DEVICES = list("ABCDEFGH")
@@ -101,6 +104,8 @@ def table(head, body):
 
 
 def normalize_monitoring(path):
+    # 每行规范化后只保留 32 字节摘要再排序，内存约为每行一百字节；master 运行时只剩约 2 GB 可用内存。
+    # Keep only a 32-byte digest per normalized line, then sort: about 100 bytes per line in memory.
     h = []
     with open(path, encoding="utf-8") as fh:
         for l in fh:
@@ -108,13 +113,13 @@ def normalize_monitoring(path):
                 x = json.loads(l)
             except json.JSONDecodeError:
                 continue
-            if x.get("windowEnd") in PROC_TIME:
+            if not isinstance(x, dict) or x.get("windowEnd") in PROC_TIME:
                 continue
             for k in WALL:
                 x.pop(k, None)
-            h.append(json.dumps(x, sort_keys=True))
+            h.append(hashlib.sha256(json.dumps(x, sort_keys=True).encode("utf-8")).digest())
     h.sort()
-    print("%d %s" % (len(h), hashlib.sha256("\n".join(h).encode("utf-8")).hexdigest()))
+    print("%d %s" % (len(h), hashlib.sha256(b"".join(h)).hexdigest()))
     return 0
 
 
@@ -133,6 +138,9 @@ def main() -> int:
     a = ap.parse_args()
     if a.normalize_monitoring:
         return normalize_monitoring(a.normalize_monitoring)
+    if ZONE is None:
+        print("ERROR: 这里的 python3 没有 zoneinfo 或 Europe/London 时区数据；请 fetch 后在本地运行核对。", file=sys.stderr)
+        return 2
     runs = [r for r in ("a", "b") if os.path.isdir(os.path.join(a.dir, r))]
     results, out = [], []
 
