@@ -58,6 +58,7 @@ REPORT_NAME="m2_replay_verify.csv"
 BOUNDARY_SLACK_SEC=120
 SINCE=""
 COVERAGE_SLACK_SEC=3600
+LEVEL2_DAYS=16
 ADAPT=0
 while [[ $# -gt 0 ]]; do
     if [ "$1" = "--adapt" ]; then ADAPT=1; shift; continue; fi
@@ -67,6 +68,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --since) SINCE="$2"; shift 2 ;;
         --coverage-slack-sec) COVERAGE_SLACK_SEC="$2"; shift 2 ;;
+        --level2-days) LEVEL2_DAYS="$2"; shift 2 ;;
         --max-messages) MAX_MESSAGES="$2"; shift 2 ;;
         --start-utc) START_UTC="$2"; shift 2 ;;
         --end-utc) END_UTC="$2"; shift 2 ;;
@@ -248,10 +250,34 @@ print('' if not r else int(sum(float(x['value'][1]) for x in r)))")"
     # 监测主题里还有 M1 快照（windowEnd 为 0）与上下文通道快照（m2WindowPoints 为 0），只认点通道快照。
     POINT_LAST="$(last_out "${SYN_TOPIC_MONITORING:-synergia-monitoring}" '"m2WindowPoints":[1-9]')"
     CTX_LAST="$(last_out "${SYN_TOPIC_SCORES:-synergia-scores}" '"m3_context"')"
-    COV="$(python3 - "$LOCAL_REPORT" "$COVERAGE_SLACK_SEC" "$POINT_LAST" "$CTX_LAST" <<'PY'
-import csv, sys
+
+    # 二级重建期豁免（1.47 版裁决第二节）：命令回路打开时取二级命令；对收到二级的设备，再取它们的上下文评分、性能层事件与
+    # 上线事件，判断到时段末尾是否仍在二级收集期、生效之后是否确实静默。设备少、行数少，过滤后取回本地处理。
+    # Level-2 rebuild exemption (ruling 1.47 §2): take level-2 commands, then those devices' contextual scores,
+    # performance-layer events and online events, filtered on master and processed locally.
+    grep_topic() {   # $1 = 主题，$2 = 只保留匹配此扩展正则的行；条数上限取各分区末端偏移之和
+        local cap
+        cap="$(on_master "docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell \
+            --broker-list $BROKERS --topic $1 --time -1" 2>/dev/null | awk -F: '{s+=$3} END{print s+0}')"
+        [ "${cap:-0}" -gt 0 ] || return 0
+        on_master "docker exec kafka-1 kafka-console-consumer.sh --bootstrap-server $BROKERS --topic $1 \
+            --from-beginning --max-messages $cap --timeout-ms 60000 2>/dev/null | grep -E '$2'"
+    }
+    L2TMP="$(mktemp -d)"
+    : > "$L2TMP/cmd"; : > "$L2TMP/ctx"; : > "$L2TMP/perf"; : > "$L2TMP/on"
+    if [ "$ADAPT" -eq 1 ]; then
+        grep_topic "${SYN_TOPIC_ADAPT:-synergia-adapt}" '"level":2[,}]' > "$L2TMP/cmd"
+        DEVRE="$(python3 -c 'import json,sys; print("|".join(sorted({json.loads(l)["device"] for l in open(sys.argv[1]) if l.strip()})))' "$L2TMP/cmd")"
+        if [ -n "$DEVRE" ]; then
+            grep_topic "${SYN_TOPIC_SCORES:-synergia-scores}" '"m3_context"' | grep -E "\"device\":\"($DEVRE)\"" > "$L2TMP/ctx"
+            grep_topic "${SYN_TOPIC_DRIFT:-synergia-drift}" '"layer":"performance"' | grep -E "\"device\":\"($DEVRE)\"" > "$L2TMP/perf"
+            grep_topic "${SYN_TOPIC_MONITORING:-synergia-monitoring}" '"m3ModelEvent":"online"' | grep -E "\"device\":\"($DEVRE)\"" > "$L2TMP/on"
+        fi
+    fi
+    COV="$(python3 - "$LOCAL_REPORT" "$COVERAGE_SLACK_SEC" "$POINT_LAST" "$CTX_LAST" "$L2TMP" "$LEVEL2_DAYS" <<'PY'
+import csv, json, os, sys
 from datetime import datetime, timezone
-report, slack, point, ctx = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+report, slack, point, ctx, l2dir, l2days = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4], sys.argv[5], int(sys.argv[6])
 parse = lambda s: {l.split()[0]: int(l.split()[1]) for l in s.splitlines() if len(l.split()) == 2}
 P, C = parse(point), parse(ctx)
 try:
@@ -259,8 +285,25 @@ try:
 except Exception:
     print("NOREPORT"); sys.exit(0)
 iso = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%m-%d %H:%M") if t else "无输出"
+rows = lambda f: [json.loads(l) for l in open(os.path.join(l2dir, f)) if l.strip()]
+eff = {}
+for c in rows("cmd"):
+    if c.get("level") == 2:
+        eff[c["device"]] = max(eff.get(c["device"], 0), int(c["effectiveAt"]))
+ctxr, perfr, onr = rows("ctx"), rows("perf"), rows("on")
 bad = 0
 for d in sorted(last):
+    e = eff.get(d)
+    if e is not None and e <= last[d] and not any(int(x["ts"]) > e for x in onr if x["device"] == d):
+        # 到时段末尾仍在二级收集期：豁免覆盖要求，检查静默 / still in the level-2 collection at the end: exempt, check silence
+        nc = sum(1 for x in ctxr if x["device"] == d and int(x["windowEnd"]) > e)
+        npf = sum(1 for x in perfr if x["device"] == d and int(x["ts"]) > e)
+        ok = nc == 0 and npf == 0
+        bad += 0 if ok else 1
+        print("  %s 二级收集期豁免：二级生效 %s；预计上线 %s（生效加 %d 天）；上下文通道实际最后输出 %s；生效后上下文评分 %d 条、"
+              "性能层事件 %d 条 —— %s" % (d, iso(e), iso(e + l2days * 86400), l2days, iso(C.get(d, 0)), nc, npf,
+                                       "静默成立" if ok else "静默不成立  ← 不通过"))
+        continue
     lp, lc = P.get(d, 0), C.get(d, 0)
     gp, gc = last[d] - lp, last[d] - lc
     ok = lp and lc and gp <= slack and gc <= slack
@@ -277,13 +320,14 @@ PY
     else
         NBAD="$(printf '%s\n' "$COV" | awk '/^BAD /{print $2}')"
         if [ "${NBAD:-1}" -eq 0 ]; then
-            echo "[断言七 覆盖末尾] PASS —— 八台设备两个通道的最晚输出都在最后一轮之前 ${COVERAGE_SLACK_SEC} 秒以内。"
+            echo "[断言七 覆盖末尾] PASS —— 两个通道的最晚输出都在最后一轮之前 ${COVERAGE_SLACK_SEC} 秒以内；处在二级收集期的设备豁免并确认静默（1.47 版第二节）。"
         else
             echo "[断言七 覆盖末尾] FAIL —— ${NBAD} 台设备至少一个通道没有覆盖到末尾（容差 ${COVERAGE_SLACK_SEC} 秒）。"
             VERIFY_RC=1
         fi
         printf '%s\n' "$COV" | grep -v '^BAD '
     fi
+    rm -rf "$L2TMP"
 
     # 断言八：迟到命令为零（命令回路打开的运行）/ assertion 8: zero late commands when the loop is on
     if [ "$ADAPT" -eq 1 ]; then
