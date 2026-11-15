@@ -30,6 +30,8 @@
 #      bash deploy/scripts/syn-replay.sh logs       # 持续跟踪日志（Ctrl+C 只停跟踪，不停重放）
 #      bash deploy/scripts/syn-replay.sh stop       # 停止重放（停容器 + 杀 tmux 会话）
 #      bash deploy/scripts/syn-replay.sh fg --dry-run   # 前台阻塞运行（供快速 dry-run；断连即止）
+#    重放器默认按下游水位线限速（1.47 版裁决第一节）：聚合算子 M7-Decision 落后标准化算子 RobustScaler 超过 12 小时事件时间
+#    即暂停发送；--replay-max-skew-sec 0 关闭（只用于限速开关对照），--flink-rest 改 REST 地址（默认 http://localhost:8081）。
 # 3. 前置条件 / Preconditions: M1Job 已 RUNNING（先提交作业再重放）；synergia-source 已建（8 分区）；
 #    数据集在 ${SYN_DATASET_DIR}；Java 11 镜像 ${FLINK_IMAGE_TAG} 已在 master（由 syn-sync-flink-image.sh 分发）。
 # 4. 期望产出 / Expected output: 消息落 synergia-source（显式分区）；进度与空闲压缩审计日志同时

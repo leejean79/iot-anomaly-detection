@@ -70,6 +70,11 @@ public class CsvKafkaReplayer {
         double speedup = params.getDouble("speedup", 1.0);
         long maxIdleWallMs = params.getLong("max-idle-wall", 2000L);
         int numPartitions = params.getInt("num-partitions", 8);
+        // 按下游水位线限速（1.47 版裁决第一节）：聚合算子与标准化算子的水位线差超过阈值时暂停发送；0 关闭。
+        // Throttle by downstream watermark skew (ruling 1.47 §1): pause while M7 lags the scaler by more than the limit.
+        long maxSkewSec = params.getLong("replay-max-skew-sec", 43_200L);
+        String flinkRest = params.get("flink-rest", "http://localhost:8081");
+        long skewPollMs = params.getLong("skew-poll-ms", 5_000L);
         // 裸标志（--dry-run / --resume，无值）ParameterTool.getBoolean 会解析成 false，故用 flag() 判定存在性。
         // Valueless flags (--dry-run / --resume) parse to false under getBoolean; use flag() for presence.
         boolean dryRun = flag(params, "dry-run");
@@ -104,6 +109,9 @@ public class CsvKafkaReplayer {
         System.out.println("Brokers:       " + brokers);
         System.out.println("Speedup k:     " + speedup);
         System.out.println("Max idle wall: " + maxIdleWallMs + " ms");
+        System.out.println("Max skew:      " + (maxSkewSec > 0 && !dryRun
+                ? maxSkewSec + " s (M7-Decision vs RobustScaler watermark, " + flinkRest + ", every " + skewPollMs + " ms)"
+                : "OFF"));
         System.out.println("Partitions:    " + numPartitions + " (explicit A->0..H->7)");
         System.out.println("Segment:       [" + (startSec == Long.MIN_VALUE ? "-inf" : startSec)
                 + ", " + (endSec == Long.MAX_VALUE ? "+inf" : endSec) + "] (epoch seconds)");
@@ -129,6 +137,7 @@ public class CsvKafkaReplayer {
                 : new KafkaSink(brokers, topic, numPartitions);
 
         Pacer pacer = new Pacer(speedup, maxIdleWallMs, dryRun);
+        SkewThrottle throttle = (maxSkewSec > 0 && !dryRun) ? new SkewThrottle(flinkRest, maxSkewSec, skewPollMs) : null;
 
         try {
             GlobalMerger merger = new GlobalMerger(CARRY_OVER_SEC, row -> {
@@ -137,6 +146,9 @@ public class CsvKafkaReplayer {
                 }
                 if (resume && !afterResume(row, resumeState)) {
                     return;   // 断点续跑：跳过已发送 / resume: skip already-sent
+                }
+                if (throttle != null && throttle.await(row.ts)) {
+                    pacer.rebaseline(row.ts);   // 暂停之后从当前墙钟重新起算，不追赶 / restart pacing after a pause, no catch-up
                 }
                 pacer.pace(row.ts);
                 int partition = DevicePartition.partitionFor(row.device, numPartitions);
@@ -189,6 +201,10 @@ public class CsvKafkaReplayer {
         System.out.println("Unknown-device records:    " + stats.unknownDevice);
         System.out.println("Idle-compression events:   " + pacer.compressionEvents);
         System.out.println("Total compressed wall:     " + pacer.totalCompressedMs + " ms");
+        if (throttle != null) {
+            System.out.println("Skew pauses:               " + throttle.pauses + " (total " + throttle.pausedMs / 1000L
+                    + " s wall, max skew seen " + throttle.maxSkewSeenSec + " s, poll errors " + throttle.pollErrors + ")");
+        }
         if (injector != null) {
             System.out.println("Injection applied:         " + injector.getApplied()
                     + " modifications (" + injSpecs.size() + " spec(s))");
@@ -476,6 +492,139 @@ public class CsvKafkaReplayer {
      * sleep only maxIdleWall and rebaseline (idle compression); the event timestamp is never modified.
      * Idleness is judged on the merged global stream.
      */
+    /**
+     * 按下游水位线限速（1.47 版裁决第一节）：每隔 pollMs 经 Flink REST 读取正在运行的 M2Job 中标准化算子（顶点名含 RobustScaler）
+     * 与聚合算子（顶点名含 M7-Decision）各子任务的当前输入水位线，各取最小值；两者之差超过 maxSkewSec 时暂停发送，每隔 pollMs
+     * 复读一次，回落到阈值以下再继续。读不到作业、顶点或水位线（作业未启动、聚合算子未打开、水位线尚未建立）时不限速。限速只改变
+     * 发送节奏，不改变任何记录的事件时间。
+     * Pause sending while the M7-Decision watermark lags the RobustScaler watermark by more than maxSkewSec.
+     */
+    static final class SkewThrottle {
+        private final String rest;
+        private final long maxSkewSec;
+        private final long pollMs;
+        private final com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+        private long lastPoll;
+        private String jid;
+        private String stdVid;
+        private String aggVid;
+        long pauses;
+        long pausedMs;
+        long maxSkewSeenSec;
+        long pollErrors;
+
+        SkewThrottle(String rest, long maxSkewSec, long pollMs) {
+            this.rest = rest.endsWith("/") ? rest.substring(0, rest.length() - 1) : rest;
+            this.maxSkewSec = maxSkewSec;
+            this.pollMs = Math.max(200L, pollMs);
+        }
+
+        /** 发送本条之前调用；需要暂停时阻塞到偏差回落，返回是否暂停过 / call before sending; blocks while skewed. */
+        boolean await(long eventTsSec) {
+            long now = System.currentTimeMillis();
+            if (now - lastPoll < pollMs) {
+                return false;
+            }
+            lastPoll = now;
+            long skew = skewSec();
+            if (skew <= maxSkewSec) {
+                return false;
+            }
+            long t0 = System.currentTimeMillis();
+            pauses++;
+            System.out.println("[skew-pause] at eventTs=" + eventTsSec + " skewSec=" + skew + " limitSec=" + maxSkewSec);
+            while (skew > maxSkewSec) {
+                try {
+                    Thread.sleep(pollMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                skew = skewSec();
+            }
+            long waited = System.currentTimeMillis() - t0;
+            pausedMs += waited;
+            lastPoll = System.currentTimeMillis();
+            System.out.println("[skew-resume] at eventTs=" + eventTsSec + " pausedWallMs=" + waited + " skewSec=" + skew);
+            return true;
+        }
+
+        /** 标准化算子水位线减聚合算子水位线（秒）；任何一项读不到时为 0 / scaler minus M7 watermark, 0 when unknown. */
+        long skewSec() {
+            try {
+                if (jid == null || stdVid == null || aggVid == null || !running(jid)) {
+                    resolve();
+                    if (jid == null || stdVid == null || aggVid == null) {
+                        return 0L;
+                    }
+                }
+                long std = minWatermark(stdVid);
+                long agg = minWatermark(aggVid);
+                if (std <= 0 || agg <= 0) {
+                    return 0L;                 // 水位线尚未建立（Long.MIN_VALUE）/ watermark not yet established
+                }
+                long skew = Math.max(0L, (std - agg) / 1000L);
+                maxSkewSeenSec = Math.max(maxSkewSeenSec, skew);
+                return skew;
+            } catch (Exception e) {
+                pollErrors++;
+                jid = null;
+                return 0L;
+            }
+        }
+
+        private boolean running(String id) throws IOException {
+            com.fasterxml.jackson.databind.JsonNode j = get("/jobs/" + id);
+            return "RUNNING".equals(j.path("state").asText());
+        }
+
+        private void resolve() throws IOException {
+            jid = null;
+            stdVid = null;
+            aggVid = null;
+            for (com.fasterxml.jackson.databind.JsonNode job : get("/jobs/overview").path("jobs")) {
+                if ("RUNNING".equals(job.path("state").asText()) && job.path("name").asText().contains("M2Job")) {
+                    jid = job.path("jid").asText();
+                }
+            }
+            if (jid == null) {
+                return;
+            }
+            for (com.fasterxml.jackson.databind.JsonNode v : get("/jobs/" + jid).path("vertices")) {
+                String name = v.path("name").asText();
+                if (name.contains("RobustScaler")) {
+                    stdVid = v.path("id").asText();
+                }
+                if (name.contains("M7-Decision")) {
+                    aggVid = v.path("id").asText();
+                }
+            }
+        }
+
+        private long minWatermark(String vid) throws IOException {
+            long min = Long.MAX_VALUE;
+            boolean any = false;
+            for (com.fasterxml.jackson.databind.JsonNode w : get("/jobs/" + jid + "/vertices/" + vid + "/watermarks")) {
+                if (w.path("id").asText().endsWith("currentInputWatermark")) {
+                    min = Math.min(min, Long.parseLong(w.path("value").asText()));
+                    any = true;
+                }
+            }
+            return any ? min : Long.MIN_VALUE;
+        }
+
+        private com.fasterxml.jackson.databind.JsonNode get(String path) throws IOException {
+            java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(rest + path).openConnection();
+            c.setConnectTimeout(3000);
+            c.setReadTimeout(5000);
+            try (java.io.InputStream in = c.getInputStream()) {
+                return om.readTree(in);
+            } finally {
+                c.disconnect();
+            }
+        }
+    }
+
     static final class Pacer {
         private final double speedup;
         private final long maxIdleWallMs;
@@ -491,6 +640,14 @@ public class CsvKafkaReplayer {
             this.speedup = speedup <= 0 ? 1.0 : speedup;
             this.maxIdleWallMs = maxIdleWallMs;
             this.dryRun = dryRun;
+        }
+
+        /** 限速暂停之后：以当前墙钟与本条事件时间为新基线 / after a throttle pause: new baseline at now and this record. */
+        void rebaseline(long eventTsSec) {
+            if (started) {
+                wallBaselineMs = now();
+                eventBaselineSec = eventTsSec;
+            }
         }
 
         void pace(long eventTsSec) {
