@@ -2,7 +2,7 @@
 # ============================================================================
 # m6b/full_check.py
 # 适应执行第二批 V-M6b-4（全量重放）的核对与报告表格（交接文档第七节；1.43、1.44、1.45 版裁决）。读 deploy/scripts/syn-m6b-full.sh
-# 收集的两次运行（a、b）与链式离线对照（docs/m6b/chain/D7K_up，D7K 打开升级格、在第一条一级或二级命令的决定时刻停止），给出：
+# 收集的两次运行（a、b）与链式离线对照（docs/m6b/chain/D7K_up_s，D7K 打开升级格、在第一条一级或二级命令的决定时刻停止），给出：
 #   一、断言八条：每次运行的重放完整性核验（syn-replay-verify.sh --adapt）退出码为零，作业重启次数为零；
 #   二、等值第一段：在链式离线的停止时刻（第一条一级或二级命令的决定时刻）之前，聚合模块三份日志（自 03-08 起）与链式离线逐条相同，
 #       点通道到达滑动步的离群轮集合相同，数据层日记录的离散字段（可判、原因、偏离、读数数、版本）逐条相同、连续字段报最大相对差
@@ -27,7 +27,7 @@
 # ---------------------------- 脚本交付五要素 -------------------------------
 # 1. 执行环境 / Environment: 集群 master（由编排调用）或本地 Mac，仓库根目录，python3.9+（只用标准库）。
 # 2. 调用命令 / Invocation:
-#      python3 m6b/full_check.py --dir docs/m6b/full --chain docs/m6b/chain/D7K_up        # 核对与报告表格
+#      python3 m6b/full_check.py --dir docs/m6b/full --chain docs/m6b/chain/D7K_up_s        # 核对与报告表格
 #      python3 m6b/full_check.py --normalize-monitoring <monitoring.jsonl>                  # 打印「行数 摘要」
 # 3. 前置条件 / Preconditions: --dir 下 a/、b/ 为编排收集的运行目录（scores.jsonl、drift.jsonl、alerts.jsonl、adapt.jsonl、
 #    m5a_records.jsonl、shadow.jsonl、m3_markers.jsonl、m1out.sha、monitoring_norm.sha、tm_log.txt、online/、replay_verify.rc、
@@ -133,7 +133,7 @@ def csv_rows(path):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default="docs/m6b/full")
-    ap.add_argument("--chain", default="docs/m6b/chain/D7K_up")
+    ap.add_argument("--chain", default="docs/m6b/chain/D7K_up_s")
     ap.add_argument("--normalize-monitoring")
     a = ap.parse_args()
     if a.normalize_monitoring:

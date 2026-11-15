@@ -278,7 +278,7 @@ class M3RetrainLevelsTest {
         assertEquals(eff, ev.get(1).getTs());
         assertEquals(Integer.valueOf(1), ev.get(2).getM3ModelGen());
         long firstNew = r.scores.stream().filter(x -> x.getWindowEnd() >= eff).mapToLong(M3ScoreRecord::getWindowEnd).min().getAsLong();
-        assertTrue(ev.get(2).getTs() <= firstNew);
+        assertEquals(firstNew, ev.get(2).getTs(), "上线事件在新模型的第一条评分上发出");
     }
 
     private static List<MonitoringSnapshot> events(Run r) {

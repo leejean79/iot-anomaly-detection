@@ -6,7 +6,7 @@
 # 默认七天窗口、湿度与气压不随零级重估；一级默认生效后三天冷启动，切换前验证只记录；设备 E 的注入段保留。配置相同的两次在线运行
 # （a、b），每次跑完收集评分、漂移事件、告警与命令主题、数据层日记录、影子评分快照、m1-out 摘要、监测快照的规范化摘要、TaskManager
 # 日志与性能指标，并做重放完整性八条断言。两次都跑完后由 m6b/full_check.py 核对：断言八条；等值第一段（第一条一级或二级命令的决定
-# 时刻之前，与链式离线 D7K 打开升级格的一档 docs/m6b/chain/D7K_up 逐条相同）；等值第二段（两次在线运行逐位相同，排除按处理时间
+# 时刻之前，与链式离线 D7K 打开升级格的一档 docs/m6b/chain/D7K_up_s 逐条相同）；等值第二段（两次在线运行逐位相同，排除按处理时间
 # 产生的三类诊断量）；影子评分表；时延表；性能表。全部步骤在 master 的 tmux 会话里无人值守地执行，提交之后本地 Mac 可以关机。
 # Full replays for V-M6b-4: two identical runs with every module, the loop, M7 upgrade cells and shadow scoring on.
 #
@@ -86,7 +86,7 @@ case "$CMD" in
             || { echo "ERROR: master 还不能登录三台机器，先执行：bash deploy/scripts/syn-m3-a4-stepc.sh setup-master" >&2; exit 2; }
         remote_alive && { echo "ERROR: master 上已有编排在运行。先 status 查看，或 stop 中止。" >&2; exit 3; }
         # 只复制受版本管理的 deploy/、m5a/、m5b/、m7/ 文件，加上 .env 与注入规格 / tracked files only, plus .env and the spec
-        FILES=$(git ls-files deploy m5a m5b m6a m6b m7 docs/m6b/chain/D7K_up; echo deploy/.env; echo "$SPEC"; echo docs/m3_marapr_eda_rounds.csv)
+        FILES=$(git ls-files deploy m5a m5b m6a m6b m7 docs/m6b/chain/D7K_up_s; echo deploy/.env; echo "$SPEC"; echo docs/m3_marapr_eda_rounds.csv)
         echo "[m6b-full] 2/4 复制 $(echo "$FILES" | wc -l | tr -d ' ') 个文件到 master 的 $RREPO ……"
         ssh fa-master "mkdir -p $RREPO && rm -rf $RREPO/deploy $RREPO/m5a $RREPO/m5b $RREPO/m6a $RREPO/m6b $RREPO/m7"   # docs/ 保留，里面可能有上一次运行的结果
         # shellcheck disable=SC2086
@@ -95,7 +95,7 @@ case "$CMD" in
                 echo 'NODE_MASTER_PUBLIC_IP=$NODE_MASTER_IP' >> deploy/.env && \
                 echo 'SYN_EXTRA_TOPICS=\"$TOPICS_M7\"' >> deploy/.env" \
             || { echo "ERROR: 复制到 master 失败（见上方 tar 或 ssh 的报错）。" >&2; exit 1; }
-        ssh fa-master "test -f $RREPO/deploy/scripts/syn-m6b-full.sh && test -f $RREPO/$SPEC && test -f $RREPO/m6b/full_check.py && test -f $RREPO/docs/m6b/chain/D7K_up/stopped_at.txt" \
+        ssh fa-master "test -f $RREPO/deploy/scripts/syn-m6b-full.sh && test -f $RREPO/$SPEC && test -f $RREPO/m6b/full_check.py && test -f $RREPO/docs/m6b/chain/D7K_up_s/stopped_at.txt" \
             || { echo "ERROR: master 上的仓库副本不完整，请把 ssh fa-master 'find $RREPO -maxdepth 3 | head -50' 的输出发给我。" >&2; exit 1; }
         # 进度文件是追加的，只看本次启动之后新写的行 / progress is appended; look only at lines written by this start
         N0=$(ssh fa-master "cat $RREPO/$PROGRESS 2>/dev/null | wc -l" | tr -d ' ')
@@ -243,6 +243,8 @@ run_one() {
     grep -q 'Adapt (M6a):     true' "$R/submit.log" || fail "启动横幅里命令回路不是打开状态（见 $R/submit.log）"
     grep -q 'keep=\[false, true, true, false, false\]' "$R/submit.log" || fail "启动横幅里湿度与气压不是不重估（jar 可能是旧的，见 $R/submit.log）"
     grep -q 'M7 enabled:      true' "$R/submit.log" || fail "启动横幅里聚合算子不是打开状态（见 $R/submit.log）"
+    grep -q 'M7 model state:  events from the context module' "$R/submit.log" \
+        || fail "启动横幅里没有模型状态事件（1.47 版第三节；jar 可能是旧的，见 $R/submit.log）"
     grep -q 'M3 level 1:      3 days, cold start, window after the effective time; day 86400 s; switch check 3.0 record only; shadow scoring true' \
         "$R/submit.log" || fail "启动横幅里一级参数或影子评分不对（jar 可能是旧的，见 $R/submit.log）"
     bash "$SCRIPT_DIR/syn-m3-watch.sh" stop --out-dir /tmp/m6bfwatch_leftover >/dev/null 2>&1
@@ -256,6 +258,9 @@ run_one() {
         sleep 60
     done
     ssh fa-master "tmux has-session -t syn-replay 2>/dev/null" && fail "重放 15 小时仍未结束"
+    # 重放器按下游水位线限速（1.47 版第一节）：记下阈值与暂停次数 / record the throttle limit and pauses
+    prog "重放器限速：$(grep -E '^Max skew:|^Skew pauses:' "$RH/syn-replay.log" 2>/dev/null | tail -n 2 | tr -s ' ' | tr '\n' ' ')"
+    grep -q '^Max skew:      43200 s' "$RH/syn-replay.log" 2>/dev/null || prog "警告：重放器日志里没有找到 43,200 秒的限速阈值（jar 可能是旧的）"
     for _ in $(seq 1 120); do
         [ "$(drained_devices)" -ge 8 ] && break
         job_alive || fail "作业在排空期间停止（原因见 $R/jm_failure.log）"
@@ -334,7 +339,7 @@ fi
 [ -s "$DIR/a/scores.jsonl" ] || fail "没有运行 a 的结果（缺 $DIR/a/scores.jsonl），请用 start 跑全部两次"
 [[ ",$RUNS," == *",b,"* ]] && run_one b
 bash "$SCRIPT_DIR/syn-reset-env.sh" --yes > "$DIR/reset_final.log" 2>&1
-python3 m6b/full_check.py --dir "$DIR" --chain docs/m6b/chain/D7K_up > "$DIR/check.txt" 2>&1
+python3 m6b/full_check.py --dir "$DIR" --chain docs/m6b/chain/D7K_up_s > "$DIR/check.txt" 2>&1
 RC=$?
 prog "核对：$(grep -c '^\[通过\]' "$DIR/check.txt") 项通过，$(grep -c '^\[失败\]' "$DIR/check.txt") 项失败（见 $DIR/full_report_tables.md）"
 rm -f "$PIDF"

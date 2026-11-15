@@ -203,7 +203,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     private transient ValueState<Integer> modelGen;             // 模型代数，一级切换与二级完成各加一 / model generation
     private transient ValueState<Boolean> level2;               // 二级重训的收集与训练期间 / during a level-2 retrain
     private transient ValueState<Long> collectCount;            // 收集态已收的轮数（二级时归零）/ rounds collected so far
-    private transient ValueState<Long> collectEndTs;            // 三段收齐那一窗的窗口末（上线事件的时刻）/ window end completing the segments
+    private transient ValueState<Boolean> onlinePending;        // 上线事件待发：在新模型的第一条评分上发出 / online event at the first score
 
     private transient M3TrainExecutor executor;
     /** 本子任务各分键的缓冲头时间戳（毫秒），供 M3Operator 计算输出水位线；只在任务线程上读写。 */
@@ -382,7 +382,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         modelGen = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-model-gen", Types.INT));
         level2 = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-level2", Types.BOOLEAN));
         collectCount = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-collect-count", Types.LONG));
-        collectEndTs = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-collect-end-ts", Types.LONG));
+        onlinePending = getRuntimeContext().getState(new ValueStateDescriptor<>("m3-online-pending", Types.BOOLEAN));
         if (shadowScoring && m3MonitoringTag == null) {
             LOG.warn("[M3] Shadow scoring is on but the monitoring side output is off: shadow scores are not recorded");
         }
@@ -661,7 +661,6 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         // 三段数据齐备 → 把训练提交给训练执行器（补遗四）/ all three segments collected → submit training
         if (count >= trainRounds + esRounds + thRounds) {
             deviceName.update(device);
-            collectEndTs.update(round.getWindowEnd());
             submitTraining(ctx.getCurrentKey(), device, ctx);
             ctx.timerService().registerProcessingTimeTimer(
                     ctx.timerService().currentProcessingTime() + pollIntervalSec * 1000L);
@@ -798,13 +797,14 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         threshMasks.clear();
 
         statePhase.update(3);                          // 进入 ONLINE 相位 / enter ONLINE phase
-        // 模型状态事件（1.47 版第三节、1.48 版第二项）：一级切换完成的时刻为训练集止点（切换按事件时间定义，提交时刻加零）；
-        // 冷启动与二级完成的上线时刻为三段收齐那一窗的窗口末。/ Switch at the span end; online at the collection end.
-        int genNow = modelGen.value() == null ? 0 : modelGen.value();
+        // 模型状态事件（1.47 版第三节、1.48 版第二项）：一级切换完成的时刻为训练集止点（切换按事件时间定义，提交时刻加零）。
+        // 冷启动与二级完成的上线事件在新模型的第一条评分上发出，时刻为该窗的窗口末，与链式驱动「评分流的首条时间」同一时刻。
+        // Switch at the span end; the online event goes out with the new model's first score, at its window end.
         if (wasRetrain) {
-            emitModelEvent(ctx, doneSpan == null ? 0L : doneSpan[1], device, "switch", genNow);
+            emitModelEvent(ctx, doneSpan == null ? 0L : doneSpan[1], device, "switch",
+                    modelGen.value() == null ? 0 : modelGen.value());
         } else {
-            emitModelEvent(ctx, collectEndTs.value() == null ? 0L : collectEndTs.value(), device, "online", genNow);
+            onlinePending.update(true);
         }
         Integer pending = pendingSize.value();
         LOG.info("[M3] Device {} result collected on the task thread (queue wait {}s, training+calibration {}s); "
@@ -1147,6 +1147,10 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         // 选项一：输出版本号为训练版本；回路关闭时仍为轮上的版本（空）/ option 1: the training version; null when the loop is off
         rec.setVersion(tv != null ? tv : round.getVersion());
         rec.setModel(modelGen.value());                // 一级或二级之后的模型代数 / model generation after level 1/2
+        if (Boolean.TRUE.equals(onlinePending.value())) {
+            onlinePending.clear();
+            emitModelEvent(ctx, round.getWindowEnd(), device, "online", modelGen.value() == null ? 0 : modelGen.value());
+        }
         out.collect(rec);
 
         onlineCount.inc();
@@ -1225,6 +1229,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
             history.clear();
             endRetrain();
             level2.update(true);
+            onlinePending.clear();
             emitModelEvent(ctx, cmd.effectiveAt, device, "offline", modelGen.value() == null ? 0 : modelGen.value());
             LOG.info("[M3] Device {} level 2 (seq {}, effective {}): back to COLLECTING; context output and the "
                      + "performance layer are silent until the new model is online", device, cmd.seq, cmd.effectiveAt);
