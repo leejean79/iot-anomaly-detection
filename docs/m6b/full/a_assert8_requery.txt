@@ -1,0 +1,10 @@
+范围 84640 秒
+== m6_late_watermark（各子任务最大值之和）==
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1794709591.910,"6"]}]}}
+== m6_late_processed（各子任务最大值之和）==
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1794709592.064,"0"]}]}}
+== 原查询（预期返回 same labelset 报错）==
+{"status":"error","errorType":"execution","error":"vector cannot contain metrics with the same labelset"}
+
+== 编排日志里的 Killed ==
+10:/opt/fa-iforest/m6bfull/repo/deploy/scripts/syn-m6b-full.sh: line 216: 740080 Killed                  python3 m6b/full_check.py --normalize-monitoring "$MON" > "$R/monitoring_norm.sha" 2> "$R/monitoring_norm.err"
