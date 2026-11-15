@@ -228,10 +228,18 @@ print('' if not r else int(sum(float(x['value'][1]) for x in r)))")"
     fi
 
     # 每台设备两个通道的最晚输出时刻，在 master 上边读边取最大值，不落大文件。
-    # Latest output per device and channel, reduced on master while streaming (no large files).
+    # 条数上限取各分区末端偏移之和：作业仍在运行时，性能层每台每 60 秒写一条处理时间快照，监测主题永远等不到
+    # 60 秒的空闲，不设上限就读不完（全量重放运行 a 在此卡住 12 小时，2026-11-15）。
+    # Latest output per device and channel, reduced on master while streaming (no large files). Capped at
+    # the end-offset sum: while the job runs, M5b writes a processing-time snapshot per device every 60 s,
+    # so the monitoring topic never goes idle for the 60 s timeout.
     last_out() {   # $1 = 主题，$2 = 只保留匹配此扩展正则的行
+        local cap
+        cap="$(on_master "docker exec kafka-1 kafka-run-class.sh kafka.tools.GetOffsetShell \
+            --broker-list $BROKERS --topic $1 --time -1" 2>/dev/null | awk -F: '{s+=$3} END{print s+0}')"
+        [ "${cap:-0}" -gt 0 ] || return 0
         on_master "docker exec kafka-1 kafka-console-consumer.sh --bootstrap-server $BROKERS --topic $1 \
-            --from-beginning --timeout-ms 60000 2>/dev/null | grep -E '$2' | awk '
+            --from-beginning --max-messages $cap --timeout-ms 60000 2>/dev/null | grep -E '$2' | awk '
             { if (match(\$0, /\"device\":\"[^\"]*\"/)) d = substr(\$0, RSTART + 10, RLENGTH - 11); else next
               if (match(\$0, /\"windowEnd\":[0-9]+/)) w = substr(\$0, RSTART + 12, RLENGTH - 12) + 0; else next
               if (w > 0 && w > m[d]) m[d] = w }
