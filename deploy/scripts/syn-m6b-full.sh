@@ -243,12 +243,19 @@ run_one() {
     RUN="$1"; local R="$DIR/$RUN"; local W="$WORKM/$RUN"; JID=""
     rm -rf "$R" "$W"; mkdir -p "$R" "$W"
     prog "== 运行 $RUN 开始：$START 至 ${END}，倍速 ${SPEED}，$( [ "$PROOF" = 1 ] && echo "限速对照（命令回路关闭；限速$( [ "$RUN" = a ] && echo 打开 || echo 关闭)）" || echo "全部模块、命令回路、聚合模块、升级格与影子评分打开") =="
-    LOW=$(disk_ok) || fail "磁盘可用空间不足 22 GB：$LOW（见 docs/cluster_disk_cleanup_zh.md）"
     # JobManager 进程内存不少于 3,072 MB（第一次全量重放 JobManager 堆耗尽，2026-11-14 用户确认提高）/ JM memory check
     JMMEM=$(ssh fa-master "docker exec jobmanager grep -E '^jobmanager.memory.process.size' /opt/flink/conf/flink-conf.yaml | tail -1" 2>/dev/null \
         | sed -E 's/.*: *([0-9]+)m.*/\1/')
     [ "${JMMEM:-0}" -ge 3072 ] 2>/dev/null || fail "JobManager 进程内存为 ${JMMEM:-读不到} MB，不足 3,072 MB（先按运行手册提高 JM_HEAP_MB 并重建 jobmanager 容器）"
     bash "$SCRIPT_DIR/syn-reset-env.sh" --yes > "$R/reset.log" 2>&1 || fail "复位未通过（见 $R/reset.log）"
+    # 磁盘门槛放在复位之后判：上一次运行留在 Kafka 主题里的数据要复位删掉主题才释放，Kafka 删除日志段是异步的，最多等五分钟
+    # （运行 a 结束时 master 为 21 GB，复位之前判会误停，2026-11-16）/ judge the disk gate after the reset, waiting up to 5 min
+    LOW=""
+    for _ in $(seq 1 10); do
+        if LOW=$(disk_ok); then LOW=""; break; fi
+        sleep 30
+    done
+    [ -z "$LOW" ] || fail "复位之后磁盘可用空间仍不足 22 GB：$LOW（见 docs/cluster_disk_cleanup_zh.md）"
     bash "$SCRIPT_DIR/syn-create-topics.sh" > "$R/topics.log" 2>&1 || fail "创建 topic 失败（见 $R/topics.log）"
     grep -q 'synergia-adapt' "$R/topics.log" && grep -q 'synergia-alerts' "$R/topics.log" \
         || fail "topic 清单里缺少 synergia-adapt 或 synergia-alerts（见 $R/topics.log）"
