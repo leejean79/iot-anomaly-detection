@@ -304,26 +304,64 @@ class FleetDecisionUpgradeCellsTest {
             perf(f, "B", at("2022-03-04", 6), at("2022-03-06", 6));       // 完成前的段 / before completion
             perf(f, "B", at("2022-03-07", 12), -1);                       // 完成后半天的新确认段 / after completion
         };
-        // 有完成事件：第二段在完成之前（03-05 决定），此时还没有冷却，照常发一级（上下文模块会因重训进行中而忽略它，见实现说明）；
-        // 第三段在完成后的观察窗内为二级 / with the switch event: no cooldown before completion; the third segment is level 2
+        // 有完成事件：第二段在完成之前（03-05 决定），一级重训进行中，被抑制（只有性能层，只记录）；第三段在完成后的观察窗内为二级
+        // With the switch event: the second segment is suppressed while retraining; the third is level 2 (ruling 1.49).
+        List<FleetDecisionFunction.Review> rc = new ArrayList<>();
         List<FleetDecisionFunction.Command> c = run(p, 12, f -> {
             base.accept(f);
             f.addModelEvent("B", switchAt, "switch");
-        }, null, new ArrayList<>(), true);
-        assertEquals(3, c.size(), descC(c));
+        }, null, rc, true);
+        assertEquals(2, c.size(), descC(c));
         assertEquals(1, c.get(0).level);
-        assertEquals("2022-03-05", c.get(1).day);
-        assertEquals(1, c.get(1).level);
-        assertEquals("2022-03-08", c.get(2).day);
-        assertEquals(2, c.get(2).level);
-        // 没有完成事件（例如那条一级没有执行）：不开观察窗，第三段不是二级而是一级 / without the event: no window
+        assertEquals("2022-03-08", c.get(1).day);
+        assertEquals(2, c.get(1).level);
+        assertTrue(rc.stream().anyMatch(r -> r.device.equals("B") && r.day.equals("2022-03-05")
+                && r.kind.equals("一级被抑制：重训进行中") && r.detail.endsWith("只记录")), desc(rc));
+        // 没有完成事件：重训一直在进行中，第二、三段都被抑制；不开观察窗 / no event: still retraining, both suppressed
         List<FleetDecisionFunction.Command> d = run(p, 12, base, null, new ArrayList<>(), true);
-        assertEquals(3, d.size(), descC(d));
-        assertEquals(1, d.get(2).level);
+        assertEquals(1, d.size(), descC(d));
+        // 一级失败事件解除重训进行中：第三段照常发一级（没有完成事件，不是二级）/ a failed event releases the pending state
+        List<FleetDecisionFunction.Command> fl = run(p, 12, f -> {
+            base.accept(f);
+            f.addModelEvent("B", switchAt, "failed");
+        }, null, new ArrayList<>(), true);
+        assertEquals(2, fl.size(), descC(fl));
+        assertEquals("2022-03-08", fl.get(1).day);
+        assertEquals(1, fl.get(1).level);
+        // 生效后超过 K_fail（十四天）仍无事件：视为失败解除并记 REPORT，此后照常发一级 / released after K_fail with a REPORT
+        List<FleetDecisionFunction.Review> rk = new ArrayList<>();
+        List<FleetDecisionFunction.Command> k = run(p, 20, f -> {
+            dataDays(f, 20, (kk, v) -> { });
+            for (String dv : DEVS) {
+                f.addModelEvent(dv, FleetDecisionFunction.dayStart(FIRST), "online");
+            }
+            perf(f, "B", at(FIRST, 20), at("2022-03-03", 6));
+            perf(f, "B", at("2022-03-07", 12), -1);
+        }, null, rk, true);
+        assertEquals(2, k.size(), descC(k));
+        assertEquals("2022-03-18", k.get(1).day);                        // 03-04 生效加十四天之后的第一个日界 / first boundary after
+        assertEquals(1, rk.stream().filter(r -> r.kind.equals("REPORT：一级重训超时视为失败")).count(), desc(rk));
+        // 二级的冷却从新模型的上线事件起算七个当地日 / the level-2 cooldown starts at the new model's online event
+        FleetDecisionFunction[] ref = new FleetDecisionFunction[1];
+        long online = FleetDecisionFunction.dayStart("2022-03-20");
+        Consumer<FleetDecisionFunction> l2 = f -> {
+            ref[0] = f;
+            base.accept(f);
+            f.addModelEvent("B", switchAt, "switch");
+            f.addModelEvent("B", FleetDecisionFunction.dayStart("2022-03-10"), "offline");
+            f.addModelEvent("B", online, "online");
+        };
+        run(p, 12, l2, null, new ArrayList<>(), true);
+        assertNull(ref[0].cooldown2Of("B"), "新模型上线之前没有二级冷却");
+        run(p, 22, f -> {
+            l2.accept(f);
+            dataDays(f, 22, (kk, v) -> { });
+        }, null, new ArrayList<>(), true);
+        assertEquals(Long.valueOf(FleetDecisionFunction.addLocalDays(online, 7)), ref[0].cooldown2Of("B"));
         // 完成事件之后的冷却：完成后七个当地日内的新一级被挡住 / the cooldown after the switch blocks a new level 1
         // 确认段开始于完成之前（不是二级），持续跨过日界本应是一级，被完成后的冷却（到 03-09）挡住 / blocked by the cooldown
         Consumer<FleetDecisionFunction> h = f -> {
-            dataDays(f, 9, (k, v) -> { });
+            dataDays(f, 9, (kk, v) -> { });
             for (String dv : DEVS) {
                 f.addModelEvent(dv, FleetDecisionFunction.dayStart(FIRST), "online");
             }

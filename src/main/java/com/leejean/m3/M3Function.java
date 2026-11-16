@@ -559,6 +559,10 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                     snap.setM3Level1Failed(true);
                     ctx.output(m3MonitoringTag, snap);
                 }
+                // 模型状态事件「一级失败」：聚合模块据此解除「重训进行中」（1.49 版裁决第一处空档）/ releases M7's pending state
+                long[] fspan = retrainSpan.value();
+                emitModelEvent(ctx, fspan == null ? 0L : fspan[1], device, "failed",
+                        modelGen.value() == null ? 0 : modelGen.value());
                 endRetrain();
                 statePhase.update(3);
             } else {
@@ -843,6 +847,8 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
         if (reject && switchCheckEnforce) {
             LOG.warn("[M3] Device {} REPORT: level-1 switch rejected by the pre-switch check; the old model keeps serving",
                      device);
+            emitModelEvent(ctx, span == null ? 0L : span[1], device, "failed",
+                    modelGen.value() == null ? 0 : modelGen.value());
             endRetrain();
             trainWindows.clear();
             trainMasks.clear();

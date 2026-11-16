@@ -228,6 +228,10 @@ class M3RetrainLevelsTest {
         assertEquals(1, marks, "一级失败只标一次");
         MonitoringSnapshot m = r.snaps.stream().filter(s -> Boolean.TRUE.equals(s.getM3Level1Failed())).findFirst().get();
         assertEquals(eff, m.getTs(), "时间戳为训练集范围的止点（生效前侧即生效时刻）");
+        // 模型状态事件「一级失败」，聚合模块据此解除重训进行中（1.49 版第一处空档）/ the failed event for M7
+        List<MonitoringSnapshot> ev = events(r);
+        assertEquals("online,failed", names(ev));
+        assertEquals(eff, ev.get(1).getTs());
         for (M3ScoreRecord s : r.scores) {
             assertNull(s.getModel(), "旧模型继续服务");
         }

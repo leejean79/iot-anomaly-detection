@@ -512,6 +512,7 @@ public class CsvKafkaReplayer {
         long pausedMs;
         long maxSkewSeenSec;
         long pollErrors;
+        private int consecutiveErrors;
 
         SkewThrottle(String rest, long maxSkewSec, long pollMs) {
             this.rest = rest.endsWith("/") ? rest.substring(0, rest.length() - 1) : rest;
@@ -563,12 +564,18 @@ public class CsvKafkaReplayer {
                 if (std <= 0 || agg <= 0) {
                     return 0L;                 // 水位线尚未建立（Long.MIN_VALUE）/ watermark not yet established
                 }
+                consecutiveErrors = 0;
                 long skew = Math.max(0L, (std - agg) / 1000L);
                 maxSkewSeenSec = Math.max(maxSkewSeenSec, skew);
                 return skew;
             } catch (Exception e) {
                 pollErrors++;
                 jid = null;
+                // 连续读取失败超过十二次（一分钟）时警告一次（1.49 版裁决第一条）/ warn after twelve consecutive failures
+                if (++consecutiveErrors == 13) {
+                    System.out.println("[skew-warn] " + (consecutiveErrors - 1) + " consecutive watermark reads failed (" + rest
+                            + "): " + e + "; not throttling until reads succeed");
+                }
                 return 0L;
             }
         }

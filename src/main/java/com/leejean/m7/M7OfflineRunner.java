@@ -77,6 +77,7 @@ public final class M7OfflineRunner {
         p.upgradeCells = Boolean.parseBoolean(a.getOrDefault("upgrade-cells", "false"));
         p.kUpDays = Integer.parseInt(a.getOrDefault("k-up-days", "7"));
         p.upCooldownDays = Integer.parseInt(a.getOrDefault("up-cooldown-days", "7"));
+        p.kFailDays = Integer.parseInt(a.getOrDefault("k-fail-days", "14"));   // 1.49 版第一处空档 / K_fail
         p.retrainDays = Integer.parseInt(a.getOrDefault("retrain-days", "3"));
         p.retrainAfter = !"before".equals(a.getOrDefault("retrain-side", "after"));
         p.level2Days = Integer.parseInt(a.getOrDefault("level2-days", "16"));
