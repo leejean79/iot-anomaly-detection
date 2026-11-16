@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.join(HERE, "m6a"))
 import compare as CMP      # noqa: E402
 import reestimate as RE    # noqa: E402
 
-DAYS = {"D1": 1, "D7": 7, "pos": 7, "D7K": 7}
+DAYS = {"D1": 1, "D7": 7, "pos": 7, "D7K": 7, "D7K_up_s": 7}
 
 
 def python_result(rows, frz, t_freeze, eff, seq, d_days, position_only, keep=()):

@@ -78,6 +78,9 @@ public final class M7OfflineRunner {
         p.kUpDays = Integer.parseInt(a.getOrDefault("k-up-days", "7"));
         p.upCooldownDays = Integer.parseInt(a.getOrDefault("up-cooldown-days", "7"));
         p.kFailDays = Integer.parseInt(a.getOrDefault("k-fail-days", "14"));   // 1.49 版第一处空档 / K_fail
+        // 模型状态取自 inputs 下的 model_events.csv（device,ts,event），与在线作业的规则相同；默认以上下文评分的首条时刻为上线时刻
+        // Model state from model_events.csv (online-job rules); by default online = first contextual score.
+        p.modelEvents = Boolean.parseBoolean(a.getOrDefault("model-events", "false"));
         p.retrainDays = Integer.parseInt(a.getOrDefault("retrain-days", "3"));
         p.retrainAfter = !"before".equals(a.getOrDefault("retrain-side", "after"));
         p.level2Days = Integer.parseInt(a.getOrDefault("level2-days", "16"));
@@ -132,6 +135,11 @@ public final class M7OfflineRunner {
         }
         for (Map<String, String> r : read(in.resolve("perf_elements.csv"))) {
             f.addPerfElement(r.get("device"), Long.parseLong(r.get("ts")), Double.parseDouble(r.get("main_score")));
+        }
+        if (p.modelEvents) {
+            for (Map<String, String> r : read(in.resolve("model_events.csv"))) {
+                f.addModelEvent(r.get("device"), Long.parseLong(r.get("ts")), r.get("event"));
+            }
         }
         for (Map<String, String> r : read(in.resolve("bursts.csv"))) {
             f.addBurst(r.get("device"), Long.parseLong(r.get("ts")), Long.parseLong(r.get("emitted_at")));
@@ -245,12 +253,18 @@ public final class M7OfflineRunner {
     }
 
     public static void writeCommands(List<FleetDecisionFunction.Command> commands, Path path) throws IOException {
+        // 升级格打开时（命令带决定依据）多写一列 cell；关闭时与收口基线逐字节相同 / a cell column only with the upgrade cells
+        boolean cells = false;
+        for (FleetDecisionFunction.Command c : commands) {
+            cells |= c.cell != null;
+        }
         try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(path, StandardCharsets.UTF_8))) {
-            w.print(COMMAND_HEADER + "\n");
+            w.print(COMMAND_HEADER + (cells ? ",cell" : "") + "\n");
             for (FleetDecisionFunction.Command c : commands) {
                 w.print(String.join(",", c.device, c.day, Long.toString(c.decidedAt), Long.toString(c.effectiveAt),
                         Integer.toString(c.seq), Integer.toString(c.level), c.scope, c.label, c.triggers, c.forms,
-                        Integer.toString(c.co), c.coDevices, Integer.toString(c.episodeN)) + "\n");
+                        Integer.toString(c.co), c.coDevices, Integer.toString(c.episodeN))
+                        + (cells ? "," + (c.cell == null ? "" : c.cell) : "") + "\n");
             }
         }
     }

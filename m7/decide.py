@@ -14,6 +14,12 @@
 #      不在未结束段中的类才发命令；
 #   d. 复核只用发出时刻不晚于日节拍触发时刻（日界后六十秒）的爆发，与在线一致；
 #   e. 决策节拍短于一天时，日内节拍的在场设备按前一日的可判设备计（当日数据层结论要到日界才有）。
+#   g. （1.41、1.44、1.47 至 1.49 版裁决）决策矩阵升级格（--upgrade-cells，默认关闭）：二级、只有性能层持续、两层同报、零级之后
+#      K_up 天内同一通道新持续段四个升级格与零级；各级冷却只挡同级；模型不在线时不发一级与二级（写复核，含数据层通道时改发零级）。
+#      模型状态默认以上下文评分的首条时刻为上线时刻（链式驱动的规则），一级完成按命令推算；--model-events 时读 model_events.csv
+#      （online、offline、switch、failed），按在线作业的规则：一级冷却与二级观察窗以切换完成事件起算，已发出未完成为重训进行中
+#      （期间抑制，完成或失败事件解除，超过 K_fail 天视为失败并记 REPORT），二级冷却以新模型的上线事件起算。与 Java
+#      FleetDecisionFunction 逐条相同。
 #   f. （M6b 决定十四）数据层日结论按参数版本过滤：hours.csv 与 data_days.csv 可带 version 列（没有或为空时为一）；某台的当前版本
 #      取它最近一个有读数的小时的版本；与当前版本不同的日结论（偏离、转移、可判）一律视为不存在；版本变化时该台数据层通道的
 #      「同一段偏离」与漂移状态随之结束，性能层的段不受影响。
@@ -75,6 +81,14 @@ class Params:
         self.wait_sec = kw.get("wait_sec", 0)                # 等待时长 W；0 表示一个日界 / 0 means one day boundary
         self.cmd_sec = kw.get("cmd_sec", 0)                  # 决策节拍 τ_cmd；0 表示一个当地日 / 0 means one local day
         self.layers = kw.get("layers", ("data", "perf", "detect"))
+        self.upgrade_cells = kw.get("upgrade_cells", False)
+        self.k_up_days = kw.get("k_up_days", 7)
+        self.up_cooldown_days = kw.get("up_cooldown_days", 7)
+        self.retrain_days = kw.get("retrain_days", 3)
+        self.retrain_after = kw.get("retrain_after", True)
+        self.level2_days = kw.get("level2_days", 16)
+        self.model_events = kw.get("model_events", False)
+        self.k_fail_days = kw.get("k_fail_days", 14)
         self.first_day = kw.get("first_day", "2022-03-08")
         self.last_day = kw.get("last_day", "2022-04-30")
 
@@ -155,6 +169,11 @@ class Inputs:
             self.bursts[r["device"]].append((int(r["ts"]), int(r["emitted_at"])))
         self.refs = {(r["device"], r["channel"]): (float(r["p10"]), float(r["p90"])) for r in read(os.path.join(d, "refs.csv"))}
         self.freeze = {r["device"]: int(r["freeze_ts"]) for r in read(os.path.join(d, "freeze.csv"))}
+        self.model_events = collections.defaultdict(list)          # 可选 / optional
+        me = os.path.join(d, "model_events.csv")
+        if os.path.exists(me):
+            for r in read(me):
+                self.model_events[r["device"]].append((int(r["ts"]), r["event"]))
 
 
 def derive_p_point(inp, p):
@@ -228,6 +247,13 @@ def run(inp, p):
     base = {}                                      # (dev, ch, 钟点) → (和, 数) / baseline sums
     base_ready = {}
     drift = {}                                     # dev → dict(scope, triggers, since)
+    # 升级格与模型状态（1.41、1.47 至 1.49 版）/ upgrade cells and model state
+    U = dict(cd1={}, cd2={}, l1done={}, l0eff={}, pending={}, l2eff={},
+             first_ctx={d: min(t for t, _ in inp.perf_elements[d]) for d in devs if inp.perf_elements.get(d)},
+             online={d: sorted((t, e == "online") for t, e in inp.model_events.get(d, []) if e in ("online", "offline"))
+                     for d in devs},
+             switch={d: sorted(t for t, e in inp.model_events.get(d, []) if e == "switch") for d in devs},
+             failed={d: sorted(t for t, e in inp.model_events.get(d, []) if e == "failed") for d in devs})
     episode = {}                                   # dev → {触发类: 第几次命令} / per trigger class
     cooldown_until = {}
     seq = collections.Counter()
@@ -366,10 +392,11 @@ def run(inp, p):
             # 日内决策节拍（τ_cmd 短于一天时）/ intra-day decision ticks
             if p.cmd_sec and he < local_day_start(next_day(day)) and (he - local_day_start(day)) % p.cmd_sec == 0:
                 daily_tick(day, he, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, is_ev,
-                           boundary=False)
+                           boundary=False, review=review, U=U)
         # ---------------- 日节拍：日界 t = 次日零点 / daily tick at the boundary
         t = local_day_start(next_day(day))
-        daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, is_ev)
+        daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, is_ev,
+                   review=review, U=U)
         # ---------------- 日界复核 / daily review
         for dev in devs:
             if (dev, day) in inp.evaluable and not inp.evaluable[(dev, day)]:
@@ -404,8 +431,51 @@ def site_condition(dev, hod, day, x, flag_hist, base, inp, p, freeze_day):
     return False
 
 
+def model_online(U, p, dev, t):
+    """时刻 t 上下文模型是否在线 / whether the contextual model is online at t."""
+    if p.model_events:
+        st = None
+        for ts, on in U["online"].get(dev, []):
+            if ts <= t:
+                st = on
+        return bool(st)
+    f = U["first_ctx"].get(dev)
+    return f is not None and f <= t
+
+
+def first_at_or_after(xs, lo):
+    for x in xs:
+        if x >= lo:
+            return x
+    return None
+
+
+def cell_of(dev, day, triggers, forms, pf, U, p, data_dev):
+    """决策矩阵的格，按次序先命中者为准（与 Java FleetDecisionFunction.cell 相同）/ the decision-matrix cell."""
+    perf_trig = "perf" in triggers
+    data = [tr for tr in triggers if tr != "perf"]
+    done = U["l1done"].get(dev)
+    if perf_trig and done is not None and pf.since is not None and done <= pf.since < add_local_days(done, p.k_up_days):
+        return "二级：一级之后 K_up 天内性能层新确认段"
+    if perf_trig and not data:
+        return "一级：只有性能层持续"
+    if any(f.endswith("两层同日同报") for f in forms) or (perf_trig and data):
+        return "一级：两层同报"
+    for ch in data:
+        e0 = U["l0eff"].get((dev, ch))
+        if e0 is None:
+            continue
+        first, floor = day, local_of(e0)[0]
+        while first > floor and data_dev(dev, add_days(first, -1), ch):
+            first = add_days(first, -1)
+        start = local_day_start(first)
+        if e0 <= start < add_local_days(e0, p.k_up_days):
+            return "一级：零级之后 K_up 天内同一通道新持续段"
+    return "零级：只有数据层持续"
+
+
 def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, commands, data_dev, is_ev,
-               boundary=True):
+               boundary=True, review=None, U=None):
     """时刻 t 的决策节拍；boundary 为真时是当地日 day 结束的日界节拍。数据层规则只在日界判定，性能层规则每个节拍判定。
     Decision tick at t; data rules only at the day boundary, the perf rule at every tick."""
     prev = add_days(day, -1)
@@ -451,6 +521,30 @@ def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, 
                 del episode[dev][tr]
             if not episode[dev]:
                 del episode[dev]
+    if p.upgrade_cells and p.model_events:
+        # 一级冷却与二级观察窗以切换完成事件起算；重训进行中的解除与 K_fail 保险；二级冷却以新模型的上线事件起算
+        for dev in devs:
+            sw = [x for x in U["switch"].get(dev, []) if x <= t]
+            if sw:
+                U["l1done"][dev] = sw[-1]
+                U["cd1"][dev] = add_local_days(sw[-1], p.up_cooldown_days)
+            pd = U["pending"].get(dev)
+            if pd is not None:
+                a = first_at_or_after(U["switch"].get(dev, []), pd[0])
+                b = first_at_or_after(U["failed"].get(dev, []), pd[0])
+                ended = (a is not None and a <= t) or (b is not None and b <= t)
+                if not ended and t > pd[0] + p.k_fail_days * 86400:
+                    review.append(dict(device=dev, day=day, kind="REPORT：一级重训超时视为失败", hour_start=t,
+                                       detail="seq %d，生效 %d，超过 %d 天既无完成事件也无失败事件" % (pd[1], pd[0], p.k_fail_days)))
+                    ended = True
+                if ended:
+                    del U["pending"][dev]
+            e2 = U["l2eff"].get(dev)
+            if e2 is not None and t > e2:
+                for ts, on in U["online"].get(dev, []):
+                    if e2 < ts <= t and on:
+                        U["cd2"][dev] = add_local_days(ts, p.up_cooldown_days)
+                        break
     for dev in devs:
         s = st[dev]
         triggers, forms = [], []
@@ -471,7 +565,21 @@ def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, 
             drift[dev]["triggers"] += [tr for tr in triggers if tr not in drift[dev]["triggers"]]
         else:
             drift[dev] = dict(scope=scope, triggers=list(triggers), since=t)
-        if cooldown_until.get(dev, 0) > t:
+        cell = cell_of(dev, day, triggers, forms, perf[dev], U, p, data_dev) if p.upgrade_cells else None
+        level = 0 if cell is None else (2 if cell.startswith("二级") else 1 if cell.startswith("一级") else 0)
+        offline = level > 0 and not model_online(U, p, dev, t)
+        pending = level > 0 and not offline and p.model_events and dev in U["pending"]
+        if offline or pending:
+            why = "模型不在线" if offline else "重训进行中"
+            has_data = any(tr != "perf" for tr in triggers)
+            review.append(dict(device=dev, day=day, kind="%s被抑制：%s" % ("一级" if level == 1 else "二级", why),
+                               hour_start=t, detail=cell + ("；改发零级" if has_data else "；只记录")))
+            if not has_data:
+                continue
+            cell = "零级：%s被抑制（%s）" % ("一级" if level == 1 else "二级", why)
+            level = 0
+        cd = cooldown_until if level == 0 else U["cd1"] if level == 1 else U["cd2"]
+        if cd.get(dev, 0) > t:
             continue
         ep = episode.get(dev, {})
         fresh = [tr for tr in triggers if tr not in ep]
@@ -487,10 +595,28 @@ def daily_tick(day, t, inp, p, devs, perf, drift, episode, cooldown_until, seq, 
             eff = t + p.delta_sec
         else:
             eff = add_local_days(t, 1) if p.cmd_sec == 0 else t + p.cmd_sec
-        cooldown_until[dev] = add_local_days(eff, 1)
-        commands.append(dict(device=dev, decided_at=t, effective_at=eff, seq=seq[dev], level=0, scope=scope,
+        if level == 0:
+            cooldown_until[dev] = add_local_days(eff, 1)
+            if p.upgrade_cells:
+                for tr in triggers:
+                    if tr != "perf":
+                        U["l0eff"][(dev, tr)] = eff
+        else:
+            done = eff + (p.retrain_days * 86400 if p.retrain_after else 0) if level == 1 else eff + p.level2_days * 86400
+            if p.model_events:
+                if level == 1:
+                    U["pending"][dev] = (eff, seq[dev])
+                else:
+                    U["l2eff"][dev] = eff
+                    U["pending"].pop(dev, None)
+            elif level == 1:
+                U["l1done"][dev] = done
+                U["cd1"][dev] = add_local_days(done, p.up_cooldown_days)
+            else:
+                U["cd2"][dev] = add_local_days(done, p.up_cooldown_days)
+        commands.append(dict(device=dev, decided_at=t, effective_at=eff, seq=seq[dev], level=level, scope=scope,
                              label=DRIFT, triggers="|".join(triggers), forms="；".join(forms), co=len(co),
-                             co_devices="|".join(co), episode_n=max(ep[tr] for tr in inc), day=day))
+                             co_devices="|".join(co), episode_n=max(ep[tr] for tr in inc), day=day, cell=cell))
 
 
 # ---------------------------------------------------------------- 输出 / output
@@ -530,6 +656,14 @@ def main() -> int:
     ap.add_argument("--wait-sec", type=int, default=0)
     ap.add_argument("--cmd-sec", type=int, default=0)
     ap.add_argument("--p-ctx", type=float, default=0.5)
+    ap.add_argument("--upgrade-cells", default="false")
+    ap.add_argument("--k-up-days", type=int, default=7)
+    ap.add_argument("--up-cooldown-days", type=int, default=7)
+    ap.add_argument("--retrain-days", type=int, default=3)
+    ap.add_argument("--retrain-side", default="after")
+    ap.add_argument("--level2-days", type=int, default=16)
+    ap.add_argument("--model-events", default="false")
+    ap.add_argument("--k-fail-days", type=int, default=14)
     a = ap.parse_args()
     need = ["hours.csv", "perf_events.csv", "perf_elements.csv", "data_days.csv", "bursts.csv", "refs.csv", "freeze.csv"]
     miss = [f for f in need if not os.path.exists(os.path.join(a.inputs, f))]
@@ -539,13 +673,17 @@ def main() -> int:
     num, den = (int(x) for x in a.common_ratio.split("/"))
     p = Params(once_per_episode=not a.no_once, layers=tuple(a.layers.split(",")), common_ratio_num=num,
                common_ratio_den=den, k_site=a.k_site, delta_sec=a.delta_sec,
-               wait_sec=a.wait_sec, cmd_sec=a.cmd_sec, p_ctx=a.p_ctx)
+               wait_sec=a.wait_sec, cmd_sec=a.cmd_sec, p_ctx=a.p_ctx,
+               upgrade_cells=a.upgrade_cells == "true", k_up_days=a.k_up_days, up_cooldown_days=a.up_cooldown_days,
+               retrain_days=a.retrain_days, retrain_after=a.retrain_side != "before", level2_days=a.level2_days,
+               model_events=a.model_events == "true", k_fail_days=a.k_fail_days)
     inp = Inputs(a.inputs)
     p.p_point = a.p_point if a.p_point is not None else derive_p_point(inp, Params())
     alerts, commands, review = run(inp, p)
     os.makedirs(a.out_dir, exist_ok=True)
     write(os.path.join(a.out_dir, "alerts.csv"), alerts, ALERT_COLS)
-    write(os.path.join(a.out_dir, "commands.csv"), commands, COMMAND_COLS)
+    write(os.path.join(a.out_dir, "commands.csv"), commands,
+          COMMAND_COLS + (["cell"] if any(c["cell"] is not None for c in commands) else []))
     write(os.path.join(a.out_dir, "review.csv"), review, REVIEW_COLS)
     with open(os.path.join(a.out_dir, "params.json"), "w", encoding="utf-8") as fh:
         json.dump(vars(p), fh, ensure_ascii=False, indent=1, default=list)
