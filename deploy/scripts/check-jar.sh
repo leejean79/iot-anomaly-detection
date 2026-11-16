@@ -114,7 +114,7 @@ checks=(
     "com/leejean/m7/FleetDecisionFunction.class|性能层确认段因模型切换而结束|性能层跟踪随模型代数清空（1.44 版）"
     "com/leejean/m2/M2Job.class|checkpoint-min-pause-ms|检查点最短间隔（第一次全量重放 JobManager 堆耗尽之后加）"
     "com/leejean/source/CsvKafkaReplayer.class|replay-max-skew-sec|重放器按下游水位线限速（1.47 版第一节）"
-    "com/leejean/m7/FleetDecisionFunction.class|被抑制：模型不在线|模型不在线时不发一级与二级（1.47 版第三节）"
+    "com/leejean/m7/FleetDecisionFunction.class|模型不在线|模型不在线时不发一级与二级（1.47 版第三节）"
     "com/leejean/m7/FleetDecisionFunction.class|重训进行中|一级重训进行中时抑制、K_fail 保险（1.49 版）"
     "com/leejean/m3/M3Function.class|model event|上下文模块的模型状态事件（1.47 版第三节、1.48 版第二项）"
 )
