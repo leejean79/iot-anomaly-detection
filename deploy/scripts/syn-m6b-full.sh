@@ -19,9 +19,9 @@
 #      bash deploy/scripts/syn-m6b-full.sh fetch          # 跑完后取回到本地 docs/m6b/full/
 #      bash deploy/scripts/syn-m6b-full.sh stop           # 中止：停重放、取消本项目作业、结束采样
 #    可选 --runs a,b|a|b（默认 a,b；只跑 b 时沿用 master 上已有的 a 的结果）。
-#    可选 --proof：限速开关对照（1.47 版裁决第一节第 2 条），默认 2022-03-01 至 03-27（含冷启动的集中训练），运行 a 限速打开、运行 b
-#    关闭，命令回路关闭；结果在 docs/m6b/throttle/（throttle_report.md），master 上的会话为 syn-m6b-throttle。status、fetch、stop
-#    同样加 --proof。合计约 9 至 10 小时。
+#    可选 --proof：限速开关对照（1.47 版裁决第一节第 2 条），默认 2022-03-01 至 04-03（含冷启动的集中训练，末尾留一周余量），运行 a
+#    限速打开、运行 b 关闭，命令回路关闭；结果在 docs/m6b/throttle/（throttle_report.md），master 上的会话为 syn-m6b-throttle。
+#    status、fetch、stop 同样加 --proof。合计约 11 至 12 小时。
 #    可选 --resume a：运行 a 的重放与收集前半段已完成、在「监测快照的规范化摘要」或其后失败时，只从这一步续做运行 a，
 #    再照 --runs 接着跑 b 与核对；不复位、不重放，要求 master 上 a/run.env、a/scores.jsonl、a/adapt.jsonl 与 m3march/monitoring.jsonl 仍在。
 # 3. 前置条件 / Preconditions: 已按 syn-m3-a4-stepc.sh setup-master 做过 master 的准备；新 jar 已上传（syn-upload-m1.sh --jar-only），
@@ -76,7 +76,10 @@ RESARG=""; [ -n "$RESUME" ] && RESARG="--resume $RESUME"
 # Throttle on/off proof: run a throttled, run b not; the command loop is off; separate directory, session and copy.
 if [ "$PROOF" = 1 ]; then
     RESARG="$RESARG --proof"
-    [ "$END_SET" = 1 ] || END=2022-03-27
+    # 时段末尾不能还有设备在冷启动训练：数据发完一分钟后整条管道被判为空闲，聚合模块会越过仍在保持水位线的上下文模块
+    # （第一次对照的运行 b 即如此，2026-11-17）。冷启动在 03-24 至 03-26 完成，取到 04-03 留出一周余量。
+    # The window must not end while a cold start is still training (an idle pipeline lets M7 overtake the held channel).
+    [ "$END_SET" = 1 ] || END=2022-04-03
     DIR=docs/m6b/throttle
     PROGRESS=$DIR/progress.txt
     LOG=$DIR/verify.log
