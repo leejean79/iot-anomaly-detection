@@ -1,0 +1,921 @@
+2026-11-16 07:47:37,541 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Training executor started: 2 thread(s) in this TaskManager, OMP_NUM_THREADS=1
+2026-11-16 07:47:41,753 INFO  com.leejean.m5.M5bFunction                                   [] - [M5b] tables built in 4366 ms: confidence=0.99, robustness=0.5, wmax=2016, K=36, granularity=TEN_MINUTES
+2026-11-16 07:47:41,887 INFO  com.leejean.m5.M5bFunction                                   [] - [M5b] tables built in 4524 ms: confidence=0.99, robustness=0.5, wmax=2016, K=36, granularity=TEN_MINUTES
+2026-11-16 07:47:41,944 INFO  com.leejean.m5.M5bFunction                                   [] - [M5b] tables built in 4580 ms: confidence=0.99, robustness=0.5, wmax=2016, K=36, granularity=TEN_MINUTES
+2026-11-16 07:47:41,947 INFO  com.leejean.m5.M5bFunction                                   [] - [M5b] tables built in 4522 ms: confidence=0.99, robustness=0.5, wmax=2016, K=36, granularity=TEN_MINUTES
+2026-11-16 08:55:21,805 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646699506
+2026-11-16 08:55:23,753 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646699799
+2026-11-16 08:55:24,153 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646699871
+2026-11-16 08:57:19,415 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H excluded training window ending at round 1646717116
+2026-11-16 08:58:20,932 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646726391
+2026-11-16 08:58:45,470 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646730009
+2026-11-16 08:59:13,494 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646734258
+2026-11-16 08:59:17,897 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646734863
+2026-11-16 08:59:21,901 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646735460
+2026-11-16 08:59:34,011 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646737264
+2026-11-16 09:01:10,629 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646751819
+2026-11-16 09:02:49,387 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646766612
+2026-11-16 09:03:30,620 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646772838
+2026-11-16 09:07:31,332 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646808939
+2026-11-16 09:07:35,436 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646809541
+2026-11-16 09:07:43,443 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646810745
+2026-11-16 09:07:47,446 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646811345
+2026-11-16 09:07:59,458 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646813159
+2026-11-16 09:08:03,762 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646813760
+2026-11-16 09:08:07,766 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646814362
+2026-11-16 09:08:15,872 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646815584
+2026-11-16 09:08:19,876 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646816186
+2026-11-16 09:08:27,883 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646817389
+2026-11-16 09:08:51,804 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646821010
+2026-11-16 09:09:04,317 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646822830
+2026-11-16 09:13:05,025 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646858975
+2026-11-16 09:13:07,227 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646859277
+2026-11-16 09:13:09,029 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646859576
+2026-11-16 09:14:21,391 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646870421
+2026-11-16 09:14:23,493 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646870709
+2026-11-16 09:14:25,495 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646871022
+2026-11-16 09:15:27,350 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646880332
+2026-11-16 09:15:29,452 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646880644
+2026-11-16 09:15:33,456 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646881246
+2026-11-16 09:16:57,827 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646893875
+2026-11-16 09:17:01,931 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646894476
+2026-11-16 09:17:05,835 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646895078
+2026-11-16 09:17:09,938 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646895680
+2026-11-16 09:17:13,941 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646896280
+2026-11-16 09:17:17,745 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646896882
+2026-11-16 09:17:21,848 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646897483
+2026-11-16 09:17:29,856 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646898686
+2026-11-16 09:17:33,860 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646899288
+2026-11-16 09:17:37,864 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646899889
+2026-11-16 09:17:45,872 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646901102
+2026-11-16 09:17:49,876 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646901704
+2026-11-16 09:17:53,780 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646902305
+2026-11-16 09:17:57,784 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646902906
+2026-11-16 09:18:01,787 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646903508
+2026-11-16 09:18:05,891 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646904109
+2026-11-16 09:18:18,302 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646905923
+2026-11-16 09:18:24,952 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646906981
+2026-11-16 09:18:29,056 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646907583
+2026-11-16 09:18:38,221 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646908930
+2026-11-16 09:18:50,232 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646910733
+2026-11-16 09:19:01,341 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646911936
+2026-11-16 09:19:07,145 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646913139
+2026-11-16 09:19:26,261 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646916146
+2026-11-16 09:20:46,069 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646928024
+2026-11-16 09:20:55,075 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1646928625
+2026-11-16 09:21:57,483 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646938837
+2026-11-16 09:22:32,716 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646944090
+2026-11-16 09:22:33,516 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1646944248
+2026-11-16 09:22:36,720 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646944691
+2026-11-16 09:24:28,723 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646961529
+2026-11-16 09:26:05,004 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646975963
+2026-11-16 09:26:21,119 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646978369
+2026-11-16 09:26:24,922 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646978970
+2026-11-16 09:26:33,029 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646980173
+2026-11-16 09:26:37,033 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646980775
+2026-11-16 09:26:41,037 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646981376
+2026-11-16 09:26:49,043 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646982579
+2026-11-16 09:26:53,047 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646983180
+2026-11-16 09:26:56,924 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646983782
+2026-11-16 09:27:04,960 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646984984
+2026-11-16 09:27:21,076 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646987390
+2026-11-16 09:27:25,079 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646987992
+2026-11-16 09:27:29,083 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646988593
+2026-11-16 09:27:53,406 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646992221
+2026-11-16 09:28:27,231 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646997116
+2026-11-16 09:28:41,841 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1646997731
+2026-11-16 09:28:56,152 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647001359
+2026-11-16 09:28:59,755 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647001969
+2026-11-16 09:31:43,082 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647026667
+2026-11-16 09:31:45,083 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647026865
+2026-11-16 09:32:02,998 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647029683
+2026-11-16 09:32:07,001 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647030285
+2026-11-16 09:33:35,476 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647043523
+2026-11-16 09:33:54,531 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H excluded training window ending at round 1647049737
+2026-11-16 09:33:54,592 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647049705
+2026-11-16 09:33:58,534 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647050113
+2026-11-16 09:33:58,595 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647050128
+2026-11-16 09:35:37,774 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647065171
+2026-11-16 09:35:41,777 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647065773
+2026-11-16 09:35:45,780 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647066374
+2026-11-16 09:35:49,708 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647066975
+2026-11-16 09:35:53,886 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647067576
+2026-11-16 09:35:58,790 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647068188
+2026-11-16 09:36:01,893 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647068789
+2026-11-16 09:36:05,896 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647069390
+2026-11-16 09:37:01,841 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647077819
+2026-11-16 09:37:30,163 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647082029
+2026-11-16 09:37:54,283 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647085636
+2026-11-16 09:37:58,286 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647086238
+2026-11-16 09:39:10,249 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647097071
+2026-11-16 09:39:14,189 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647097627
+2026-11-16 09:39:14,253 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647097673
+2026-11-16 09:39:22,095 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647098829
+2026-11-16 09:39:30,266 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647100077
+2026-11-16 09:39:54,593 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647103685
+2026-11-16 09:40:59,447 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647113454
+2026-11-16 09:41:02,550 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647113907
+2026-11-16 09:41:03,351 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647114055
+2026-11-16 09:41:14,560 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647115711
+2026-11-16 09:41:30,674 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647118117
+2026-11-16 09:41:46,587 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647120522
+2026-11-16 09:41:47,788 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647120670
+2026-11-16 09:42:47,036 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647129542
+2026-11-16 09:42:47,837 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647129690
+2026-11-16 09:44:27,023 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647144585
+2026-11-16 09:45:15,463 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647151811
+2026-11-16 09:45:19,466 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647152412
+2026-11-16 09:45:23,373 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647153014
+2026-11-16 09:45:27,377 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647153615
+2026-11-16 09:45:31,380 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647154216
+2026-11-16 09:45:35,383 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647154818
+2026-11-16 09:45:39,387 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647155420
+2026-11-16 09:45:55,501 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647157824
+2026-11-16 09:45:59,304 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647158427
+2026-11-16 09:46:03,408 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647159037
+2026-11-16 09:46:07,412 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647159639
+2026-11-16 09:47:39,897 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647173469
+2026-11-16 09:48:11,925 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647178280
+2026-11-16 09:48:23,350 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647180008
+2026-11-16 09:48:23,736 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647180083
+2026-11-16 09:48:51,475 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647184217
+2026-11-16 09:51:32,209 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647208344
+2026-11-16 09:52:36,090 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647217965
+2026-11-16 09:52:36,793 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647218094
+2026-11-16 09:54:48,566 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647237822
+2026-11-16 09:54:52,670 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647238422
+2026-11-16 09:54:56,625 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647239023
+2026-11-16 09:55:00,477 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647239625
+2026-11-16 09:55:04,481 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647240226
+2026-11-16 09:55:12,601 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647241429
+2026-11-16 09:55:16,605 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647242031
+2026-11-16 09:55:20,609 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647242632
+2026-11-16 09:56:37,402 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647254067
+2026-11-16 09:56:56,920 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647257093
+2026-11-16 09:57:29,350 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647261904
+2026-11-16 09:57:56,683 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647265996
+2026-11-16 09:58:00,587 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647266598
+2026-11-16 09:58:05,490 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647267334
+2026-11-16 09:58:17,402 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647269158
+2026-11-16 09:58:25,910 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647270370
+2026-11-16 09:58:28,712 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647270806
+2026-11-16 09:58:29,912 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647270972
+2026-11-16 09:58:44,627 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D excluded training window ending at round 1647273210
+2026-11-16 09:59:34,578 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647280689
+2026-11-16 10:00:17,819 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647287214
+2026-11-16 10:01:38,194 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647299261
+2026-11-16 10:01:38,598 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H excluded training window ending at round 1647299312
+2026-11-16 10:01:38,770 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C excluded training window ending at round 1647299349
+2026-11-16 10:01:46,101 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G excluded training window ending at round 1647300464
+2026-11-16 11:29:18,785 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D (subtask 3) entering TRAINING: 993 train windows (15 excluded by outlier sanitization), 288 early-stop windows
+2026-11-16 11:29:18,813 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training task 1 submitted to the executor
+2026-11-16 11:29:18,813 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device D training started on m3-train-1 after 0.0s in the executor queue (task 1, COLD_START)
+2026-11-16 11:29:18,842 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 3)
+2026-11-16 11:29:31,166 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 1/300: train loss=56.03139953035296, early-stop loss=0.42914313448556707, 9.936s
+2026-11-16 11:29:32,679 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C (subtask 2) entering TRAINING: 992 train windows (16 excluded by outlier sanitization), 288 early-stop windows
+2026-11-16 11:29:32,708 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training task 1 submitted to the executor
+2026-11-16 11:29:32,708 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device C training started on m3-train-2 after 0.0s in the executor queue (task 1, COLD_START)
+2026-11-16 11:29:33,178 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 2)
+2026-11-16 11:29:38,003 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G (subtask 6) entering TRAINING: 878 train windows (130 excluded by outlier sanitization), 288 early-stop windows
+2026-11-16 11:29:38,033 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training task 1 submitted to the executor
+2026-11-16 11:29:38,533 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 6)
+2026-11-16 11:29:41,128 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 2/300: train loss=26.5373254255815, early-stop loss=0.2715734740202088, 9.962s
+2026-11-16 11:29:43,331 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 1/300: train loss=102.59910507202147, early-stop loss=1.1746606289807842, 10.613s
+2026-11-16 11:29:50,992 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 3/300: train loss=17.18997679117954, early-stop loss=0.20873306815994755, 9.864s
+2026-11-16 11:29:53,114 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 2/300: train loss=48.32789406776428, early-stop loss=0.6494777635992448, 9.783s
+2026-11-16 11:30:02,003 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 4/300: train loss=13.661651304273896, early-stop loss=0.27125575680879094, 11.011s
+2026-11-16 11:30:04,107 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 3/300: train loss=33.823187947273254, early-stop loss=0.42014235327835986, 10.993s
+2026-11-16 11:30:12,961 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 5/300: train loss=8.881445305997675, early-stop loss=0.17678989665198896, 10.958s
+2026-11-16 11:30:14,830 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 4/300: train loss=24.583372950553894, early-stop loss=0.32425750515514595, 10.723s
+2026-11-16 11:30:23,411 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 6/300: train loss=7.239859414100648, early-stop loss=0.13760824948676786, 10.45s
+2026-11-16 11:30:25,133 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 5/300: train loss=18.972635316848752, early-stop loss=0.31732011589907194, 10.303s
+2026-11-16 11:30:33,293 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 7/300: train loss=5.739953275160357, early-stop loss=0.1126447152035413, 9.882s
+2026-11-16 11:30:35,139 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 6/300: train loss=15.729385876655579, early-stop loss=0.31990950370753896, 10.006s
+2026-11-16 11:30:43,418 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 8/300: train loss=5.345009282502261, early-stop loss=0.08549512867390323, 10.125s
+2026-11-16 11:30:45,200 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 7/300: train loss=13.761458420753478, early-stop loss=0.257068984112174, 10.061s
+2026-11-16 11:30:53,945 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 9/300: train loss=5.001360428694523, early-stop loss=0.1300036075563764, 10.527s
+2026-11-16 11:30:56,475 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 8/300: train loss=10.135952639579774, early-stop loss=0.28363163146683285, 11.275s
+2026-11-16 11:31:04,175 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 10/300: train loss=4.796093454505459, early-stop loss=0.09948984054018621, 10.23s
+2026-11-16 11:31:06,265 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 9/300: train loss=9.135680961608887, early-stop loss=0.19694158341588075, 9.79s
+2026-11-16 11:31:14,489 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 11/300: train loss=4.644314444426334, early-stop loss=0.06836522932140762, 10.314s
+2026-11-16 11:31:16,565 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 10/300: train loss=8.095871877670287, early-stop loss=0.17728856635041554, 10.3s
+2026-11-16 11:31:24,942 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 12/300: train loss=4.2841531926935374, early-stop loss=0.07984618711823746, 10.453s
+2026-11-16 11:31:27,585 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 11/300: train loss=8.638390445709227, early-stop loss=0.2577644584190495, 11.02s
+2026-11-16 11:31:34,719 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 13/300: train loss=4.925333701841758, early-stop loss=0.12342676392656188, 9.777s
+2026-11-16 11:31:36,972 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 12/300: train loss=7.615602552890778, early-stop loss=0.32658527277333976, 9.387s
+2026-11-16 11:31:44,828 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 14/300: train loss=5.682707525383342, early-stop loss=0.10573400901097382, 10.108s
+2026-11-16 11:31:47,356 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 13/300: train loss=7.249460291862488, early-stop loss=0.4206342658725513, 10.384s
+2026-11-16 11:31:55,079 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 15/300: train loss=5.1658329302614385, early-stop loss=0.08228541655373814, 10.251s
+2026-11-16 11:31:57,692 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 14/300: train loss=9.299148297309875, early-stop loss=0.2818640161810588, 10.336s
+2026-11-16 11:32:04,764 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 16/300: train loss=5.19815022837032, early-stop loss=0.15153775904986683, 9.685s
+2026-11-16 11:32:07,399 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 15/300: train loss=6.701828241348267, early-stop loss=0.35799021080716, 9.707s
+2026-11-16 11:32:14,153 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 17/300: train loss=6.120172682314208, early-stop loss=0.08029450319895245, 9.389s
+2026-11-16 11:32:18,037 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 16/300: train loss=7.219249653816222, early-stop loss=0.36031772516576904, 10.638s
+2026-11-16 11:32:24,676 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 18/300: train loss=4.4829184326258575, early-stop loss=0.07446777214432683, 10.523s
+2026-11-16 11:32:27,870 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 17/300: train loss=7.393279504776001, early-stop loss=0.2393898830574989, 9.833s
+2026-11-16 11:32:34,709 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 19/300: train loss=4.957876707207072, early-stop loss=0.07887952508479276, 10.033s
+2026-11-16 11:32:38,055 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 18/300: train loss=6.166752612590789, early-stop loss=0.32429427550248224, 10.185s
+2026-11-16 11:32:44,517 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 20/300: train loss=7.325037367777391, early-stop loss=0.10628565508319682, 9.808s
+2026-11-16 11:32:48,029 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 19/300: train loss=5.071665644645691, early-stop loss=0.22003741670091376, 9.973s
+2026-11-16 11:32:54,861 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 21/300: train loss=5.9835362967216605, early-stop loss=0.1478183639860121, 10.344s
+2026-11-16 11:32:57,935 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 20/300: train loss=4.523603141307831, early-stop loss=0.18869524804406912, 9.906s
+2026-11-16 11:33:04,291 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 22/300: train loss=5.111744220690293, early-stop loss=0.0712029331762298, 9.429s
+2026-11-16 11:33:08,284 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 21/300: train loss=4.4610236287117, early-stop loss=0.1979508303143509, 10.349s
+2026-11-16 11:33:14,543 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 23/300: train loss=3.236851448362524, early-stop loss=0.09614218548970552, 10.252s
+2026-11-16 11:33:17,900 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 22/300: train loss=4.191294634342194, early-stop loss=0.2790532081885082, 9.616s
+2026-11-16 11:33:24,015 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 24/300: train loss=3.1133853961120947, early-stop loss=0.07406648828408852, 9.472s
+2026-11-16 11:33:27,339 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 23/300: train loss=4.028538292646408, early-stop loss=0.2720528310731616, 9.439s
+2026-11-16 11:33:34,814 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 25/300: train loss=2.496512996698871, early-stop loss=0.07052769666909048, 10.799s
+2026-11-16 11:33:38,293 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 24/300: train loss=3.8591522276401524, early-stop loss=0.17122258664489298, 10.954s
+2026-11-16 11:33:44,678 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 26/300: train loss=2.3383873503316535, early-stop loss=0.06470743992039682, 9.864s
+2026-11-16 11:33:48,122 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 25/300: train loss=10.133843785524368, early-stop loss=0.1492341512076895, 9.829s
+2026-11-16 11:33:54,646 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 27/300: train loss=2.036484574458816, early-stop loss=0.06786143140023691, 9.968s
+2026-11-16 11:33:58,722 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 26/300: train loss=14.088269233703615, early-stop loss=0.4207355379289486, 10.599s
+2026-11-16 11:34:04,863 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 28/300: train loss=2.0836462340571664, early-stop loss=0.06199532668368671, 10.217s
+2026-11-16 11:34:08,493 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 27/300: train loss=14.170514845848084, early-stop loss=0.15289630485370054, 9.771s
+2026-11-16 11:34:14,804 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 29/300: train loss=2.611397500291015, early-stop loss=0.056592665121095655, 9.941s
+2026-11-16 11:34:18,341 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 28/300: train loss=7.833073663711549, early-stop loss=0.26215020911332565, 9.848s
+2026-11-16 11:34:24,411 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 30/300: train loss=3.041013342503345, early-stop loss=0.16411142616699553, 9.607s
+2026-11-16 11:34:27,803 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 29/300: train loss=10.723128378391266, early-stop loss=0.397075451588091, 9.462s
+2026-11-16 11:34:33,928 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 31/300: train loss=2.8812591659300257, early-stop loss=0.10548078602766085, 9.517s
+2026-11-16 11:34:37,161 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 30/300: train loss=7.59072140455246, early-stop loss=0.2138110193422148, 9.358s
+2026-11-16 11:34:43,280 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 32/300: train loss=2.340478772828073, early-stop loss=0.10710447716868547, 9.352s
+2026-11-16 11:34:46,801 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 31/300: train loss=6.262992191314698, early-stop loss=0.20403590431950824, 9.64s
+2026-11-16 11:34:52,868 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 33/300: train loss=2.521211966962525, early-stop loss=0.09863137546203572, 9.587s
+2026-11-16 11:34:56,255 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 32/300: train loss=5.80425226688385, early-stop loss=0.15184323910309788, 9.454s
+2026-11-16 11:35:02,407 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 34/300: train loss=2.1878432755217405, early-stop loss=0.10079312939561864, 9.534s
+2026-11-16 11:35:05,547 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 33/300: train loss=4.858084309101105, early-stop loss=0.14756927897843672, 9.292s
+2026-11-16 11:35:11,202 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 35/300: train loss=2.254066686558001, early-stop loss=0.10695830288335302, 8.795s
+2026-11-16 11:35:15,518 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 34/300: train loss=4.741784751415253, early-stop loss=0.15441396485225958, 9.971s
+2026-11-16 11:35:20,429 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 36/300: train loss=2.266566369389043, early-stop loss=0.07958546594265335, 9.227s
+2026-11-16 11:35:25,485 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 35/300: train loss=3.8896799683570857, early-stop loss=0.19989346022366467, 9.967s
+2026-11-16 11:35:31,642 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 37/300: train loss=2.189381660204945, early-stop loss=0.09454341215905927, 11.213s
+2026-11-16 11:35:35,683 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 36/300: train loss=3.5157419085502624, early-stop loss=0.17753452527450808, 10.198s
+2026-11-16 11:35:41,502 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 38/300: train loss=2.0801027121869002, early-stop loss=0.10787220952972348, 9.86s
+2026-11-16 11:35:45,598 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 37/300: train loss=3.2864599227905273, early-stop loss=0.15209529853090448, 9.915s
+2026-11-16 11:35:51,651 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 39/300: train loss=1.915605769916014, early-stop loss=0.06858299593311697, 10.149s
+2026-11-16 11:35:55,706 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 38/300: train loss=2.9140688419342045, early-stop loss=0.13505130579173963, 10.108s
+2026-11-16 11:36:01,776 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 40/300: train loss=1.962554693131736, early-stop loss=0.08338504511401235, 10.125s
+2026-11-16 11:36:05,975 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 39/300: train loss=2.7195369780063627, early-stop loss=0.14200028832740635, 10.269s
+2026-11-16 11:36:11,434 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 41/300: train loss=1.911749921332706, early-stop loss=0.0904174975986135, 9.658s
+2026-11-16 11:36:16,053 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 40/300: train loss=2.548843598365784, early-stop loss=0.12132137325358038, 10.078s
+2026-11-16 11:36:21,242 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 42/300: train loss=1.8788827713691827, early-stop loss=0.06434984648010532, 9.808s
+2026-11-16 11:36:26,270 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 41/300: train loss=2.3004911065101625, early-stop loss=0.12023755174877977, 10.217s
+2026-11-16 11:36:31,773 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 43/300: train loss=1.6997985628518193, early-stop loss=0.0570607144783464, 10.531s
+2026-11-16 11:36:36,178 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 42/300: train loss=2.147096449136734, early-stop loss=0.1277495894147536, 9.908s
+2026-11-16 11:36:41,740 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 44/300: train loss=1.415992359500943, early-stop loss=0.07204592926184665, 9.967s
+2026-11-16 11:36:46,214 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 43/300: train loss=1.994896239042282, early-stop loss=0.1102751748864952, 10.035s
+2026-11-16 11:36:51,789 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 45/300: train loss=1.5486087216572328, early-stop loss=0.05563133462817725, 10.049s
+2026-11-16 11:36:55,940 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 44/300: train loss=1.9684053897857665, early-stop loss=0.12412907945827165, 9.726s
+2026-11-16 11:37:01,277 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 46/300: train loss=1.4295688543355827, early-stop loss=0.04883542746032336, 9.488s
+2026-11-16 11:37:05,959 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 45/300: train loss=2.124611335992813, early-stop loss=0.1373093611582391, 10.019s
+2026-11-16 11:37:11,004 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 47/300: train loss=1.7339650811571063, early-stop loss=0.06390801449899464, 9.727s
+2026-11-16 11:37:15,589 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 46/300: train loss=1.8712974011898043, early-stop loss=0.11931100215022229, 9.63s
+2026-11-16 11:37:21,038 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 48/300: train loss=2.285958661726027, early-stop loss=0.06507454033479448, 10.034s
+2026-11-16 11:37:25,518 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 47/300: train loss=1.9220986664295199, early-stop loss=0.11752660739845511, 9.929s
+2026-11-16 11:37:30,792 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 49/300: train loss=2.0406583908832436, early-stop loss=0.05654369014331658, 9.754s
+2026-11-16 11:37:36,219 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 48/300: train loss=2.084220379590988, early-stop loss=0.12181702747741675, 10.701s
+2026-11-16 11:37:41,472 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 50/300: train loss=1.8956868453007756, early-stop loss=0.05848697961787788, 10.68s
+2026-11-16 11:37:45,900 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 49/300: train loss=2.2031583786010747, early-stop loss=0.1135862494399401, 9.681s
+2026-11-16 11:37:51,202 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 51/300: train loss=1.776942664746082, early-stop loss=0.05773254972823686, 9.73s
+2026-11-16 11:37:56,064 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 50/300: train loss=2.625525867938995, early-stop loss=0.12698117075388768, 10.164s
+2026-11-16 11:38:01,553 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 52/300: train loss=1.4777598560759515, early-stop loss=0.04442755558904782, 10.351s
+2026-11-16 11:38:06,481 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 51/300: train loss=2.8220787525177, early-stop loss=0.24789810272725887, 10.417s
+2026-11-16 11:38:11,335 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 53/300: train loss=1.3500875880320868, early-stop loss=0.04998432172526018, 9.782s
+2026-11-16 11:38:16,582 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 52/300: train loss=2.1604092657566074, early-stop loss=0.21908695240627954, 10.101s
+2026-11-16 11:38:21,607 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 54/300: train loss=1.1281614095875712, early-stop loss=0.04775891048278899, 10.272s
+2026-11-16 11:38:26,538 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 53/300: train loss=2.0218569517135623, early-stop loss=0.19386199019009195, 9.956s
+2026-11-16 11:38:31,823 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 55/300: train loss=1.0296960829785378, early-stop loss=0.04341987516062154, 10.216s
+2026-11-16 11:38:37,116 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 54/300: train loss=2.100345829129219, early-stop loss=0.20439868466460587, 10.577s
+2026-11-16 11:38:42,196 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 56/300: train loss=1.093934259586262, early-stop loss=0.04997955509340502, 10.373s
+2026-11-16 11:38:47,389 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 55/300: train loss=2.09930294752121, early-stop loss=0.18632290900274487, 10.273s
+2026-11-16 11:38:52,362 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 57/300: train loss=0.9817820735953071, early-stop loss=0.0498670697538472, 10.166s
+2026-11-16 11:38:57,289 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 56/300: train loss=2.0501290023326875, early-stop loss=0.18118623197498496, 9.9s
+2026-11-16 11:39:02,090 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 58/300: train loss=1.0470394895835355, early-stop loss=0.045496395533675654, 9.728s
+2026-11-16 11:39:07,840 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 57/300: train loss=1.9115245699882506, early-stop loss=0.18484042733970302, 10.551s
+2026-11-16 11:39:12,414 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 59/300: train loss=1.1588533631779931, early-stop loss=0.0453281736165935, 10.324s
+2026-11-16 11:39:17,393 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 58/300: train loss=1.8882746279239655, early-stop loss=0.18597087093083564, 9.552s
+2026-11-16 11:39:21,941 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 60/300: train loss=0.9572236892400366, early-stop loss=0.05197333021614008, 9.527s
+2026-11-16 11:39:26,974 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 59/300: train loss=1.8736267387866976, early-stop loss=0.1858908587420406, 9.581s
+2026-11-16 11:39:31,400 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 61/300: train loss=1.1510364255670347, early-stop loss=0.04856106696656003, 9.459s
+2026-11-16 11:39:37,604 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 60/300: train loss=1.875076824426651, early-stop loss=0.1859025830142783, 10.63s
+2026-11-16 11:39:41,898 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 62/300: train loss=1.2788233174519106, early-stop loss=0.043250576678836965, 10.498s
+2026-11-16 11:39:47,166 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 61/300: train loss=1.8337047547101977, early-stop loss=0.18360455341265794, 9.561s
+2026-11-16 11:39:51,254 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 63/300: train loss=1.2556519035588611, early-stop loss=0.05755264901788334, 9.356s
+2026-11-16 11:39:56,560 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 62/300: train loss=1.8590789914131165, early-stop loss=0.18441870018413212, 9.394s
+2026-11-16 11:40:00,927 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 64/300: train loss=1.2901072019428919, early-stop loss=0.05458544298027137, 9.672s
+2026-11-16 11:40:07,822 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C training epoch 63/300: train loss=1.9569326817989352, early-stop loss=0.18379850892708893, 11.262s
+2026-11-16 11:40:08,625 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C trained: hidden=60, window=60, batch=64, 63 epochs (last improvement at epoch 43, longest plateau 13), early-stop loss=0.18379850892708893, 635.912s
+2026-11-16 11:40:12,056 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 65/300: train loss=1.4784396106998126, early-stop loss=0.04388585561588832, 11.129s
+2026-11-16 11:40:23,950 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 66/300: train loss=1.6647045406428247, early-stop loss=0.06408743960843882, 11.894s
+2026-11-16 11:40:35,775 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 67/300: train loss=1.9051785180062961, early-stop loss=0.05246880925974276, 11.825s
+2026-11-16 11:40:47,724 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 68/300: train loss=1.5769993473183028, early-stop loss=0.05256252514401053, 11.949s
+2026-11-16 11:40:58,967 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 69/300: train loss=1.5120793749888737, early-stop loss=0.057174996213711325, 11.243s
+2026-11-16 11:41:10,823 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 70/300: train loss=1.3424349476893742, early-stop loss=0.05004453363597601, 11.856s
+2026-11-16 11:41:17,616 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device C calibrated: median=0.3190026394001149, IQR=0.39559776380979517, threshold=2.22
+2026-11-16 11:41:17,913 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device G training started on m3-train-2 after 699.9s in the executor queue (task 1, COLD_START)
+2026-11-16 11:41:18,151 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C result collected on the task thread (queue wait 0.0s, training+calibration 705.2s); 9485 buffered rounds to drain
+2026-11-16 11:41:18,152 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C entering ONLINE
+2026-11-16 11:41:21,411 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 71/300: train loss=1.1204899601864093, early-stop loss=0.045243231224033474, 10.588s
+2026-11-16 11:41:26,684 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 1/300: train loss=46.619730078655735, early-stop loss=0.3233676593010861, 8.767s
+2026-11-16 11:41:31,276 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 72/300: train loss=0.9910955019069441, early-stop loss=0.054401555959226536, 9.865s
+2026-11-16 11:41:33,388 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C model event online at 1648149000 (model generation 0)
+2026-11-16 11:41:39,463 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 2/300: train loss=21.589257897797577, early-stop loss=0.2725469335356014, 12.779s
+2026-11-16 11:41:47,012 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 73/300: train loss=0.9988410583951256, early-stop loss=0.04587375706591021, 15.736s
+2026-11-16 11:41:51,974 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 3/300: train loss=13.905647923487313, early-stop loss=0.2893324849618474, 12.511s
+2026-11-16 11:41:52,731 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device C buffer drained in 19.9s
+2026-11-16 11:41:52,731 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 739.6s (subtask 2)
+2026-11-16 11:41:59,009 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 74/300: train loss=0.8361479220968304, early-stop loss=0.04218911335984033, 11.996s
+2026-11-16 11:42:01,067 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 4/300: train loss=9.764875287595002, early-stop loss=0.1909812396831472, 9.093s
+2026-11-16 11:42:11,142 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 75/300: train loss=0.943888472246401, early-stop loss=0.05480357322891169, 12.133s
+2026-11-16 11:42:11,969 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 5/300: train loss=6.898371585407612, early-stop loss=0.16505911847798338, 10.902s
+2026-11-16 11:42:15,960 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H (subtask 7) entering TRAINING: 1005 train windows (3 excluded by outlier sanitization), 288 early-stop windows
+2026-11-16 11:42:15,988 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training task 1 submitted to the executor
+2026-11-16 11:42:15,988 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 7)
+2026-11-16 11:42:20,661 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 6/300: train loss=6.135684140424551, early-stop loss=0.12431663068036235, 8.691s
+2026-11-16 11:42:20,820 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 76/300: train loss=0.9173561729264982, early-stop loss=0.046295262873961185, 9.678s
+2026-11-16 11:42:29,414 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 7/300: train loss=5.8272129272081825, early-stop loss=0.1363108369281967, 8.753s
+2026-11-16 11:42:30,768 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 77/300: train loss=1.035409893772819, early-stop loss=0.046410595681593864, 9.948s
+2026-11-16 11:42:38,550 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 8/300: train loss=5.331338708889411, early-stop loss=0.11405590664952195, 9.136s
+2026-11-16 11:42:42,129 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 78/300: train loss=1.2122245283740938, early-stop loss=0.047381217846771254, 11.361s
+2026-11-16 11:42:48,324 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 9/300: train loss=5.0681265979079715, early-stop loss=0.11039798355035321, 9.773s
+2026-11-16 11:42:51,665 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 79/300: train loss=0.9448787251205156, early-stop loss=0.05691408192046272, 9.536s
+2026-11-16 11:42:56,843 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 10/300: train loss=5.024227257841122, early-stop loss=0.10787797524575805, 8.519s
+2026-11-16 11:43:01,258 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 80/300: train loss=1.410804216699167, early-stop loss=0.05710019058937575, 9.593s
+2026-11-16 11:43:05,396 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 11/300: train loss=4.252500180131901, early-stop loss=0.143755124493805, 8.553s
+2026-11-16 11:43:11,102 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 81/300: train loss=1.3185801947658715, early-stop loss=0.04304176687121894, 9.844s
+2026-11-16 11:43:14,109 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 12/300: train loss=7.834209878696419, early-stop loss=0.10077185121958877, 8.713s
+2026-11-16 11:43:20,978 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 82/300: train loss=1.3533523198330042, early-stop loss=0.05405130455345621, 9.876s
+2026-11-16 11:43:22,821 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 13/300: train loss=4.918793596540178, early-stop loss=0.1507246952244218, 8.712s
+2026-11-16 11:43:30,797 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 83/300: train loss=1.5836116085449854, early-stop loss=0.0573908480129662, 9.819s
+2026-11-16 11:43:31,660 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 14/300: train loss=5.639477222750645, early-stop loss=0.08660388860134396, 8.839s
+2026-11-16 11:43:41,902 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 15/300: train loss=5.253274461793603, early-stop loss=0.14577485819060512, 10.242s
+2026-11-16 11:43:42,914 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 84/300: train loss=1.264600935217106, early-stop loss=0.04051213867430009, 12.117s
+2026-11-16 11:43:51,250 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 16/300: train loss=5.451839422735367, early-stop loss=0.11071330885445399, 9.348s
+2026-11-16 11:43:52,588 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 85/300: train loss=1.0574330815763184, early-stop loss=0.04959194545606184, 9.674s
+2026-11-16 11:44:00,491 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 17/300: train loss=3.3312859387131213, early-stop loss=0.08339409241480397, 9.241s
+2026-11-16 11:44:03,012 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 86/300: train loss=1.1303488940903632, early-stop loss=0.049246886994647104, 10.424s
+2026-11-16 11:44:09,104 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 18/300: train loss=2.620704718109984, early-stop loss=0.07053081605061191, 8.613s
+2026-11-16 11:44:13,246 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 87/300: train loss=1.1034545875859982, early-stop loss=0.047483348645086215, 10.234s
+2026-11-16 11:44:18,521 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 19/300: train loss=2.1752280327103892, early-stop loss=0.07105298730810623, 9.417s
+2026-11-16 11:44:23,049 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 88/300: train loss=1.3952998462048445, early-stop loss=0.047234853055121435, 9.803s
+2026-11-16 11:44:27,115 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 20/300: train loss=2.0619423688568683, early-stop loss=0.05957796690606105, 8.594s
+2026-11-16 11:44:32,544 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 89/300: train loss=1.2034951970884293, early-stop loss=0.04681894009578391, 9.494s
+2026-11-16 11:44:35,718 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 21/300: train loss=2.116900691186419, early-stop loss=0.06790888738036573, 8.603s
+2026-11-16 11:44:43,563 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 90/300: train loss=1.7343938686630942, early-stop loss=0.05303631731925156, 11.019s
+2026-11-16 11:44:45,984 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 22/300: train loss=2.6355971407446064, early-stop loss=0.060838894458468414, 10.266s
+2026-11-16 11:44:53,332 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 91/300: train loss=2.0320116062959035, early-stop loss=0.057703863509791335, 9.769s
+2026-11-16 11:44:54,369 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 23/300: train loss=2.927492646697145, early-stop loss=0.07361860027653912, 8.385s
+2026-11-16 11:45:02,768 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 92/300: train loss=1.5016354206836584, early-stop loss=0.04279893104901618, 9.436s
+2026-11-16 11:45:02,883 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 24/300: train loss=3.265751822690786, early-stop loss=0.06403802081468342, 8.514s
+2026-11-16 11:45:12,611 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 25/300: train loss=3.5546859368034025, early-stop loss=0.06221583023459048, 9.728s
+2026-11-16 11:45:13,651 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 93/300: train loss=1.283652398170847, early-stop loss=0.04849770087425301, 10.883s
+2026-11-16 11:45:21,088 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 26/300: train loss=4.035780370013314, early-stop loss=0.054538331295810566, 8.477s
+2026-11-16 11:45:23,309 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 94/300: train loss=1.469252194599672, early-stop loss=0.04485114107777943, 9.658s
+2026-11-16 11:45:29,878 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 27/300: train loss=2.9305288510292953, early-stop loss=0.08078881816680279, 8.79s
+2026-11-16 11:45:32,966 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 95/300: train loss=1.194372124744184, early-stop loss=0.04139449389517787, 9.657s
+2026-11-16 11:45:40,648 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 28/300: train loss=2.689256970778755, early-stop loss=0.047100504724523914, 10.77s
+2026-11-16 11:45:45,699 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 96/300: train loss=1.0212971531532027, early-stop loss=0.04214762475474211, 12.733s
+2026-11-16 11:45:50,483 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 29/300: train loss=2.2754778174880133, early-stop loss=0.07098509470224185, 9.835s
+2026-11-16 11:45:55,267 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 97/300: train loss=0.9372323377565903, early-stop loss=0.035785941491967434, 9.568s
+2026-11-16 11:45:58,871 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 30/300: train loss=1.997631782330341, early-stop loss=0.0568931707623686, 8.388s
+2026-11-16 11:46:04,803 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 98/300: train loss=0.6502900009805506, early-stop loss=0.03955061623364716, 9.536s
+2026-11-16 11:46:07,499 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 31/300: train loss=1.72246455287341, early-stop loss=0.06709209118604545, 8.628s
+2026-11-16 11:46:15,599 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 99/300: train loss=0.6253120199748964, early-stop loss=0.039139996023184256, 10.796s
+2026-11-16 11:46:17,588 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 32/300: train loss=1.552491937512937, early-stop loss=0.05106619135751228, 10.089s
+2026-11-16 11:46:25,502 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 100/300: train loss=0.6195557422710188, early-stop loss=0.036601039213441156, 9.903s
+2026-11-16 11:46:26,164 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 33/300: train loss=1.3417832938780696, early-stop loss=0.053495974162834324, 8.576s
+2026-11-16 11:46:35,476 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 34/300: train loss=1.3228121504280137, early-stop loss=0.04448246729663226, 9.312s
+2026-11-16 11:46:36,376 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 101/300: train loss=0.5871033861555837, early-stop loss=0.03895292210733096, 10.874s
+2026-11-16 11:46:45,441 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 35/300: train loss=1.2659351606546723, early-stop loss=0.054704761264320986, 9.964s
+2026-11-16 11:46:47,246 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 102/300: train loss=0.6296368294367284, early-stop loss=0.03842924223957308, 10.87s
+2026-11-16 11:46:54,695 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 36/300: train loss=1.290921279954614, early-stop loss=0.044404767900447, 9.254s
+2026-11-16 11:46:57,233 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 103/300: train loss=0.5838966379563014, early-stop loss=0.035920994009573576, 9.986s
+2026-11-16 11:47:03,955 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 37/300: train loss=1.1901346997444673, early-stop loss=0.0521346072315541, 9.26s
+2026-11-16 11:47:07,531 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 104/300: train loss=0.5077284404951515, early-stop loss=0.037729797969239615, 10.298s
+2026-11-16 11:47:12,601 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 38/300: train loss=1.182722622711466, early-stop loss=0.04654904582878629, 8.646s
+2026-11-16 11:47:16,698 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 105/300: train loss=0.5379714592388182, early-stop loss=0.03990369456356668, 9.167s
+2026-11-16 11:47:20,183 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 39/300: train loss=1.188093151809266, early-stop loss=0.05261203488924989, 7.582s
+2026-11-16 11:47:26,640 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 106/300: train loss=0.6192036686521588, early-stop loss=0.03488030557975365, 9.942s
+2026-11-16 11:47:29,106 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 40/300: train loss=1.261939639186267, early-stop loss=0.041944664904053935, 8.923s
+2026-11-16 11:47:36,073 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 107/300: train loss=0.6780014693737029, early-stop loss=0.03966692785904645, 9.433s
+2026-11-16 11:47:37,486 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 41/300: train loss=1.4529234231628987, early-stop loss=0.0555008068528922, 8.38s
+2026-11-16 11:47:45,522 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 108/300: train loss=0.8352177291205435, early-stop loss=0.0420364870640811, 9.449s
+2026-11-16 11:47:46,289 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 42/300: train loss=1.4067034567364995, early-stop loss=0.047359694733457594, 8.803s
+2026-11-16 11:47:54,586 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 43/300: train loss=1.0699988378501086, early-stop loss=0.04128332372523994, 8.297s
+2026-11-16 11:47:54,726 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 109/300: train loss=0.8122750386144175, early-stop loss=0.03608263327198762, 9.204s
+2026-11-16 11:48:02,908 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 44/300: train loss=0.9300738268757458, early-stop loss=0.04523715744655518, 8.322s
+2026-11-16 11:48:03,855 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 110/300: train loss=0.7964566499446378, early-stop loss=0.039206363372689255, 9.129s
+2026-11-16 11:48:11,129 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 45/300: train loss=0.9756414309791895, early-stop loss=0.04493566494835954, 8.221s
+2026-11-16 11:48:13,085 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 111/300: train loss=0.8047440761418053, early-stop loss=0.05206444550421765, 9.23s
+2026-11-16 11:48:19,146 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 46/300: train loss=0.9558784889138263, early-stop loss=0.040848581950157975, 8.017s
+2026-11-16 11:48:23,280 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 112/300: train loss=1.0086791688294123, early-stop loss=0.03609960414836364, 10.195s
+2026-11-16 11:48:28,283 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 47/300: train loss=0.9199372476672533, early-stop loss=0.04329965071503263, 9.137s
+2026-11-16 11:48:32,604 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 113/300: train loss=1.097878611358729, early-stop loss=0.039791148185525455, 9.323s
+2026-11-16 11:48:36,961 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 48/300: train loss=0.9073405750049567, early-stop loss=0.043983737659438096, 8.678s
+2026-11-16 11:48:42,410 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 114/300: train loss=0.9802869971051362, early-stop loss=0.05027577686208909, 9.806s
+2026-11-16 11:48:46,482 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 49/300: train loss=0.9726568516737187, early-stop loss=0.04462746309609182, 9.521s
+2026-11-16 11:48:53,030 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 115/300: train loss=1.0061291151877605, early-stop loss=0.042407379735950435, 10.62s
+2026-11-16 11:48:55,061 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 50/300: train loss=0.9920283513039535, early-stop loss=0.04634625397842339, 8.579s
+2026-11-16 11:49:02,398 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 116/300: train loss=0.9174966554298547, early-stop loss=0.03517938130352693, 9.368s
+2026-11-16 11:49:03,709 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 51/300: train loss=0.9614340528938341, early-stop loss=0.042216006761591165, 8.648s
+2026-11-16 11:49:12,374 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 117/300: train loss=1.0819746733163342, early-stop loss=0.05950425194048861, 9.976s
+2026-11-16 11:49:12,404 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 52/300: train loss=0.9959979047686415, early-stop loss=0.04071583974724291, 8.694s
+2026-11-16 11:49:22,516 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 53/300: train loss=0.9889915772106338, early-stop loss=0.055961127111466266, 10.112s
+2026-11-16 11:49:23,476 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 118/300: train loss=1.111622081471212, early-stop loss=0.03999065700708914, 11.102s
+2026-11-16 11:49:31,302 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 54/300: train loss=0.9730418907929652, early-stop loss=0.03537141858805152, 8.786s
+2026-11-16 11:49:32,941 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 119/300: train loss=0.9652131890708749, early-stop loss=0.039979806984905525, 9.465s
+2026-11-16 11:49:39,855 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 55/300: train loss=0.9959043570927212, early-stop loss=0.057597822387177526, 8.553s
+2026-11-16 11:49:42,572 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 120/300: train loss=1.183844868793632, early-stop loss=0.06365203299009382, 9.631s
+2026-11-16 11:49:49,734 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 56/300: train loss=1.0338937048586259, early-stop loss=0.04377360014780009, 9.879s
+2026-11-16 11:49:53,429 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 121/300: train loss=1.204434023571737, early-stop loss=0.04519779043274283, 10.857s
+2026-11-16 11:49:58,318 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 57/300: train loss=0.9839282257956748, early-stop loss=0.03308195049520141, 8.584s
+2026-11-16 11:50:03,304 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 122/300: train loss=1.0274617104819328, early-stop loss=0.04670828973920404, 9.875s
+2026-11-16 11:50:06,927 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 58/300: train loss=1.067451774481661, early-stop loss=0.06596618359625278, 8.609s
+2026-11-16 11:50:12,778 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 123/300: train loss=1.0335792609236456, early-stop loss=0.05656828203262392, 9.474s
+2026-11-16 11:50:16,108 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 59/300: train loss=1.2019284520830429, early-stop loss=0.0373833428200441, 9.18s
+2026-11-16 11:50:23,835 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 124/300: train loss=0.9857193479935328, early-stop loss=0.04172688267849885, 11.057s
+2026-11-16 11:50:25,334 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 60/300: train loss=1.357957210600006, early-stop loss=0.048476510348748836, 9.225s
+2026-11-16 11:50:33,475 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 125/300: train loss=0.8082632580941372, early-stop loss=0.046704338422787955, 9.64s
+2026-11-16 11:50:34,314 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 61/300: train loss=1.1549024511568293, early-stop loss=0.052325156998476015, 8.98s
+2026-11-16 11:50:43,170 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 62/300: train loss=1.0644585379902618, early-stop loss=0.03305116563294353, 8.856s
+2026-11-16 11:50:43,599 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D training epoch 126/300: train loss=0.8248703909191217, early-stop loss=0.04550920786224863, 10.124s
+2026-11-16 11:50:44,305 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D trained: hidden=60, window=60, batch=64, 126 epochs (last improvement at epoch 106, longest plateau 15), early-stop loss=0.04550920786224863, 1285.49s
+2026-11-16 11:50:44,305 WARN  com.leejean.m3.M3Function                                    [] - [M3] Device D REPORT: longest plateau 15 epochs is within 5 of the patience 20
+2026-11-16 11:50:54,003 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 63/300: train loss=1.1916525415752244, early-stop loss=0.06840839651969172, 10.833s
+2026-11-16 11:51:03,942 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 64/300: train loss=1.4777115974367034, early-stop loss=0.05592841646022111, 9.939s
+2026-11-16 11:51:15,166 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 65/300: train loss=1.4127355091320066, early-stop loss=0.05135642596030586, 11.224s
+2026-11-16 11:51:25,066 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 66/300: train loss=1.3176475443455005, early-stop loss=0.04745996757351398, 9.9s
+2026-11-16 11:51:35,305 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 67/300: train loss=1.1707885813268817, early-stop loss=0.03941013539900817, 10.239s
+2026-11-16 11:51:47,738 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 68/300: train loss=1.2206245225408805, early-stop loss=0.05117137658029663, 12.432s
+2026-11-16 11:51:54,894 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device D calibrated: median=0.14324502676033163, IQR=0.23733230960348256, threshold=2.22
+2026-11-16 11:51:54,901 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device H training started on m3-train-1 after 578.9s in the executor queue (task 1, COLD_START)
+2026-11-16 11:51:55,120 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D result collected on the task thread (queue wait 0.0s, training+calibration 1356.1s); 18122 buffered rounds to drain
+2026-11-16 11:51:55,120 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D entering ONLINE
+2026-11-16 11:51:57,338 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 69/300: train loss=1.269276639985742, early-stop loss=0.044878836027478435, 9.6s
+2026-11-16 11:52:05,162 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 1/300: train loss=30.778979585435657, early-stop loss=0.3686343835229559, 10.257s
+2026-11-16 11:52:06,491 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 70/300: train loss=1.2701257042262863, early-stop loss=0.0400509054546213, 9.153s
+2026-11-16 11:52:15,423 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 2/300: train loss=16.004133652581107, early-stop loss=0.1637481663914495, 10.261s
+2026-11-16 11:52:15,475 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 71/300: train loss=1.2460450244986492, early-stop loss=0.05984094259517806, 8.984s
+2026-11-16 11:52:19,274 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D model event online at 1648146900 (model generation 0)
+2026-11-16 11:52:29,334 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 72/300: train loss=1.63832352442771, early-stop loss=0.056633477911842735, 13.859s
+2026-11-16 11:52:30,840 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 3/300: train loss=11.021499379740822, early-stop loss=0.1377774041986343, 15.417s
+2026-11-16 11:52:42,736 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 73/300: train loss=1.373213077331922, early-stop loss=0.056086054195485374, 13.402s
+2026-11-16 11:52:45,852 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 4/300: train loss=8.163880228996277, early-stop loss=0.10869671534919174, 15.012s
+2026-11-16 11:52:55,853 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device D buffer drained in 37.0s
+2026-11-16 11:52:55,854 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 1417.0s (subtask 3)
+2026-11-16 11:52:57,287 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 74/300: train loss=1.2277139038773055, early-stop loss=0.041693988102672885, 14.551s
+2026-11-16 11:53:00,318 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 5/300: train loss=6.146203734609815, early-stop loss=0.11037221617607444, 14.466s
+2026-11-16 11:53:06,088 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 75/300: train loss=0.9724093018111235, early-stop loss=0.05044280814749188, 8.801s
+2026-11-16 11:53:10,189 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 6/300: train loss=6.17924147023095, early-stop loss=0.08152115529882556, 9.871s
+2026-11-16 11:53:14,393 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 76/300: train loss=0.9730935478802794, early-stop loss=0.04241089844320791, 8.305s
+2026-11-16 11:53:19,421 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 7/300: train loss=4.871347040865156, early-stop loss=0.0977280160412402, 9.232s
+2026-11-16 11:53:22,810 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 77/300: train loss=0.9824016156403914, early-stop loss=0.04639156834574711, 8.417s
+2026-11-16 11:53:28,670 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 8/300: train loss=4.955018295182122, early-stop loss=0.08497445652111185, 9.249s
+2026-11-16 11:53:30,821 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 78/300: train loss=0.9566474134137171, early-stop loss=0.034302419392841094, 8.011s
+2026-11-16 11:53:38,041 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 9/300: train loss=5.218166193962097, early-stop loss=0.13001208960946684, 9.371s
+2026-11-16 11:53:39,370 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 79/300: train loss=0.9734610949984248, early-stop loss=0.04715152742360065, 8.549s
+2026-11-16 11:53:51,665 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 10/300: train loss=4.654482309023539, early-stop loss=0.12082861670135389, 13.624s
+2026-11-16 11:53:52,020 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 80/300: train loss=1.0149325258243158, early-stop loss=0.03675219381350401, 12.65s
+2026-11-16 11:54:00,288 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 81/300: train loss=0.9850590726603633, early-stop loss=0.040123213807608665, 8.268s
+2026-11-16 11:54:00,848 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 11/300: train loss=4.4882265135977, early-stop loss=0.09275686775874101, 9.183s
+2026-11-16 11:54:08,406 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G training epoch 82/300: train loss=0.8708543654554378, early-stop loss=0.046266392714934906, 8.118s
+2026-11-16 11:54:09,174 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G trained: hidden=60, window=60, batch=64, 82 epochs (last improvement at epoch 62, longest plateau 5), early-stop loss=0.046266392714934906, 771.261s
+2026-11-16 11:54:10,019 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 12/300: train loss=4.074737684461805, early-stop loss=0.07607954337422258, 9.171s
+2026-11-16 11:54:20,415 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 13/300: train loss=4.836497127215068, early-stop loss=0.12806836727609217, 10.396s
+2026-11-16 11:54:32,631 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 14/300: train loss=3.2531181507640414, early-stop loss=0.0725149505498392, 12.216s
+2026-11-16 11:54:42,937 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 15/300: train loss=2.7478124944368996, early-stop loss=0.06916867546771858, 10.306s
+2026-11-16 11:54:55,662 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 16/300: train loss=2.3611203275124235, early-stop loss=0.06982168236124278, 12.725s
+2026-11-16 11:55:07,499 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 17/300: train loss=2.0838744143644967, early-stop loss=0.07693732906476058, 11.835s
+2026-11-16 11:55:14,869 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device G calibrated: median=0.19583762718183942, IQR=0.3110724369659814, threshold=2.22
+2026-11-16 11:55:16,940 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 18/300: train loss=2.5876629147264696, early-stop loss=0.06844237220332865, 9.441s
+2026-11-16 11:55:26,325 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 19/300: train loss=2.654822326236301, early-stop loss=0.09136019391024072, 9.385s
+2026-11-16 11:55:34,118 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 20/300: train loss=3.7297635095649295, early-stop loss=0.07801420449602099, 7.791s
+2026-11-16 11:55:38,094 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G result collected on the task thread (queue wait 699.9s, training+calibration 837.0s); 18921 buffered rounds to drain
+2026-11-16 11:55:38,095 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G entering ONLINE
+2026-11-16 11:55:38,172 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G model event online at 1648149780 (model generation 0)
+2026-11-16 11:55:43,104 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 21/300: train loss=2.306201980511348, early-stop loss=0.0905264427473992, 8.986s
+2026-11-16 11:55:53,423 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 22/300: train loss=1.8820340387026466, early-stop loss=0.06704571426658992, 10.319s
+2026-11-16 11:55:59,688 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device G buffer drained in 21.6s
+2026-11-16 11:55:59,688 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 1581.2s (subtask 6)
+2026-11-16 11:56:02,758 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 23/300: train loss=1.447198382616043, early-stop loss=0.06260130379255437, 9.335s
+2026-11-16 11:56:11,085 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 24/300: train loss=1.6458227133750916, early-stop loss=0.08634895519670598, 8.327s
+2026-11-16 11:56:19,300 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 25/300: train loss=2.061423054933548, early-stop loss=0.0807642174853886, 8.215s
+2026-11-16 11:56:28,910 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 26/300: train loss=2.940534870227178, early-stop loss=0.08399220761585194, 9.61s
+2026-11-16 11:56:36,981 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 27/300: train loss=2.3999305213822257, early-stop loss=0.0817751652379125, 8.071s
+2026-11-16 11:56:44,693 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 28/300: train loss=2.3118780717584824, early-stop loss=0.07137539883975899, 7.712s
+2026-11-16 11:56:52,716 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 29/300: train loss=2.4478598425123423, early-stop loss=0.08993967289556846, 8.023s
+2026-11-16 11:57:00,377 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 30/300: train loss=1.714485077857971, early-stop loss=0.08055235521632537, 7.661s
+2026-11-16 11:57:08,436 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 31/300: train loss=1.3916896874374811, early-stop loss=0.06700897853535621, 8.058s
+2026-11-16 11:57:16,429 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 32/300: train loss=1.6677901364697354, early-stop loss=0.08527550739751395, 7.993s
+2026-11-16 11:57:24,942 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 33/300: train loss=1.5158182255427042, early-stop loss=0.07587025732947261, 8.513s
+2026-11-16 11:57:32,932 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 34/300: train loss=1.5499687682257757, early-stop loss=0.0821364357308329, 7.989s
+2026-11-16 11:57:40,834 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 35/300: train loss=1.5785875573423176, early-stop loss=0.06618696155760369, 7.902s
+2026-11-16 11:57:48,730 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 36/300: train loss=1.545615862078137, early-stop loss=0.08027975020707624, 7.896s
+2026-11-16 11:57:58,113 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 37/300: train loss=1.7902060605420007, early-stop loss=0.08114211326063804, 9.383s
+2026-11-16 11:58:06,118 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 38/300: train loss=1.7135012667708924, early-stop loss=0.08162987671813328, 8.005s
+2026-11-16 11:58:13,989 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 39/300: train loss=2.2743127397696177, early-stop loss=0.08115730605748064, 7.871s
+2026-11-16 11:58:21,716 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 40/300: train loss=2.0568544720278843, early-stop loss=0.09531909956923978, 7.727s
+2026-11-16 11:58:29,839 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 41/300: train loss=2.4819569903612138, early-stop loss=0.06268786297174647, 8.123s
+2026-11-16 11:58:38,229 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 42/300: train loss=1.7979676090346441, early-stop loss=0.1046367218856814, 8.39s
+2026-11-16 11:58:46,012 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H training epoch 43/300: train loss=1.6666358758343591, early-stop loss=0.0712478648579484, 7.783s
+2026-11-16 11:58:46,621 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H trained: hidden=60, window=60, batch=64, 43 epochs (last improvement at epoch 23, longest plateau 5), early-stop loss=0.0712478648579484, 411.72s
+2026-11-16 11:59:38,056 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device H calibrated: median=0.15639563665719497, IQR=0.23780480954999103, threshold=2.22
+2026-11-16 11:59:46,084 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H result collected on the task thread (queue wait 578.9s, training+calibration 463.2s); 8652 buffered rounds to drain
+2026-11-16 11:59:46,084 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H entering ONLINE
+2026-11-16 11:59:46,140 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H model event online at 1648252980 (model generation 0)
+2026-11-16 11:59:54,208 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device H buffer drained in 8.1s
+2026-11-16 11:59:54,208 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 1058.2s (subtask 7)
+2026-11-16 07:47:37,869 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Training executor started: 2 thread(s) in this TaskManager, OMP_NUM_THREADS=1
+2026-11-16 07:47:41,947 INFO  com.leejean.m5.M5bFunction                                   [] - [M5b] tables built in 4394 ms: confidence=0.99, robustness=0.5, wmax=2016, K=36, granularity=TEN_MINUTES
+2026-11-16 07:47:42,073 INFO  com.leejean.m5.M5bFunction                                   [] - [M5b] tables built in 4485 ms: confidence=0.99, robustness=0.5, wmax=2016, K=36, granularity=TEN_MINUTES
+2026-11-16 07:47:42,241 INFO  com.leejean.m5.M5bFunction                                   [] - [M5b] tables built in 4656 ms: confidence=0.99, robustness=0.5, wmax=2016, K=36, granularity=TEN_MINUTES
+2026-11-16 07:47:42,358 INFO  com.leejean.m5.M5bFunction                                   [] - [M5b] tables built in 4830 ms: confidence=0.99, robustness=0.5, wmax=2016, K=36, granularity=TEN_MINUTES
+2026-11-16 07:57:33,782 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-01 closed: boundary tick 2659 us; 24 ticks total 34159 us, max 19888 us; alerts 0 commands 0 review 0; state 4483 bytes
+2026-11-16 08:07:09,512 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-02 closed: boundary tick 1341 us; 24 ticks total 15319 us, max 5580 us; alerts 0 commands 0 review 0; state 4483 bytes
+2026-11-16 08:16:46,749 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-03 closed: boundary tick 286 us; 24 ticks total 8667 us, max 614 us; alerts 0 commands 0 review 0; state 4483 bytes
+2026-11-16 08:26:21,758 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-04 closed: boundary tick 243 us; 24 ticks total 5554 us, max 433 us; alerts 0 commands 0 review 0; state 4483 bytes
+2026-11-16 08:35:57,689 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-05 closed: boundary tick 451 us; 24 ticks total 5163 us, max 557 us; alerts 0 commands 0 review 0; state 4483 bytes
+2026-11-16 08:45:33,669 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-06 closed: boundary tick 236 us; 24 ticks total 3595 us, max 236 us; alerts 0 commands 0 review 0; state 4483 bytes
+2026-11-16 08:55:09,679 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-07 closed: boundary tick 239 us; 24 ticks total 3943 us, max 284 us; alerts 0 commands 0 review 0; state 4483 bytes
+2026-11-16 08:55:21,435 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646699424
+2026-11-16 08:55:22,644 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F excluded training window ending at round 1646699588
+2026-11-16 08:55:24,543 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646699923
+2026-11-16 08:59:22,717 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B excluded training window ending at round 1646735614
+2026-11-16 09:00:01,590 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646741414
+2026-11-16 09:01:10,265 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646751730
+2026-11-16 09:01:14,260 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646752331
+2026-11-16 09:01:49,891 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646757678
+2026-11-16 09:01:53,894 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646758279
+2026-11-16 09:02:50,193 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646766726
+2026-11-16 09:04:45,624 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-08 closed: boundary tick 559 us; 24 ticks total 14947 us, max 5029 us; alerts 0 commands 0 review 8; state 31083 bytes
+2026-11-16 09:10:16,821 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646833513
+2026-11-16 09:12:27,327 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646853352
+2026-11-16 09:13:08,962 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1646859378
+2026-11-16 09:14:21,614 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-09 closed: boundary tick 554 us; 24 ticks total 5872 us, max 554 us; alerts 0 commands 0 review 0; state 37595 bytes
+2026-11-16 09:18:24,255 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646906874
+2026-11-16 09:18:28,259 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646907475
+2026-11-16 09:22:20,957 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1646942352
+2026-11-16 09:23:57,686 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-10 closed: boundary tick 506 us; 24 ticks total 8172 us, max 539 us; alerts 0 commands 0 review 0; state 41521 bytes
+2026-11-16 09:31:34,945 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1647025380
+2026-11-16 09:31:45,068 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647026920
+2026-11-16 09:31:47,454 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B excluded training window ending at round 1647027307
+2026-11-16 09:33:33,646 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-11 closed: boundary tick 425 us; 24 ticks total 8456 us, max 710 us; alerts 1 commands 0 review 2; state 45838 bytes
+2026-11-16 09:33:54,169 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B excluded training window ending at round 1647049634
+2026-11-16 09:33:54,985 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647049779
+2026-11-16 09:33:56,571 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1647050031
+2026-11-16 09:33:59,161 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F excluded training window ending at round 1647050165
+2026-11-16 09:33:59,773 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B excluded training window ending at round 1647050466
+2026-11-16 09:41:00,262 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647113549
+2026-11-16 09:42:47,655 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-12 closed: boundary tick 3419 us; 24 ticks total 19255 us, max 9033 us; alerts 4 commands 1 review 0; state 50913 bytes
+2026-11-16 09:52:23,575 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-13 closed: boundary tick 2172 us; 24 ticks total 9024 us, max 2172 us; alerts 3 commands 1 review 0; state 54910 bytes
+2026-11-16 09:52:37,678 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647218188
+2026-11-16 09:57:30,528 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647262125
+2026-11-16 09:57:34,532 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647262727
+2026-11-16 09:58:44,194 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1647273124
+2026-11-16 10:00:32,092 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E excluded training window ending at round 1647289374
+2026-11-16 10:01:39,360 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A excluded training window ending at round 1647299424
+2026-11-16 10:01:39,360 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B excluded training window ending at round 1647299459
+2026-11-16 10:01:59,689 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-14 closed: boundary tick 670 us; 24 ticks total 8210 us, max 670 us; alerts 6 commands 4 review 0; state 60525 bytes
+2026-11-16 10:11:35,607 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-15 closed: boundary tick 630 us; 24 ticks total 7941 us, max 630 us; alerts 7 commands 2 review 0; state 64664 bytes
+2026-11-16 10:21:11,650 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-16 closed: boundary tick 8506 us; 24 ticks total 17147 us, max 8506 us; alerts 8 commands 1 review 3; state 68855 bytes
+2026-11-16 10:28:15,260 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-17 closed: boundary tick 237 us; 24 ticks total 5774 us, max 426 us; alerts 0 commands 0 review 8; state 73106 bytes
+2026-11-16 10:33:57,424 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-18 closed: boundary tick 427 us; 24 ticks total 3904 us, max 427 us; alerts 6 commands 0 review 8; state 77500 bytes
+2026-11-16 10:43:33,400 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-19 closed: boundary tick 578 us; 24 ticks total 11961 us, max 5786 us; alerts 6 commands 1 review 3; state 81723 bytes
+2026-11-16 10:53:09,333 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-20 closed: boundary tick 616 us; 24 ticks total 5747 us, max 616 us; alerts 7 commands 1 review 3; state 86318 bytes
+2026-11-16 11:02:45,352 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-21 closed: boundary tick 751 us; 24 ticks total 5965 us, max 751 us; alerts 7 commands 3 review 6; state 90698 bytes
+2026-11-16 11:12:21,449 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-22 closed: boundary tick 731 us; 24 ticks total 5313 us, max 731 us; alerts 8 commands 2 review 4; state 95204 bytes
+2026-11-16 11:21:57,401 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-23 closed: boundary tick 661 us; 24 ticks total 5071 us, max 661 us; alerts 8 commands 4 review 5; state 99983 bytes
+2026-11-16 11:29:18,041 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E (subtask 4) entering TRAINING: 997 train windows (11 excluded by outlier sanitization), 288 early-stop windows
+2026-11-16 11:29:18,076 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training task 1 submitted to the executor
+2026-11-16 11:29:18,076 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device E training started on m3-train-1 after 0.0s in the executor queue (task 1, COLD_START)
+2026-11-16 11:29:18,077 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 4)
+2026-11-16 11:29:30,686 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 1/300: train loss=35.08955620688361, early-stop loss=0.3257381765624901, 9.919s
+2026-11-16 11:29:33,167 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F (subtask 5) entering TRAINING: 1006 train windows (2 excluded by outlier sanitization), 288 early-stop windows
+2026-11-16 11:29:33,169 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A (subtask 0) entering TRAINING: 994 train windows (14 excluded by outlier sanitization), 288 early-stop windows
+2026-11-16 11:29:33,202 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training task 1 submitted to the executor
+2026-11-16 11:29:33,202 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device F training started on m3-train-2 after 0.0s in the executor queue (task 1, COLD_START)
+2026-11-16 11:29:33,206 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 5)
+2026-11-16 11:29:33,211 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training task 1 submitted to the executor
+2026-11-16 11:29:33,213 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 0)
+2026-11-16 11:29:42,094 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 2/300: train loss=15.169331782572977, early-stop loss=0.23041115387162214, 11.408s
+2026-11-16 11:29:44,965 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 1/300: train loss=35.76205743499424, early-stop loss=0.3294753509633427, 11.755s
+2026-11-16 11:29:52,491 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 3/300: train loss=11.495511729008445, early-stop loss=0.17759857990069106, 10.397s
+2026-11-16 11:29:55,527 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 2/300: train loss=17.352034852815713, early-stop loss=0.2118866977689763, 10.562s
+2026-11-16 11:30:03,022 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 4/300: train loss=7.833212384662112, early-stop loss=0.15137651878853273, 10.531s
+2026-11-16 11:30:05,806 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 3/300: train loss=10.549127410805744, early-stop loss=0.17620951769646864, 10.279s
+2026-11-16 11:30:14,090 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 5/300: train loss=6.024938886230057, early-stop loss=0.12476387393076863, 11.068s
+2026-11-16 11:30:17,472 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 4/300: train loss=7.027822086603743, early-stop loss=0.17489744236137658, 11.665s
+2026-11-16 11:30:24,458 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 6/300: train loss=4.998392510736312, early-stop loss=0.1198055576042478, 10.368s
+2026-11-16 11:30:27,870 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 5/300: train loss=5.580965255654377, early-stop loss=0.1424205721012831, 10.398s
+2026-11-16 11:30:34,832 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 7/300: train loss=4.579894070528649, early-stop loss=0.09072076245947291, 10.374s
+2026-11-16 11:30:37,894 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 6/300: train loss=4.2182010940883465, early-stop loss=0.1048738070131037, 10.023s
+2026-11-16 11:30:45,025 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 8/300: train loss=4.28079555679012, early-stop loss=0.0886140835226056, 10.193s
+2026-11-16 11:30:49,173 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 7/300: train loss=3.4991186642128493, early-stop loss=0.10595595700062646, 11.279s
+2026-11-16 11:30:56,557 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 9/300: train loss=4.477078036037652, early-stop loss=0.15851309258978044, 11.532s
+2026-11-16 11:31:00,229 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 8/300: train loss=3.856475257096083, early-stop loss=0.12049716254934076, 11.056s
+2026-11-16 11:31:06,355 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 10/300: train loss=4.574867856502533, early-stop loss=0.08513996654415151, 9.798s
+2026-11-16 11:31:10,817 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 9/300: train loss=3.491555598248606, early-stop loss=0.09491395056270947, 10.588s
+2026-11-16 11:31:17,078 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 11/300: train loss=4.622837594393138, early-stop loss=0.0785476092090949, 10.723s
+2026-11-16 11:31:21,147 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 10/300: train loss=3.7593172638312633, early-stop loss=0.06979483292096492, 10.329s
+2026-11-16 11:31:27,252 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 12/300: train loss=4.047797117845431, early-stop loss=0.08735962244752717, 10.174s
+2026-11-16 11:31:31,439 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 11/300: train loss=3.469247374456862, early-stop loss=0.07734938919048513, 10.292s
+2026-11-16 11:31:37,494 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 13/300: train loss=3.0318397373766506, early-stop loss=0.0691544901721522, 10.242s
+2026-11-16 11:31:41,643 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 12/300: train loss=3.7530251153137373, early-stop loss=0.09795187168967705, 10.204s
+2026-11-16 11:31:47,995 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 14/300: train loss=2.8088252344646967, early-stop loss=0.06250691159142646, 10.501s
+2026-11-16 11:31:52,283 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 13/300: train loss=3.4407202896864515, early-stop loss=0.057591367351737505, 10.64s
+2026-11-16 11:31:57,702 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 15/300: train loss=2.8091228431946513, early-stop loss=0.05947148505347729, 9.707s
+2026-11-16 11:32:03,766 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 14/300: train loss=3.2845778812532838, early-stop loss=0.07417375618477283, 11.483s
+2026-11-16 11:32:09,295 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 16/300: train loss=2.8679348906955204, early-stop loss=0.07727190823323528, 11.593s
+2026-11-16 11:32:13,823 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 15/300: train loss=3.435514429729917, early-stop loss=0.07490051118526059, 10.057s
+2026-11-16 11:32:19,661 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 17/300: train loss=2.723086568793735, early-stop loss=0.062069573699004885, 10.366s
+2026-11-16 11:32:23,992 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 16/300: train loss=3.1220202272352964, early-stop loss=0.06627219504553948, 10.169s
+2026-11-16 11:32:30,050 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 18/300: train loss=2.5090365024837293, early-stop loss=0.06348970648876873, 10.388s
+2026-11-16 11:32:34,405 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 17/300: train loss=2.976700010507003, early-stop loss=0.06797167161597314, 10.413s
+2026-11-16 11:32:40,478 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 19/300: train loss=2.5634712046868096, early-stop loss=0.05820500769421771, 10.428s
+2026-11-16 11:32:44,690 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 18/300: train loss=2.353904445922893, early-stop loss=0.06611801112084419, 10.285s
+2026-11-16 11:32:50,940 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 20/300: train loss=2.0509294579157955, early-stop loss=0.05325733918644412, 10.462s
+2026-11-16 11:32:54,919 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 19/300: train loss=2.191945989818677, early-stop loss=0.057111699861095, 10.229s
+2026-11-16 11:33:01,227 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 21/300: train loss=2.0410429320625356, early-stop loss=0.058487937498434825, 10.287s
+2026-11-16 11:33:05,212 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 20/300: train loss=2.2353496524302856, early-stop loss=0.06128410387359346, 10.293s
+2026-11-16 11:33:11,363 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 22/300: train loss=2.19733883529096, early-stop loss=0.05916862772044048, 10.136s
+2026-11-16 11:33:15,576 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 21/300: train loss=2.0127328074496726, early-stop loss=0.04966588512129025, 10.364s
+2026-11-16 11:33:21,426 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 23/300: train loss=1.9221480212501576, early-stop loss=0.04935914089856323, 10.063s
+2026-11-16 11:33:25,896 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 22/300: train loss=1.9407151140596557, early-stop loss=0.051636102864158755, 10.32s
+2026-11-16 11:33:32,373 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 24/300: train loss=1.8472616435708227, early-stop loss=0.057137053407157815, 10.947s
+2026-11-16 11:33:36,193 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 23/300: train loss=1.7084272457205734, early-stop loss=0.05725665238352833, 10.297s
+2026-11-16 11:33:42,345 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 25/300: train loss=1.7540011732964902, early-stop loss=0.045217698561712386, 9.972s
+2026-11-16 11:33:46,116 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 24/300: train loss=1.8024558676325757, early-stop loss=0.04344908042978102, 9.923s
+2026-11-16 11:33:52,344 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 26/300: train loss=1.5700932206737028, early-stop loss=0.049455104949423685, 9.999s
+2026-11-16 11:33:56,255 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 25/300: train loss=2.206469783705214, early-stop loss=0.07470227012529804, 10.139s
+2026-11-16 11:34:02,801 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 27/300: train loss=1.7031613738150213, early-stop loss=0.05010875512348935, 10.456s
+2026-11-16 11:34:07,166 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 26/300: train loss=2.600509480289791, early-stop loss=0.05452073873844296, 10.911s
+2026-11-16 11:34:13,064 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 28/300: train loss=1.391218883040789, early-stop loss=0.043016179889785386, 10.263s
+2026-11-16 11:34:17,183 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 27/300: train loss=2.9688141511834183, early-stop loss=0.05552243987318408, 10.017s
+2026-11-16 11:34:22,419 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 29/300: train loss=1.3931550209586685, early-stop loss=0.049143826834602, 9.355s
+2026-11-16 11:34:26,403 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 28/300: train loss=2.9777269127576247, early-stop loss=0.09281594917580277, 9.22s
+2026-11-16 11:34:31,982 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 30/300: train loss=1.3923589683062323, early-stop loss=0.047430319486661904, 9.563s
+2026-11-16 11:34:36,105 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 29/300: train loss=2.4604951109575186, early-stop loss=0.047989303344624035, 9.702s
+2026-11-16 11:34:41,011 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 31/300: train loss=1.2314467826405084, early-stop loss=0.04301150252797579, 9.029s
+2026-11-16 11:34:45,263 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 30/300: train loss=1.9328275462855464, early-stop loss=0.05685843233748755, 9.158s
+2026-11-16 11:34:50,431 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 32/300: train loss=1.1688187885928798, early-stop loss=0.04502953147234606, 9.42s
+2026-11-16 11:34:54,822 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 31/300: train loss=1.660286747502244, early-stop loss=0.06258664720162208, 9.558s
+2026-11-16 11:35:00,336 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 33/300: train loss=1.2764948514667718, early-stop loss=0.0422507833453418, 9.905s
+2026-11-16 11:35:04,641 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 32/300: train loss=1.6401856868163398, early-stop loss=0.05163293435113891, 9.819s
+2026-11-16 11:35:09,407 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 34/300: train loss=1.3114279928239614, early-stop loss=0.04622854115258027, 9.071s
+2026-11-16 11:35:13,833 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 33/300: train loss=1.5103673375171165, early-stop loss=0.05344239387006575, 9.192s
+2026-11-16 11:35:14,112 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-24 closed: boundary tick 1641 us; 24 ticks total 9063 us, max 1641 us; alerts 8 commands 1 review 5; state 109943 bytes
+2026-11-16 11:35:19,034 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 35/300: train loss=1.275285918889819, early-stop loss=0.04269067399407469, 9.627s
+2026-11-16 11:35:23,219 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 34/300: train loss=1.7881184540365052, early-stop loss=0.058569696405275845, 9.385s
+2026-11-16 11:35:28,497 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 36/300: train loss=1.8529776749578684, early-stop loss=0.052303430853005956, 9.463s
+2026-11-16 11:35:33,853 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 35/300: train loss=1.9163338754488073, early-stop loss=0.04836507638445982, 10.634s
+2026-11-16 11:35:39,486 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 37/300: train loss=1.8634139305030977, early-stop loss=0.06247963506410392, 10.989s
+2026-11-16 11:35:44,058 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 36/300: train loss=2.4806226669446283, early-stop loss=0.057908549320456984, 10.205s
+2026-11-16 11:35:49,664 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 38/300: train loss=1.8318985204438905, early-stop loss=0.04521752738943585, 10.178s
+2026-11-16 11:35:54,208 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 37/300: train loss=2.2834158539772034, early-stop loss=0.0755458175258737, 10.149s
+2026-11-16 11:35:59,489 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 39/300: train loss=1.5279377864824757, early-stop loss=0.03586750459363485, 9.824s
+2026-11-16 11:36:04,568 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 38/300: train loss=2.126398015929305, early-stop loss=0.04683806330349864, 10.36s
+2026-11-16 11:36:09,936 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 40/300: train loss=1.236925525117565, early-stop loss=0.04531753101379163, 10.447s
+2026-11-16 11:36:14,661 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 39/300: train loss=2.497572313702625, early-stop loss=0.07361860609681958, 10.092s
+2026-11-16 11:36:20,220 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 41/300: train loss=1.0491519113650194, early-stop loss=0.036557247285401426, 10.284s
+2026-11-16 11:36:24,472 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 40/300: train loss=2.368300736468771, early-stop loss=0.059397826951600154, 9.811s
+2026-11-16 11:36:30,038 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 42/300: train loss=0.9488257820541794, early-stop loss=0.0407649337300177, 9.818s
+2026-11-16 11:36:35,209 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 41/300: train loss=1.9736544191837309, early-stop loss=0.05136161457508155, 10.737s
+2026-11-16 11:36:40,535 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 43/300: train loss=1.0223722009642706, early-stop loss=0.03692998190184661, 10.496s
+2026-11-16 11:36:44,607 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 42/300: train loss=1.6518097496551014, early-stop loss=0.05072532683106613, 9.398s
+2026-11-16 11:36:50,167 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 44/300: train loss=0.9438552441629204, early-stop loss=0.03933356610176146, 9.632s
+2026-11-16 11:36:54,492 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 43/300: train loss=1.3676683363707167, early-stop loss=0.05239606245950629, 9.885s
+2026-11-16 11:37:00,146 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 45/300: train loss=1.0597794503779023, early-stop loss=0.0372183879515407, 9.979s
+2026-11-16 11:37:05,833 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F training epoch 44/300: train loss=1.2532084312127985, early-stop loss=0.04661801518885616, 11.341s
+2026-11-16 11:37:06,812 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F trained: hidden=60, window=60, batch=64, 44 epochs (last improvement at epoch 24, longest plateau 5), early-stop loss=0.04661801518885616, 453.609s
+2026-11-16 11:37:12,138 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 46/300: train loss=0.9494403336901923, early-stop loss=0.03587683132881121, 11.992s
+2026-11-16 11:37:23,987 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 47/300: train loss=1.2200840867854454, early-stop loss=0.04248842629649473, 11.849s
+2026-11-16 11:37:35,810 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 48/300: train loss=1.2643791984061936, early-stop loss=0.035806591879864624, 11.823s
+2026-11-16 11:37:47,286 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 49/300: train loss=1.6236018982287999, early-stop loss=0.046627800560858634, 11.475s
+2026-11-16 11:37:58,556 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 50/300: train loss=1.4561362649943377, early-stop loss=0.03636261938753643, 11.27s
+2026-11-16 11:38:10,520 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 51/300: train loss=1.7013482101060249, early-stop loss=0.05074515778165496, 11.964s
+2026-11-16 11:38:15,521 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device F calibrated: median=0.15861121472035283, IQR=0.3701342093073466, threshold=2.22
+2026-11-16 11:38:15,880 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device A training started on m3-train-2 after 522.7s in the executor queue (task 1, COLD_START)
+2026-11-16 11:38:15,932 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F result collected on the task thread (queue wait 0.0s, training+calibration 522.7s); 6773 buffered rounds to drain
+2026-11-16 11:38:15,932 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F entering ONLINE
+2026-11-16 11:38:21,024 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 52/300: train loss=1.994732545759227, early-stop loss=0.047817280876045164, 10.504s
+2026-11-16 11:38:25,942 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 1/300: train loss=48.57715525907628, early-stop loss=0.4205552643331856, 10.056s
+2026-11-16 11:38:31,259 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 53/300: train loss=1.924442161901577, early-stop loss=0.04697793425286656, 10.235s
+2026-11-16 11:38:33,683 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F model event online at 1648149060 (model generation 0)
+2026-11-16 11:38:38,283 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 2/300: train loss=17.98429925862481, early-stop loss=0.25906849718953723, 12.341s
+2026-11-16 11:38:46,472 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 54/300: train loss=1.88972216989543, early-stop loss=0.03923554353381229, 15.213s
+2026-11-16 11:38:46,974 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device F buffer drained in 13.7s
+2026-11-16 11:38:46,974 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 553.8s (subtask 5)
+2026-11-16 11:38:51,169 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 3/300: train loss=12.296450776212355, early-stop loss=0.1867130139707139, 12.886s
+2026-11-16 11:38:56,784 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 55/300: train loss=1.7140868736279977, early-stop loss=0.04366288340825142, 10.312s
+2026-11-16 11:39:01,652 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 4/300: train loss=9.200344927170699, early-stop loss=0.22683990299244514, 10.483s
+2026-11-16 11:39:08,781 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 56/300: train loss=1.2406417344067546, early-stop loss=0.03697896794100636, 11.997s
+2026-11-16 11:39:13,941 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 5/300: train loss=8.166126176890204, early-stop loss=0.13568831060627157, 12.289s
+2026-11-16 11:39:18,921 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 57/300: train loss=1.0266581213152086, early-stop loss=0.03771777872805243, 10.14s
+2026-11-16 11:39:24,121 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 6/300: train loss=6.41425718419692, early-stop loss=0.10441759487102187, 10.18s
+2026-11-16 11:39:28,824 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 58/300: train loss=1.10430570196461, early-stop loss=0.03458570941322789, 9.903s
+2026-11-16 11:39:34,168 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 7/300: train loss=5.279761838912965, early-stop loss=0.12463006788550095, 10.047s
+2026-11-16 11:39:40,431 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 59/300: train loss=1.358203788705774, early-stop loss=0.04425358811230324, 11.607s
+2026-11-16 11:39:45,540 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 8/300: train loss=5.377752012365004, early-stop loss=0.1073174226052119, 11.372s
+2026-11-16 11:39:50,384 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 60/300: train loss=1.4865797768573503, early-stop loss=0.045684985955494, 9.953s
+2026-11-16 11:39:55,464 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 9/300: train loss=6.4563201862223005, early-stop loss=0.10579254441436198, 9.924s
+2026-11-16 11:40:00,205 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 61/300: train loss=1.0393718899101823, early-stop loss=0.04453096319749247, 9.821s
+2026-11-16 11:40:05,533 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 10/300: train loss=5.373939305894515, early-stop loss=0.10466433851884954, 10.069s
+2026-11-16 11:40:10,526 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 62/300: train loss=1.0318006160291464, early-stop loss=0.04378336923149323, 10.321s
+2026-11-16 11:40:15,738 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 11/300: train loss=4.479797567339505, early-stop loss=0.11570758878893156, 10.205s
+2026-11-16 11:40:20,607 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 63/300: train loss=0.9543023711120758, early-stop loss=0.033836728570228417, 10.081s
+2026-11-16 11:40:25,964 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 12/300: train loss=3.687735284076018, early-stop loss=0.06550638544710684, 10.226s
+2026-11-16 11:40:30,591 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 64/300: train loss=0.9626708880469607, early-stop loss=0.04021487400132429, 9.984s
+2026-11-16 11:40:36,158 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 13/300: train loss=3.3463086913613713, early-stop loss=0.0799905891896458, 10.194s
+2026-11-16 11:40:43,076 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 65/300: train loss=0.7669513902148686, early-stop loss=0.035935915408171, 12.485s
+2026-11-16 11:40:47,792 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 14/300: train loss=3.4757691572694216, early-stop loss=0.08677897733171032, 11.634s
+2026-11-16 11:40:53,729 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 66/300: train loss=1.0195841073184397, early-stop loss=0.03574639452041706, 10.653s
+2026-11-16 11:40:59,141 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 15/300: train loss=3.4281540800543393, early-stop loss=0.07235595828514568, 11.349s
+2026-11-16 11:41:04,056 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 67/300: train loss=0.9354871163497098, early-stop loss=0.03925636718755196, 10.327s
+2026-11-16 11:41:09,287 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 16/300: train loss=3.2565614619675802, early-stop loss=0.06932109795085636, 10.146s
+2026-11-16 11:41:14,157 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 68/300: train loss=1.0742407500743865, early-stop loss=0.03751069347587726, 10.1s
+2026-11-16 11:41:19,765 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 17/300: train loss=2.702750330812791, early-stop loss=0.06826077661102024, 10.478s
+2026-11-16 11:41:25,056 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 69/300: train loss=1.0129832871056892, early-stop loss=0.035089617181146796, 10.899s
+2026-11-16 11:41:29,994 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 18/300: train loss=2.5457663381800932, early-stop loss=0.0705231558413553, 10.229s
+2026-11-16 11:41:35,525 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 70/300: train loss=0.8024178697450741, early-stop loss=0.037541812828036245, 10.469s
+2026-11-16 11:41:40,942 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 19/300: train loss=2.0551336249884438, early-stop loss=0.058289998155000994, 10.947s
+2026-11-16 11:41:46,341 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 71/300: train loss=0.9240977511212634, early-stop loss=0.0379500403071902, 10.816s
+2026-11-16 11:41:51,613 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 20/300: train loss=2.1095797801718987, early-stop loss=0.05483294405842173, 10.671s
+2026-11-16 11:41:56,563 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 72/300: train loss=0.9189972310452847, early-stop loss=0.036638876137939744, 10.222s
+2026-11-16 11:42:01,996 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 21/300: train loss=1.945307984422235, early-stop loss=0.06064473142586202, 10.383s
+2026-11-16 11:42:07,087 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 73/300: train loss=0.9288297569429551, early-stop loss=0.033751486102236126, 10.524s
+2026-11-16 11:42:12,458 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 22/300: train loss=1.9662313731277687, early-stop loss=0.05983320267439472, 10.462s
+2026-11-16 11:42:17,339 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 74/300: train loss=1.0293379865788126, early-stop loss=0.03675071992227524, 10.252s
+2026-11-16 11:42:22,929 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 23/300: train loss=2.0763391740181865, early-stop loss=0.048102652246946404, 10.47s
+2026-11-16 11:42:27,612 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 75/300: train loss=0.785797755218841, early-stop loss=0.03397678372497466, 10.273s
+2026-11-16 11:42:32,677 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 24/300: train loss=1.9898267342763787, early-stop loss=0.05856976103389571, 9.748s
+2026-11-16 11:42:37,509 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 76/300: train loss=0.7683034591578148, early-stop loss=0.03260876474161794, 9.897s
+2026-11-16 11:42:43,209 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 25/300: train loss=2.0986268962130827, early-stop loss=0.0678279968324174, 10.532s
+2026-11-16 11:42:48,151 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 77/300: train loss=0.7322988529463071, early-stop loss=0.03299980095830523, 10.642s
+2026-11-16 11:42:53,556 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 26/300: train loss=2.189071120234097, early-stop loss=0.06351389442996996, 10.346s
+2026-11-16 11:42:58,824 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 78/300: train loss=0.7469159491964288, early-stop loss=0.033536294435632545, 10.673s
+2026-11-16 11:43:04,187 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 27/300: train loss=2.476204605663524, early-stop loss=0.05099266808064548, 10.63s
+2026-11-16 11:43:09,410 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 79/300: train loss=0.8281535420466113, early-stop loss=0.029890546004033118, 10.586s
+2026-11-16 11:43:14,515 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 28/300: train loss=2.171297136825674, early-stop loss=0.05885593564534655, 10.328s
+2026-11-16 11:43:19,360 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 80/300: train loss=0.847807725579352, early-stop loss=0.03613963198732593, 9.95s
+2026-11-16 11:43:24,729 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 29/300: train loss=2.5306149626479426, early-stop loss=0.06993063092304834, 10.214s
+2026-11-16 11:43:29,450 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 81/300: train loss=0.8023945236528243, early-stop loss=0.03220663290273986, 10.09s
+2026-11-16 11:43:34,606 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 30/300: train loss=2.5839527207262374, early-stop loss=0.07109412419912886, 9.877s
+2026-11-16 11:43:40,402 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 82/300: train loss=0.8747038155794143, early-stop loss=0.035273953044474435, 10.952s
+2026-11-16 11:43:45,483 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 31/300: train loss=2.3179282181403216, early-stop loss=0.062300313301005356, 10.877s
+2026-11-16 11:43:50,246 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 83/300: train loss=1.029088475253131, early-stop loss=0.035989077578618175, 9.844s
+2026-11-16 11:43:55,188 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 32/300: train loss=2.4819536472068116, early-stop loss=0.07447233325968705, 9.705s
+2026-11-16 11:44:00,622 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 84/300: train loss=1.0150607188005705, early-stop loss=0.031485403476704095, 10.376s
+2026-11-16 11:44:05,659 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 33/300: train loss=2.740977875625386, early-stop loss=0.08535573279798535, 10.471s
+2026-11-16 11:44:11,758 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 85/300: train loss=0.9906920279200012, early-stop loss=0.03637809074857112, 11.136s
+2026-11-16 11:44:16,741 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 34/300: train loss=2.6148197023307573, early-stop loss=0.05744334473920873, 11.082s
+2026-11-16 11:44:21,858 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 86/300: train loss=1.1498790980190843, early-stop loss=0.036048167674260556, 10.1s
+2026-11-16 11:44:26,684 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 35/300: train loss=2.398927003846449, early-stop loss=0.05685955904570761, 9.943s
+2026-11-16 11:44:31,685 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 87/300: train loss=0.809271262304203, early-stop loss=0.03168559883008556, 9.826s
+2026-11-16 11:44:36,595 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 36/300: train loss=1.7666510913301914, early-stop loss=0.07088834622341615, 9.911s
+2026-11-16 11:44:42,607 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 88/300: train loss=0.6205589555002547, early-stop loss=0.03231051690312717, 10.922s
+2026-11-16 11:44:47,472 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 37/300: train loss=1.6254636098356807, early-stop loss=0.0464933062483559, 10.876s
+2026-11-16 11:44:52,491 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 89/300: train loss=0.5444232658357233, early-stop loss=0.02928941927155216, 9.884s
+2026-11-16 11:44:57,549 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 38/300: train loss=1.31755070318194, early-stop loss=0.04822360492887272, 10.077s
+2026-11-16 11:45:02,557 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 90/300: train loss=0.4969776800355396, early-stop loss=0.029325914871622775, 10.066s
+2026-11-16 11:45:07,699 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 39/300: train loss=1.3467072478112052, early-stop loss=0.06596416101843794, 10.149s
+2026-11-16 11:45:13,448 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 91/300: train loss=0.4687075139300243, early-stop loss=0.031047329111246944, 10.891s
+2026-11-16 11:45:18,644 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 40/300: train loss=1.465035329145544, early-stop loss=0.0489343857288307, 10.945s
+2026-11-16 11:45:23,345 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 92/300: train loss=0.46297245162564354, early-stop loss=0.028251802400570444, 9.897s
+2026-11-16 11:45:28,702 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 41/300: train loss=1.2447277642348236, early-stop loss=0.04225952456764002, 10.058s
+2026-11-16 11:45:33,553 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 93/300: train loss=0.45619289564925275, early-stop loss=0.029720982234486475, 10.208s
+2026-11-16 11:45:38,776 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 42/300: train loss=1.3869856918559356, early-stop loss=0.07190555643176469, 10.074s
+2026-11-16 11:45:45,353 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 94/300: train loss=0.40224420271209776, early-stop loss=0.028625132718151383, 11.8s
+2026-11-16 11:45:51,638 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 43/300: train loss=1.4491702265599196, early-stop loss=0.04771950735018005, 12.862s
+2026-11-16 11:45:56,186 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 95/300: train loss=0.4192169188244923, early-stop loss=0.02886994066259995, 10.833s
+2026-11-16 11:46:01,612 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 44/300: train loss=1.2469845941838096, early-stop loss=0.04646182955679126, 9.974s
+2026-11-16 11:46:06,394 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 96/300: train loss=0.42353811860084534, early-stop loss=0.028283766829169735, 10.208s
+2026-11-16 11:46:12,012 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 45/300: train loss=1.4348254624535057, early-stop loss=0.06802444224302451, 10.4s
+2026-11-16 11:46:17,643 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 97/300: train loss=0.43349691544835633, early-stop loss=0.02860518769915801, 11.249s
+2026-11-16 11:46:22,982 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 46/300: train loss=1.4574880365063165, early-stop loss=0.05066239683408936, 10.97s
+2026-11-16 11:46:27,638 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 98/300: train loss=0.5211415452328889, early-stop loss=0.027958825545362817, 9.995s
+2026-11-16 11:46:32,629 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 47/300: train loss=1.3495883911848068, early-stop loss=0.04396782708088806, 9.647s
+2026-11-16 11:46:37,496 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 99/300: train loss=0.7785325350390898, early-stop loss=0.029920608533115043, 9.857s
+2026-11-16 11:46:42,880 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 48/300: train loss=1.2158441876663881, early-stop loss=0.05247112478627951, 10.25s
+2026-11-16 11:46:47,850 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 100/300: train loss=0.8776387762781739, early-stop loss=0.031250935201414726, 10.354s
+2026-11-16 11:46:53,039 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 49/300: train loss=1.1945535268853693, early-stop loss=0.051321703516762456, 10.159s
+2026-11-16 11:46:58,213 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 101/300: train loss=0.6708608744112221, early-stop loss=0.029928370035317533, 10.363s
+2026-11-16 11:47:02,990 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 50/300: train loss=1.1762866879210754, early-stop loss=0.04252910375703077, 9.951s
+2026-11-16 11:47:07,933 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 102/300: train loss=0.7400263139122242, early-stop loss=0.03466753834226867, 9.72s
+2026-11-16 11:47:12,765 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 51/300: train loss=1.1842067811418984, early-stop loss=0.051503172438869434, 9.775s
+2026-11-16 11:47:17,084 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 103/300: train loss=0.8986610720286498, early-stop loss=0.03464252788761461, 9.151s
+2026-11-16 11:47:21,959 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 52/300: train loss=1.0267675152596305, early-stop loss=0.052249342556173715, 9.194s
+2026-11-16 11:47:26,279 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 104/300: train loss=0.9955708663205843, early-stop loss=0.03001370669527879, 9.195s
+2026-11-16 11:47:31,193 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 53/300: train loss=1.0916613000280715, early-stop loss=0.03932574553907962, 9.234s
+2026-11-16 11:47:35,724 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 105/300: train loss=0.8892084839376243, early-stop loss=0.03521756108176231, 9.445s
+2026-11-16 11:47:40,297 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 54/300: train loss=0.9736336029627745, early-stop loss=0.04645511336499899, 9.104s
+2026-11-16 11:47:46,683 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 106/300: train loss=0.6832306548147589, early-stop loss=0.03324687324447217, 10.959s
+2026-11-16 11:47:52,545 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 55/300: train loss=0.9169191509485246, early-stop loss=0.057663982475573534, 12.248s
+2026-11-16 11:47:57,001 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 107/300: train loss=0.6880988752922496, early-stop loss=0.030003059053586786, 10.308s
+2026-11-16 11:48:01,730 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 56/300: train loss=0.9762459134354311, early-stop loss=0.03913631463846353, 9.185s
+2026-11-16 11:48:05,319 INFO  com.leejean.m7.M7DecisionOperator                            [] - [M7] Day 2022-03-25 closed: boundary tick 1366 us; 24 ticks total 24115 us, max 3350 us; alerts 8 commands 3 review 5; state 143181 bytes
+2026-11-16 11:48:06,358 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 108/300: train loss=0.6619996086568446, early-stop loss=0.0338504016450198, 9.357s
+2026-11-16 11:48:10,709 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 57/300: train loss=0.9137285476221757, early-stop loss=0.050132382926790134, 8.979s
+2026-11-16 11:48:15,445 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 109/300: train loss=0.8842980205207259, early-stop loss=0.03631259907045923, 9.087s
+2026-11-16 11:48:19,921 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 58/300: train loss=0.9305892793571249, early-stop loss=0.05910548001652097, 9.212s
+2026-11-16 11:48:25,220 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 110/300: train loss=0.795918121933937, early-stop loss=0.029180521493294902, 9.775s
+2026-11-16 11:48:29,979 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 59/300: train loss=0.9943292805377175, early-stop loss=0.03879642414513417, 10.058s
+2026-11-16 11:48:35,435 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 111/300: train loss=0.8822337994704376, early-stop loss=0.03525980995052895, 10.215s
+2026-11-16 11:48:40,387 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 60/300: train loss=0.984379737342105, early-stop loss=0.052758268536512484, 10.408s
+2026-11-16 11:48:47,791 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 112/300: train loss=1.0718405150883905, early-stop loss=0.03473721784210805, 12.356s
+2026-11-16 11:48:52,775 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 61/300: train loss=1.1580891218255547, early-stop loss=0.05932748242729424, 12.388s
+2026-11-16 11:48:58,061 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 113/300: train loss=1.16603501515614, early-stop loss=0.03746197171134358, 10.27s
+2026-11-16 11:49:03,056 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 62/300: train loss=1.2080908699947248, early-stop loss=0.0449653760051504, 10.281s
+2026-11-16 11:49:08,084 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 114/300: train loss=1.2559860173914885, early-stop loss=0.032696313868096995, 10.023s
+2026-11-16 11:49:13,100 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 63/300: train loss=1.1131638993235198, early-stop loss=0.05230037346986585, 10.044s
+2026-11-16 11:49:19,958 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 115/300: train loss=1.1196548258130614, early-stop loss=0.039142726379471436, 11.874s
+2026-11-16 11:49:24,610 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 64/300: train loss=1.336079598700299, early-stop loss=0.06565639480194398, 11.51s
+2026-11-16 11:49:29,877 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 116/300: train loss=1.3203317584218204, early-stop loss=0.0445025755222713, 9.919s
+2026-11-16 11:49:34,742 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 65/300: train loss=1.3063030227142223, early-stop loss=0.041173162563066794, 10.132s
+2026-11-16 11:49:34,870 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B (subtask 1) entering TRAINING: 1003 train windows (5 excluded by outlier sanitization), 288 early-stop windows
+2026-11-16 11:49:34,896 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training task 1 submitted to the executor
+2026-11-16 11:49:35,069 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark held at the earliest buffered round (subtask 1)
+2026-11-16 11:49:39,949 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 117/300: train loss=1.5012361457218997, early-stop loss=0.042268249163975986, 10.072s
+2026-11-16 11:49:44,847 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 66/300: train loss=1.1291073374888474, early-stop loss=0.0528955184352247, 10.105s
+2026-11-16 11:49:50,921 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E training epoch 118/300: train loss=1.3421290785074234, early-stop loss=0.030497488740066185, 10.972s
+2026-11-16 11:49:51,799 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E trained: hidden=60, window=60, batch=64, 118 epochs (last improvement at epoch 98, longest plateau 9), early-stop loss=0.030497488740066185, 1233.721s
+2026-11-16 11:49:55,791 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 67/300: train loss=1.1865506507018033, early-stop loss=0.05055705222582349, 10.944s
+2026-11-16 11:50:07,981 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 68/300: train loss=1.1166083344641855, early-stop loss=0.04995830216300828, 12.189s
+2026-11-16 11:50:20,114 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 69/300: train loss=1.1039040435762966, early-stop loss=0.04855051320270985, 12.133s
+2026-11-16 11:50:31,922 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 70/300: train loss=1.072646431887851, early-stop loss=0.050431918363257125, 11.808s
+2026-11-16 11:50:42,903 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 71/300: train loss=0.8637165208073223, early-stop loss=0.045972636148665376, 10.98s
+2026-11-16 11:50:55,116 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 72/300: train loss=0.9991972988142686, early-stop loss=0.05188500337923618, 12.213s
+2026-11-16 11:51:01,463 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device E calibrated: median=0.1546518696628152, IQR=0.20746275165272748, threshold=2.22
+2026-11-16 11:51:01,469 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device B training started on m3-train-1 after 86.6s in the executor queue (task 1, COLD_START)
+2026-11-16 11:51:01,492 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E result collected on the task thread (queue wait 0.0s, training+calibration 1303.4s); 17333 buffered rounds to drain
+2026-11-16 11:51:01,493 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E entering ONLINE
+2026-11-16 11:51:06,150 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 73/300: train loss=1.252847773888532, early-stop loss=0.042735121940731896, 11.033s
+2026-11-16 11:51:12,922 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 1/300: train loss=32.63641643967739, early-stop loss=0.4862697218687151, 11.451s
+2026-11-16 11:51:17,390 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 74/300: train loss=1.3238636093981124, early-stop loss=0.054161206713851016, 11.24s
+2026-11-16 11:51:18,693 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E model event online at 1648146840 (model generation 0)
+2026-11-16 11:51:25,423 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 2/300: train loss=15.085296811059465, early-stop loss=0.3097239051871452, 12.501s
+2026-11-16 11:51:31,709 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 75/300: train loss=1.3136371139217826, early-stop loss=0.054489603249438114, 14.319s
+2026-11-16 11:51:40,786 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 3/300: train loss=10.28584282786347, early-stop loss=0.23441497196003555, 15.363s
+2026-11-16 11:51:46,821 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 76/300: train loss=1.4196519993683872, early-stop loss=0.06168256927179175, 15.111s
+2026-11-16 11:51:49,597 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device E buffer drained in 31.1s
+2026-11-16 11:51:49,598 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 1351.5s (subtask 4)
+2026-11-16 11:51:54,399 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 4/300: train loss=7.362844766572464, early-stop loss=0.18568560746036925, 13.613s
+2026-11-16 11:51:58,093 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 77/300: train loss=1.611626874699312, early-stop loss=0.048268454115558274, 11.272s
+2026-11-16 11:52:05,089 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 5/300: train loss=5.308180659039076, early-stop loss=0.2031254419017498, 10.69s
+2026-11-16 11:52:08,848 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 78/300: train loss=1.3375919277177137, early-stop loss=0.05892492763581598, 10.754s
+2026-11-16 11:52:15,644 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 6/300: train loss=4.8117493360541586, early-stop loss=0.15800255153260456, 10.555s
+2026-11-16 11:52:21,583 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A training epoch 79/300: train loss=1.7764798458884745, early-stop loss=0.07058825048193978, 12.735s
+2026-11-16 11:52:22,453 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A trained: hidden=60, window=60, batch=64, 79 epochs (last improvement at epoch 59, longest plateau 13), early-stop loss=0.07058825048193978, 846.573s
+2026-11-16 11:52:29,303 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 7/300: train loss=3.942852060184922, early-stop loss=0.1484543457879127, 13.659s
+2026-11-16 11:52:41,006 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 8/300: train loss=3.759720534224843, early-stop loss=0.14595188994437208, 11.703s
+2026-11-16 11:52:54,444 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 9/300: train loss=4.347908596105353, early-stop loss=0.16740534371652824, 13.438s
+2026-11-16 11:53:05,735 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 10/300: train loss=4.235239011465117, early-stop loss=0.16587761646527358, 11.29s
+2026-11-16 11:53:16,478 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 11/300: train loss=3.5853767583536547, early-stop loss=0.14906181691190953, 10.743s
+2026-11-16 11:53:26,895 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 12/300: train loss=4.220744262185207, early-stop loss=0.17025004468593283, 10.402s
+2026-11-16 11:53:30,290 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device A calibrated: median=0.27922194764082275, IQR=0.35343649992440446, threshold=2.22
+2026-11-16 11:53:33,499 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A result collected on the task thread (queue wait 522.7s, training+calibration 914.4s); 19001 buffered rounds to drain
+2026-11-16 11:53:33,500 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A entering ONLINE
+2026-11-16 11:53:33,566 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A model event online at 1648149060 (model generation 0)
+2026-11-16 11:53:36,518 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 13/300: train loss=3.921126705408096, early-stop loss=0.13882680281579907, 9.623s
+2026-11-16 11:53:47,732 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 14/300: train loss=3.4777304527371435, early-stop loss=0.14287084345413792, 11.214s
+2026-11-16 11:54:00,366 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device A buffer drained in 26.9s
+2026-11-16 11:54:00,366 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 1467.2s (subtask 0)
+2026-11-16 11:54:01,716 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 15/300: train loss=2.4696642562400464, early-stop loss=0.133041608527124, 13.984s
+2026-11-16 11:54:09,732 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 16/300: train loss=2.2752064366673315, early-stop loss=0.13835768635395193, 8.016s
+2026-11-16 11:54:17,761 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 17/300: train loss=1.975999456921289, early-stop loss=0.13471623810630892, 8.028s
+2026-11-16 11:54:25,883 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 18/300: train loss=2.130146422982216, early-stop loss=0.13500933384533276, 8.122s
+2026-11-16 11:54:33,715 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 19/300: train loss=2.569584496353948, early-stop loss=0.1353099552750385, 7.832s
+2026-11-16 11:54:41,846 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 20/300: train loss=2.4730124093765435, early-stop loss=0.14012567264866602, 8.131s
+2026-11-16 11:54:49,629 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 21/300: train loss=2.2883188730062436, early-stop loss=0.1354950063787624, 7.783s
+2026-11-16 11:54:59,009 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 22/300: train loss=1.8478511910798936, early-stop loss=0.13255583440815583, 9.38s
+2026-11-16 11:55:07,378 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 23/300: train loss=1.7426958925502243, early-stop loss=0.13551729585633449, 8.369s
+2026-11-16 11:55:15,095 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 24/300: train loss=1.667577600201895, early-stop loss=0.13417715892311083, 7.717s
+2026-11-16 11:55:23,280 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 25/300: train loss=1.8955655196378398, early-stop loss=0.1485136126550459, 8.185s
+2026-11-16 11:55:31,041 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 26/300: train loss=2.095997302338134, early-stop loss=0.1260870100636182, 7.76s
+2026-11-16 11:55:39,004 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 27/300: train loss=1.8618555294912915, early-stop loss=0.14902003536191477, 7.963s
+2026-11-16 11:55:47,131 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 28/300: train loss=2.2565978769646136, early-stop loss=0.14032307901911847, 8.127s
+2026-11-16 11:55:55,023 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 29/300: train loss=2.394422194985456, early-stop loss=0.13273580946761812, 7.892s
+2026-11-16 11:56:03,087 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 30/300: train loss=2.23257389359696, early-stop loss=0.14650923135011185, 8.064s
+2026-11-16 11:56:11,176 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 31/300: train loss=2.079842103775157, early-stop loss=0.14029866702887747, 8.089s
+2026-11-16 11:56:19,374 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 32/300: train loss=2.0100146763546527, early-stop loss=0.14057845834852623, 8.198s
+2026-11-16 11:56:27,513 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 33/300: train loss=1.9283685994702715, early-stop loss=0.15065593909326436, 8.139s
+2026-11-16 11:56:35,343 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 34/300: train loss=1.6584298215633215, early-stop loss=0.1340428676515513, 7.83s
+2026-11-16 11:56:43,481 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 35/300: train loss=1.452312084270078, early-stop loss=0.1543059389583524, 8.138s
+2026-11-16 11:56:51,488 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 36/300: train loss=1.759952475996905, early-stop loss=0.1298425554598087, 8.007s
+2026-11-16 11:57:01,269 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 37/300: train loss=2.1157197270282477, early-stop loss=0.14497995744716002, 9.781s
+2026-11-16 11:57:08,940 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 38/300: train loss=2.7054972245249638, early-stop loss=0.13603509687308904, 7.671s
+2026-11-16 11:57:18,023 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 39/300: train loss=2.545729815821315, early-stop loss=0.12924297968931622, 9.083s
+2026-11-16 11:57:26,662 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 40/300: train loss=2.433739118451296, early-stop loss=0.13934378578233161, 8.639s
+2026-11-16 11:57:34,678 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 41/300: train loss=3.1971709365068484, early-stop loss=0.13546882264971327, 8.016s
+2026-11-16 11:57:42,473 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 42/300: train loss=3.326803674808768, early-stop loss=0.13437684785940401, 7.794s
+2026-11-16 11:57:50,674 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 43/300: train loss=1.7606211159118386, early-stop loss=0.12732114080857068, 8.201s
+2026-11-16 11:57:58,658 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 44/300: train loss=1.9492488097312841, early-stop loss=0.13313702129184626, 7.984s
+2026-11-16 11:58:06,862 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 45/300: train loss=2.3551551010719565, early-stop loss=0.13309236074191352, 8.204s
+2026-11-16 11:58:14,562 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B training epoch 46/300: train loss=2.7676771276218943, early-stop loss=0.12691124386348754, 7.7s
+2026-11-16 11:58:15,183 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B trained: hidden=60, window=60, batch=64, 46 epochs (last improvement at epoch 26, longest plateau 6), early-stop loss=0.12691124386348754, 433.714s
+2026-11-16 11:59:06,206 INFO  com.leejean.m3.M3TrainExecutor                               [] - [M3] Device B calibrated: median=0.12835670804531224, IQR=0.22153802620807844, threshold=2.22
+2026-11-16 11:59:34,970 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B result collected on the task thread (queue wait 86.6s, training+calibration 484.7s); 3173 buffered rounds to drain
+2026-11-16 11:59:34,970 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B entering ONLINE
+2026-11-16 11:59:35,038 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B model event online at 1648307520 (model generation 0)
+2026-11-16 11:59:38,610 INFO  com.leejean.m3.M3Function                                    [] - [M3] Device B buffer drained in 3.6s
+2026-11-16 11:59:38,610 INFO  com.leejean.m3.M3Operator                                    [] - [M3] Output watermark hold released after 603.5s (subtask 1)
