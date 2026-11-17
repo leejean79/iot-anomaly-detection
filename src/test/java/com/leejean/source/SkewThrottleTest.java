@@ -97,6 +97,25 @@ class SkewThrottleTest {
     }
 
     @Test
+    void keepaliveReleasesAboutTenSecondsWhileStillSkewed() {
+        stdWm.set(300_000_000L);
+        aggWm.set(300_000_000L - 50_000_000L);
+        CsvKafkaReplayer.SkewThrottle t = new CsvKafkaReplayer.SkewThrottle(rest, 43_200L, 200L, 600L);
+        long w0 = System.currentTimeMillis();
+        assertTrue(t.await(5_000L));                       // 暂停约 600 毫秒后保活放行 / keepalive after ~600 ms
+        assertTrue(System.currentTimeMillis() - w0 >= 500L);
+        assertEquals(1L, t.keepalives);
+        assertFalse(t.await(5_005L));                      // 十秒事件时间之内照常发送 / within the release
+        assertFalse(t.await(5_009L));
+        assertTrue(t.await(5_010L));                       // 仍偏差：再暂停、再放行，仍算同一次暂停 / same pause episode
+        assertEquals(2L, t.keepalives);
+        assertEquals(1L, t.pauses);
+        aggWm.set(300_000_000L);                           // 追上之后恢复 / caught up
+        assertFalse(t.await(5_020L));
+        assertFalse(t.await(5_030L));
+    }
+
+    @Test
     void unreachableRestNeverBlocks() {
         CsvKafkaReplayer.SkewThrottle t = new CsvKafkaReplayer.SkewThrottle("http://127.0.0.1:1", 43_200L, 200L);
         assertFalse(t.await(1_000L));

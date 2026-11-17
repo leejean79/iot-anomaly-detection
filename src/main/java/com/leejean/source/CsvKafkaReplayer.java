@@ -75,6 +75,9 @@ public class CsvKafkaReplayer {
         long maxSkewSec = params.getLong("replay-max-skew-sec", 43_200L);
         String flinkRest = params.get("flink-rest", "http://localhost:8081");
         long skewPollMs = params.getLong("skew-poll-ms", 5_000L);
+        // 暂停期间每隔这么久放行约十秒事件时间的记录，使各分区不因作业的空闲判定（--idle-wall，默认 60 秒）被标为空闲
+        // During a pause, release about ten seconds of event time this often so no partition is marked idle.
+        long skewKeepaliveMs = params.getLong("skew-keepalive-ms", 30_000L);
         // 裸标志（--dry-run / --resume，无值）ParameterTool.getBoolean 会解析成 false，故用 flag() 判定存在性。
         // Valueless flags (--dry-run / --resume) parse to false under getBoolean; use flag() for presence.
         boolean dryRun = flag(params, "dry-run");
@@ -137,7 +140,7 @@ public class CsvKafkaReplayer {
                 : new KafkaSink(brokers, topic, numPartitions);
 
         Pacer pacer = new Pacer(speedup, maxIdleWallMs, dryRun);
-        SkewThrottle throttle = (maxSkewSec > 0 && !dryRun) ? new SkewThrottle(flinkRest, maxSkewSec, skewPollMs) : null;
+        SkewThrottle throttle = (maxSkewSec > 0 && !dryRun) ? new SkewThrottle(flinkRest, maxSkewSec, skewPollMs, skewKeepaliveMs) : null;
 
         try {
             GlobalMerger merger = new GlobalMerger(CARRY_OVER_SEC, row -> {
@@ -203,7 +206,8 @@ public class CsvKafkaReplayer {
         System.out.println("Total compressed wall:     " + pacer.totalCompressedMs + " ms");
         if (throttle != null) {
             System.out.println("Skew pauses:               " + throttle.pauses + " (total " + throttle.pausedMs / 1000L
-                    + " s wall, max skew seen " + throttle.maxSkewSeenSec + " s, poll errors " + throttle.pollErrors + ")");
+                    + " s wall, keepalives " + throttle.keepalives + ", max skew seen " + throttle.maxSkewSeenSec
+                    + " s, poll errors " + throttle.pollErrors + ")");
         }
         if (injector != null) {
             System.out.println("Injection applied:         " + injector.getApplied()
@@ -503,6 +507,10 @@ public class CsvKafkaReplayer {
         private final String rest;
         private final long maxSkewSec;
         private final long pollMs;
+        private final long keepaliveMs;
+        private long allowUntilTs = Long.MIN_VALUE;   // 保活放行到这一事件时间（不含）/ keepalive releases records before this ts
+        private boolean inPause;
+        long keepalives;
         private final com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
         private long lastPoll;
         private String jid;
@@ -515,38 +523,68 @@ public class CsvKafkaReplayer {
         private int consecutiveErrors;
 
         SkewThrottle(String rest, long maxSkewSec, long pollMs) {
+            this(rest, maxSkewSec, pollMs, 30_000L);
+        }
+
+        SkewThrottle(String rest, long maxSkewSec, long pollMs, long keepaliveMs) {
             this.rest = rest.endsWith("/") ? rest.substring(0, rest.length() - 1) : rest;
             this.maxSkewSec = maxSkewSec;
             this.pollMs = Math.max(200L, pollMs);
+            this.keepaliveMs = Math.max(this.pollMs, keepaliveMs);
         }
 
-        /** 发送本条之前调用；需要暂停时阻塞到偏差回落，返回是否暂停过 / call before sending; blocks while skewed. */
+        /**
+         * 发送本条之前调用；需要暂停时阻塞，返回是否暂停过。暂停最长 keepaliveMs 就放行约十秒事件时间的记录（保活），然后再判：
+         * 整条管道停发超过作业的空闲时限（60 秒）时，数据源各分区被标为空闲，恢复时先活过来的输入会把下游的水位线带过仍在保持
+         * 水位线的上下文模块，使它之后的输出在聚合模块迟到（限速开关对照第一次的不同即由此而来，2026-11-17）。
+         * Call before sending; blocks while skewed, but releases ~10 s of event time every keepaliveMs so that no
+         * source partition goes idle (an all-idle pipeline lets M7's watermark overtake the held context channel).
+         */
         boolean await(long eventTsSec) {
+            if (eventTsSec < allowUntilTs) {
+                return false;                  // 保活放行中 / within a keepalive release
+            }
             long now = System.currentTimeMillis();
-            if (now - lastPoll < pollMs) {
+            if (!inPause && now - lastPoll < pollMs) {
                 return false;
             }
             lastPoll = now;
             long skew = skewSec();
             if (skew <= maxSkewSec) {
+                if (inPause) {
+                    System.out.println("[skew-resume] at eventTs=" + eventTsSec + " skewSec=" + skew);
+                }
+                inPause = false;
+                allowUntilTs = Long.MIN_VALUE;
                 return false;
             }
             long t0 = System.currentTimeMillis();
-            pauses++;
-            System.out.println("[skew-pause] at eventTs=" + eventTsSec + " skewSec=" + skew + " limitSec=" + maxSkewSec);
-            while (skew > maxSkewSec) {
+            if (!inPause) {
+                pauses++;
+                inPause = true;
+                System.out.println("[skew-pause] at eventTs=" + eventTsSec + " skewSec=" + skew + " limitSec=" + maxSkewSec);
+            }
+            long deadline = t0 + keepaliveMs;
+            while (skew > maxSkewSec && System.currentTimeMillis() < deadline) {
                 try {
-                    Thread.sleep(pollMs);
+                    Thread.sleep(Math.max(1L, Math.min(pollMs, deadline - System.currentTimeMillis())));
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 }
                 skew = skewSec();
             }
-            long waited = System.currentTimeMillis() - t0;
-            pausedMs += waited;
+            pausedMs += System.currentTimeMillis() - t0;
             lastPoll = System.currentTimeMillis();
-            System.out.println("[skew-resume] at eventTs=" + eventTsSec + " pausedWallMs=" + waited + " skewSec=" + skew);
+            if (skew > maxSkewSec) {
+                keepalives++;
+                allowUntilTs = eventTsSec + 10L;   // 放行约一轮（八台各一条）/ about one round for every device
+            } else {
+                System.out.println("[skew-resume] at eventTs=" + eventTsSec + " pausedWallMs=" + (System.currentTimeMillis() - t0)
+                        + " skewSec=" + skew + " keepalives=" + keepalives);
+                inPause = false;
+                allowUntilTs = Long.MIN_VALUE;
+            }
             return true;
         }
 

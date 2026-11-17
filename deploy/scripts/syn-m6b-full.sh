@@ -294,7 +294,9 @@ run_one() {
     done
     ssh fa-master "tmux has-session -t syn-replay 2>/dev/null" && fail "重放 15 小时仍未结束"
     # 重放器按下游水位线限速（1.47 版第一节）：记下阈值与暂停次数 / record the throttle limit and pauses
-    grep -E '^Max skew:|^Skew pauses:' "$RH/syn-replay.log" 2>/dev/null | tail -n 2 | tr -s ' ' > "$R/throttle.txt"
+    # 只取本次重放的记录：从日志里最后一行 Max skew 起（日志跨多次重放累积）/ this replay only: from the last Max skew line
+    awk '/^Max skew:/{b=""} /^Max skew:|^Skew pauses:|^\[skew-warn\]/{b=b $0 "\n"} END{printf "%s", b}' "$RH/syn-replay.log" 2>/dev/null \
+        | tr -s ' ' > "$R/throttle.txt"
     prog "重放器限速：$(tr '\n' ' ' < "$R/throttle.txt")"
     [ "$PROOF" = 1 ] && [ "$RUN" = b ] || grep -q '^Max skew: 43200 s' "$R/throttle.txt" \
         || prog "警告：重放器日志里没有找到 43,200 秒的限速阈值（jar 可能是旧的）"
