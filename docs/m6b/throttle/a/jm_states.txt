@@ -1,0 +1,1 @@
+2026-11-16 07:47:34,721 INFO  org.apache.flink.runtime.executiongraph.ExecutionGraph       [] - Job M2Job - M1 ingestion/normalization + pMCOD + LSTM-AE contextual anomaly detection (dea75e0b07c774ed8caf03fe76da7d09) switched from state CREATED to RUNNING.
