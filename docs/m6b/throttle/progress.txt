@@ -18,3 +18,20 @@
 [2026-11-17 01:02:56] == 运行 b 完成 ==
 [2026-11-17 01:04:29] 核对：2 项通过，1 项失败（见 docs/m6b/throttle/throttle_report.md）
 [2026-11-17 01:04:29] == 编排结束：有核对项未通过。请在本地执行 bash deploy/scripts/syn-m6b-full.sh fetch 取回 ==
+[2026-11-17 10:57:58] == 编排开始：运行 a,b，2022-03-01 至 2022-04-03，倍速 150，有限重启三次 ==
+[2026-11-17 10:57:58] == 运行 a 开始：2022-03-01 至 2022-04-03，倍速 150，限速对照（命令回路关闭；限速打开） ==
+[2026-11-17 11:00:36] 作业已提交：f4eac9ae67eaae25cd40c7f2cc6c1b61；M3 level 1: 3 days, cold start, window after the effective time; day 86400 s; switch check 3.0 record only; shadow scoring true
+[2026-11-17 16:38:26] 重放器限速：Max skew: 43200 s (M7-Decision vs RobustScaler watermark, http://localhost:8081, every 5000 ms) Skew pauses: 4 (total 1630 s wall, keepalives 52, max skew seen 44678 s, poll errors 0) 
+[2026-11-17 16:40:42] 重放结束并排空（8 台设备完成冷启动排空）
+[2026-11-17 16:43:13] 收集：评分 56735 条，漂移事件 396 条，告警主题 3674 条，命令主题 28 条，日记录 1030 条，影子快照 0 条，m1-out 2167590 行
+[2026-11-17 16:43:18] 磁盘可用空间：fa-master 22G fa-worker1 26G fa-worker2 27G 
+[2026-11-17 16:43:18] == 运行 a 完成 ==
+[2026-11-17 16:43:18] == 运行 b 开始：2022-03-01 至 2022-04-03，倍速 150，限速对照（命令回路关闭；限速关闭） ==
+[2026-11-17 16:45:56] 作业已提交：aea7992bd7807ee31008f02e557fcd78；M3 level 1: 3 days, cold start, window after the effective time; day 86400 s; switch check 3.0 record only; shadow scoring true
+[2026-11-17 21:56:28] 重放器限速：Max skew: OFF 
+[2026-11-17 21:58:44] 重放结束并排空（8 台设备完成冷启动排空）
+[2026-11-17 22:01:23] 收集：评分 56735 条，漂移事件 396 条，告警主题 3674 条，命令主题 28 条，日记录 1030 条，影子快照 0 条，m1-out 2167590 行
+[2026-11-17 22:01:28] 磁盘可用空间：fa-master 21G fa-worker1 28G fa-worker2 27G 
+[2026-11-17 22:01:28] == 运行 b 完成 ==
+[2026-11-17 22:03:03] 核对：3 项通过，0 项失败（见 docs/m6b/throttle/throttle_report.md）
+[2026-11-17 22:03:03] == 编排结束：全部核对通过。请在本地执行 bash deploy/scripts/syn-m6b-full.sh fetch 取回 ==

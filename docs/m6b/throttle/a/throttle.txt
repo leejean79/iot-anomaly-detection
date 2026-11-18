@@ -1,2 +1,2 @@
 Max skew: 43200 s (M7-Decision vs RobustScaler watermark, http://localhost:8081, every 5000 ms)
-Skew pauses: 2 (total 145 s wall, max skew seen 44350 s, poll errors 0)
+Skew pauses: 4 (total 1630 s wall, keepalives 52, max skew seen 44678 s, poll errors 0)
