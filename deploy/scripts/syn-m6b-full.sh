@@ -296,6 +296,7 @@ run_one() {
         sleep 60
     done
     ssh fa-master "tmux has-session -t syn-replay 2>/dev/null" && fail "重放 15 小时仍未结束"
+    date '+%F %T' > "$R/replay_end.txt"       # 数据发完的墙钟时刻，供末尾水位线保持的检查（1.50 版第二项）/ end-of-data wall time
     # 重放器按下游水位线限速（1.47 版第一节）：记下阈值与暂停次数 / record the throttle limit and pauses
     # 只取本次重放的记录：从日志里最后一行 Max skew 起（日志跨多次重放累积）/ this replay only: from the last Max skew line
     awk '/^Max skew:/{b=""} /^Max skew:|^Skew pauses:|^\[skew-warn\]/{b=b $0 "\n"} END{printf "%s", b}' "$RH/syn-replay.log" 2>/dev/null \

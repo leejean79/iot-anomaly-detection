@@ -130,8 +130,45 @@ def csv_rows(path):
         return list(csv.DictReader(fh))
 
 
-def stage2(root, runs, check, title):
-    """两次运行的九类输出逐位相同（排除按处理时间产生的诊断量）/ the nine outputs bit-identical across two runs."""
+SUBTASK_DEVICE = "ABCDEFGH"                  # 代理键：子任务 i 只承载第 i 台设备 / surrogate keys: subtask i hosts device i
+
+
+def end_hold(run_dir):
+    """数据发完时上下文模块各子任务是否仍保持水位线（1.50 版裁决第二项）：取 wm_buffer.csv 中不晚于数据发完后 90 秒（空闲判定为
+    60 秒）的最后一次采样；没有 replay_end.txt 时取最后一行。返回 [(设备, 保持到的水位线毫秒)] / devices still holding at the end."""
+    path = os.path.join(run_dir, "wm_buffer.csv")
+    if not os.path.exists(path):
+        return None
+    end = (lines(os.path.join(run_dir, "replay_end.txt")) or [None])[0]
+    cutoff = None
+    if end:
+        cutoff = (datetime.strptime(end, "%Y-%m-%d %H:%M:%S") + timedelta(seconds=90)).strftime("%Y-%m-%d %H:%M:%S")
+    last = {}
+    for r in csv_rows(path) or []:
+        if cutoff is None or r["wall_clock"] <= cutoff:
+            last[r["subtask"]] = r
+    held = []
+    for sub, r in sorted(last.items(), key=lambda x: int(x[0])):
+        i, o = int(r["input_wm_ms"]), int(r["output_wm_ms"])
+        if o >= 0 and o < i:
+            held.append((SUBTASK_DEVICE[int(sub)] if int(sub) < len(SUBTASK_DEVICE) else sub, o))
+    return held
+
+
+def m7_day(line):
+    """聚合模块一行输出所属的当地日（告警取小时起点，命令与复核取 day）/ local day of an M7 output line."""
+    try:
+        x = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if x.get("type") == "alert":
+        return datetime.fromtimestamp(int(x["hourStart"]), ZONE).strftime("%Y-%m-%d")
+    return x.get("day")
+
+
+def stage2(root, runs, check, title, exclude_from=None):
+    """两次运行的九类输出逐位相同（排除按处理时间产生的诊断量）；exclude_from 为当地日时，聚合模块的告警、复核与命令从这一天起
+    不参与比较（数据发完时仍有设备保持水位线，1.50 版裁决第二项）/ the nine outputs bit-identical across two runs."""
     if len(runs) != 2:
         check(title, False, "只有运行 %s，无法比较" % (runs[0] if runs else "（无）"))
         return
@@ -143,6 +180,8 @@ def stage2(root, runs, check, title):
             rows.append("%s 缺失" % f)
             same = False
             continue
+        if exclude_from and f in ("alerts.jsonl", "adapt.jsonl"):
+            la, lb = ([l for l in x if (m7_day(l) or "") < exclude_from] for x in (la, lb))
         eq = sorted(map(strip_wall, la)) == sorted(map(strip_wall, lb))
         rows.append("%s %d/%d 行%s" % (f, len(la), len(lb), "相同" if eq else "不同"))
         same &= eq
@@ -280,8 +319,22 @@ def main() -> int:
                              if s.get("channel") == "m3_context" and s["windowEnd"] < decided)
             out.append("运行 %s：第一段内上下文评分 %d 条（上下文通道仍在收集时为零）。\n\n" % (r, ctx_before))
 
-    # ---------------- 三、等值第二段
-    stage2(a.dir, runs, check, "等值第二段：两次在线运行逐位相同")
+    # ---------------- 三、等值第二段（先查数据发完时的水位线保持，1.50 版裁决第二项）
+    exclude_from = None
+    for r in runs:
+        held = end_hold(os.path.join(a.dir, r))
+        if held is None:
+            check("运行 %s：数据发完时没有设备保持水位线" % r, False, "缺少 wm_buffer.csv，无法确认")
+            continue
+        check("运行 %s：数据发完时没有设备保持水位线" % r, not held,
+              "无" if not held else "；".join("%s 保持在 %s" % (d, local(o // 1000)) for d, o in held))
+        for d, o in held:
+            day = datetime.fromtimestamp(o // 1000, ZONE).strftime("%Y-%m-%d")
+            exclude_from = day if exclude_from is None else min(exclude_from, day)
+    if exclude_from:
+        out.append("数据发完时仍有设备保持水位线：聚合模块的告警、复核与命令从 %s 起不参与等值第二段（1.50 版裁决第二项）。\n\n"
+                   % exclude_from)
+    stage2(a.dir, runs, check, "等值第二段：两次在线运行逐位相同", exclude_from)
 
     base = os.path.join(a.dir, runs[0]) if runs else None
     if base:
