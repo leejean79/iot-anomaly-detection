@@ -6,3 +6,33 @@
 [2026-11-14 10:54:28] == 运行 a 开始：2022-03-01 至 2022-05-01，倍速 150，全部模块、命令回路、聚合模块、升级格与影子评分打开 ==
 [2026-11-14 10:57:07] 作业已提交：44aaa851c3c816247feeeb72611d0fb5；M3 level 1: 3 days, cold start, window after the effective time; day 86400 s; switch check 3.0 record only; shadow scoring true
 [2026-11-14 20:30:40] 重放结束并排空（8 台设备完成冷启动排空）
+[2026-11-15 09:46:52] 八条断言：退出码 1（⛔ 退出码 1：有断言未通过——**拦住**后续标定/探针，请先解决重放完整性问题（见上方逐条与 docs/m2_replay_verify_m6bfull_a.csv）。）
+/opt/fa-iforest/m6bfull/repo/deploy/scripts/syn-m6b-full.sh: line 216: 740080 Killed                  python3 m6b/full_check.py --normalize-monitoring "$MON" > "$R/monitoring_norm.sha" 2> "$R/monitoring_norm.err"
+[2026-11-15 09:56:36] 失败：监测快照的规范化摘要失败（见 docs/m6b/full/a/monitoring_norm.err）。已停止；请先 fetch，再把 progress.txt 与相关日志发给我。
+[2026-11-15 10:31:30] == 编排开始：运行 a,b，2022-03-01 至 2022-05-01，倍速 150，有限重启三次；运行 a 从收集的后半段续做 ==
+[2026-11-15 10:32:35] 收集：评分 56457 条，漂移事件 964 条，告警主题 5952 条，命令主题 52 条，日记录 2140 条，影子快照 39429 条，m1-out 4004971 行
+[2026-11-15 10:32:40] 磁盘可用空间：fa-master 19G fa-worker1 24G fa-worker2 25G 
+[2026-11-15 10:32:40] == 运行 a 完成 ==
+[2026-11-15 10:32:40] == 运行 b 开始：2022-03-01 至 2022-05-01，倍速 150，全部模块、命令回路、聚合模块、升级格与影子评分打开 ==
+[2026-11-15 10:32:40] 失败：磁盘可用空间不足 22 GB： fa-master(19GB)（见 docs/cluster_disk_cleanup_zh.md）。已停止；请先 fetch，再把 progress.txt 与相关日志发给我。
+[2026-11-15 10:43:53] == 编排开始：运行 b，2022-03-01 至 2022-05-01，倍速 150，有限重启三次 ==
+[2026-11-15 10:43:53] == 运行 b 开始：2022-03-01 至 2022-05-01，倍速 150，全部模块、命令回路、聚合模块、升级格与影子评分打开 ==
+[2026-11-15 10:46:32] 作业已提交：d976bdb4faaa903826f1a51c6a219295；M3 level 1: 3 days, cold start, window after the effective time; day 86400 s; switch check 3.0 record only; shadow scoring true
+[2026-11-15 20:21:40] 重放结束并排空（8 台设备完成冷启动排空）
+[2026-11-15 20:24:48] 八条断言：退出码 1（⛔ 退出码 1：有断言未通过——**拦住**后续标定/探针，请先解决重放完整性问题（见上方逐条与 docs/m2_replay_verify_m6bfull_b.csv）。）
+[2026-11-15 20:29:21] 收集：评分 56457 条，漂移事件 964 条，告警主题 5952 条，命令主题 52 条，日记录 2140 条，影子快照 39429 条，m1-out 4004971 行
+[2026-11-15 20:29:26] 磁盘可用空间：fa-master 16G fa-worker1 25G fa-worker2 27G 
+[2026-11-15 20:29:26] == 运行 b 完成 ==
+[2026-11-15 20:31:10] 核对：7 项通过，2 项失败（见 docs/m6b/full/full_report_tables.md）
+[2026-11-15 20:31:10] == 编排结束：有核对项未通过。请在本地执行 bash deploy/scripts/syn-m6b-full.sh fetch 取回 ==
+[2026-11-18 09:51:41] == 编排开始：运行 a,b，2022-03-01 至 2022-05-01，倍速 150，有限重启三次 ==
+[2026-11-18 09:51:41] == 运行 a 开始：2022-03-01 至 2022-05-01，倍速 150，全部模块、命令回路、聚合模块、升级格与影子评分打开 ==
+[2026-11-18 09:54:20] 作业已提交：4c8922214056fb2ef207be2e70ae7470；M3 level 1: 3 days, cold start, window after the effective time; day 86400 s; switch check 3.0 record only; shadow scoring true
+[2026-11-18 20:02:10] 重放器限速：Max skew: 43200 s (M7-Decision vs RobustScaler watermark, http://localhost:8081, every 5000 ms) Skew pauses: 5 (total 2230 s wall, keepalives 72, max skew seen 44884 s, poll errors 0) 
+[2026-11-18 20:06:27] 重放结束并排空（8 台设备完成冷启动排空）
+[2026-11-18 20:09:44] 八条断言：退出码 0（✅ 八条断言全部通过——**允许**进入标定/探针（step2）。）
+[2026-11-18 20:14:21] 收集：评分 52965 条，漂移事件 989 条，告警主题 5659 条，命令主题 57 条，日记录 2140 条，影子快照 35758 条，m1-out 4004971 行
+[2026-11-18 20:14:27] 磁盘可用空间：fa-master 18G fa-worker1 24G fa-worker2 26G 
+[2026-11-18 20:14:27] == 运行 a 完成 ==
+[2026-11-18 20:14:27] == 运行 b 开始：2022-03-01 至 2022-05-01，倍速 150，全部模块、命令回路、聚合模块、升级格与影子评分打开 ==
+[2026-11-18 20:16:01] 失败：复位未通过（见 docs/m6b/full/b/reset.log）。已停止；请先 fetch，再把 progress.txt 与相关日志发给我。

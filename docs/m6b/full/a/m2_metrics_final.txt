@@ -1,4 +1,4 @@
-[job] 44aaa851c3c816247feeeb72611d0fb5  (M2Job - M1 ingestion/normalization + pMCOD + LSTM-AE contextual anomaly detection)
+[job] 4c8922214056fb2ef207be2e70ae7470  (M2Job - M1 ingestion/normalization + pMCOD + LSTM-AE contextual anomaly detection)
 ============================================
 == 三道闸 / gates ==
   m2_gate_admitted             3520753
@@ -8,9 +8,9 @@
   m2_gate_coldstart_clear      17
   m2_gate_late_drop            0
 == M2 ==
-  m2_outliers_total            17038
+  m2_outliers_total            17217
   m2_points_total              211158904
-  m2_mc_points_total           210866674
+  m2_mc_points_total           210870319
   m2_windows_total             598922
   m2_state_cold_clears         17
 == M1（对账参照） ==

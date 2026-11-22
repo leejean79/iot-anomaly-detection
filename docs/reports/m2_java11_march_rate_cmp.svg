@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="358" viewBox="0 0 640 358" font-family="system-ui,-apple-system,Segoe UI,sans-serif">
+<rect width="640" height="358" fill="#ffffff"/>
+<text x="12" y="24" font-size="13" font-weight="600" fill="#16191f">逐设备平均离群率 / mean outlier rate per device</text>
+<rect x="118" y="34" width="11" height="9" fill="#3d6ea8"/>
+<text x="134" y="42" font-size="10" fill="#414a56">Java 8 (probe)</text>
+<rect x="236" y="34" width="11" height="9" fill="#0f6d78"/>
+<text x="252" y="42" font-size="10" fill="#414a56">Java 11 (job)</text>
+<text x="10" y="72" font-size="11" fill="#16191f">A (R=1)</text>
+<rect x="118" y="56" width="72.30" height="11" fill="#3d6ea8"/>
+<rect x="118" y="69" width="63.45" height="11" fill="#0f6d78"/>
+<text x="195.30" y="65" font-size="9.5" fill="#6b7480">0.0481%</text>
+<text x="186.45" y="78" font-size="9.5" fill="#6b7480">0.0422%</text>
+<text x="10" y="106" font-size="11" fill="#16191f">B (R=1)</text>
+<rect x="118" y="90" width="56.66" height="11" fill="#3d6ea8"/>
+<rect x="118" y="103" width="47.60" height="11" fill="#0f6d78"/>
+<text x="179.66" y="99" font-size="9.5" fill="#6b7480">0.0377%</text>
+<text x="170.60" y="112" font-size="9.5" fill="#6b7480">0.0317%</text>
+<text x="10" y="140" font-size="11" fill="#16191f">C (R=1)</text>
+<rect x="118" y="124" width="87.63" height="11" fill="#3d6ea8"/>
+<rect x="118" y="137" width="78.83" height="11" fill="#0f6d78"/>
+<text x="210.63" y="133" font-size="9.5" fill="#6b7480">0.0583%</text>
+<text x="201.83" y="146" font-size="9.5" fill="#6b7480">0.0524%</text>
+<text x="10" y="174" font-size="11" fill="#16191f">D (R=0.75)</text>
+<rect x="118" y="158" width="179.76" height="11" fill="#3d6ea8"/>
+<rect x="118" y="171" width="171.17" height="11" fill="#0f6d78"/>
+<text x="302.76" y="167" font-size="9.5" fill="#6b7480">0.1196%</text>
+<text x="294.17" y="180" font-size="9.5" fill="#6b7480">0.1139%</text>
+<text x="10" y="208" font-size="11" fill="#16191f">E (R=1)</text>
+<rect x="118" y="192" width="65.83" height="11" fill="#3d6ea8"/>
+<rect x="118" y="205" width="57.01" height="11" fill="#0f6d78"/>
+<text x="188.83" y="201" font-size="9.5" fill="#6b7480">0.0438%</text>
+<text x="180.01" y="214" font-size="9.5" fill="#6b7480">0.0379%</text>
+<text x="10" y="242" font-size="11" fill="#16191f">F (R=1)</text>
+<rect x="118" y="226" width="54.41" height="11" fill="#3d6ea8"/>
+<rect x="118" y="239" width="45.61" height="11" fill="#0f6d78"/>
+<text x="177.41" y="235" font-size="9.5" fill="#6b7480">0.0362%</text>
+<text x="168.61" y="248" font-size="9.5" fill="#6b7480">0.0303%</text>
+<text x="10" y="276" font-size="11" fill="#16191f">G (R=1.5)</text>
+<rect x="118" y="260" width="398.31" height="11" fill="#3d6ea8"/>
+<rect x="118" y="273" width="390.12" height="11" fill="#0f6d78"/>
+<text x="521.31" y="269" font-size="9.5" fill="#6b7480">0.2650%</text>
+<text x="513.12" y="282" font-size="9.5" fill="#6b7480">0.2596%</text>
+<text x="10" y="310" font-size="11" fill="#16191f">H (R=1)</text>
+<rect x="118" y="294" width="91.99" height="11" fill="#3d6ea8"/>
+<rect x="118" y="307" width="91.92" height="11" fill="#0f6d78"/>
+<text x="214.99" y="303" font-size="9.5" fill="#6b7480">0.0612%</text>
+<text x="214.92" y="316" font-size="9.5" fill="#6b7480">0.0612%</text>
+<line x1="115" y1="48" x2="115" y2="328" stroke="#c2cad6"/>
+</svg>

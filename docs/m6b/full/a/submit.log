@@ -45,6 +45,7 @@ M5a data layer:  alpha=0.01 (Bonferroni /5) D0=0.38/0.73/0.84/0.43/0.51 missing-
 M5b OPTWIN:      confidence=0.99 robustness=0.5 wmax=2016 granularity=TEN_MINUTES K=36 -> synergia-drift
 Adapt (M6a):     true commands<-synergia-adapt cache=7 d, D=7 d, backfill=3600 s, keep=[false, true, true, false, false]
 M7 enabled:      true options={p-point=0.061343306938749904, retrain-side=after, level2-days=16, upgrade-cells=true, retrain-days=3} -> synergia-alerts / synergia-adapt
+M7 model state:  events from the context module (level 1/2 suppressed while offline; level-1 cooldown and level-2 window from switch events)
 ========================================
 Device subtasks: {A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7} (surrogate keys, maxParallelism=128)
 WARNING: An illegal reflective access operation has occurred
@@ -52,7 +53,7 @@ WARNING: Illegal reflective access by org.apache.flink.api.java.ClosureCleaner (
 WARNING: Please consider reporting this to the maintainers of org.apache.flink.api.java.ClosureCleaner
 WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
 WARNING: All illegal access operations will be denied in a future release
-Job has been submitted with JobID 44aaa851c3c816247feeeb72611d0fb5
-[wait] M2Job (44aaa851c3c816247feeeb72611d0fb5) to be RUNNING ...
-  M2Job is RUNNING (JobID 44aaa851c3c816247feeeb72611d0fb5)
+Job has been submitted with JobID 4c8922214056fb2ef207be2e70ae7470
+[wait] M2Job (4c8922214056fb2ef207be2e70ae7470) to be RUNNING ...
+  M2Job is RUNNING (JobID 4c8922214056fb2ef207be2e70ae7470)
 下一步 / Next: bash /opt/fa-iforest/m6bfull/repo/deploy/scripts/syn-replay.sh --speedup 600 --start <day> --end <day>

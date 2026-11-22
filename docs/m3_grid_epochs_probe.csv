@@ -1,0 +1,2 @@
+device,hiddenSize,windowLength,trainWindows,trainExcluded,esWindows,epochs,esLoss,trainSeconds,sanitized
+E,60,60,1001,7,288,26,0.16060953,2428.2,true
