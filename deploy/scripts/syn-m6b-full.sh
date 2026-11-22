@@ -25,7 +25,7 @@
 #    可选 --resume a：运行 a 的重放与收集前半段已完成、在「监测快照的规范化摘要」或其后失败时，只从这一步续做运行 a，
 #    再照 --runs 接着跑 b 与核对；不复位、不重放，要求 master 上 a/run.env、a/scores.jsonl、a/adapt.jsonl 与 m3march/monitoring.jsonl 仍在。
 # 3. 前置条件 / Preconditions: 已按 syn-m3-a4-stepc.sh setup-master 做过 master 的准备；新 jar 已上传（syn-upload-m1.sh --jar-only），
-#    check-jar.sh 全部 PASS；JobManager 进程内存不少于 3,072 MB（JM_HEAP_MB，第一次全量重放堆耗尽之后提高）；三台节点磁盘可用不少于 22 GB（每次复位门槛为 20 GB，短重放一次在 master 上留下约一 GB）；运行期间
+#    check-jar.sh 全部 PASS；JobManager 进程内存不少于 3,072 MB（JM_HEAP_MB，第一次全量重放堆耗尽之后提高）；三台节点在复位清理之后磁盘可用不少于 20 GB（与复位脚本同一门槛，都在删掉上一次的主题与中间产物之后判；一次全量运行在 master 上最多占约 5 GB）；运行期间
 #    不做其他集群操作。启动横幅须含「switch check 3.0 record only; shadow scoring true」与「M7 enabled:      true」。
 # 4. 期望产出 / Expected output: docs/m6b/full/ 下 progress.txt、full_report_tables.md（核对与四张表）、a/ 与 b/ 两个运行目录。
 #    m1-out 与监测快照的完整转储较大，留在 master 上算摘要后删除，只保留摘要与核对需要的子集。
@@ -233,11 +233,11 @@ job_alive() {   # 作业是否还在（运行或重启中）/ is the job still t
     return 1
 }
 
-disk_ok() {   # 三台节点可用空间不少于 22 GB（复位门槛 20 GB 之上留两 GB）/ at least 22 GB free on every node
+disk_ok() {   # 三台节点可用空间不少于 20 GB（复位清理之后判，与复位脚本同一门槛）/ at least 20 GB free after the reset
     local bad="" h g
     for h in fa-master fa-worker1 fa-worker2; do
         g=$(ssh "$h" "df -BG / | awk 'NR==2{gsub(\"G\",\"\",\$4); print \$4}'" 2>/dev/null)
-        [ "${g:-0}" -ge 22 ] || bad="$bad $h(${g:-?}GB)"
+        [ "${g:-0}" -ge 20 ] || bad="$bad $h(${g:-?}GB)"
     done
     [ -z "$bad" ] || { echo "$bad"; return 1; }
 }
@@ -258,7 +258,7 @@ run_one() {
         if LOW=$(disk_ok); then LOW=""; break; fi
         sleep 30
     done
-    [ -z "$LOW" ] || fail "复位之后磁盘可用空间仍不足 22 GB：$LOW（见 docs/cluster_disk_cleanup_zh.md）"
+    [ -z "$LOW" ] || fail "复位之后磁盘可用空间仍不足 20 GB：$LOW（见 docs/cluster_disk_cleanup_zh.md）"
     bash "$SCRIPT_DIR/syn-create-topics.sh" > "$R/topics.log" 2>&1 || fail "创建 topic 失败（见 $R/topics.log）"
     grep -q 'synergia-adapt' "$R/topics.log" && grep -q 'synergia-alerts' "$R/topics.log" \
         || fail "topic 清单里缺少 synergia-adapt 或 synergia-alerts（见 $R/topics.log）"
@@ -373,6 +373,9 @@ finish_one() {
     ssh fa-master "rm -rf $RH/m3march"
     rm -f "$W/m1out.jsonl"
     prog "磁盘可用空间：$(for h in fa-master fa-worker1 fa-worker2; do printf '%s %s ' "$h" "$(ssh "$h" "df -h / | awk 'NR==2{print \$4}'")"; done)"
+    # 占用明细留档，便于看出跨运行慢慢变少的空间去了哪里 / where the space is, to see any creeping loss across runs
+    ssh fa-master "du -sh /var/lib/docker/volumes/* /var/lib/docker/containers /opt/fa-iforest/* 2>/dev/null | sort -h | tail -n 12" \
+        > "$R/disk_breakdown.txt" 2>/dev/null || true
     prog "== 运行 $RUN 完成 =="
 }
 

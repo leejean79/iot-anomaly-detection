@@ -242,12 +242,10 @@ else
     TM_CLEAN="PASS"
 fi
 record "TaskManager 缓存清理" "$TM_CLEAN" "JavaCPP 原生库缓存与旧 TaskManager 日志"
-disk_read "清理后"
-if [ -n "$DISK_BAD" ]; then
-    record "磁盘门槛" FAIL "不达标:$DISK_BAD —— 见 docs/cluster_disk_cleanup_zh.md"
-else
-    record "磁盘门槛" PASS "三台均 >= ${MIN_FREE_GB} GB"
-fi
+disk_read "清理缓存后"
+# 磁盘门槛不在这里判：上一阶段留在 Kafka 主题里的数据要到第 6 步删掉主题、第 7 步删掉中间产物之后才释放，这里判会把它算成
+# 「不足」（全量重放运行 b 之前 master 17 GB 即如此，2026-11-18）。门槛移到第 7 步之后判，并等待 Kafka 异步删除日志段。
+# The gate is judged after steps 6 and 7 free the previous phase's topics and scratch dirs, not here.
 
 # ---------- 5b. 重启 Flink 容器（清空每 JVM 的指标计数器）----------
 step "5b/8 重启 Flink 容器 / restart Flink containers"
@@ -357,6 +355,26 @@ else
 fi
 
 # ---------- 8. 配置与 jar 一致性 ----------
+# ---------- 7b. 磁盘门槛（主题与中间产物都已删除之后）/ disk gate after topics and scratch dirs are gone ----------
+# Kafka 删主题后按 file.delete.delay.ms（默认 60 秒）异步删除日志段，所以最多等五分钟、每 30 秒复读一次。
+# Kafka deletes log segments asynchronously after a topic deletion: re-read every 30 s for up to five minutes.
+step "7b/8 磁盘门槛（清理之后）/ disk gate after cleanup"
+if [ "$DRY_RUN" -eq 1 ]; then
+    disk_read "当前"
+    record "磁盘门槛" SKIP "dry-run（当前读数见上）"
+else
+    for _try in $(seq 1 10); do
+        disk_read "清理后"
+        [ -z "$DISK_BAD" ] && break
+        [ "$_try" -lt 10 ] && { echo "  未达标，等待 Kafka 释放空间（30 秒后复读，第 ${_try}/10 次）……"; sleep 30; }
+    done
+    if [ -n "$DISK_BAD" ]; then
+        record "磁盘门槛" FAIL "清理之后仍不达标:$DISK_BAD —— 见 docs/cluster_disk_cleanup_zh.md"
+    else
+        record "磁盘门槛" PASS "清理之后三台均 >= ${MIN_FREE_GB} GB"
+    fi
+fi
+
 step "8/8 配置与 jar 一致性 / configuration and jar consistency"
 TM_IMG="$(ssh fa-worker1 "docker inspect taskmanager-2 --format '{{.Config.Image}}'" 2>/dev/null)"
 echo "  TaskManager 镜像: ${TM_IMG:-?}（期望 ${FLINK_IMAGE_TAG:-fa-iforest/flink:1.13.6-java11}）"
