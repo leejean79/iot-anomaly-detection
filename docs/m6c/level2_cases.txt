@@ -1,0 +1,82 @@
+=== D L1 seq 3 triggers Temperature|Gas, switch 03-29 00:00 UTC (03-29 01:00 local); L2 decided 03-30 23:00 UTC
+  perf RECOVER ts 03-29 00:00 local, candidate 01-01 00:00 local, magnitude 0.000
+  perf RECOVER ts 03-29 00:00 local, candidate 01-01 00:00 local, magnitude 0.000
+  perf CONFIRM ts 03-29 12:11 local, candidate 03-29 06:10 local, magnitude 2.535
+  perf DEVIATE ts 03-30 00:00 local, candidate 01-01 00:00 local, magnitude 0.000
+  perf DEVIATE ts 03-30 00:00 local, candidate 01-01 00:00 local, magnitude 0.000
+  perf CONFIRM ts 03-30 08:13 local, candidate 03-30 02:13 local, magnitude 0.820
+  perf CONFIRM ts 03-30 18:15 local, candidate 03-30 12:14 local, magnitude 3.207
+  perf BURST   ts 03-30 21:20 local, candidate 03-30 21:20 local, magnitude 0.156
+  perf DEVIATE ts 03-31 00:00 local, candidate 01-01 00:00 local, magnitude 0.000
+  day 2022-03-26 Temperature v3 evaluable 1 deviated 0 D 0.112 P 1.3e-81 shift +0.037 
+  day 2022-03-26 Pressure    v3 evaluable 1 deviated 1 D 1.000 P 0 shift +0.607 
+  day 2022-03-26 Gas         v3 evaluable 1 deviated 0 D 0.400 P 0 shift +0.410 
+  day 2022-03-27 Temperature v3 evaluable 1 deviated 0 D 0.090 P 2.2e-51 shift -0.071 
+  day 2022-03-27 Pressure    v3 evaluable 1 deviated 1 D 0.883 P 0 shift +0.575 
+  day 2022-03-27 Gas         v3 evaluable 1 deviated 1 D 0.731 P 0 shift +0.455 
+  day 2022-03-28 Temperature v3 evaluable 1 deviated 0 D 0.097 P 3.6e-62 shift +0.039 
+  day 2022-03-28 Gas         v3 evaluable 1 deviated 0 D 0.307 P 0 shift +0.126 
+  day 2022-03-29 Temperature v3 evaluable 1 deviated 1 D 0.504 P 0 shift -0.173 
+  day 2022-03-29 Pressure    v3 evaluable 1 deviated 1 D 0.842 P 0 shift -0.763 
+  day 2022-03-29 Gas         v3 evaluable 1 deviated 0 D 0.288 P 0 shift -0.027 
+  day 2022-03-30 Temperature v3 evaluable 1 deviated 1 D 0.385 P 0 shift -0.328 
+  day 2022-03-30 Pressure    v3 evaluable 1 deviated 1 D 1.000 P 0 shift -1.086 
+  day 2022-03-30 Gas         v3 evaluable 1 deviated 1 D 0.553 P 0 shift -0.252 
+=== A L1 seq 5 triggers Temperature|Gas, switch 04-10 23:00 UTC (04-11 00:00 local); L2 decided 04-13 23:00 UTC
+  perf DEVIATE ts 04-10 00:00 local, candidate 01-01 00:00 local, magnitude 0.000
+  perf RECOVER ts 04-10 00:00 local, candidate 01-01 00:00 local, magnitude 0.000
+  perf RECOVER ts 04-11 00:00 local, candidate 01-01 00:00 local, magnitude 0.000
+  perf REVOKE  ts 04-11 09:43 local, candidate 04-11 07:43 local, magnitude 0.683
+  perf BURST   ts 04-11 21:00 local, candidate 04-11 21:00 local, magnitude 153.846
+  perf DEVIATE ts 04-12 00:00 local, candidate 01-01 00:00 local, magnitude 0.000
+  perf CONFIRM ts 04-12 03:57 local, candidate 04-11 21:56 local, magnitude 0.662
+  perf CONFIRM ts 04-12 17:00 local, candidate 04-12 10:58 local, magnitude 0.430
+  perf BURST   ts 04-12 20:00 local, candidate 04-12 20:00 local, magnitude 96.618
+  perf REVOKE  ts 04-13 07:03 local, candidate 04-13 06:03 local, magnitude 0.525
+  perf REVOKE  ts 04-13 14:36 local, candidate 04-13 11:05 local, magnitude 4.622
+  perf DEVIATE ts 04-14 00:00 local, candidate 01-01 00:00 local, magnitude 0.000
+  perf RECOVER ts 04-14 00:00 local, candidate 01-01 00:00 local, magnitude 0.000
+  perf DEVIATE ts 04-14 00:00 local, candidate 01-01 00:00 local, magnitude 0.000
+  day 2022-04-07 Temperature v5 evaluable 1 deviated 1 D 0.603 P 0 shift -0.541 
+  day 2022-04-07 Pressure    v5 evaluable 1 deviated 1 D 1.000 P 0 shift -2.244 
+  day 2022-04-07 Gas         v5 evaluable 1 deviated 1 D 0.650 P 0 shift -0.287 
+  day 2022-04-08 Temperature v5 evaluable 1 deviated 1 D 0.634 P 0 shift -0.691 
+  day 2022-04-08 Pressure    v5 evaluable 1 deviated 1 D 1.000 P 0 shift -1.585 
+  day 2022-04-08 Gas         v5 evaluable 1 deviated 0 D 0.199 P 3.3e-259 shift -0.088 
+  day 2022-04-09 Temperature v5 evaluable 1 deviated 1 D 0.831 P 0 shift -0.850 
+  day 2022-04-09 Humidity    v5 evaluable 1 deviated 1 D 0.802 P 0 shift -0.517 
+  day 2022-04-09 Gas         v5 evaluable 1 deviated 0 D 0.408 P 0 shift -0.193 
+  day 2022-04-10 Temperature v5 evaluable 1 deviated 1 D 0.884 P 0 shift -1.009 
+  day 2022-04-10 Gas         v5 evaluable 1 deviated 0 D 0.257 P 0 shift +0.237 
+  day 2022-04-11 Temperature v5 evaluable 1 deviated 1 D 0.584 P 0 shift -0.691 
+  day 2022-04-11 Pressure    v5 evaluable 1 deviated 1 D 0.899 P 0 shift -1.208 
+  day 2022-04-11 Gas         v5 evaluable 1 deviated 0 D 0.217 P 9e-310 shift +0.007 
+  day 2022-04-12 Temperature v5 evaluable 1 deviated 1 D 0.496 P 0 shift -0.442 
+  day 2022-04-12 Pressure    v5 evaluable 1 deviated 1 D 1.000 P 0 shift -1.327 
+  day 2022-04-12 Gas         v5 evaluable 1 deviated 0 D 0.204 P 5.3e-272 shift -0.024 
+  day 2022-04-13 Temperature v5 evaluable 1 deviated 1 D 0.468 P 0 shift -0.485 
+  day 2022-04-13 Humidity    v5 evaluable 1 deviated 1 D 0.930 P 0 shift +0.765 
+  day 2022-04-13 Gas         v5 evaluable 1 deviated 1 D 0.524 P 0 shift -0.354 
+=== 一级决定日之前的触发通道 / trigger channels before the level-1 decision
+  D day 2022-03-20 Temperature v2 deviated 0 D 0.300 shift +0.271
+  D day 2022-03-20 Gas         v2 deviated 0 D 0.230 shift +0.100
+  D day 2022-03-21 Temperature v2 deviated 0 D 0.344 shift +0.374
+  D day 2022-03-21 Gas         v2 deviated 1 D 0.510 shift +0.414
+  D day 2022-03-22 Temperature v2 deviated 1 D 0.442 shift +0.598
+  D day 2022-03-22 Gas         v2 deviated 0 D 0.167 shift +0.133
+  D day 2022-03-23 Temperature v2 deviated 1 D 0.565 shift +0.523
+  D day 2022-03-23 Gas         v2 deviated 1 D 0.582 shift +0.854
+  D day 2022-03-24 Temperature v2 deviated 1 D 0.479 shift +0.564
+  D day 2022-03-24 Gas         v2 deviated 1 D 0.820 shift +2.270
+  D day 2022-03-25 Temperature v3 deviated 0 D 0.102 shift +0.057
+  D day 2022-03-25 Gas         v3 deviated 1 D 0.494 shift +0.379
+  A day 2022-04-02 Temperature v5 deviated 1 D 1.000 shift -1.180
+  A day 2022-04-02 Gas         v5 deviated 0 D 0.185 shift +0.021
+  A day 2022-04-03 Temperature v5 deviated 1 D 1.000 shift -1.279
+  A day 2022-04-03 Gas         v5 deviated 0 D 0.295 shift +0.247
+  A day 2022-04-04 Temperature v5 deviated 1 D 0.736 shift -0.794
+  A day 2022-04-04 Gas         v5 deviated 1 D 0.517 shift +0.626
+  A day 2022-04-05 Temperature v5 deviated 1 D 0.576 shift -0.571
+  A day 2022-04-05 Gas         v5 deviated 0 D 0.284 shift -0.192
+  A day 2022-04-06 Temperature v5 deviated 1 D 0.705 shift -0.622
+  A day 2022-04-06 Gas         v5 deviated 1 D 0.479 shift -0.244
