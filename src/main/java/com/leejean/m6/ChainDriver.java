@@ -62,6 +62,11 @@ public final class ChainDriver {
         }
     }
 
+    /** 设备的点通道半径（与在线 --r-per-device 相同）/ the device's point-channel radius. */
+    static double radius(String dev) {
+        return R.get(dev);
+    }
+
     public static void main(String[] args) throws Exception {
         Map<String, String> a = M7OfflineRunner.parseArgs(args);
         ChainDeviceSim.Variant variant = ChainDeviceSim.Variant.valueOf(a.getOrDefault("variant", "open").toUpperCase());

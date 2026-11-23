@@ -10,6 +10,7 @@ import com.leejean.m2.DevicePoint;
 import com.leejean.m2.McodPoint;
 import com.leejean.m2.McodState;
 import com.leejean.m2.PmcodFunction;
+import com.leejean.m3.AnnotatedRound;
 import com.leejean.m5.DriftEvent;
 import com.leejean.m5.OptWinTables;
 import com.leejean.m5a.M5aCore;
@@ -83,6 +84,12 @@ final class ChainDeviceSim {
     private Backfill bfPending;
     private int version = 1;
     private final TreeMap<Long, Integer> commands = new TreeMap<>();    // 生效时刻 → 序号 / effective time → seq
+    // ---------------- 上下文模块的输入（第三批一级切换复算；默认关闭，关闭时行为不变）/ context-module input, off by default
+    private boolean annotate;
+    final List<AnnotatedRound> annotated = new ArrayList<>();          // 与 PmcodFunction 侧输出同构的标注轮 / annotated rounds
+    private final TreeMap<Long, AdaptCommand> ctxCommands = new TreeMap<>();   // 一级与二级：生效时刻 → 命令 / level 1/2
+    private ParamSet pendingParams;                                    // 待附的参数集（M6b 选项一）/ parameter set to attach
+    private AdaptCommand pendingContext;                               // 待转发的一级或二级 / level-1/2 command to forward
 
     private final M5aCore core = new M5aCore();
     private final McodState st = new McodState();
@@ -120,6 +127,19 @@ final class ChainDeviceSim {
 
     boolean[] keepChannels() {
         return keep;
+    }
+
+    /**
+     * 产出上下文模块的输入（与在线 PmcodFunction 的侧输出同构：每个滑动步内的轮附离群标记、原始值、版本、参数集与一级或二级命令），
+     * 供一级切换的离线复算（第三批交接文档第二节）。/ Emit the context module's input, as the online side output does.
+     */
+    void annotate(boolean on) {
+        annotate = on;
+    }
+
+    /** 排入一条一级或二级命令：生效时转发给上下文模块（附在下一条入口轮上），版本不变 / schedule a level-1/2 command. */
+    void scheduleContext(AdaptCommand c) {
+        ctxCommands.put(c.effectiveAt, c);
     }
 
     /** 排入一条零级命令；开环时只记录不执行 / schedule a level-0 command (ignored in the open loop). */
@@ -160,8 +180,23 @@ final class ChainDeviceSim {
             if (lo == hi) {
                 continue;                                     // 空窗口不触发 / empty windows do not fire
             }
-            PmcodFunction.Slide sl = PmcodFunction.slide(st, new ArrayList<>(points.subList(lo, hi)), end - wMs, end, sMs, r, K, false);
+            PmcodFunction.Slide sl = PmcodFunction.slide(st, new ArrayList<>(points.subList(lo, hi)), end - wMs, end, sMs, r, K,
+                    annotate);
             long endSec = end / 1000L;
+            if (annotate && sl.slidePoints != null) {
+                java.util.Set<Long> outlierSet = new java.util.HashSet<>(sl.result.outlierIds);
+                for (DevicePoint dp : sl.slidePoints) {       // 与 PmcodFunction 的侧输出相同 / as PmcodFunction's side output
+                    McodPoint mp = dp.getPoint();
+                    AnnotatedRound ar = new AnnotatedRound(dev, mp.id, mp.value != null ? mp.value.clone() : new double[0],
+                            outlierSet.contains(mp.id), dp.getCensoredMask() != null ? dp.getCensoredMask().clone() : null,
+                            mp.coldStart, endSec);
+                    ar.setVersion(dp.getVersion());
+                    ar.setRaw(dp.getRaw());
+                    ar.setParamSet(dp.getParamSet());
+                    ar.setContextCommand(dp.getContextCommand());
+                    annotated.add(ar);
+                }
+            }
             for (long id : sl.emitted) {
                 if (endSec - SLIDE_SEC <= id && id < endSec) {
                     outliers.add(id);
@@ -213,8 +248,23 @@ final class ChainDeviceSim {
         cens[Channels.LIGHT_INDEX] = !w.missing[Channels.LIGHT_INDEX] && w.x[Channels.LIGHT_INDEX] == 65536.0;
         boolean[] stuck = new boolean[Channels.N_DET];
         stuck[0] = w.stuck;
-        if (cal != null && !commands.isEmpty() && w.ts >= commands.firstKey()) {
-            execute(commands.firstKey(), commands.pollFirstEntry().getValue());
+        // 到期的命令按生效时刻、再按序号依次执行（与在线 AdaptiveScalerFunction.executeDue 相同）：零级重估，一级与二级转发
+        // Due commands in order of effective time, then seq: level 0 re-estimates, levels 1/2 are forwarded.
+        while (cal != null) {
+            Long k0 = commands.isEmpty() ? null : commands.firstKey();
+            Long k1 = annotate && !ctxCommands.isEmpty() ? ctxCommands.firstKey() : null;
+            boolean due0 = k0 != null && w.ts >= k0;
+            boolean due1 = k1 != null && w.ts >= k1;
+            if (!due0 && !due1) {
+                break;
+            }
+            boolean ctxFirst = due1 && (!due0 || k1 < k0
+                    || k1.equals(k0) && ctxCommands.firstEntry().getValue().seq < commands.firstEntry().getValue());
+            if (ctxFirst) {
+                pendingContext = ctxCommands.pollFirstEntry().getValue();
+            } else {
+                execute(k0, commands.pollFirstEntry().getValue());
+            }
         }
         cache.add(w.ts, w.x, CompactCache.maskOf(w.missing, cens, stuck));
         DeviceRound d = new DeviceRound();
@@ -237,6 +287,7 @@ final class ChainDeviceSim {
                 cal = RobustScalerFunction.calibrate(res, EPS, false);
                 frozen = cal;
                 freezeTs = w.ts;
+                pendingParams = new ParamSet(1, cal.median, cal.scale, cal.bypass);   // 冻结参数集（版本一）/ version 1
                 refsPending = cal.hist;
                 res = null;
             }
@@ -258,6 +309,13 @@ final class ChainDeviceSim {
                 DevicePoint p = new DevicePoint(dev, new McodPoint(xn.clone(), w.ts * 1000L, 0, w.ts, w.cold), cens.clone());
                 p.setVersion(d.getVersion());
                 p.setBackfill(d.getBackfill());
+                if (annotate) {                               // 与 M2Gate 相同的附件 / the same attachments as M2Gate
+                    p.setRaw(w.x.clone());
+                    p.setParamSet(pendingParams);
+                    p.setContextCommand(pendingContext);
+                    pendingParams = null;
+                    pendingContext = null;
+                }
                 points.add(p);
             }
         }
@@ -313,6 +371,7 @@ final class ChainDeviceSim {
         }
         cal = x.used;
         version = x.version;
+        pendingParams = new ParamSet(x.version, x.used.median, x.used.scale, x.used.bypass);
         refsPending = x.used.hist;
         bfPending = x.backfill;
         execs.add(x);
