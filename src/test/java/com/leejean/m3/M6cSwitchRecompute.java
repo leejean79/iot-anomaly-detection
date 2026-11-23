@@ -5,6 +5,7 @@ import com.leejean.m6.AdaptCommand;
 import com.leejean.m6.ContextInputBuilder;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
+import org.apache.flink.runtime.state.hashmap.HashMapStateBackend;
 import org.apache.flink.runtime.state.storage.JobManagerCheckpointStorage;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.KeyedOneInputStreamOperatorTestHarness;
@@ -252,7 +253,11 @@ public final class M6cSwitchRecompute {
         KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h =
                 new KeyedOneInputStreamOperatorTestHarness<>(new M3Operator(f), AnnotatedRound::getDevice,
                         TypeInformation.of(String.class));
-        // 快照放在内存里，默认上限 5 MB 不够（F 约 5.9 MB）/ in-memory snapshots exceed the 5 MB default (F is about 5.9 MB)
+        // 快照放在内存里，默认上限 5 MB 不够（F 约 5.9 MB）。Flink 1.13.6 测试工具的 setCheckpointStorage 在状态后端本身是
+        // 检查点存储（默认 MemoryStateBackend）时直接返回，所以先换成同为堆内的 HashMapStateBackend，再设存储。
+        // In-memory snapshots exceed the 5 MB default (F is about 5.9 MB). The 1.13.6 harness ignores setCheckpointStorage while
+        // the backend is itself a checkpoint storage (the default MemoryStateBackend), so switch to the heap-based HashMapStateBackend first.
+        h.setStateBackend(new HashMapStateBackend());
         h.setCheckpointStorage(new JobManagerCheckpointStorage(256 * 1024 * 1024));
         return h;
     }
