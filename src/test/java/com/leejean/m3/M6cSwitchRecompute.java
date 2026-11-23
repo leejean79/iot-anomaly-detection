@@ -5,6 +5,7 @@ import com.leejean.m6.AdaptCommand;
 import com.leejean.m6.ContextInputBuilder;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
+import org.apache.flink.runtime.state.storage.JobManagerCheckpointStorage;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.KeyedOneInputStreamOperatorTestHarness;
 import org.apache.flink.util.OutputTag;
@@ -248,8 +249,12 @@ public final class M6cSwitchRecompute {
     }
 
     static KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> harness(M3Function f) throws Exception {
-        return new KeyedOneInputStreamOperatorTestHarness<>(new M3Operator(f), AnnotatedRound::getDevice,
-                TypeInformation.of(String.class));
+        KeyedOneInputStreamOperatorTestHarness<String, AnnotatedRound, M3ScoreRecord> h =
+                new KeyedOneInputStreamOperatorTestHarness<>(new M3Operator(f), AnnotatedRound::getDevice,
+                        TypeInformation.of(String.class));
+        // 快照放在内存里，默认上限 5 MB 不够（F 约 5.9 MB）/ in-memory snapshots exceed the 5 MB default (F is about 5.9 MB)
+        h.setCheckpointStorage(new JobManagerCheckpointStorage(256 * 1024 * 1024));
+        return h;
     }
 
     /** 进入训练（开始缓冲）时等训练完成、收回结果并排空 / on buffering, await the training, collect it and drain. */
