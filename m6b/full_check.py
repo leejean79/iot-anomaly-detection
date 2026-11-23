@@ -250,6 +250,20 @@ def main() -> int:
         for r in runs:
             d = os.path.join(a.dir, r)
             # 聚合模块三份日志 / the three M7 logs
+            # 告警只比较到在线上下文通道第一条评分所在的小时之前（1.51 版裁决：链式实验不含闭环上下文模型，上下文通道的两列及由它
+            # 决定的告警从这里起不可比）；命令与复核比较到链式驱动停止的时刻。/ alerts only before the first online contextual score.
+            first_ctx = min((s["windowEnd"] for s in jsonl(os.path.join(d, "scores.jsonl")) if s.get("channel") == "m3_context"),
+                            default=None)
+            if first_ctx is None:
+                # 没有评分转储时取上下文模块日志里最早的上线事件（上线事件即新模型第一条评分的窗口末）/ fallback: earliest online event
+                ev = [int(m.group(1)) for l in lines(os.path.join(d, "tm_log.txt")) or []
+                      for m in [re.search(r"model event online at (\d+)", l)] if m]
+                first_ctx = min(ev) if ev else None
+            cut_alert = cut if first_ctx is None else min(cut, (first_ctx - 1) // 3600 * 3600 + 60)
+            if first_ctx is not None and cut_alert < cut:
+                parts_note = "告警比较到 %s 之前（在线上下文通道第一条评分 %s）" % (local(cut_alert - 60), local(first_ctx))
+            else:
+                parts_note = None
             parts, ok = [], True
             for name in ("alerts.csv", "commands.csv", "review.csv"):
                 x, y = csv_rows(os.path.join(d, "online", name)), csv_rows(os.path.join(a.chain, name))
@@ -257,7 +271,8 @@ def main() -> int:
                     parts.append("%s 缺失" % name)
                     ok = False
                     continue
-                x, y = ([w for w in rows if start < CL.tick_time(name, w) <= cut] for rows in (x, y))
+                c = cut_alert if name == "alerts.csv" else cut
+                x, y = ([w for w in rows if start < CL.tick_time(name, w) <= c] for rows in (x, y))
                 diff = None
                 for i, (p, q) in enumerate(zip(x, y)):
                     for k in q:
@@ -279,6 +294,8 @@ def main() -> int:
                 "%s %s %s 级（%s）" % (first["device"], first["day"], first["level"], "与链式相同" if same_stop else "与链式不同")
                 if first else "没有"))
             ok &= same_stop
+            if parts_note:
+                parts.insert(0, parts_note)
             check("运行 %s：等值第一段，聚合模块三份日志" % r, ok, "；".join(parts))
             # 点通道 / point channel
             on = set()
