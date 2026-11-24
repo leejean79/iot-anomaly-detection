@@ -352,6 +352,10 @@ public class M2Job {
             System.out.println("M7 model state:  events from the context module (level 1/2 suppressed while offline; level-1 cooldown"
                     + " and level-2 window from switch events)");
         }
+        // 第三批开关（只打印；编排脚本据此核对配置）/ batch-3 switches, printed for the orchestration's banner checks
+        System.out.println("Batch 3:         anchor=" + adaptAnchor + " min=" + adaptAnchorMinDays + " d; defer="
+                + m7Params.deferDays + " d; oscillation=" + m7Params.oscSuppress + "; rebuild plan=" + m7Params.rebuildPlan
+                + "; switch validate=" + m3SwitchCheckEnforce);
         System.out.println("========================================");
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();

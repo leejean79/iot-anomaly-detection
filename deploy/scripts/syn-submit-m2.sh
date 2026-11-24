@@ -52,7 +52,8 @@ case " $EXTRA_ARGS " in
     *) EXTRA_ARGS="$EXTRA_ARGS --restart-attempts 3" ;;
 esac
 BROKERS="$NODE_MASTER_IP:9092,$NODE_WORKER1_IP:9092,$NODE_WORKER2_IP:9092"
-JAR_NAME="${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}"
+# SYN_JOB_JAR_OVERRIDE 由编排逐次指定 jar（.env 在上面被重新读入，会覆盖调用方给的 SYN_JOB_JAR_NAME）/ per-run jar from the orchestration
+JAR_NAME="${SYN_JOB_JAR_OVERRIDE:-${SYN_JOB_JAR_NAME:-iot-anomaly-detection-1.0-SNAPSHOT.jar}}"
 MAIN="${SYN_M2_JOB_MAIN:-com.leejean.m2.M2Job}"
 PARALLELISM="${SYN_SOURCE_PARTITIONS:-8}"
 SRC_TOPIC="${SYN_TOPIC_SOURCE:-synergia-source}"
