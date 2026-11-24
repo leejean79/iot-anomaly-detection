@@ -37,6 +37,9 @@ final class ChainDeviceSim {
     /** 零级的三档（交接文档决定十五）与开环 / the three level-0 variants and the open loop. */
     enum Variant { OPEN, D1, D7, POS }
 
+    /** 零级窗口锚定的作用范围（第三批第一节）：关闭、只触发通道（乙档）、全部重估通道（丙档）/ anchoring scope. */
+    enum Anchor { OFF, TRIGGER, ALL }
+
     /** 一次执行的零级 / one executed level-0. */
     static final class Exec {
         long eff;
@@ -45,6 +48,8 @@ final class ChainDeviceSim {
         AdaptiveScalerFunction.Level0 l0;            // 重估函数的原始结果 / raw result of the re-estimation
         RobustScalerFunction.Calibration used;       // 实际换上的参数（只重估位置一档的分母与旁路取冻结值）/ parameters installed
         Backfill backfill;                           // 实际附上的回填 / the backfill attached
+        long[] windowStart;                          // 锚定时各通道的窗口起点（关闭时为空）/ per-channel start when anchoring
+        boolean fallback;                            // 锚定窗口不足下限、回退到生效前七天 / fell back to seven days
     }
 
     /** 一次爆发：报警元素与发出时刻 / a burst: alarm element and emission time. */
@@ -84,6 +89,10 @@ final class ChainDeviceSim {
     private Backfill bfPending;
     private int version = 1;
     private final TreeMap<Long, Integer> commands = new TreeMap<>();    // 生效时刻 → 序号 / effective time → seq
+    private Anchor anchor = Anchor.OFF;
+    private long anchorMinSec = 2 * 86400L;
+    private final Map<Integer, boolean[]> anchorTrig = new HashMap<>();   // 序号 → 数据层触发通道 / seq → data triggers
+    private final Map<Integer, Long> anchorStart = new HashMap<>();       // 序号 → 最早进入之日的当地零点 / earliest entry
     // ---------------- 上下文模块的输入（第三批一级切换复算；默认关闭，关闭时行为不变）/ context-module input, off by default
     private boolean annotate;
     final List<AnnotatedRound> annotated = new ArrayList<>();          // 与 PmcodFunction 侧输出同构的标注轮 / annotated rounds
@@ -146,6 +155,24 @@ final class ChainDeviceSim {
     void schedule(long eff, int seq) {
         if (variant != Variant.OPEN) {
             commands.put(eff, seq);
+        }
+    }
+
+    /** 设置零级窗口锚定（第三批第一节）：作用范围与窗口长度下限（天）/ set the anchoring scope and the minimum length. */
+    void anchor(Anchor a, int minDays) {
+        anchor = a;
+        anchorMinSec = minDays * 86400L;
+    }
+
+    /**
+     * 排入一条带锚定信息的零级命令：trig 为数据层触发通道，entryStart 为全部触发通道中最早的进入之日的当地零点（没有数据层触发通道时
+     * 为空，执行时回退）。/ Schedule a level-0 command with its data triggers and the earliest entry day's local midnight.
+     */
+    void schedule(long eff, int seq, boolean[] trig, Long entryStart) {
+        schedule(eff, seq);
+        anchorTrig.put(seq, trig);
+        if (entryStart != null) {
+            anchorStart.put(seq, entryStart);
         }
     }
 
@@ -332,7 +359,22 @@ final class ChainDeviceSim {
         x.eff = eff;
         x.seq = seq;
         x.version = seq + 1;
-        x.l0 = AdaptiveScalerFunction.level0(cache, eff, dSec, WINDOW_SEC, EPS, false, ChannelTransform.defaultTable(), frozen, keep);
+        if (anchor == Anchor.OFF) {
+            x.l0 = AdaptiveScalerFunction.level0(cache, eff, dSec, WINDOW_SEC, EPS, false, ChannelTransform.defaultTable(), frozen,
+                    keep);
+        } else {
+            // 起点取最早进入之日的当地零点与生效前七天中较晚者；不足下限或没有数据层触发通道时回退到生效前七天
+            // Start = max(earliest entry day's midnight, eff − 7 days); fall back when shorter than the minimum or absent.
+            x.windowStart = AdaptiveScalerFunction.anchoredStarts(eff, dSec, anchorStart.get(seq), anchorTrig.get(seq),
+                    anchor == Anchor.ALL, anchorMinSec);
+            if (x.windowStart == null) {
+                x.fallback = true;
+                x.windowStart = new long[Channels.N_DET];
+                java.util.Arrays.fill(x.windowStart, eff - dSec);
+            }
+            x.l0 = AdaptiveScalerFunction.level0(cache, eff, dSec, WINDOW_SEC, EPS, false, ChannelTransform.defaultTable(), frozen,
+                    keep, x.windowStart);
+        }
         if (variant == Variant.POS) {
             // 只重估位置：中位数取七天重估值，分母与旁路沿用首次冻结；参照直方图取七天窗口；回填按实际换上的参数重新标准化
             RobustScalerFunction.Calibration u = new RobustScalerFunction.Calibration();

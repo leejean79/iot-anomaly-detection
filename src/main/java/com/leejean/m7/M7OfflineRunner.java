@@ -84,6 +84,9 @@ public final class M7OfflineRunner {
         p.retrainDays = Integer.parseInt(a.getOrDefault("retrain-days", "3"));
         p.retrainAfter = !"before".equals(a.getOrDefault("retrain-side", "after"));
         p.level2Days = Integer.parseInt(a.getOrDefault("level2-days", "16"));
+        // 第三批振荡规则（交接文档第三节；默认关闭）/ batch-3 oscillation rule (off by default)
+        p.oscSuppress = Boolean.parseBoolean(a.getOrDefault("osc-suppress", "false"));
+        p.oscDays = Integer.parseInt(a.getOrDefault("osc-days", "14"));
         return p;
     }
 

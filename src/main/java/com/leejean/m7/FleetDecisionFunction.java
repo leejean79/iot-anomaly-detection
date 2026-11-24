@@ -79,6 +79,13 @@ public class FleetDecisionFunction implements Serializable {
         public boolean modelEvents;
         // 一级已发出、既无完成事件也无失败事件时，生效后超过 K_fail 天视为失败解除（1.49 版裁决第一处空档）/ K_fail days
         public int kFailDays = 14;
+        // ---- 第三批（交接文档第一、三节；默认关闭，关闭时输出不变）/ batch 3, off by default
+        // 零级命令为每个数据层触发通道填入进入偏离之日（窗口锚定用）/ level-0 commands carry each data trigger's entry day
+        public boolean anchorEntryDays;
+        // 振荡规则：同一台同一触发通道 oscDays 天内两条偏移符号相反的零级之后，该通道再命中零级时只记录（理论回传第三十一条）
+        // Oscillation rule: after two opposite-sign level-0 commands within oscDays, that channel's level 0 is only recorded.
+        public boolean oscSuppress;
+        public int oscDays = 14;
 
         /** 一个告警节拍的名义轮数（每十秒一轮）/ nominal rounds per alert tick. */
         double nominal() {
@@ -153,6 +160,10 @@ public class FleetDecisionFunction implements Serializable {
         public String cell;                   // 命中的决策矩阵格 / the decision-matrix cell
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
         public Integer model;                 // 决定时刻上下文模块的模型代数 / model generation at the decision
+        // 数据层触发通道（按 triggers 中的次序、去掉 perf）各自的进入偏离之日（第三批第一节；锚定关闭时为空、不写进 JSON）
+        // Entry day of each data-layer trigger, in the order of triggers without perf (null unless anchoring is on).
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        public List<String> entryDays;
     }
 
     public static final class Review implements Serializable {
@@ -270,6 +281,11 @@ public class FleetDecisionFunction implements Serializable {
     private final Map<String, java.util.TreeSet<Long>> failedAt = new HashMap<>();  // dev → 一级失败的时刻
     private final Map<String, Long> level1Done = new HashMap<>();                   // dev → 最近一条一级的重训完成时刻
     private final Map<String, Long> level0Eff = new HashMap<>();                    // dev|ch → 最近一条含该通道的零级的生效时刻
+    // 第三批 / batch 3
+    private final Map<String, Long> lastLevel0Eff = new HashMap<>();                // dev → 最近一条零级的生效时刻
+    private final Map<String, Double> dataShift = new HashMap<>();                  // dev|day|ch → 日记录的偏移 / day-record shift
+    private final Map<String, long[]> lastL0Sign = new HashMap<>();                 // dev|ch → {决定时刻, 偏移符号}
+    private final Map<String, Long> oscUntil = new HashMap<>();                     // dev|ch → 振荡抑制截止 / suppression end
     private final Map<String, TreeMap<Long, Integer>> modelGen = new HashMap<>();   // dev → {时刻 → 模型代数}（只记变化）
     private final Map<String, TreeMap<Long, Boolean>> onlineAt = new HashMap<>();   // dev → {时刻 → 是否在线}（模型状态事件）
     private final Map<String, java.util.TreeSet<Long>> switchAt = new HashMap<>();  // dev → 一级切换完成的时刻
@@ -379,6 +395,29 @@ public class FleetDecisionFunction implements Serializable {
         dataDays.put(dev + "|" + day + "|" + ch, new String[]{ev ? "1" : "0", deviated ? "1" : "0", transition});
         evaluable.put(dev + "|" + day, ev);
         dayVersion.put(dev + "|" + day, version);
+    }
+
+    /** 带偏移的数据层日结论（第三批第三节，振荡规则取决定日的偏移符号）/ a day conclusion with its shift (oscillation rule). */
+    public void addDataDay(String dev, String day, String ch, boolean ev, boolean deviated, String transition, int version,
+                           double shift) {
+        addDataDay(dev, day, ch, ev, deviated, transition, version);
+        dataShift.put(dev + "|" + day + "|" + ch, shift);
+    }
+
+    /** 当日该通道日记录的偏移符号（同版本，没有记录为零）/ sign of the day record's shift (same version; 0 if absent). */
+    private int shiftSign(String dev, String day, String ch) {
+        Double v = sameVersion(dev, day) ? dataShift.get(dev + "|" + day + "|" + ch) : null;
+        return v == null ? 0 : (int) Math.signum(v);
+    }
+
+    /** 该台是否有通道处于振荡抑制中 / whether any channel of the device is under oscillation suppression. */
+    private boolean oscillating(String dev, long t) {
+        for (String ch : ACTIVE) {
+            if (oscUntil.getOrDefault(dev + "|" + ch, 0L) > t) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -622,6 +661,9 @@ public class FleetDecisionFunction implements Serializable {
             a.pointFlag = x.pflag ? 1 : 0;
             a.ctxFlag = x.cflag ? 1 : 0;
             a.note = note;
+            if (p.oscSuppress && oscillating(dev, hs)) {
+                a.note = note.isEmpty() ? "基线振荡" : note + "；基线振荡";
+            }
             a.model = modelAt(dev, hs + p.alertSec);
             out.add(a);
             dayAlerts.add(a);
@@ -686,6 +728,27 @@ public class FleetDecisionFunction implements Serializable {
      * </ol>
      * 返回格的说明（以级别开头），供命令的决定依据使用。/ The decision-matrix cell, checked in order.
      */
+    /**
+     * 数据层触发通道各自的进入偏离之日（第三批第一节）：从决定日向前连续偏离的第一天，不早于该台最近一次零级生效的当地日
+     * （换版本时数据层状态清零；1.54 版裁决第一处）。/ Entry day of each data trigger, not before the last level-0 effective day.
+     */
+    private List<String> entryDays(String dev, String day, List<String> triggers) {
+        Long e0 = lastLevel0Eff.get(dev);
+        String floor = e0 == null ? null : localDay(e0);
+        List<String> out = new ArrayList<>();
+        for (String ch : triggers) {
+            if ("perf".equals(ch)) {
+                continue;
+            }
+            String first = day;
+            while ((floor == null || first.compareTo(floor) > 0) && dataDev(dev, addDays(first, -1), ch)) {
+                first = addDays(first, -1);
+            }
+            out.add(first);
+        }
+        return out;
+    }
+
     private String cell(String dev, String day, DevState s, List<String> triggers, List<String> forms) {
         boolean perfTrig = triggers.contains("perf");
         List<String> data = new ArrayList<>();
@@ -784,6 +847,16 @@ public class FleetDecisionFunction implements Serializable {
                 inc(cnt, ch, st.get(dev).chans.get(ch)[1]);
             }
             inc(cnt, "perf", st.get(dev).perfPersist);
+        }
+        // 振荡抑制在该通道数据层回落（RECOVER 转移）时解除 / oscillation suppression ends on a RECOVER transition
+        if (p.oscSuppress && boundary) {
+            for (String dev : devices) {
+                for (String ch : ACTIVE) {
+                    if (oscUntil.containsKey(dev + "|" + ch) && "RECOVER".equals(dataTrans(dev, day, ch))) {
+                        oscUntil.remove(dev + "|" + ch);
+                    }
+                }
+            }
         }
         // 回落按触发信号类分别结束（1.25 版裁决第六项）/ each trigger class ends on its own fallback
         for (String dev : devices) {
@@ -932,6 +1005,31 @@ public class FleetDecisionFunction implements Serializable {
             if (p.oncePerEpisode && fresh.isEmpty()) {
                 continue;
             }
+            if (level == 0 && p.oscSuppress) {
+                // 振荡抑制中的通道不发零级、只记录，也不计入本段（抑制结束后可再发）/ held channels: record only
+                List<String> held = new ArrayList<>();
+                for (String tr : triggers) {
+                    if (oscUntil.getOrDefault(dev + "|" + tr, 0L) > t) {
+                        held.add(tr);
+                    }
+                }
+                if (!held.isEmpty()) {
+                    triggers.removeAll(held);
+                    fresh.removeAll(held);
+                    forms.removeIf(fm -> fm.indexOf('：') > 0 && held.contains(fm.substring(0, fm.indexOf('：'))));
+                    boolean rest = !triggers.isEmpty() && !(p.oncePerEpisode && fresh.isEmpty());
+                    Review r = new Review();
+                    r.device = dev;
+                    r.day = day;
+                    r.kind = "零级被抑制：基线振荡";
+                    r.hourStart = Long.toString(t);
+                    r.detail = String.join("|", held) + (rest ? "；其余触发通道照常发零级" : "；只记录");
+                    review.add(r);
+                    if (!rest) {
+                        continue;
+                    }
+                }
+            }
             ep = episode.computeIfAbsent(dev, k -> new LinkedHashMap<>());
             int episodeN = 0;
             for (String tr : p.oncePerEpisode ? fresh : triggers) {
@@ -951,6 +1049,23 @@ public class FleetDecisionFunction implements Serializable {
                 c.effectiveAt = p.cmdSec == 0 ? addLocalDays(t, 1) : t + p.cmdSec;
             }
             if (level == 0) {
+                if (p.anchorEntryDays) {
+                    c.entryDays = entryDays(dev, day, triggers);
+                }
+                if (p.oscSuppress) {
+                    for (String tr : triggers) {
+                        if ("perf".equals(tr)) {
+                            continue;
+                        }
+                        int sign = shiftSign(dev, day, tr);
+                        long[] pv = lastL0Sign.get(dev + "|" + tr);
+                        if (pv != null && pv[1] != 0 && sign != 0 && sign != pv[1] && t - pv[0] <= p.oscDays * 86400L) {
+                            oscUntil.put(dev + "|" + tr, addLocalDays(c.effectiveAt, p.oscDays));
+                        }
+                        lastL0Sign.put(dev + "|" + tr, new long[]{t, sign});
+                    }
+                }
+                lastLevel0Eff.put(dev, c.effectiveAt);
                 cooldownUntil.put(dev, addLocalDays(c.effectiveAt, 1));
                 if (p.upgradeCells) {
                     for (String tr : triggers) {

@@ -144,17 +144,21 @@ def normalize(x, cal):
     return out
 
 
-def level0(rows, eff, d_sec, bf_sec, eps):
+def level0(rows, eff, d_sec, bf_sec, eps, starts=None):
+    """starts：逐通道窗口起点（第三批第一节，零级窗口锚定）；为空时各通道都取 [生效 - d_sec, 生效)。
+    starts: per-channel window starts (anchored window); None keeps [eff - d_sec, eff) for every channel."""
+    st = list(starts) if starts is not None else [eff - d_sec] * 5
+    lo = min(st)
     samples = [[] for _ in range(5)]
     window = guard = 0
     for t, x, stuck in rows:
-        if eff - d_sec <= t < eff:
+        if lo <= t < eff:
             window += 1
             if stuck:
                 guard += 1
                 continue
             for c in range(5):
-                if usable(c, x):
+                if t >= st[c] and usable(c, x):
                     samples[c].append(transform(c, x[c]))
     cal = calibrate(samples, eps)
     bf = [(t, normalize(x, cal)) for t, x, _ in rows if eff - bf_sec <= t < eff and all(v is not None for v in x)]

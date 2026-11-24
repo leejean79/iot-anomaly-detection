@@ -10,7 +10,8 @@
 # ---------------------------- 脚本交付五要素 -------------------------------
 # 1. 执行环境 / Environment: 开发机或本地 Mac，仓库根目录，python3.9+（只用标准库）。
 # 2. 调用命令 / Invocation: python3 m6b/chain_check.py [--chain-dir docs/m6b/chain] [--variants D1,D7,pos,D7K]
-#    （D7K 为乙档加「湿度与气压不随零级重估」的开关，1.41 版裁决第一节；执行记录里的 keepChannels 决定哪些通道换回冻结值）
+#    （D7K 为乙档加「湿度与气压不随零级重估」的开关，1.41 版裁决第一节；执行记录里的 keepChannels 决定哪些通道换回冻结值；
+#    第三批的锚定档（执行记录带 windowStart，逐通道窗口起点）不在 DAYS 表里的一律按七天窗口核对）
 #    可选：--rounds-dir docs/m6a/extract、--rounds-E docs/m6b/extract/rounds_E_inj.csv.gz、--out docs/m6b/chain/check.md
 # 3. 前置条件 / Preconditions: 已运行 ChainDriver 的各档；E 的注入轮表已生成。
 # 4. 期望产出 / Expected output: 终端逐档打印核对的命令数与不同的命令数；表格写入 --out。
@@ -30,8 +31,8 @@ import reestimate as RE    # noqa: E402
 DAYS = {"D1": 1, "D7": 7, "pos": 7, "D7K": 7, "D7K_up_s": 7}
 
 
-def python_result(rows, frz, t_freeze, eff, seq, d_days, position_only, keep=()):
-    cal, window, guard, bf = RE.level0([r for r in rows if r[0] < eff], eff, d_days * 86400, 3600, 1e-9)
+def python_result(rows, frz, t_freeze, eff, seq, d_days, position_only, keep=(), starts=None):
+    cal, window, guard, bf = RE.level0([r for r in rows if r[0] < eff], eff, d_days * 86400, 3600, 1e-9, starts)
     if keep:                                   # 不随零级重估的通道（1.41 版裁决第一节）/ kept channels
         cal = RE.keep_frozen(cal, frz, keep)
         bf = RE.backfill(rows, eff, 3600, cal)
@@ -64,7 +65,8 @@ def main() -> int:
         rows = RE.read_rounds(path)
         frz, t_freeze = RE.freeze(rows, 60480, 1e-9)
         for v, jp, j in jobs[dev]:
-            p = python_result(rows, frz, t_freeze, j["effectiveAt"], j["seq"], DAYS[v], v == "pos", j.get("keepChannels", ()))
+            p = python_result(rows, frz, t_freeze, j["effectiveAt"], j["seq"], DAYS.get(v, 7), v == "pos", j.get("keepChannels", ()),
+                              j.get("windowStart"))
             c = CMP.compare(p, j)
             s = stats[v]
             s[0] += 1

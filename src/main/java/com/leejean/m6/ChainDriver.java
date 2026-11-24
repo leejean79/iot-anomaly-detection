@@ -38,7 +38,7 @@ import java.util.TreeMap;
  * <ol>
  *   <li>执行环境：开发机或本地 Mac，仓库根目录，JDK 11，先 mvn package；堆至少 4 GB（-Xmx6g）。</li>
  *   <li>调用命令：{@code java -Xmx6g -cp target/iot-anomaly-detection-1.0-SNAPSHOT.jar com.leejean.m6.ChainDriver --variant D1
- *       --out-dir docs/m6b/chain/D1}；--variant 取 open（命令只发出不执行，驱动正确性对照）、D1、D7、pos（只重估位置）；--upgrade-cells true 打开升级格，此时在第一条一级或二级命令的决定时刻停止并写 stopped_at.txt（1.44 版裁决）；--keep-channels Humidity,Pressure 使这些通道不随零级重估（1.41 版裁决第一节，默认 none）；可选
+ *       --out-dir docs/m6b/chain/D1}；--variant 取 open（命令只发出不执行，驱动正确性对照）、D1、D7、pos（只重估位置）；--upgrade-cells true 打开升级格，此时在第一条一级或二级命令的决定时刻停止并写 stopped_at.txt（1.44 版裁决）；--keep-channels Humidity,Pressure 使这些通道不随零级重估（1.41 版裁决第一节，默认 none）；--anchor off|trigger|all 打开零级窗口锚定（第三批第一节，乙档只作用于触发通道、丙档作用于全部重估通道，默认 off），--anchor-min-days 2 为回退下限；--osc-suppress true 打开振荡规则（第三批第三节，--osc-days 14）；可选
  *       --rounds-dir docs/m6a/extract、--rounds-E docs/m6b/extract/rounds_E_inj.csv.gz（E 的注入轮表）、--inputs docs/m7/inputs，
  *       以及聚合模块的决策参数（与 M7OfflineRunner 相同的选项名）。</li>
  *   <li>前置条件：八台轮表已提取；E 的注入轮表已由 m6a/inject_rounds.py 生成；docs/m7/inputs 已由 m7/prepare_inputs.py 生成。</li>
@@ -82,6 +82,10 @@ public final class ChainDriver {
         }
         FleetDecisionFunction.Params p = M7OfflineRunner.params(a);
         p.alertSec = 3600;
+        // 零级窗口锚定（第三批第一节）：off、trigger（乙档）、all（丙档）；打开时命令带进入之日 / anchored level-0 window
+        ChainDeviceSim.Anchor anchor = ChainDeviceSim.Anchor.valueOf(a.getOrDefault("anchor", "off").toUpperCase());
+        int anchorMinDays = Integer.parseInt(a.getOrDefault("anchor-min-days", "2"));
+        p.anchorEntryDays = anchor != ChainDeviceSim.Anchor.OFF;
         p.pPoint = a.containsKey("p-point") ? Double.parseDouble(a.get("p-point")) : M7OfflineRunner.derivePPoint(in.resolve("hours.csv"));
         Map<String, Map<Long, FleetDecisionFunction.HourObs>> base = M7OfflineRunner.readHours(in.resolve("hours.csv"));
 
@@ -109,6 +113,7 @@ public final class ChainDriver {
             String path = "E".equals(dev) ? roundsE : roundsDir + "/rounds_" + dev + ".csv.gz";
             ChainDeviceSim sim = new ChainDeviceSim(dev, path, variant, R.get(dev), tables);
             sim.keepChannels(com.leejean.m1.Channels.parseSet(a.getOrDefault("keep-channels", "none")));
+            sim.anchor(anchor, anchorMinDays);
             sims.put(dev, sim);
         }
         Map<String, int[]> fed = new HashMap<>();                          // 设备 → {已送记录数, 已送转移数, 已送爆发数}
@@ -133,7 +138,7 @@ public final class ChainDriver {
                     MonitoringSnapshot m = s.records.get(k[0]);
                     f.addDataDay(s.dev, m.getM5aDay(), m.getM5aChannel(), m.isM5aEvaluable(), m.isM5aDeviated(),
                             trans.getOrDefault(s.dev + "|" + m.getM5aDay() + "|" + m.getM5aChannel(), ""),
-                            m.getVersion() == null ? 1 : m.getVersion());
+                            m.getVersion() == null ? 1 : m.getVersion(), m.getM5aShift());
                 }
                 for (; k[2] < s.bursts.size(); k[2]++) {
                     ChainDeviceSim.Burst b = s.bursts.get(k[2]);
@@ -204,7 +209,23 @@ public final class ChainDriver {
             if (c.level != 0) {
                 return c;
             }
-            sims.get(c.device).schedule(c.effectiveAt, c.seq);
+            if (c.entryDays == null) {
+                sims.get(c.device).schedule(c.effectiveAt, c.seq);
+                continue;
+            }
+            // 数据层触发通道与最早的进入之日（第三批第一节）/ data triggers and the earliest entry day
+            List<String> data = new ArrayList<>();
+            for (String tr : c.triggers.split("\\|")) {
+                if (!"perf".equals(tr)) {
+                    data.add(tr);
+                }
+            }
+            String earliest = null;
+            for (String d : c.entryDays) {
+                earliest = earliest == null || d.compareTo(earliest) < 0 ? d : earliest;
+            }
+            sims.get(c.device).schedule(c.effectiveAt, c.seq, com.leejean.m1.Channels.parseSet(String.join(",", data)),
+                    earliest == null ? null : FleetDecisionFunction.dayStart(earliest));
         }
         return null;
     }
@@ -286,6 +307,13 @@ public final class ChainDriver {
                     k.add(c);
                 }
             }
+        }
+        if (x.windowStart != null) {                              // 锚定时各通道的窗口起点（第三批第一节）/ anchored starts
+            ArrayNode ws = o.putArray("windowStart");
+            for (long v : x.windowStart) {
+                ws.add(v);
+            }
+            o.put("anchorFallback", x.fallback);
         }
         o.set("freeze", params(om, s.frozen()));
         o.set("new", params(om, x.used));

@@ -303,7 +303,47 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
     public static Level0 level0(CompactCache c, long eff, long reestimateSec, long backfillSec, double epsilon,
                                 boolean relativeGuard, ChannelTransform[] tf, RobustScalerFunction.Calibration frozen,
                                 boolean[] keep) {
+        return level0(c, eff, reestimateSec, backfillSec, epsilon, relativeGuard, tf, frozen, keep, null);
+    }
+
+    /**
+     * 零级窗口锚定的逐通道起点（第三批交接文档第一节）：起点取「最早进入之日的当地零点」与「生效 − reestimateSec」中较晚者；
+     * all 为真时作用于全部通道（丙档），否则只作用于触发通道（乙档），其余通道取生效 − reestimateSec。没有进入之日或锚定窗口短于
+     * minSec 时返回空，调用方回退到生效前 reestimateSec 并记「回退」。
+     * Per-channel starts of the anchored window; null means fall back to [eff − reestimateSec, eff).
+     */
+    public static long[] anchoredStarts(long eff, long reestimateSec, Long entryStart, boolean[] trig, boolean all, long minSec) {
+        long base = eff - reestimateSec;
+        if (entryStart == null) {
+            return null;
+        }
+        long st = Math.max(entryStart, base);
+        if (eff - st < minSec) {
+            return null;
+        }
+        long[] out = new long[Channels.N_DET];
+        for (int c = 0; c < Channels.N_DET; c++) {
+            out[c] = all || (trig != null && trig[c]) ? st : base;
+        }
+        return out;
+    }
+
+    /**
+     * 带逐通道窗口起点的零级（第三批交接文档第一节，零级窗口锚定）：通道 ch 只取 [start[ch], 生效) 内的轮，参照直方图随之；窗口轮数与
+     * 守卫剔除数按最早的起点到生效计。start 为空时各通道都取 [生效 − reestimateSec, 生效)，与原函数逐位相同。
+     * Level 0 with a per-channel window start (anchored window); null keeps [eff − reestimateSec, eff) for every channel.
+     */
+    public static Level0 level0(CompactCache c, long eff, long reestimateSec, long backfillSec, double epsilon,
+                                boolean relativeGuard, ChannelTransform[] tf, RobustScalerFunction.Calibration frozen,
+                                boolean[] keep, long[] start) {
         int n = Channels.N_DET;
+        long lo = eff - reestimateSec;
+        if (start != null) {
+            lo = Long.MAX_VALUE;
+            for (long s0 : start) {
+                lo = Math.min(lo, s0);
+            }
+        }
         List<List<Double>> samples = new ArrayList<>(n);
         for (int ch = 0; ch < n; ch++) {
             samples.add(new ArrayList<>());
@@ -312,7 +352,7 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
         int size = c == null ? 0 : c.size();
         for (int k = 0; k < size; k++) {
             long ts = c.ts(k);
-            if (ts < eff - reestimateSec || ts >= eff) {
+            if (ts < lo || ts >= eff) {
                 continue;
             }
             r.windowRounds++;
@@ -324,7 +364,8 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
             for (int ch = 0; ch < n; ch++) {
                 boolean missing = (m >>> ch & 1) != 0;
                 boolean censored = (m >>> (CompactCache.CENSORED_SHIFT + ch) & 1) != 0;
-                if (missing || (ch == Channels.LIGHT_INDEX && censored)) {
+                if (missing || (ch == Channels.LIGHT_INDEX && censored)
+                        || ts < (start == null ? eff - reestimateSec : start[ch])) {
                     continue;
                 }
                 samples.get(ch).add(tf[ch].apply(c.x(k, ch)));
