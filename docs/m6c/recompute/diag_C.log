@@ -1,0 +1,201 @@
+Picked up JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStoreType=JKS -Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=34797 -Dhttp.nonProxyHosts=localhost|127.0.0.1|::1|127.*|0.*|::|169.254.*|api.anthropic.com|api-staging.anthropic.com|api-pr-preview.anthropic.com|mcp-proxy.anthropic.com|mcp-proxy-staging.anthropic.com|registry.npmjs.org|jsr.io|npm.jsr.io|pypi.org|files.pythonhosted.org|index.crates.io|proxy.golang.org|host.docker.internal|10.*|172.16.*|172.17.*|172.18.*|172.19.*|172.20.*|172.21.*|172.22.*|172.23.*|172.24.*|172.25.*|172.26.*|172.27.*|172.28.*|172.29.*|172.30.*|172.31.*|192.168.*|100.64.0.0/10|*.svc.cluster.local|*.svc.cluster.local -Djdk.http.auth.tunneling.disabledSchemes= -Djdk.http.auth.proxying.disabledSchemes=
+[recompute] rerun_a C: 4 commands; building the context input
+03:52:42.260 [main] INFO  FileChannelManagerImpl - FileChannelManager uses directory /tmp/flink-io-46bfd4b6-c597-443c-b52e-f4ce4501832f for spill files.
+03:52:42.293 [main] INFO  StreamTask - No state backend has been configured, using default (HashMap) org.apache.flink.runtime.state.hashmap.HashMapStateBackend@7a7471ce
+03:52:42.296 [main] INFO  StreamTask - Checkpoint storage is set to 'jobmanager'
+03:52:42.354 [main] INFO  HeapKeyedStateBackendBuilder - Finished to build heap keyed state-backend.
+03:52:42.359 [main] INFO  HeapKeyedStateBackend - Initializing heap keyed state backend with stream factory.
+03:52:42.376 [main] INFO  M3TrainExecutor - [M3] Training executor started: 2 thread(s) in this TaskManager, OMP_NUM_THREADS=2
+03:52:42.386 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1646699799
+03:52:42.418 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1646766612
+03:52:42.436 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1646859277
+03:52:42.439 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1646870709
+03:52:42.441 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1646880332
+03:52:42.451 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1646938837
+03:52:42.452 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1646944248
+03:52:42.465 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1647026865
+03:52:42.467 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1647049705
+03:52:42.477 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1647113454
+03:52:42.477 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1647114055
+03:52:42.478 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1647120670
+03:52:42.479 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1647129690
+03:52:42.492 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1647218094
+03:52:42.501 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1647280689
+03:52:42.504 [main] INFO  M3Function - [M3] Device C excluded training window ending at round 1647299349
+03:52:42.639 [main] INFO  M3Function - [M3] Device C training version 2: collected raw windows standardized with its parameter set
+03:52:42.640 [main] INFO  M3Function - [M3] Device C (subtask 0) entering TRAINING: 992 train windows (16 excluded by outlier sanitization), 288 early-stop windows
+03:52:42.668 [main] INFO  M3Function - [M3] Device C training task 1 submitted to the executor
+03:52:42.671 [m3-train-1] INFO  M3TrainExecutor - [M3] Device C training started on m3-train-1 after 0.0s in the executor queue (task 1, COLD_START)
+03:52:42.734 [m3-train-1] INFO  Nd4jBackend - Loaded [CpuBackend] backend
+03:52:43.193 [m3-train-1] INFO  NativeOpsHolder - Number of threads used for linear algebra: 2
+03:52:43.194 [m3-train-1] INFO  CpuNDArrayFactory - Binary level Generic x86 optimization level AVX512
+03:52:43.198 [m3-train-1] INFO  Nd4jBlas - Number of threads used for OpenMP BLAS: 2
+03:52:43.201 [m3-train-1] INFO  DefaultOpExecutioner - Backend used: [CPU]; OS: [Linux]
+03:52:43.201 [m3-train-1] INFO  DefaultOpExecutioner - Cores: [4]; Memory: [5.0GB];
+03:52:43.201 [m3-train-1] INFO  DefaultOpExecutioner - Blas vendor: [OPENBLAS]
+03:52:43.203 [m3-train-1] INFO  CpuBackend - Backend build information:
+ GCC: "7.5.0"
+STD version: 201103L
+DEFAULT_ENGINE: samediff::ENGINE_CPU
+HAVE_FLATBUFFERS
+HAVE_OPENBLAS
+03:52:43.231 [m3-train-1] INFO  MultiLayerNetwork - Starting MultiLayerNetwork with WorkspaceModes set to [training: ENABLED; inference: ENABLED], cacheMode set to [NONE]
+03:52:50.661 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 1/300: train loss=34.71898612976074, early-stop loss=0.4965717467452845, 7.365s
+03:52:56.383 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 2/300: train loss=17.60616931915283, early-stop loss=0.2189957379979942, 5.721s
+03:53:01.784 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 3/300: train loss=11.139125561714172, early-stop loss=0.16675259102386703, 5.4s
+03:53:07.528 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 4/300: train loss=7.524466645717621, early-stop loss=0.11795235339264082, 5.743s
+03:53:13.346 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 5/300: train loss=5.3669762253761295, early-stop loss=0.08416629714558191, 5.818s
+03:53:19.085 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 6/300: train loss=4.06857659816742, early-stop loss=0.05761963988376172, 5.738s
+03:53:24.823 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 7/300: train loss=3.6597730040550234, early-stop loss=0.07912055653639241, 5.738s
+03:53:30.625 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 8/300: train loss=3.4749207079410556, early-stop loss=0.10541348705256359, 5.801s
+03:53:36.593 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 9/300: train loss=3.28543890118599, early-stop loss=0.08336860504657588, 5.968s
+03:53:41.871 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 10/300: train loss=3.2493799805641177, early-stop loss=0.08926992561235231, 5.278s
+03:53:50.244 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 11/300: train loss=3.316034972667694, early-stop loss=0.06885945381852755, 8.372s
+03:53:56.105 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 12/300: train loss=3.203398394584656, early-stop loss=0.06965518658365705, 5.861s
+03:54:00.717 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 13/300: train loss=3.0137975215911865, early-stop loss=0.060402827376925754, 4.612s
+03:54:06.365 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 14/300: train loss=3.1259412348270414, early-stop loss=0.05508024334137415, 5.648s
+03:54:12.039 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 15/300: train loss=2.647272223234177, early-stop loss=0.07957047717351606, 5.674s
+03:54:17.320 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 16/300: train loss=2.4179387986660004, early-stop loss=0.05461408213521341, 5.281s
+03:54:22.805 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 17/300: train loss=2.0248591601848602, early-stop loss=0.039194766115882046, 5.485s
+03:54:28.459 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 18/300: train loss=1.7178229451179505, early-stop loss=0.04849561824234514, 5.653s
+03:54:34.414 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 19/300: train loss=1.6540090978145598, early-stop loss=0.04509408206601968, 5.955s
+03:54:39.940 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 20/300: train loss=1.8116876393556596, early-stop loss=0.052950960296370336, 5.526s
+03:54:47.834 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 21/300: train loss=1.5653189420700073, early-stop loss=0.04947404316088508, 7.894s
+03:54:53.562 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 22/300: train loss=1.7456400692462921, early-stop loss=0.055727397769250876, 5.728s
+03:54:59.353 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 23/300: train loss=1.7572428315877913, early-stop loss=0.05166724433888793, 5.791s
+03:55:05.417 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 24/300: train loss=1.8035410910844805, early-stop loss=0.05715512947729189, 6.064s
+03:55:11.112 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 25/300: train loss=2.139645040035248, early-stop loss=0.04428186360607454, 5.694s
+03:55:16.490 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 26/300: train loss=2.6248702675104143, early-stop loss=0.06861242924030478, 5.377s
+03:55:21.929 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 27/300: train loss=2.641167151927948, early-stop loss=0.061497893550552275, 5.439s
+03:55:29.834 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 28/300: train loss=2.369046235084534, early-stop loss=0.044854484917035725, 7.905s
+03:55:35.128 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 29/300: train loss=2.715760886669159, early-stop loss=0.061625249511933856, 5.294s
+03:55:40.585 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 30/300: train loss=2.270096182823181, early-stop loss=0.0401121380440784, 5.457s
+03:55:46.804 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 31/300: train loss=1.4434531152248382, early-stop loss=0.03747715789746663, 6.218s
+03:55:52.297 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 32/300: train loss=1.3374216318130494, early-stop loss=0.03993926787806287, 5.492s
+03:55:57.689 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 33/300: train loss=1.1883259892463685, early-stop loss=0.036838808432933065, 5.392s
+03:56:04.716 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 34/300: train loss=1.1925630182027815, early-stop loss=0.03937783861345372, 7.026s
+03:56:09.667 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 35/300: train loss=1.4269490987062454, early-stop loss=0.04438114338834265, 4.951s
+03:56:14.916 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 36/300: train loss=1.5472451359033583, early-stop loss=0.07209738362800822, 5.249s
+03:56:21.040 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 37/300: train loss=1.3278617709875107, early-stop loss=0.07029747370487899, 6.124s
+03:56:26.629 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 38/300: train loss=1.1574580520391464, early-stop loss=0.04072503664632949, 5.589s
+03:56:33.829 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 39/300: train loss=1.2334026634693145, early-stop loss=0.0516517069842852, 7.2s
+03:56:38.790 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 40/300: train loss=1.1463990569114686, early-stop loss=0.04076820690063482, 4.961s
+03:56:44.613 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 41/300: train loss=1.1810878783464431, early-stop loss=0.037228308606114084, 5.823s
+03:56:50.801 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 42/300: train loss=1.4632769376039505, early-stop loss=0.05236203548983718, 6.188s
+03:56:57.076 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 43/300: train loss=1.410370934009552, early-stop loss=0.03595440286771379, 6.275s
+03:57:02.970 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 44/300: train loss=1.4648727118968965, early-stop loss=0.04303673178005547, 5.893s
+03:57:08.946 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 45/300: train loss=1.5705302447080616, early-stop loss=0.04872850927886619, 5.976s
+03:57:14.918 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 46/300: train loss=1.4586770832538605, early-stop loss=0.02922747848320192, 5.972s
+03:57:21.473 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 47/300: train loss=0.9639590471982956, early-stop loss=0.040214971878551026, 6.554s
+03:57:27.595 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 48/300: train loss=0.8009928807616234, early-stop loss=0.03520366914988411, 6.122s
+03:57:34.039 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 49/300: train loss=0.7825822174549102, early-stop loss=0.02997602266589174, 6.444s
+03:57:39.776 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 50/300: train loss=0.8321356683969497, early-stop loss=0.03888996306357679, 5.736s
+03:57:45.420 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 51/300: train loss=1.1049836695194244, early-stop loss=0.02844674650621806, 5.643s
+03:57:50.890 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 52/300: train loss=1.6953758582472802, early-stop loss=0.06870892638659543, 5.47s
+03:58:00.292 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 53/300: train loss=1.4154944270849228, early-stop loss=0.06426529618831217, 9.402s
+03:58:05.301 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 54/300: train loss=1.0742768347263336, early-stop loss=0.04117390274996834, 5.009s
+03:58:10.990 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 55/300: train loss=0.899948674440384, early-stop loss=0.04442460696603007, 5.689s
+03:58:16.806 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 56/300: train loss=0.8590415507555008, early-stop loss=0.042330966275698524, 5.816s
+03:58:22.752 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 57/300: train loss=0.9244006007909773, early-stop loss=0.036969190921264515, 5.944s
+03:58:28.193 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 58/300: train loss=0.8652122825384141, early-stop loss=0.04193535306974468, 5.44s
+03:58:33.895 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 59/300: train loss=0.7213986426591873, early-stop loss=0.03433825159482168, 5.702s
+03:58:39.845 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 60/300: train loss=0.6605034232139587, early-stop loss=0.034936116588947436, 5.949s
+03:58:45.910 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 61/300: train loss=0.676396682858467, early-stop loss=0.035725979159509244, 6.064s
+03:58:51.967 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 62/300: train loss=0.5836413443088532, early-stop loss=0.032680693950148054, 6.056s
+03:58:57.770 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 63/300: train loss=0.4819470822811127, early-stop loss=0.03141813120437755, 5.802s
+03:59:03.994 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 64/300: train loss=0.4905447229743004, early-stop loss=0.0338120807933574, 6.224s
+03:59:10.046 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 65/300: train loss=0.5398015260696412, early-stop loss=0.028277769703640362, 6.052s
+03:59:17.241 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 66/300: train loss=0.7011996105313301, early-stop loss=0.03328876935358761, 7.195s
+03:59:24.261 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 67/300: train loss=1.2799479767680169, early-stop loss=0.0468412136670029, 7.015s
+03:59:30.605 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 68/300: train loss=1.114890344440937, early-stop loss=0.06696290507493138, 6.344s
+03:59:36.395 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 69/300: train loss=0.779832088947296, early-stop loss=0.03972171441805826, 5.789s
+03:59:42.989 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 70/300: train loss=0.7853264421224595, early-stop loss=0.04418369938616086, 6.594s
+03:59:49.233 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 71/300: train loss=0.7507135212421419, early-stop loss=0.03800489382099945, 6.243s
+03:59:55.744 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 72/300: train loss=0.7773037523031234, early-stop loss=0.04082304078752586, 6.511s
+04:00:01.981 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 73/300: train loss=0.9370539188385011, early-stop loss=0.03526256583867028, 6.237s
+04:00:08.328 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 74/300: train loss=0.8660373896360396, early-stop loss=0.04029055843585208, 6.347s
+04:00:14.529 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 75/300: train loss=0.6891547560691834, early-stop loss=0.03576575243016861, 6.201s
+04:00:27.269 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 76/300: train loss=0.6582891434431076, early-stop loss=0.037849253271190444, 12.739s
+04:00:33.792 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 77/300: train loss=0.6498391047120093, early-stop loss=0.03978402882081778, 6.523s
+04:00:39.493 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 78/300: train loss=0.6227354437112809, early-stop loss=0.030479770834051376, 5.699s
+04:00:45.803 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 79/300: train loss=0.6010712713003159, early-stop loss=0.04176561195347114, 6.31s
+04:00:51.683 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 80/300: train loss=0.6996290534734726, early-stop loss=0.031300006414781735, 5.878s
+04:00:58.416 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 81/300: train loss=0.880124205350876, early-stop loss=0.03623526512115007, 6.733s
+04:01:03.912 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 82/300: train loss=0.9103319376707077, early-stop loss=0.04320961409530722, 5.495s
+04:01:10.512 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 83/300: train loss=0.7565331518650055, early-stop loss=0.04206789090303335, 6.6s
+04:01:16.792 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 84/300: train loss=0.8193094342947007, early-stop loss=0.03602200592205522, 6.279s
+04:01:22.808 [m3-train-1] INFO  M3Function - [M3] Device C training epoch 85/300: train loss=0.7333929374814033, early-stop loss=0.0394340389925765, 6.016s
+04:01:23.203 [m3-train-1] INFO  M3Function - [M3] Device C trained: hidden=60, window=60, batch=64, 85 epochs (last improvement at epoch 65, longest plateau 13), early-stop loss=0.0394340389925765, 520.53s
+04:02:04.741 [m3-train-1] INFO  M3TrainExecutor - [M3] Device C calibrated: median=0.13945253495377175, IQR=0.17353240261862116, threshold=2.22
+04:02:05.003 [main] INFO  M3Function - [M3] Device C result collected on the task thread (queue wait 0.0s, training+calibration 562.3s); 1 buffered rounds to drain
+04:02:05.003 [main] INFO  M3Function - [M3] Device C entering ONLINE
+04:02:05.004 [main] INFO  M3Function - [M3] Device C buffer drained in 0.0s
+04:02:05.194 [main] INFO  M3Function - [M3] Device C model event online at 1648149000 (model generation 0)
+04:03:11.856 [main] INFO  M3Function - [M3] Device C level 1 (seq 3, effective 1648940400): training set [1648940400, 1649199600) (3 days after the effective time, cold start)
+04:03:30.845 [main] INFO  M3Function - [M3] Device C level-1 retrain: 431 history windows standardized with version 3
+04:03:30.846 [main] INFO  M3Function - [M3] Device C (subtask 0) entering TRAINING: 188 train windows (0 excluded by outlier sanitization), 53 early-stop windows
+04:03:30.849 [m3-train-2] INFO  M3TrainExecutor - [M3] Device C training started on m3-train-2 after 0.0s in the executor queue (task 2, RETRAIN)
+04:03:30.849 [main] INFO  M3Function - [M3] Device C training task 2 submitted to the executor
+04:03:31.919 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 1/300: train loss=45.44623881022135, early-stop loss=1.8843637249609553, 1.066s
+04:03:32.836 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 2/300: train loss=23.490568898518877, early-stop loss=1.5518207814604161, 0.916s
+04:03:33.904 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 3/300: train loss=14.420411343044705, early-stop loss=1.3195382402704665, 1.068s
+04:03:34.892 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 4/300: train loss=9.376197077433268, early-stop loss=1.1541290189405984, 0.988s
+04:03:35.811 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 5/300: train loss=6.750758472018771, early-stop loss=1.0253346995475472, 0.918s
+04:03:36.726 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 6/300: train loss=5.447045398288303, early-stop loss=0.9174891687909089, 0.915s
+04:03:38.013 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 7/300: train loss=4.670764435662163, early-stop loss=0.8208369216065496, 1.287s
+04:03:38.889 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 8/300: train loss=4.025571382310655, early-stop loss=0.7332229149920585, 0.876s
+04:03:39.807 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 9/300: train loss=3.287643733554416, early-stop loss=0.6620540590945019, 0.917s
+04:03:40.908 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 10/300: train loss=2.6253333282470703, early-stop loss=0.6137084410694185, 1.101s
+04:03:41.891 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 11/300: train loss=2.443546121385362, early-stop loss=0.5905072057879552, 0.983s
+04:03:42.730 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 12/300: train loss=2.2666730499267573, early-stop loss=0.5885361870534338, 0.839s
+04:03:43.570 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 13/300: train loss=1.958339394463433, early-stop loss=0.5984053754134414, 0.84s
+04:03:44.818 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 14/300: train loss=1.8179249657524956, early-stop loss=0.6020738773782488, 1.247s
+04:03:45.804 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 15/300: train loss=1.7016495895385741, early-stop loss=0.5851908359824631, 0.986s
+04:03:46.817 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 16/300: train loss=1.5667761739095052, early-stop loss=0.5566010516429614, 1.012s
+04:03:47.695 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 17/300: train loss=1.4770410919189454, early-stop loss=0.535963195029656, 0.877s
+04:03:49.061 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 18/300: train loss=1.3651752577887641, early-stop loss=0.5275617230333148, 1.366s
+04:03:50.077 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 19/300: train loss=1.277789709303114, early-stop loss=0.5195688258985873, 1.016s
+04:03:51.090 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 20/300: train loss=1.1985365253024634, early-stop loss=0.5048866949935727, 1.012s
+04:03:52.512 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 21/300: train loss=1.1216530990600584, early-stop loss=0.49338639897103936, 1.421s
+04:03:53.446 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 22/300: train loss=1.0524580807156034, early-stop loss=0.49448581398017444, 0.934s
+04:03:54.405 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 23/300: train loss=0.9902148522271051, early-stop loss=0.505342942669162, 0.959s
+04:03:55.710 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 24/300: train loss=0.9422396193610297, early-stop loss=0.5170438866542459, 1.305s
+04:03:56.797 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 25/300: train loss=0.8970069079928927, early-stop loss=0.5240205845768626, 1.086s
+04:03:57.804 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 26/300: train loss=0.8592703204684787, early-stop loss=0.5288052201470217, 1.007s
+04:03:58.888 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 27/300: train loss=0.8229443401760524, early-stop loss=0.5319175196383491, 1.084s
+04:04:00.287 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 28/300: train loss=0.7914706177181667, early-stop loss=0.5295003338257733, 1.399s
+04:04:01.184 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 29/300: train loss=0.7631416119469536, early-stop loss=0.5261077614060086, 0.897s
+04:04:02.014 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 30/300: train loss=0.7367583571539984, early-stop loss=0.5260766521748577, 0.83s
+04:04:03.361 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 31/300: train loss=0.7145707194010417, early-stop loss=0.5286453574279798, 1.347s
+04:04:04.261 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 32/300: train loss=0.6931781270768909, early-stop loss=0.5339863914940514, 0.9s
+04:04:05.134 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 33/300: train loss=0.6725024276309544, early-stop loss=0.5407232371904036, 0.873s
+04:04:05.999 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 34/300: train loss=0.6539337221781413, early-stop loss=0.5457997510861029, 0.865s
+04:04:07.217 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 35/300: train loss=0.6369296095106337, early-stop loss=0.5503863893356186, 1.218s
+04:04:08.090 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 36/300: train loss=0.6265525976816813, early-stop loss=0.5523858960529625, 0.873s
+04:04:08.947 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 37/300: train loss=0.64123518731859, early-stop loss=0.5564007291104739, 0.857s
+04:04:09.846 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 38/300: train loss=0.7698002645704481, early-stop loss=0.5594250651472923, 0.899s
+04:04:11.167 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 39/300: train loss=1.0933141454060873, early-stop loss=0.5530066237487987, 1.32s
+04:04:12.094 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 40/300: train loss=1.0544303480784099, early-stop loss=0.5835138912266161, 0.927s
+04:04:13.014 [m3-train-2] INFO  M3Function - [M3] Device C training epoch 41/300: train loss=0.7577248424953885, early-stop loss=0.5453584152048755, 0.92s
+04:04:13.084 [m3-train-2] INFO  M3Function - [M3] Device C trained: hidden=60, window=60, batch=64, 41 epochs (last improvement at epoch 21, longest plateau 2), early-stop loss=0.5453584152048755, 42.234s
+04:04:19.555 [m3-train-2] INFO  M3TrainExecutor - [M3] Device C calibrated: median=0.2524378081499306, IQR=0.13782940086029483, threshold=2.22
+04:04:19.561 [main] INFO  M3Function - [M3] Device C level-1 switch check: new calibration median 0.2524378081499306, old 0.13945253495377175, ratio 1.8102059473756664 (limit 3.0): passes (record only)
+04:04:19.561 [main] INFO  M3Function - [M3] Device C level-1 switch: model generation 1, training version 2 -> 3; 0 rounds of the open window re-standardized
+04:04:19.561 [main] INFO  M3Function - [M3] Device C model event switch at 1649199600 (model generation 1)
+04:04:19.561 [main] INFO  M3Function - [M3] Device C result collected on the task thread (queue wait 0.0s, training+calibration 48.7s); 1 buffered rounds to drain
+04:04:19.561 [main] INFO  M3Function - [M3] Device C entering ONLINE
+04:04:19.561 [main] INFO  M3Function - [M3] Device C buffer drained in 0.0s
+04:06:58.195 [main] INFO  M3TrainExecutor - [M3] Training executor shut down
+04:06:58.202 [main] INFO  FileChannelManagerImpl - FileChannelManager removed spill file directory /tmp/flink-io-46bfd4b6-c597-443c-b52e-f4ce4501832f
+04:06:58.206 [main] INFO  FileChannelManagerImpl - FileChannelManager uses directory /tmp/flink-io-e50f3e5b-3cdd-49d5-8990-f78690674651 for spill files.
+04:06:58.207 [main] INFO  StreamTask - No state backend has been configured, using default (HashMap) org.apache.flink.runtime.state.hashmap.HashMapStateBackend@6a84bc2a
+04:06:58.207 [main] INFO  StreamTask - Checkpoint storage is set to 'jobmanager'
+04:06:58.209 [main] INFO  HeapRestoreOperation - Starting to restore from state handle: KeyGroupsStateHandle{groupRangeOffsets=KeyGroupRangeOffsets{keyGroupRange=KeyGroupRange{startKeyGroup=0, endKeyGroup=0}, offsets=[18068]}, stateHandle=ByteStreamStateHandle{handleName='82321c94-786e-4b66-a59c-f849ccbd944a', dataBytes=2530088}}.
+04:06:58.231 [main] INFO  HeapRestoreOperation - Finished restoring from state handle: KeyGroupsStateHandle{groupRangeOffsets=KeyGroupRangeOffsets{keyGroupRange=KeyGroupRange{startKeyGroup=0, endKeyGroup=0}, offsets=[18068]}, stateHandle=ByteStreamStateHandle{handleName='82321c94-786e-4b66-a59c-f849ccbd944a', dataBytes=2530088}}.
+04:06:58.232 [main] INFO  HeapKeyedStateBackendBuilder - Finished to build heap keyed state-backend.
+04:06:58.232 [main] INFO  HeapKeyedStateBackend - Initializing heap keyed state backend with stream factory.
+04:06:58.236 [main] INFO  M3TrainExecutor - [M3] Training executor started: 2 thread(s) in this TaskManager, OMP_NUM_THREADS=2
+04:07:18.962 [Finalizer] INFO  StreamTask - System timer service is shutting down.
+04:08:11.146 [main] INFO  M3TrainExecutor - [M3] Training executor shut down
+04:08:11.148 [main] INFO  FileChannelManagerImpl - FileChannelManager removed spill file directory /tmp/flink-io-e50f3e5b-3cdd-49d5-8990-f78690674651
+[recompute] rerun_a,C,3,1648940400,1649199600,1.7274424614417505,1.8102059473756664,1004,0.450199203187251,1.7475290360028741,14.847153602746168,1005,0.029850746268656716,-0.4522130263198056,1.8618543185226477,0

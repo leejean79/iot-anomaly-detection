@@ -35,3 +35,6 @@ replay1 pass2 D exit 0
 replay1 pass2 F exit 0
 replay1 pass2 A exit 0
 replay1 pass1 F exit 0
+replay1 pass1 F (pairing fix) exit 0
+replay1 pass2 F (pairing fix) exit 0
+diag C exit 0
