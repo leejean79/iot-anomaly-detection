@@ -197,6 +197,15 @@ public final class M6cSwitchRecompute {
                 continue;                                     // 这条一级没有切换（被忽略或失败）/ no switch for this level 1
             }
             final long at = sw.getTs();
+            // 切换之前还有更晚生效的一级，说明这条被忽略（例如冷启动训练中到达），切换属于后者
+            // A later level 1 took effect before this switch: this one was ignored and the switch belongs to the later one
+            boolean superseded = false;
+            for (Map.Entry<Integer, Long> o : snapEff.entrySet()) {
+                superseded |= o.getKey() != seq && o.getValue() > eff && o.getValue() <= at;
+            }
+            if (superseded) {
+                continue;
+            }
             Double ratio = null;
             for (MonitoringSnapshot c : checks) {
                 if (c.getTs() == at) {
