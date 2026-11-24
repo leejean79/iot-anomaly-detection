@@ -46,6 +46,9 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
     private final long backfillSec;
     // 不随零级重估的通道（1.41 版裁决第一节；空表示全部重估）/ channels that keep the freeze parameters (null: re-estimate all)
     private boolean[] keepChannels;
+    // 零级窗口锚定（第三批第一节；默认关闭）：0 关闭、1 只触发通道（乙档）、2 全部通道（丙档）/ anchoring scope, off by default
+    private int anchorScope;
+    private long anchorMinSec = 2 * 86400L;
 
     private transient ValueState<CompactCache> cache;
     private transient ListState<AdaptCommand> pending;
@@ -84,6 +87,31 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
      * 设置不随零级重估的通道集合（1.41 版裁决第一节，开发决策第十二条；作业默认为湿度与气压）。为空或全假时零级全部重估。
      * Channels that keep the freeze parameters and reference histogram at every level 0.
      */
+    /**
+     * 零级窗口锚定（第三批交接文档第一节）：scope 取 off、trigger、all；minDays 为锚定窗口的最短长度（天），不足时回退到生效前 D。
+     * Anchored level-0 window: scope off, trigger or all; fall back to [eff − D, eff) below minDays.
+     */
+    public AdaptiveScalerFunction withAnchor(String scope, int minDays) {
+        String sc = scope == null ? "off" : scope.trim().toLowerCase();
+        if (!sc.equals("off") && !sc.equals("trigger") && !sc.equals("all")) {
+            throw new IllegalArgumentException("--adapt-anchor 只能取 off、trigger、all: " + scope);
+        }
+        this.anchorScope = sc.equals("off") ? 0 : sc.equals("trigger") ? 1 : 2;
+        this.anchorMinSec = minDays * 86400L;
+        return this;
+    }
+
+    /** 进入之日中最早一天的当地零点（布里斯托时间）；没有时为空 / local midnight of the earliest entry day. */
+    public static Long earliestEntryStart(List<String> days) {
+        String e = null;
+        if (days != null) {
+            for (String d : days) {
+                e = e == null || d.compareTo(e) < 0 ? d : e;
+            }
+        }
+        return e == null ? null : java.time.LocalDate.parse(e).atStartOfDay(java.time.ZoneId.of("Europe/London")).toEpochSecond();
+    }
+
     public AdaptiveScalerFunction withKeepChannels(boolean[] keep) {
         boolean any = false;
         if (keep != null) {
@@ -257,8 +285,30 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
         }
         long t0 = System.nanoTime();
         CompactCache c = cache.value();
+        long[] starts = null;
+        String anchorNote = "";
+        if (anchorScope != 0) {
+            // 锚定窗口：只看数据层触发通道（1.54 版裁决第三处）；没有进入之日或不足最短长度时回退并记 REPORT / anchored window
+            List<String> data = new ArrayList<>();
+            if (cmd.triggers != null) {
+                for (String tr : cmd.triggers.split("\\|")) {
+                    if (!tr.equals("perf") && !tr.isEmpty()) {
+                        data.add(tr);
+                    }
+                }
+            }
+            starts = anchoredStarts(cmd.effectiveAt, reestimateSec, earliestEntryStart(cmd.entryDays),
+                    com.leejean.m1.Channels.parseSet(String.join(",", data)), anchorScope == 2, anchorMinSec);
+            if (starts == null) {
+                anchorNote = "; anchor fallback to " + reestimateSec + " s";
+                LOG.warn("[M6a] Device {} REPORT: level 0 seq {} anchored window fell back (entry days {}, triggers {})",
+                        device, cmd.seq, cmd.entryDays, cmd.triggers);
+            } else {
+                anchorNote = "; anchored window starts " + Arrays.toString(starts);
+            }
+        }
         Level0 r = level0(c, cmd.effectiveAt, reestimateSec, backfillSec, inner.epsilon(), inner.relativeGuardEnabled(),
-                inner.transforms(), keepChannels == null ? null : frozenCal.value(), keepChannels);
+                inner.transforms(), keepChannels == null ? null : frozenCal.value(), keepChannels, starts);
         long t1 = System.nanoTime();
         RobustScalerFunction.Calibration old = inner.current();
         Integer oldVersion = version.value();
@@ -274,7 +324,7 @@ public class AdaptiveScalerFunction extends KeyedCoProcessFunction<String, Devic
                 device, cmd.seq, cmd.effectiveAt, trigger, oldVersion, newVersion, r.windowRounds, r.guardExcluded,
                 r.backfill.size(), (t1 - t0) / 1000L, (System.nanoTime() - t0) / 1000L, c.size(), c.usedBytes(),
                 Arrays.toString(old.median), Arrays.toString(old.scale), Arrays.toString(r.cal.median),
-                Arrays.toString(r.cal.scale), Arrays.toString(r.cal.bypass), cmd.raw);
+                Arrays.toString(r.cal.scale), Arrays.toString(r.cal.bypass), cmd.raw + anchorNote);
     }
 
     /** 一次零级的结果 / the outcome of one level-0 execution. */

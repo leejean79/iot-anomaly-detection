@@ -29,6 +29,12 @@ public class AdaptCommand implements Serializable {
     public int seq;
     /** 原始 JSON（决定依据原样保存）/ the raw JSON line. */
     public String raw;
+    /** 触发通道（可无）/ trigger channels, if present. */
+    public String triggers;
+    /**
+     * 数据层触发通道各自的进入偏离之日（第三批第一节，零级窗口锚定；聚合模块打开锚定时才有）/ entry days of the data triggers.
+     */
+    public java.util.List<String> entryDays;
 
     public AdaptCommand() {
     }
@@ -43,6 +49,15 @@ public class AdaptCommand implements Serializable {
         c.decidedAt = required(n, "decidedAt").asLong();
         c.seq = required(n, "seq").asInt();
         c.raw = json;
+        if (n.hasNonNull("triggers")) {
+            c.triggers = n.get("triggers").asText();
+        }
+        if (n.hasNonNull("entryDays")) {
+            c.entryDays = new java.util.ArrayList<>();
+            for (JsonNode d : n.get("entryDays")) {
+                c.entryDays.add(d.asText());
+            }
+        }
         return c;
     }
 

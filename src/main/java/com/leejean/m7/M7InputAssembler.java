@@ -92,6 +92,7 @@ public class M7InputAssembler implements Serializable {
                     o.ctxMax = Double.toString(in.v1);
                 }
                 f.addPerfElement(in.device, in.ts, in.v1);
+                f.addCtxWindow(in.device, in.ts, in.flag1);           // 二级预案的超阈率（第三批第四节）/ for the plan
                 f.setModel(in.device, in.ts, in.model);          // 模型代数（1.41 版裁决第二节第五条）/ model generation
                 break;
             }

@@ -547,24 +547,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
                 // 一级重训失败两次：放弃这次重训，旧模型继续服务（缓冲的轮由旧模型排空）/ abandon; the old model drains
                 LOG.warn("[M3] Device {} REPORT: level-1 retrain failed {} times; abandoned, the old model keeps serving",
                          device, failures);
-                if (m3MonitoringTag != null) {
-                    // 监测快照上标一次「一级失败」（1.41 版裁决第二节第六条），时间戳取训练集范围的止点，使离线工具能数出来
-                    // One "level-1 failed" marker on the monitoring snapshot, stamped with the span end (ruling 1.41 §2.6).
-                    long[] span = retrainSpan.value();
-                    MonitoringSnapshot snap = new MonitoringSnapshot();
-                    snap.setDevice(device);
-                    snap.setTs(span == null ? 0L : span[1]);
-                    snap.setWindowEnd(STATUS_SNAPSHOT_WINDOW_END);
-                    snap.setM3Phase(3);
-                    snap.setM3Level1Failed(true);
-                    ctx.output(m3MonitoringTag, snap);
-                }
-                // 模型状态事件「一级失败」：聚合模块据此解除「重训进行中」（1.49 版裁决第一处空档）/ releases M7's pending state
-                long[] fspan = retrainSpan.value();
-                emitModelEvent(ctx, fspan == null ? 0L : fspan[1], device, "failed",
-                        modelGen.value() == null ? 0 : modelGen.value());
-                endRetrain();
-                statePhase.update(3);
+                abandonLevel1(device, ctx);
             } else {
                 LOG.warn("[M3] Device {} REPORT: training failed {} times; the device stays in TRAINING",
                          device, failures);
@@ -748,10 +731,32 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
     /**
      * 把训练结果写入状态并转为在线态（只在任务线程上调用）/ apply a result to state and go ONLINE (task thread).
      */
+    /**
+     * 放弃这次一级（第二批写法：失败两次）：监测快照上标一次「一级失败」（1.41 版裁决第二节第六条，时间戳取训练集范围的止点），
+     * 发模型状态事件「一级失败」（聚合模块据此解除「重训进行中」，1.49 版裁决第一处空档），旧模型继续服务。
+     * Abandon this level 1: one "level-1 failed" marker, the "failed" model event; the old model keeps serving.
+     */
+    private void abandonLevel1(String device, Context ctx) throws Exception {
+        long[] span = retrainSpan.value();
+        if (m3MonitoringTag != null) {
+            MonitoringSnapshot snap = new MonitoringSnapshot();
+            snap.setDevice(device);
+            snap.setTs(span == null ? 0L : span[1]);
+            snap.setWindowEnd(STATUS_SNAPSHOT_WINDOW_END);
+            snap.setM3Phase(3);
+            snap.setM3Level1Failed(true);
+            ctx.output(m3MonitoringTag, snap);
+        }
+        emitModelEvent(ctx, span == null ? 0L : span[1], device, "failed",
+                modelGen.value() == null ? 0 : modelGen.value());
+        endRetrain();
+        statePhase.update(3);
+    }
+
     private void applyOutcome(String key, String device, M3TrainExecutor.Outcome o, Context ctx) throws Exception {
         lastApplyThread = Thread.currentThread();
         if (Boolean.TRUE.equals(retraining.value()) && scorerBytes.value() != null
-                && !switchCheck(device, o, ctx)) {
+                && !switchCheck(key, device, o, ctx)) {
             return;                                    // 验证不通过且强制执行：旧模型继续服务 / rejected and enforced
         }
         lastTrainEpochs = o.result.epochs;
@@ -822,7 +827,7 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
      * 「不该切换」；无论是否强制执行都写一条日志，并在监测快照上记一条（比值与判定）。强制执行且不通过时放弃这次重训、
      * 旧模型继续服务，返回假。/ Compare the new and old calibration medians; record always, reject only when enforced.
      */
-    private boolean switchCheck(String device, M3TrainExecutor.Outcome o, Context ctx) throws Exception {
+    private boolean switchCheck(String key, String device, M3TrainExecutor.Outcome o, Context ctx) throws Exception {
         M3Scorer old;
         try (java.io.ObjectInputStream ois = new java.io.ObjectInputStream(
                 new java.io.ByteArrayInputStream(scorerBytes.value()))) {
@@ -845,11 +850,27 @@ public class M3Function extends KeyedProcessFunction<String, AnnotatedRound, M3S
             ctx.output(m3MonitoringTag, snap);
         }
         if (reject && switchCheckEnforce) {
-            LOG.warn("[M3] Device {} REPORT: level-1 switch rejected by the pre-switch check; the old model keeps serving",
-                     device);
-            emitModelEvent(ctx, span == null ? 0L : span[1], device, "failed",
-                    modelGen.value() == null ? 0 : modelGen.value());
-            endRetrain();
+            // 一级不切换（第三批交接文档第二节，按 1.43 版裁决）：不切换、旧模型继续服务，监测快照上标「一级不切换」，并计作一级失败
+            // 一次；未满两次时用同一收集窗口重新提交，满两次放弃这次一级（第二批写法）。
+            // Switch not made: the old model keeps serving; counted as one level-1 failure, abandoned after two.
+            int failures = (trainFailures.value() == null ? 0 : trainFailures.value()) + 1;
+            trainFailures.update(failures);
+            if (m3MonitoringTag != null && ctx != null) {
+                MonitoringSnapshot held = new MonitoringSnapshot();
+                held.setDevice(device);
+                held.setTs(span == null ? 0L : span[1]);
+                held.setWindowEnd(STATUS_SNAPSHOT_WINDOW_END);
+                held.setM3Phase(1);
+                held.setM3SwitchHeld(true);
+                ctx.output(m3MonitoringTag, held);
+            }
+            LOG.warn("[M3] Device {} REPORT: level-1 switch not made by the pre-switch check (failure {} of {}); "
+                     + "the old model keeps serving", device, failures, MAX_FAILURES);
+            if (failures < MAX_FAILURES) {
+                submitTraining(key, device, ctx);
+                return false;
+            }
+            abandonLevel1(device, ctx);
             trainWindows.clear();
             trainMasks.clear();
             earlyStopWindows.clear();

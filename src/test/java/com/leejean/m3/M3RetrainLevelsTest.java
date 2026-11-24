@@ -239,7 +239,7 @@ class M3RetrainLevelsTest {
     }
 
     @Test
-    @DisplayName("一级切换前验证：只记录时照常切换并记下比值；强制执行且不通过时不切换，旧模型继续服务")
+    @DisplayName("一级切换前验证：只记录时照常切换并记下比值；强制执行且不通过时不切换、旧模型继续服务，计作一级失败，两次后放弃")
     void switchCheckRecordsAndOptionallyRejects() throws Exception {
         int cmdAt = TO_TRAINING + 3 * ROUNDS_PER_DAY + 3;
         int n = cmdAt + 2 * ROUNDS_PER_DAY;
@@ -256,6 +256,13 @@ class M3RetrainLevelsTest {
             assertNull(s.getModel(), "不通过且强制执行：旧模型继续服务");
         }
         assertEquals((n - TO_TRAINING) / WINDOW, rej.scores.size(), "每个在线窗口恰好一条评分");
+        // 第三批第二节：每次不通过标一次「一级不切换」并计作一级失败；第一次后用同一收集窗口重训，第二次放弃这次一级
+        // Batch 3 §2: each rejection is marked and counted; retrained once, abandoned at the second failure.
+        assertEquals(2, rej.snaps.stream().filter(s -> Boolean.TRUE.equals(s.getM3SwitchHeld())).count(), "两次一级不切换");
+        assertEquals(2, rej.snaps.stream().filter(s -> s.getM3SwitchCheckRatio() != null).count(), "验证两次");
+        assertEquals(1, rej.snaps.stream().filter(s -> Boolean.TRUE.equals(s.getM3Level1Failed())).count(), "放弃时标一次一级失败");
+        assertEquals("online,failed", names(events(rej)), "放弃时发模型状态事件「一级失败」");
+        assertEquals(0, rec.snaps.stream().filter(s -> s.getM3SwitchHeld() != null).count(), "只记录时不标");
     }
 
     @Test

@@ -293,6 +293,9 @@ public class M2Job {
         // 不随零级重估的通道（1.41 版裁决第一节，开发决策第十二条）：默认湿度与气压，取 none 回到全部重估
         // Channels that keep the freeze parameters at level 0: Humidity and Pressure by default; "none" re-estimates all.
         boolean[] adaptKeepChannels = com.leejean.m1.Channels.parseSet(params.get("adapt-keep-channels", "Humidity,Pressure"));
+        // 零级窗口锚定（第三批第一节；默认关闭）/ anchored level-0 window (off by default)
+        String adaptAnchor = params.get("adapt-anchor", "off");
+        int adaptAnchorMinDays = params.getInt("adapt-anchor-min-days", 2);
         // ---- 适应执行第二批（M6b 决定十三、十七）：一级重训参数与影子评分开关 / level-1 parameters and shadow scoring ----
         // 一级默认：训练窗口在生效之后、N 三天、冷启动（1.40 版裁决）。影子评分只在全量重放打开。
         int m3RetrainDays = params.getInt("m3-retrain-days", 3);
@@ -305,8 +308,10 @@ public class M2Job {
         // 一级的「一天」秒数：默认真实的一天；短重放调小每天轮数时一级仍按真实的天计（1.41 版裁决第四节）/ level-1 day length
         long m3RetrainDaySec = params.getLong("m3-retrain-day-sec", 86400L);
         // 一级切换前验证（1.43 版裁决，用户确认只记录）：门槛默认三倍，默认不强制执行 / pre-switch check, record only by default
-        double m3SwitchCheckRatio = params.getDouble("m3-switch-check-ratio", 3.0);
-        boolean m3SwitchCheckEnforce = params.getBoolean("m3-switch-check-enforce", false);
+        // 第三批交接文档第七节的参数名 --m3-switch-validate、--m3-switch-ratio 与 1.43 版的旧名等价 / batch-3 names are aliases
+        double m3SwitchCheckRatio = params.getDouble("m3-switch-ratio", params.getDouble("m3-switch-check-ratio", 3.0));
+        boolean m3SwitchCheckEnforce = params.getBoolean("m3-switch-validate",
+                params.getBoolean("m3-switch-check-enforce", false));
         // 决策矩阵升级格（1.41 版裁决第三节）：在线默认打开；一级的 N 与训练窗口位置与上下文模块同源，二级的收集长度取冷启动的三段之和
         // Upgrade cells on by default online; N and side shared with the context module; level-2 collection = the three segments.
         m7Opts.putIfAbsent("upgrade-cells", "true");
@@ -316,6 +321,11 @@ public class M2Job {
         com.leejean.m7.FleetDecisionFunction.Params m7Params = com.leejean.m7.M7OfflineRunner.params(m7Opts);
         // 模型状态取自上下文模块的事件（1.47 版第三节、1.48 版第二项）/ model state from the context module's events
         m7Params.modelEvents = true;
+        // 二级重训期间的监测预案（第三批第四节）：交接文档写「随命令回路打开」，为使第三批全部开关关闭时与收口逐位相同，做成开关、
+        // 默认关闭 / level-2 contingency plan; a switch, off by default, so that all-off runs equal the closeout
+        m7Params.rebuildPlan = params.getBoolean("m7-rebuild-plan", false);
+        // 锚定打开时零级命令带进入之日；振荡规则（第三批第三节；默认关闭）/ entry days when anchoring; oscillation rule
+        m7Params.anchorEntryDays = !"off".equalsIgnoreCase(adaptAnchor.trim());
         if (m7Enabled && !(m3Enabled && m5bEnabled && m5aEnabled)) {
             throw new IllegalArgumentException("--m7-enabled 须同时开启 --m3-enabled、--m5b-enabled、--m5a-enabled");
         }
@@ -456,7 +466,8 @@ public class M2Job {
             cached = guarded
                     .connect(commands.keyBy(DeviceKeys.selector(surrogate, com.leejean.m6.AdaptCommand::getDevice)))
                     .process(new com.leejean.m1.AdaptiveScalerFunction(scaler, adaptCacheDays * 86400L,
-                            adaptReestimateDays * 86400L, windowSec).withKeepChannels(adaptKeepChannels))
+                            adaptReestimateDays * 86400L, windowSec).withKeepChannels(adaptKeepChannels)
+                            .withAnchor(adaptAnchor, adaptAnchorMinDays))
                     .name("RobustScaler");
         } else {
             cached = guarded.process(scaler).name("RobustScaler");

@@ -65,6 +65,7 @@ public class MonitoringSnapshot implements Serializable {
     private Boolean m3Level1Failed;      // 一级重训失败两次、已放弃（1.41 版裁决第二节第六条）/ level-1 retrain abandoned
     private Double m3SwitchCheckRatio;   // 一级切换前验证：新旧标定误差中位数之比（1.43 版）/ pre-switch check ratio
     private Boolean m3SwitchCheckReject; // 一级切换前验证：是否判为不该切换 / whether the check would reject
+    private Boolean m3SwitchHeld;        // 一级不切换：验证强制执行且不通过（第三批第二节）/ switch not made (enforced rejection)
     private String m3ModelEvent;         // 模型状态事件 online、offline、switch（1.47 版第三节、1.48 版第二项）/ model-state event
     private Integer m3ModelGen;          // 模型状态事件时的模型代数 / model generation at the event
 
@@ -249,6 +250,11 @@ public class MonitoringSnapshot implements Serializable {
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     public Boolean getM3SwitchCheckReject() { return m3SwitchCheckReject; }
     public void setM3SwitchCheckReject(Boolean v) { this.m3SwitchCheckReject = v; }
+
+    @JsonProperty
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    public Boolean getM3SwitchHeld() { return m3SwitchHeld; }
+    public void setM3SwitchHeld(Boolean v) { this.m3SwitchHeld = v; }
 
     @JsonProperty
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)

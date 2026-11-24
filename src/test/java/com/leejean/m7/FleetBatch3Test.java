@@ -104,4 +104,75 @@ class FleetBatch3Test {
         Day[] same = {on(1), on(1), OFF, OFF, on(1), on(1), OFF, on(1), on(1), OFF};
         assertEquals(3, run(p, same, temp, new ArrayList<>()).size(), "同号不构成振荡 / same sign is not an oscillation");
     }
+
+    @Test
+    @DisplayName("二级预案：重建期告警加标记与剩余天数、每日一条重建期日报、上线时恢复告警、第一周后超阈率对照；关闭时都没有")
+    void rebuildPlan() {
+        for (boolean on : new boolean[]{false, true}) {
+            FleetDecisionFunction.Params p = params();
+            p.modelEvents = true;
+            p.level2Days = 3;
+            p.rebuildPlan = on;
+            FleetDecisionFunction f = new FleetDecisionFunction(p);
+            for (String d : DEVS) {
+                f.addDevice(d);
+                f.addModelEvent(d, FleetDecisionFunction.dayStart(FIRST), "online");
+            }
+            long off = FleetDecisionFunction.dayStart("2022-03-03");
+            long onl = FleetDecisionFunction.dayStart("2022-03-06");
+            f.addModelEvent("A", off, "offline");
+            f.addModelEvent("A", onl, "online");
+            for (int k = 0; k < 10; k++) {                          // 上一代最后一周 2 / 10 / previous generation's last week
+                f.addCtxWindow("A", off - 86400 + k * 600, k < 2);
+            }
+            for (int k = 0; k < 20; k++) {                          // 新模型第一周 10 / 20 / the new model's first week
+                f.addCtxWindow("A", onl + 3600 + k * 600, k % 2 == 0);
+            }
+            List<FleetDecisionFunction.Alert> alerts = new ArrayList<>();
+            List<FleetDecisionFunction.Review> review = new ArrayList<>();
+            List<FleetDecisionFunction.Command> cmds = new ArrayList<>();
+            String day = FIRST;
+            for (int i = 0; i < 14; i++, day = FleetDecisionFunction.addDays(day, 1)) {
+                for (String d : DEVS) {
+                    for (String ch : FleetDecisionFunction.CHANNELS) {
+                        f.addDataDay(d, day, ch, true, false, "");
+                    }
+                }
+                for (long hs : FleetDecisionFunction.localHours(day)) {
+                    java.util.Map<String, FleetDecisionFunction.HourObs> obs = new java.util.HashMap<>();
+                    for (String d : DEVS) {
+                        FleetDecisionFunction.HourObs o = new FleetDecisionFunction.HourObs();
+                        o.rounds = 360;
+                        o.admitted = 360;
+                        boolean spike = d.equals("A") && FleetDecisionFunction.localHour(hs) == 12 && day.equals("2022-03-04");
+                        o.outlierRounds = spike ? 100 : 0;
+                        obs.put(d, o);
+                    }
+                    alerts.addAll(f.alertTick(hs, obs));
+                }
+                f.dayTick(day, cmds, review);
+            }
+            FleetDecisionFunction.Alert spike = alerts.stream().filter(a -> a.localHour.equals("2022-03-04 12")).findFirst().get();
+            List<FleetDecisionFunction.Alert> rec = new ArrayList<>();
+            alerts.stream().filter(a -> a.label.equals("上下文通道恢复")).forEach(rec::add);
+            List<FleetDecisionFunction.Review> daily = new ArrayList<>();
+            review.stream().filter(r -> r.kind.equals("重建期日报")).forEach(daily::add);
+            List<FleetDecisionFunction.Review> cmp = new ArrayList<>();
+            review.stream().filter(r -> r.kind.startsWith("上下文通道恢复")).forEach(cmp::add);
+            if (!on) {
+                assertTrue(spike.note.isEmpty() && rec.isEmpty() && daily.isEmpty() && cmp.isEmpty(), "关闭时没有 / nothing when off");
+                continue;
+            }
+            assertEquals("上下文重建中（剩余 2 天）", spike.note, "下线 03-03 零点、收集三天，03-04 13 时还剩 35 小时");
+            assertEquals(1, rec.size());
+            assertEquals("2022-03-06 00", rec.get(0).localHour);
+            assertEquals(Arrays.asList("2022-03-03", "2022-03-04", "2022-03-05"),
+                    Arrays.asList(daily.stream().map(r -> r.day).toArray()), "重建期每个日界一条");
+            assertTrue(daily.get(1).detail.contains("点通道离群率 1.16%") && daily.get(1).detail.contains("Temperature 正常"),
+                    daily.get(1).detail);
+            assertEquals(1, cmp.size());
+            assertEquals("新模型第一周 10 / 20 = 0.5000；上一代最后一周 2 / 10 = 0.2000", cmp.get(0).detail);
+            assertEquals("2022-03-12", cmp.get(0).day, "第一周满之后的日界写入 / written once the first week is complete");
+        }
+    }
 }

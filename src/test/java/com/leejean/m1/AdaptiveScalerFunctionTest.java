@@ -498,4 +498,59 @@ class AdaptiveScalerFunctionTest {
             assertTrue(expected.getMessage().contains("seq"));
         }
     }
+
+    @Test
+    @DisplayName("零级窗口锚定（在线算子）：命令 JSON 带触发与进入之日时，触发通道只用进入之日零点到生效的轮，其余通道用生效前 D；关闭时不变")
+    void anchoredLevelZeroInTheOperator() throws Exception {
+        // 轮跨过 03-01 当地零点（T0）：零点前后温度不同 / rounds straddle local midnight T0 with a temperature step
+        List<DeviceRound> in = new ArrayList<>();
+        Random rng = new Random(5);
+        for (int i = -600; i < 600; i++) {
+            DeviceRound r = new DeviceRound();
+            r.setDevice("G");
+            r.setTs(T0 + 10L * i);
+            double step = i >= 0 ? 4.0 : 0.0;
+            r.setX(new double[]{21 + step + rng.nextGaussian(), 40 + rng.nextGaussian(), 101000 + Math.round(rng.nextGaussian() * 20),
+                    700 + 30 * rng.nextGaussian(), Math.floor(rng.nextDouble() * 400)});
+            r.setMissingMask(new boolean[5]);
+            r.setCensoredMask(new boolean[5]);
+            r.setStuckMask(new boolean[5]);
+            in.add(r);
+        }
+        long dSec = 10800;
+        long eff = T0 + 3000;
+        AdaptCommand cmd = AdaptCommand.parse("{\"device\":\"G\",\"level\":0,\"effectiveAt\":" + eff + ",\"decidedAt\":" + (eff - 600)
+                + ",\"seq\":1,\"triggers\":\"Temperature\",\"entryDays\":[\"2022-03-01\"]}");
+        com.leejean.m6.ParamSet[] v2 = new com.leejean.m6.ParamSet[2];
+        for (int k = 0; k < 2; k++) {
+            AdaptiveScalerFunction f = new AdaptiveScalerFunction(scaler(), 7 * 86400L, dSec, WINDOW);
+            if (k == 1) {
+                f.withAnchor("trigger", 0);
+            }
+            try (KeyedTwoInputStreamOperatorTestHarness<String, DeviceRound, AdaptCommand, DeviceRound> h = harness(f)) {
+                h.processElement2(new StreamRecord<>(cmd));
+                feed(h, in);
+                for (DeviceRound r : outputs(h)) {
+                    if (r.getParamSet() != null && r.getParamSet().version == 2) {
+                        v2[k] = r.getParamSet();
+                    }
+                }
+            }
+        }
+        CompactCache c = new CompactCache(7 * 86400L);
+        for (DeviceRound r : in) {
+            if (r.getTs() < eff) {
+                c.add(r.getTs(), r.getX(), CompactCache.maskOf(r.getMissingMask(), r.getCensoredMask(), r.getStuckMask()));
+            }
+        }
+        ChannelTransform[] tf = ChannelTransform.defaultTable();
+        AdaptiveScalerFunction.Level0 plain = AdaptiveScalerFunction.level0(c, eff, dSec, WINDOW, 1e-9, false, tf);
+        long[] st = {T0, eff - dSec, eff - dSec, eff - dSec, eff - dSec};
+        AdaptiveScalerFunction.Level0 anch = AdaptiveScalerFunction.level0(c, eff, dSec, WINDOW, 1e-9, false, tf, null, null, st);
+        assertArrayEquals(plain.cal.median, v2[0].median, 0.0, "关闭时不变 / unchanged when off");
+        assertArrayEquals(anch.cal.median, v2[1].median, 0.0, "锚定 / anchored");
+        assertArrayEquals(anch.cal.scale, v2[1].scale, 0.0);
+        assertTrue(v2[1].median[0] > plain.cal.median[0] + 1.0, "温度只取零点之后 / temperature after midnight only");
+        assertEquals(plain.cal.median[1], v2[1].median[1], 0.0, "其余通道用生效前 D / others use D");
+    }
 }

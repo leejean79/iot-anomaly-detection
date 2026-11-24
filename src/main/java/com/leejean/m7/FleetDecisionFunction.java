@@ -86,6 +86,9 @@ public class FleetDecisionFunction implements Serializable {
         // Oscillation rule: after two opposite-sign level-0 commands within oscDays, that channel's level 0 is only recorded.
         public boolean oscSuppress;
         public int oscDays = 14;
+        // 二级重训期间的监测预案（第四节）：告警加「上下文重建中」与剩余天数、每个日界一条「重建期日报」、上线时「上下文通道恢复」
+        // 告警与第一周超阈率对照。需要模型状态事件（在线作业）。/ level-2 contingency plan; needs the model-state events.
+        public boolean rebuildPlan;
 
         /** 一个告警节拍的名义轮数（每十秒一轮）/ nominal rounds per alert tick. */
         double nominal() {
@@ -286,6 +289,10 @@ public class FleetDecisionFunction implements Serializable {
     private final Map<String, Double> dataShift = new HashMap<>();                  // dev|day|ch → 日记录的偏移 / day-record shift
     private final Map<String, long[]> lastL0Sign = new HashMap<>();                 // dev|ch → {决定时刻, 偏移符号}
     private final Map<String, Long> oscUntil = new HashMap<>();                     // dev|ch → 振荡抑制截止 / suppression end
+    private final Map<String, Long> rebuildFrom = new HashMap<>();                  // dev → 二级下线时刻（重建中）/ offline time
+    private final Map<String, long[]> recovered = new HashMap<>();                  // dev → {下线时刻, 上线时刻}：待写对照
+    private final Map<String, TreeMap<Long, int[]>> ctxHours = new HashMap<>();     // dev → 整点 → {上下文窗口数, 超阈数}
+    private final Map<String, int[]> rebuildDay = new HashMap<>();                  // dev → 当日 {离群轮, 入口轮}
     private final Map<String, TreeMap<Long, Integer>> modelGen = new HashMap<>();   // dev → {时刻 → 模型代数}（只记变化）
     private final Map<String, TreeMap<Long, Boolean>> onlineAt = new HashMap<>();   // dev → {时刻 → 是否在线}（模型状态事件）
     private final Map<String, java.util.TreeSet<Long>> switchAt = new HashMap<>();  // dev → 一级切换完成的时刻
@@ -319,6 +326,40 @@ public class FleetDecisionFunction implements Serializable {
         }
     }
 
+    /**
+     * 一个上下文评分窗口（第三批第四节，超阈率按上下文评分窗口中超过门限的比例计，1.54 版裁决第七处）；预案关闭时不保存。
+     * One contextual scoring window (end time, above threshold); kept only when the contingency plan is on.
+     */
+    public void addCtxWindow(String dev, long ts, boolean above) {
+        if (!p.rebuildPlan) {
+            return;
+        }
+        TreeMap<Long, int[]> m = ctxHours.computeIfAbsent(dev, k -> new TreeMap<>());
+        int[] c = m.computeIfAbsent(Math.floorDiv(ts - 1, 3600L) * 3600L, k -> new int[2]);
+        c[0]++;
+        c[1] += above ? 1 : 0;
+        m.headMap(ts - 30 * 86400L).clear();                   // 只留三十天 / keep thirty days
+    }
+
+    /** [t0, t1) 内上下文窗口的 {窗口数, 超阈数} / context windows and above-threshold windows in [t0, t1). */
+    private int[] ctxCount(String dev, long t0, long t1) {
+        int[] c = new int[2];
+        TreeMap<Long, int[]> m = ctxHours.get(dev);
+        if (m != null) {
+            for (int[] v : m.subMap(t0, t1).values()) {
+                c[0] += v[0];
+                c[1] += v[1];
+            }
+        }
+        return c;
+    }
+
+    /** 重建期剩余天数：下线加二级收集长度到 t，按天向上取整 / remaining rebuild days. */
+    private long rebuildLeft(long off, long t) {
+        long left = off + p.level2Days * 86400L - t;
+        return left <= 0 ? 0 : (left + 86399) / 86400;
+    }
+
     public void addPerfElement(String dev, long ts, double mainScore) {
         addDevice(dev);
         firstCtx.merge(dev, ts, Math::min);
@@ -337,8 +378,15 @@ public class FleetDecisionFunction implements Serializable {
         addDevice(dev);
         if ("online".equals(event)) {
             onlineAt.computeIfAbsent(dev, k -> new TreeMap<>()).put(ts, true);
+            Long off = rebuildFrom.get(dev);
+            if (p.rebuildPlan && off != null && ts >= off) {
+                recovered.put(dev, new long[]{off, ts, 0});            // {下线, 上线, 已发恢复告警} / offline, online, alerted
+            }
         } else if ("offline".equals(event)) {
             onlineAt.computeIfAbsent(dev, k -> new TreeMap<>()).put(ts, false);
+            if (p.rebuildPlan) {
+                rebuildFrom.put(dev, ts);
+            }
         } else if ("failed".equals(event)) {
             failedAt.computeIfAbsent(dev, k -> new java.util.TreeSet<>()).add(ts);
         } else if ("switch".equals(event)) {
@@ -408,6 +456,12 @@ public class FleetDecisionFunction implements Serializable {
     private int shiftSign(String dev, String day, String ch) {
         Double v = sameVersion(dev, day) ? dataShift.get(dev + "|" + day + "|" + ch) : null;
         return v == null ? 0 : (int) Math.signum(v);
+    }
+
+    /** 时刻 t 该台是否处于二级重建期（下线之后、上线之前）/ whether the device is rebuilding at t. */
+    private boolean rebuilding(String dev, long t) {
+        Long off = rebuildFrom.get(dev);
+        return off != null && off < t && !modelOnline(dev, t);
     }
 
     /** 该台是否有通道处于振荡抑制中 / whether any channel of the device is under oscillation suppression. */
@@ -664,6 +718,10 @@ public class FleetDecisionFunction implements Serializable {
             if (p.oscSuppress && oscillating(dev, hs)) {
                 a.note = note.isEmpty() ? "基线振荡" : note + "；基线振荡";
             }
+            if (p.rebuildPlan && rebuilding(dev, he)) {
+                String tag = "上下文重建中（剩余 " + rebuildLeft(rebuildFrom.get(dev), he) + " 天）";
+                a.note = a.note.isEmpty() ? tag : a.note + "；" + tag;
+            }
             a.model = modelAt(dev, hs + p.alertSec);
             out.add(a);
             dayAlerts.add(a);
@@ -671,6 +729,34 @@ public class FleetDecisionFunction implements Serializable {
         for (Map.Entry<String, Info> e : info.entrySet()) {
             if (e.getValue().pflag || e.getValue().cflag) {
                 flagHist.computeIfAbsent(e.getKey() + "|" + hod, key -> new TreeSet<>()).add(day);
+            }
+        }
+        if (p.rebuildPlan) {
+            for (String dev : devices) {
+                HourObs r = obs.get(dev);
+                if (r != null && rebuilding(dev, he)) {                // 重建期日报的点通道离群率 / for the daily report
+                    int[] k = rebuildDay.computeIfAbsent(dev, x -> new int[2]);
+                    k[0] += r.outlierRounds;
+                    k[1] += r.admitted;
+                }
+                long[] rc = recovered.get(dev);
+                if (rc != null && rc[2] == 0 && hs <= rc[1] && rc[1] < he) {
+                    // 上线时的「上下文通道恢复」告警（第四节第三件事）/ the recovery alert at go-live
+                    rc[2] = 1;
+                    Alert a = new Alert();
+                    a.device = dev;
+                    a.hourStart = hs;
+                    a.localHour = day + String.format(" %02d", hod)
+                            + (p.alertSec < 3600 ? String.format(":%02d", Instant.ofEpochSecond(hs).atZone(ZONE).getMinute()) : "");
+                    a.label = "上下文通道恢复";
+                    a.scope = "局部";
+                    a.co = dev;
+                    a.ctxMax = "";
+                    a.dataChannels = "";
+                    a.note = "二级重训完成，新模型上线（模型代数 " + modelAt(dev, he) + "）";
+                    a.model = modelAt(dev, he);
+                    out.add(a);
+                }
             }
         }
         return out;
@@ -1111,6 +1197,43 @@ public class FleetDecisionFunction implements Serializable {
         if (!boundary) {
             return;
         }
+        // 重建期日报与恢复对照（第四节第二、三件事）/ rebuild daily report and the recovery comparison
+        if (p.rebuildPlan) {
+            for (String dev : devices) {
+                int[] k = rebuildDay.remove(dev);
+                if (rebuilding(dev, t) || k != null) {
+                    StringBuilder b = new StringBuilder("数据层：");
+                    for (String ch : CHANNELS) {
+                        String[] r = sameVersion(dev, day) ? dataDays.get(dev + "|" + day + "|" + ch) : null;
+                        b.append(ch).append(r == null || !"1".equals(r[0]) ? " 不可判" : "1".equals(r[1]) ? " 偏离" : " 正常").append('；');
+                    }
+                    b.append("点通道离群率 ").append(k == null || k[1] == 0 ? "无入口轮"
+                            : String.format("%.2f%%", 100.0 * k[0] / k[1]));
+                    Long off = rebuildFrom.get(dev);
+                    b.append("；距上线 ").append(off == null ? 0 : rebuildLeft(off, t)).append(" 天");
+                    Review r = new Review();
+                    r.device = dev;
+                    r.day = day;
+                    r.kind = "重建期日报";
+                    r.hourStart = Long.toString(t);
+                    r.detail = b.toString();
+                    review.add(r);
+                }
+                long[] rc = recovered.get(dev);
+                if (rc != null && t >= rc[1] + 7 * 86400L) {
+                    int[] nw = ctxCount(dev, rc[1], rc[1] + 7 * 86400L);
+                    int[] od = ctxCount(dev, rc[0] - 7 * 86400L, rc[0]);
+                    Review r = new Review();
+                    r.device = dev;
+                    r.day = day;
+                    r.kind = "上下文通道恢复：超阈率对照";
+                    r.hourStart = Long.toString(rc[1]);
+                    r.detail = "新模型第一周 " + rate(nw) + "；上一代最后一周 " + rate(od);
+                    review.add(r);
+                    recovered.remove(dev);
+                }
+            }
+        }
         // 日界复核 / daily review
         for (String dev : devices) {
             PerfTracker pt = perf.get(dev);
@@ -1163,6 +1286,11 @@ public class FleetDecisionFunction implements Serializable {
             }
         }
         dayAlerts.clear();
+    }
+
+    /** 超阈率的写法：超阈数 / 窗口数 = 比例 / above-threshold rate as text. */
+    private static String rate(int[] c) {
+        return c[1] + " / " + c[0] + (c[0] == 0 ? "（无窗口）" : String.format(" = %.4f", (double) c[1] / c[0]));
     }
 
     private boolean fallen(DevState s, String dev, String day, String trig, boolean boundary) {
