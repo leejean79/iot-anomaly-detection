@@ -38,7 +38,7 @@ import java.util.TreeMap;
  * <ol>
  *   <li>执行环境：开发机或本地 Mac，仓库根目录，JDK 11，先 mvn package；堆至少 4 GB（-Xmx6g）。</li>
  *   <li>调用命令：{@code java -Xmx6g -cp target/iot-anomaly-detection-1.0-SNAPSHOT.jar com.leejean.m6.ChainDriver --variant D1
- *       --out-dir docs/m6b/chain/D1}；--variant 取 open（命令只发出不执行，驱动正确性对照）、D1、D7、pos（只重估位置）；--upgrade-cells true 打开升级格，此时在第一条一级或二级命令的决定时刻停止并写 stopped_at.txt（1.44 版裁决）；--keep-channels Humidity,Pressure 使这些通道不随零级重估（1.41 版裁决第一节，默认 none）；--anchor off|trigger|all 打开零级窗口锚定（第三批第一节，乙档只作用于触发通道、丙档作用于全部重估通道，默认 off），--anchor-min-days 2 为回退下限；--osc-suppress true 打开振荡规则（第三批第三节，--osc-days 14）；可选
+ *       --out-dir docs/m6b/chain/D1}；--variant 取 open（命令只发出不执行，驱动正确性对照）、D1、D7、pos（只重估位置）；--upgrade-cells true 打开升级格，此时在第一条一级或二级命令的决定时刻停止并写 stopped_at.txt（1.44 版裁决）；--keep-channels Humidity,Pressure 使这些通道不随零级重估（1.41 版裁决第一节，默认 none）；--anchor off|trigger|all 打开零级窗口锚定（第三批第一节，乙档只作用于触发通道、丙档作用于全部重估通道，默认 off），--anchor-min-days 2 为回退下限；--osc-suppress true 打开振荡规则（第三批第三节，--osc-days 14）；--anchor-defer-days 7 为丁档（1.56 版裁决第一项：锚定不足七天时推迟生效、生效前回落则撤销，与 --anchor trigger --anchor-min-days 7 同用）；可选
  *       --rounds-dir docs/m6a/extract、--rounds-E docs/m6b/extract/rounds_E_inj.csv.gz（E 的注入轮表）、--inputs docs/m7/inputs，
  *       以及聚合模块的决策参数（与 M7OfflineRunner 相同的选项名）。</li>
  *   <li>前置条件：八台轮表已提取；E 的注入轮表已由 m6a/inject_rounds.py 生成；docs/m7/inputs 已由 m7/prepare_inputs.py 生成。</li>
@@ -86,6 +86,9 @@ public final class ChainDriver {
         ChainDeviceSim.Anchor anchor = ChainDeviceSim.Anchor.valueOf(a.getOrDefault("anchor", "off").toUpperCase());
         int anchorMinDays = Integer.parseInt(a.getOrDefault("anchor-min-days", "2"));
         p.anchorEntryDays = anchor != ChainDeviceSim.Anchor.OFF;
+        if (p.deferDays > 0 && anchor == ChainDeviceSim.Anchor.OFF) {
+            throw new IllegalArgumentException("--anchor-defer-days 须与 --anchor trigger 或 all 同用");
+        }
         p.pPoint = a.containsKey("p-point") ? Double.parseDouble(a.get("p-point")) : M7OfflineRunner.derivePPoint(in.resolve("hours.csv"));
         Map<String, Map<Long, FleetDecisionFunction.HourObs>> base = M7OfflineRunner.readHours(in.resolve("hours.csv"));
 

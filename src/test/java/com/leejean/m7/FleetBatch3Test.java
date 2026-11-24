@@ -98,9 +98,14 @@ class FleetBatch3Test {
         assertEquals(2, c.size(), "第三条被抑制 / the third is suppressed");
         assertTrue(rv.stream().anyMatch(r -> r.kind.equals("零级被抑制：基线振荡") && r.detail.startsWith("Gas")
                 && r.day.equals("2022-03-09")));
-        Day[] rec = gas.clone();
-        rec[6] = new Day(false, 0.0, "RECOVER");                   // 03-07 回落 / falls back on 03-07
-        assertEquals(3, run(p, rec, temp, new ArrayList<>()).size(), "回落之后解除 / released after a fallback");
+        // 只认第二条生效（03-08 当地零点）之后的回落（1.56 版裁决第二项）/ only fallbacks after the second took effect count
+        Day[] early = gas.clone();
+        early[6] = new Day(false, 0.0, "RECOVER");                 // 03-07 回落：第二条已决定、未生效 / before the effect
+        assertEquals(2, run(p, early, temp, new ArrayList<>()).size(), "生效前的回落不解除 / a fallback before the effect does not release");
+        Day[] rec = {on(1), on(1), OFF, OFF, on(-1), on(-1), OFF, new Day(false, 0.0, "RECOVER"), on(1), on(1), OFF};
+        Day[] temp2 = new Day[rec.length];
+        Arrays.fill(temp2, OFF);
+        assertEquals(3, run(p, rec, temp2, new ArrayList<>()).size(), "生效之后回落即解除 / released by a fallback after the effect");
         Day[] same = {on(1), on(1), OFF, OFF, on(1), on(1), OFF, on(1), on(1), OFF};
         assertEquals(3, run(p, same, temp, new ArrayList<>()).size(), "同号不构成振荡 / same sign is not an oscillation");
     }
@@ -174,5 +179,36 @@ class FleetBatch3Test {
             assertEquals("新模型第一周 10 / 20 = 0.5000；上一代最后一周 2 / 10 = 0.2000", cmp.get(0).detail);
             assertEquals("2022-03-12", cmp.get(0).day, "第一周满之后的日界写入 / written once the first week is complete");
         }
+    }
+
+    @Test
+    @DisplayName("丁档：零级推迟到最早进入之日加七天的日界、在生效前一日界发出并给序号；生效前触发通道回落则撤销并解除冷却")
+    void deferredLevelZero() {
+        FleetDecisionFunction.Params p = params();
+        p.deferDays = 7;
+        Day[] gas = new Day[10];
+        Arrays.fill(gas, on(1));
+        Day[] temp = new Day[gas.length];
+        Arrays.fill(temp, OFF);
+        List<FleetDecisionFunction.Command> c = run(p, gas, temp, new ArrayList<>());
+        assertEquals(1, c.size());
+        assertEquals("2022-03-02", c.get(0).day, "决定日不变 / the decision day is kept");
+        assertEquals(FleetDecisionFunction.dayStart("2022-03-08"), c.get(0).effectiveAt, "进入之日 03-01 加七天 / entry plus seven");
+        assertEquals(1, c.get(0).seq);
+        assertEquals(Arrays.asList("2022-03-01"), c.get(0).entryDays);
+        // 03-01 至 03-04 偏离、03-05 回落：撤销；03-07 起再偏离，03-08 日界再决定，03-14 生效 / cancelled, then decided again
+        Day[] back = new Day[14];
+        Arrays.fill(back, on(1));
+        back[4] = OFF;
+        back[5] = OFF;
+        Day[] temp2 = new Day[back.length];
+        Arrays.fill(temp2, OFF);
+        List<FleetDecisionFunction.Review> rv = new ArrayList<>();
+        List<FleetDecisionFunction.Command> d = run(p, back, temp2, rv);
+        assertTrue(rv.stream().anyMatch(r -> r.kind.equals("零级撤销：生效前回落") && r.day.equals("2022-03-05")), rv.toString());
+        assertEquals(1, d.size());
+        assertEquals("2022-03-08", d.get(0).day);
+        assertEquals(FleetDecisionFunction.dayStart("2022-03-14"), d.get(0).effectiveAt);
+        assertEquals(1, d.get(0).seq, "撤销的命令不占序号 / a cancelled command takes no sequence number");
     }
 }

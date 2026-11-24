@@ -89,6 +89,9 @@ public class FleetDecisionFunction implements Serializable {
         // 二级重训期间的监测预案（第四节）：告警加「上下文重建中」与剩余天数、每个日界一条「重建期日报」、上线时「上下文通道恢复」
         // 告警与第一周超阈率对照。需要模型状态事件（在线作业）。/ level-2 contingency plan; needs the model-state events.
         public boolean rebuildPlan;
+        // 丁档（1.56 版裁决第一项）：锚定的最短长度（天），不足时推迟生效到「最早进入之日加该天数的日界」，生效前触发通道回落则撤销；
+        // 0 为关闭 / deferred effect: wait until the earliest entry day plus this many days; cancel on fallback; 0 = off
+        public int deferDays;
 
         /** 一个告警节拍的名义轮数（每十秒一轮）/ nominal rounds per alert tick. */
         double nominal() {
@@ -289,6 +292,8 @@ public class FleetDecisionFunction implements Serializable {
     private final Map<String, Double> dataShift = new HashMap<>();                  // dev|day|ch → 日记录的偏移 / day-record shift
     private final Map<String, long[]> lastL0Sign = new HashMap<>();                 // dev|ch → {决定时刻, 偏移符号}
     private final Map<String, Long> oscUntil = new HashMap<>();                     // dev|ch → 振荡抑制截止 / suppression end
+    private final Map<String, Long> oscEff = new HashMap<>();                       // dev|ch → 布下抑制的那条零级的生效时刻
+    private final Map<String, Command> deferred = new HashMap<>();                  // dev → 推迟生效、尚未发出的零级 / held level 0
     private final Map<String, Long> rebuildFrom = new HashMap<>();                  // dev → 二级下线时刻（重建中）/ offline time
     private final Map<String, long[]> recovered = new HashMap<>();                  // dev → {下线时刻, 上线时刻}：待写对照
     private final Map<String, TreeMap<Long, int[]>> ctxHours = new HashMap<>();     // dev → 整点 → {上下文窗口数, 超阈数}
@@ -814,6 +819,97 @@ public class FleetDecisionFunction implements Serializable {
      * </ol>
      * 返回格的说明（以级别开头），供命令的决定依据使用。/ The decision-matrix cell, checked in order.
      */
+    /** 一条零级发出时的记账：振荡规则、最近一次零级生效、冷却与升级格的同通道生效 / bookkeeping when a level 0 goes out. */
+    private void level0Book(Command c, List<String> triggers) {
+        String dev = c.device;
+        if (p.oscSuppress) {
+            for (String tr : triggers) {
+                if ("perf".equals(tr)) {
+                    continue;
+                }
+                int sign = shiftSign(dev, c.day, tr);
+                long[] pv = lastL0Sign.get(dev + "|" + tr);
+                if (pv != null && pv[1] != 0 && sign != 0 && sign != pv[1] && c.decidedAt - pv[0] <= p.oscDays * 86400L) {
+                    oscUntil.put(dev + "|" + tr, addLocalDays(c.effectiveAt, p.oscDays));
+                    oscEff.put(dev + "|" + tr, c.effectiveAt);
+                }
+                lastL0Sign.put(dev + "|" + tr, new long[]{c.decidedAt, sign});
+            }
+        }
+        lastLevel0Eff.put(dev, c.effectiveAt);
+        cooldownUntil.put(dev, addLocalDays(c.effectiveAt, 1));
+        if (p.upgradeCells) {
+            for (String tr : triggers) {
+                if (!"perf".equals(tr)) {
+                    level0Eff.put(dev + "|" + tr, c.effectiveAt);
+                }
+            }
+        }
+    }
+
+    /**
+     * 丁档的推迟零级（1.56 版裁决第一项）：每个日界先去掉已回落的触发通道，数据层触发通道全部回落时撤销并写复核「零级撤销：生效前回落」、
+     * 解除冷却；到生效前一日界时发出（此时给序号）。/ Held level 0: drop fallen triggers, cancel when none is left, release a day early.
+     */
+    private void releaseDeferred(long t, String day, Map<String, DevState> st, List<Command> commands, List<Review> review) {
+        for (String dev : new ArrayList<>(new TreeMap<>(deferred).keySet())) {
+            Command c = deferred.get(dev);
+            List<String> tr = new ArrayList<>(Arrays.asList(c.triggers.split("\\|")));
+            List<String> fell = new ArrayList<>();
+            for (String x : tr) {
+                if (!"perf".equals(x) && fallen(st.get(dev), dev, day, x, true)) {
+                    fell.add(x);
+                }
+            }
+            boolean anyData = false;
+            for (String x : tr) {
+                anyData |= !"perf".equals(x) && !fell.contains(x);
+            }
+            if (!fell.isEmpty()) {
+                Review r = new Review();
+                r.device = dev;
+                r.day = day;
+                r.kind = anyData ? "零级推迟中：部分触发通道回落" : "零级撤销：生效前回落";
+                r.hourStart = Long.toString(t);
+                r.detail = "决定 " + c.day + "，触发 " + c.triggers + "，进入之日 " + String.join("|", c.entryDays)
+                        + "，原定生效 " + localDay(c.effectiveAt) + "；回落 " + String.join("|", fell);
+                review.add(r);
+                if (!anyData) {
+                    deferred.remove(dev);
+                    cooldownUntil.put(dev, t);
+                    continue;
+                }
+                List<String> ed = new ArrayList<>();
+                List<String> keep = new ArrayList<>();
+                int k = 0;
+                for (String x : tr) {
+                    if ("perf".equals(x)) {
+                        keep.add(x);
+                        continue;
+                    }
+                    if (!fell.contains(x)) {
+                        keep.add(x);
+                        ed.add(c.entryDays.get(k));
+                    }
+                    k++;
+                }
+                c.triggers = String.join("|", keep);
+                c.entryDays = ed;
+                List<String> fm = new ArrayList<>(Arrays.asList(c.forms.split("；")));
+                fm.removeIf(f -> f.indexOf('：') > 0 && fell.contains(f.substring(0, f.indexOf('：'))));
+                c.forms = String.join("；", fm);
+            }
+            if (addLocalDays(t, 1) >= c.effectiveAt) {
+                int n = seq.getOrDefault(dev, 0) + 1;
+                seq.put(dev, n);
+                c.seq = n;
+                level0Book(c, new ArrayList<>(Arrays.asList(c.triggers.split("\\|"))));
+                commands.add(c);
+                deferred.remove(dev);
+            }
+        }
+    }
+
     /**
      * 数据层触发通道各自的进入偏离之日（第三批第一节）：从决定日向前连续偏离的第一天，不早于该台最近一次零级生效的当地日
      * （换版本时数据层状态清零；1.54 版裁决第一处）。/ Entry day of each data trigger, not before the last level-0 effective day.
@@ -938,8 +1034,11 @@ public class FleetDecisionFunction implements Serializable {
         if (p.oscSuppress && boundary) {
             for (String dev : devices) {
                 for (String ch : ACTIVE) {
-                    if (oscUntil.containsKey(dev + "|" + ch) && "RECOVER".equals(dataTrans(dev, day, ch))) {
+                    // 只认布下抑制的那条零级生效之后的回落（1.56 版裁决第二项）/ only fallbacks after that command took effect
+                    if (oscUntil.containsKey(dev + "|" + ch) && "RECOVER".equals(dataTrans(dev, day, ch))
+                            && dayStart(day) >= oscEff.getOrDefault(dev + "|" + ch, 0L)) {
                         oscUntil.remove(dev + "|" + ch);
+                        oscEff.remove(dev + "|" + ch);
                     }
                 }
             }
@@ -1003,6 +1102,9 @@ public class FleetDecisionFunction implements Serializable {
                     }
                 }
             }
+        }
+        if (p.deferDays > 0 && boundary) {
+            releaseDeferred(t, day, st, commands, review);
         }
         for (String dev : devices) {
             DevState s = st.get(dev);
@@ -1134,31 +1236,25 @@ public class FleetDecisionFunction implements Serializable {
             } else {
                 c.effectiveAt = p.cmdSec == 0 ? addLocalDays(t, 1) : t + p.cmdSec;
             }
+            boolean hold = false;
             if (level == 0) {
-                if (p.anchorEntryDays) {
+                if (p.anchorEntryDays || p.deferDays > 0) {
                     c.entryDays = entryDays(dev, day, triggers);
                 }
-                if (p.oscSuppress) {
-                    for (String tr : triggers) {
-                        if ("perf".equals(tr)) {
-                            continue;
-                        }
-                        int sign = shiftSign(dev, day, tr);
-                        long[] pv = lastL0Sign.get(dev + "|" + tr);
-                        if (pv != null && pv[1] != 0 && sign != 0 && sign != pv[1] && t - pv[0] <= p.oscDays * 86400L) {
-                            oscUntil.put(dev + "|" + tr, addLocalDays(c.effectiveAt, p.oscDays));
-                        }
-                        lastL0Sign.put(dev + "|" + tr, new long[]{t, sign});
+                if (p.deferDays > 0 && !c.entryDays.isEmpty()) {
+                    // 丁档：生效取「决定后一日界」与「最早进入之日加 deferDays 的日界」中较晚者（1.56 版裁决第一项）
+                    String earliest = java.util.Collections.min(c.entryDays);
+                    long e = dayStart(addDays(earliest, p.deferDays));
+                    if (e > c.effectiveAt) {
+                        c.effectiveAt = e;
+                        hold = true;
                     }
                 }
-                lastLevel0Eff.put(dev, c.effectiveAt);
-                cooldownUntil.put(dev, addLocalDays(c.effectiveAt, 1));
-                if (p.upgradeCells) {
-                    for (String tr : triggers) {
-                        if (!"perf".equals(tr)) {
-                            level0Eff.put(dev + "|" + tr, c.effectiveAt);
-                        }
-                    }
+                if (hold) {
+                    seq.put(dev, n - 1);                         // 序号在发出时再给 / the sequence is given at release
+                    cooldownUntil.put(dev, addLocalDays(c.effectiveAt, 1));
+                } else {
+                    level0Book(c, triggers);
                 }
             } else {
                 // 重训完成的时刻由命令自己算出（第三节第一问）：一级生效前侧为生效时刻，生效后侧为生效加 N 天；二级为生效加收集长度
@@ -1192,6 +1288,10 @@ public class FleetDecisionFunction implements Serializable {
             c.co = co.size();
             c.coDevices = String.join("|", co);
             c.episodeN = episodeN;
+            if (hold) {
+                deferred.put(dev, c);
+                continue;
+            }
             commands.add(c);
         }
         if (!boundary) {

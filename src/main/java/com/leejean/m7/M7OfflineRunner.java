@@ -87,6 +87,8 @@ public final class M7OfflineRunner {
         // 第三批振荡规则（交接文档第三节；默认关闭）/ batch-3 oscillation rule (off by default)
         p.oscSuppress = Boolean.parseBoolean(a.getOrDefault("osc-suppress", "false"));
         p.oscDays = Integer.parseInt(a.getOrDefault("osc-days", "14"));
+        // 丁档：锚定不足该天数时推迟生效、生效前回落则撤销（1.56 版裁决第一项；0 为关闭）/ deferred effect, 0 = off
+        p.deferDays = Integer.parseInt(a.getOrDefault("anchor-defer-days", "0"));
         return p;
     }
 

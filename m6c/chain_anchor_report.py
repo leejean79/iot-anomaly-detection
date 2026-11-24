@@ -32,10 +32,29 @@
 #       触发含光照的命令（命令日），两者都与所在档相同记为「相符」。
 #   另列（描述）：振荡抑制的复核条数、其中部分触发通道被抑制而其余照发的条数、锚定回退的命令条数（各档）。
 #
+# 补充（2026-11-24，1.56 版裁决第一、二、四项；在丁档与两条振荡档运行之前写定并提交）：
+#   丁档：--anchor trigger --anchor-min-days 7 --anchor-defer-days 7（锚定作用于触发通道，最短七天，不足时推迟生效到「最早进入之日
+#   加七天的日界」，生效前触发通道回落则撤销）。与甲比较：
+#   九、命令总数低于 54 记为「相符」。
+#   十、七天内丙型实例不多于 5 记为「相符」。
+#   十一、非触发通道连带偏离日数不高于 364 记为「相符」。
+#   十二、首条命令的时刻（「前后」写定为生效当地日相差不超过两天）：
+#       （1）三月事件：甲中首条命令落在命令日 03-22 至 03-27 的每台设备，在丁中命令日落在同一时段的首条命令生效于 03-27 至 03-31，
+#            或该台在同一时段决定的命令有「零级撤销：生效前回落」复核，记为该台「相符」；全部台相符记为「相符」。
+#       （2）气体抬高：甲中命令日 03-14 至 03-21 且触发含气体的每台设备，在丁中同一时段决定、触发含气体的首条命令生效于 03-19 至 03-23，
+#            或有对应的撤销复核，记为该台「相符」；全部台相符记为「相符」。
+#       （3）G 光照：G 上第一条触发含光照的命令生效于 03-13 至 03-17 记为「相符」。
+#   十三、从进入偏离到生效的典型延迟：已执行零级的「生效时刻减全部数据层触发通道中最早进入之日的当地零点」的中位数（小时）。
+#       甲预期约 48 小时，丁预期约七天；丁的中位数在 144 至 192 小时之间记为「相符」。进入之日按聚合模块的同一规则从各档的数据层
+#       日记录重算（从命令日向前连续偏离、同一版本，不早于该台上一条已执行零级生效的当地日）。
+#   十四（描述）：撤销的命令逐条列出，并标出命令日到撤销日之间是否与四月瞬态时段（m7/report_tables.py 的 APRIL）的数据层日有重叠。
+#   选定判据（甲与丁）：同第一节；延迟另列为描述项。选定由设计会话宣布。
+#   振荡规则：只认布下抑制的那条零级生效之后的回落（1.56 版裁决第二项）；加在甲与丁上各一档，各自按六、七、八三项与所在档比较。
+#
 # ---------------------------- 脚本交付五要素 -------------------------------
 # 1. 执行环境 / Environment: 开发机或本地 Mac，仓库根目录，python3.9+（只用标准库）。
 # 2. 调用命令 / Invocation: python3 m6c/chain_anchor_report.py [--chain-dir docs/m6c/chain] [--osc-arm trigger_osc --osc-base trigger]
-#    [--out docs/m6c/chain/anchor_check.md]
+#    [--ding-arm ding] [--osc off_osc:off,ding_osc:ding] [--out docs/m6c/chain/anchor_check.md]
 # 3. 前置条件 / Preconditions: 已运行 ChainDriver 的 off、trigger、all 三档（--variant D7 --keep-channels Humidity,Pressure
 #    --anchor off|trigger|all --out-dir docs/m6c/chain/<档>）；给出 --osc-arm 时，该档也已运行。
 # 4. 期望产出 / Expected output: --out 处的 Markdown；终端打印各项判定与选定判据指向的档。
@@ -51,6 +70,9 @@ import sys
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(HERE, "m6b"))
 import chain_report as CR       # noqa: E402
+sys.path.insert(0, os.path.join(HERE, "m7"))
+import decide as DD             # noqa: E402
+from report_tables import APRIL  # noqa: E402
 
 NAMES = {"off": "甲：生效前七天（现行默认）", "trigger": "乙：只锚定触发通道", "all": "丙：锚定全部重估通道"}
 BASE_MARCH, BASE_STABLE, BASE_NEAR, MAX_CMDS = 3, 5, 11, 60
@@ -129,6 +151,120 @@ def firsts(run):
     return m, g
 
 
+def entry_delays(run):
+    """已执行零级的「生效减最早进入之日零点」（小时）/ hours from the earliest entry midnight to the effect."""
+    out = []
+    last = {}
+    for c in sorted(run.commands, key=lambda x: (int(x["effective_at"]), x["device"])):
+        dev = c["device"]
+        if "%s_%s" % (dev, c["seq"]) not in run.executed:
+            continue
+        floor = last.get(dev)
+        v0 = None
+        firsts_ = []
+        for ch in [t for t in c["triggers"].split("|") if t != "perf"]:
+            r0 = run.days.get((dev, c["day"], ch))
+            v0 = r0["version"] if r0 else None
+            d = c["day"]
+            while floor is None or d > floor:
+                prev = DD.add_days(d, -1)
+                r = run.days.get((dev, prev, ch))
+                if r is None or r["deviated"] != "1" or r["version"] != v0:
+                    break
+                d = prev
+            firsts_.append(d)
+        if firsts_:
+            e0 = DD.local_day_start(min(firsts_))
+            out.append((int(c["effective_at"]) - e0) / 3600.0)
+        last[dev] = CR.lday(c["effective_at"])
+    return out
+
+
+def median(xs):
+    xs = sorted(xs)
+    n = len(xs)
+    return None if n == 0 else (xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2)
+
+
+def osc_section(w, judge, NAMESX, R, S, arm, base):
+    o, b = S[arm], S[base]
+    fo, fb = firsts(R[arm]), firsts(R[base])
+    rv = [r for r in R[arm].review if r["kind"] == "零级被抑制：基线振荡"]
+    part = sum(1 for r in rv if "其余触发通道照常发零级" in r["detail"])
+    w("\n## 振荡规则一档（在 %s 上，%s）\n\n" % (NAMESX.get(base, base), arm))
+    w(CR.table(["项", "所在档", "加振荡规则", "判定"], [
+        ["六、连锁丙型实例为零", b["chained"], o["chained"], judge(o["chained"] == 0)],
+        ["七、命令总数再降", b["cmds"], o["cmds"], judge(o["cmds"] < b["cmds"])],
+        ["八、三月事件每台首条与 G 光照首条不变", "%d 台；G 光照 %s" % (len(fb[0]), fb[1]), "%d 台；G 光照 %s" % (len(fo[0]), fo[1]),
+         judge(fo == fb)],
+    ]))
+    w("\n描述：振荡抑制的复核 %d 条，其中部分触发通道被抑制而其余照发 %d 条；丙型实例 %d 例（七天内 %d），所在档 %d 例（七天内 %d）。\n"
+      % (len(rv), part, o["tc"], o["near"], b["tc"], b["near"]))
+    if rv:
+        w("\n" + CR.table(["设备", "日", "被抑制的通道与处理"], [[r["device"], r["day"], r["detail"]] for r in rv]))
+    print("振荡 %s：连锁丙型 %d→%d，命令 %d→%d，首条%s；抑制 %d 条（部分 %d）" % (
+        arm, b["chained"], o["chained"], b["cmds"], o["cmds"], "不变" if fo == fb else "有变化", len(rv), part))
+
+
+def ding_section(w, judge, R, S, ding):
+    g, a = S[ding], S["off"]
+    run, base = R[ding], R["off"]
+    canc = [r for r in run.review if r["kind"] == "零级撤销：生效前回落"]
+    canc_dev = lambda lo, hi, gas=False: {r["device"] for r in canc
+                                         if lo <= r["detail"].split("，")[0].replace("决定 ", "") <= hi
+                                         and (not gas or "Gas" in r["detail"].split("，")[1])}
+    in_rng = lambda c, lo, hi: lo <= CR.lday(c["effective_at"]) <= hi
+    # 十二（1）三月事件 / March event
+    m_devs = sorted({c["device"] for c in base.commands if "2022-03-22" <= c["day"] <= "2022-03-27"})
+    cd = canc_dev("2022-03-22", "2022-03-27")
+    m_rows, m_ok = [], True
+    for dev in m_devs:
+        f = next((c for c in run.commands if c["device"] == dev and "2022-03-22" <= c["day"] <= "2022-03-27"), None)
+        ok = (f is not None and in_rng(f, "2022-03-27", "2022-03-31")) or dev in cd
+        m_ok &= ok
+        m_rows.append("%s %s" % (dev, ("生效 " + CR.lday(f["effective_at"])[5:]) if f else ("撤销" if dev in cd else "无")))
+    # 十二（2）气体抬高 / gas rise
+    gdevs = sorted({c["device"] for c in base.commands if "2022-03-14" <= c["day"] <= "2022-03-21" and "Gas" in c["triggers"].split("|")})
+    gc = canc_dev("2022-03-14", "2022-03-21", gas=True)
+    g_rows, g_ok = [], True
+    for dev in gdevs:
+        f = next((c for c in run.commands if c["device"] == dev and "2022-03-14" <= c["day"] <= "2022-03-21"
+                  and "Gas" in c["triggers"].split("|")), None)
+        ok = (f is not None and in_rng(f, "2022-03-19", "2022-03-23")) or dev in gc
+        g_ok &= ok
+        g_rows.append("%s %s" % (dev, ("生效 " + CR.lday(f["effective_at"])[5:]) if f else ("撤销" if dev in gc else "无")))
+    # 十二（3）G 光照 / G light
+    gl = next((c for c in run.commands if c["device"] == "G" and "Light" in c["triggers"].split("|")), None)
+    gl_ok = gl is not None and in_rng(gl, "2022-03-13", "2022-03-17")
+    da, dg = median(entry_delays(base)), median(entry_delays(run))
+    w("\n## 丁档：锚定加最短七天、不足则推迟生效（1.56 版裁决第一项）\n\n")
+    w(CR.table(["项", "甲", "丁", "判定"], [
+        ["九、命令总数低于 54", a["cmds"], g["cmds"], judge(g["cmds"] < 54)],
+        ["十、七天内丙型实例不多于 5", a["near"], g["near"], judge(g["near"] <= 5)],
+        ["十一、非触发通道连带偏离日数不高于 364", a["coll"], g["coll"], judge(g["coll"] <= 364)],
+        ["十二（1）、三月事件首条推迟到 03-29 前后或撤销", "", "；".join(m_rows), judge(m_ok)],
+        ["十二（2）、气体抬高首条推迟到 03-21 前后或撤销", "", "；".join(g_rows), judge(g_ok)],
+        ["十二（3）、G 光照首条约 03-15", "", "生效 " + (CR.lday(gl["effective_at"])[5:] if gl else "无"), judge(gl_ok)],
+        ["十三、进入偏离到生效的典型延迟（中位数，小时）", "%.1f" % da, "%.1f" % dg, judge(dg is not None and 144 <= dg <= 192)],
+    ]))
+    aprdays = {d for _, _, _, ds in APRIL for d in ds}
+    rows = []
+    for r in canc:
+        dec = r["detail"].split("，")[0].replace("决定 ", "")
+        span = {DD.add_days(dec, i) for i in range(0, 40) if DD.add_days(dec, i) <= r["day"]}
+        rows.append([r["device"], dec[5:], r["day"][5:], r["detail"], "是" if span & aprdays else "否"])
+    w("\n十四（描述）：撤销的命令 %d 条。\n\n" % len(canc))
+    if rows:
+        w(CR.table(["设备", "命令日", "撤销日", "内容", "与四月瞬态时段的数据层日重叠"], rows))
+    t, b = g, a
+    pick = "off" if (b["coll"] < t["coll"] or (b["coll"] == t["coll"] and b["cmds"] <= t["cmds"])) else ding
+    w("\n选定判据（甲与丁）：命令总数 甲 %d、丁 %d；连带偏离日数 甲 %d、丁 %d；指向 **%s**（两项冲突时以连带偏离日数为准）。"
+      "延迟（描述）：甲 %.1f 小时，丁 %.1f 小时。选定由设计会话宣布。\n" % (b["cmds"], t["cmds"], b["coll"], t["coll"],
+                                                         "甲" if pick == "off" else "丁", da, dg))
+    print("丁档：命令 %d、七天内丙型 %d、连带 %d、首条 三月%s 气体%s G光照%s、延迟 %.1f→%.1f 小时、撤销 %d；判据指向 %s" % (
+        g["cmds"], g["near"], g["coll"], judge(m_ok), judge(g_ok), judge(gl_ok), da, dg, len(canc), "甲" if pick == "off" else "丁"))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--chain-dir", default="docs/m6c/chain")
@@ -136,8 +272,12 @@ def main() -> int:
     ap.add_argument("--osc-arm", default="")
     ap.add_argument("--osc-base", default="")
     ap.add_argument("--out", default="docs/m6c/chain/anchor_check.md")
+    ap.add_argument("--ding-arm", default="", help="丁档的目录名，例如 ding")
+    ap.add_argument("--osc", default="", help="振荡档，逗号分隔的 档:所在档，例如 off_osc:off,ding_osc:ding")
     a = ap.parse_args()
-    arms = ["off", "trigger", "all"] + ([a.osc_arm] if a.osc_arm else [])
+    oscs = [x.split(":") for x in a.osc.split(",") if x]
+    arms = ["off", "trigger", "all"] + ([a.osc_arm] if a.osc_arm else []) + ([a.ding_arm] if a.ding_arm else []) \
+        + [o for o, _ in oscs]
     for v in arms:
         if not os.path.exists(os.path.join(a.chain_dir, v, "commands.csv")):
             print("ERROR: 缺少 %s/%s 的输出" % (a.chain_dir, v), file=sys.stderr)
@@ -211,6 +351,13 @@ def main() -> int:
             w("\n" + CR.table(["设备", "日", "被抑制的通道与处理"], [[r["device"], r["day"], r["detail"]] for r in rv]))
         print("第三节：连锁丙型 %d→%d，命令 %d→%d，首条%s；抑制 %d 条（部分 %d）" % (
             b["chained"], o["chained"], b["cmds"], o["cmds"], "不变" if fo == fb else "有变化", len(rv), part))
+    if a.ding_arm:
+        ding_section(w, judge, R, S, a.ding_arm)
+    names_x = dict(NAMES)
+    if a.ding_arm:
+        names_x[a.ding_arm] = "丁：锚定加最短七天、不足则推迟生效"
+    for o, b in oscs:
+        osc_section(w, judge, names_x, R, S, o, b)
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     with open(a.out, "w", encoding="utf-8") as fh:
         fh.write("".join(out))
