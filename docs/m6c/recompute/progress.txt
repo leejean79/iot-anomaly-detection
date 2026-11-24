@@ -1,0 +1,37 @@
+rerun_a pass1 devices: G H B C E D F A
+rerun_a pass1 G exit 0
+rerun_a pass1 H exit 0
+rerun_a pass1 B exit 0
+rerun_a pass1 C exit 0
+rerun_a pass1 E exit 0
+rerun_a pass1 D exit 0
+rerun_a pass1 F exit 0
+rerun_a pass1 A exit 0
+replay1 pass1 devices: G H B C E D F A
+replay1 pass1 G exit 0
+replay1 pass1 H exit 0
+replay1 pass1 B exit 0
+replay1 pass1 C exit 0
+replay1 pass1 E exit 0
+replay1 pass1 D exit 0
+replay1 pass1 F exit 1
+replay1 pass1 A exit 0
+rerun_a pass2 devices: G H B C E D F A
+rerun_a pass2 G exit 0
+rerun_a pass2 H exit 0
+rerun_a pass2 B exit 0
+rerun_a pass2 C exit 0
+rerun_a pass2 E exit 0
+rerun_a pass2 D exit 0
+rerun_a pass2 F exit 0
+rerun_a pass2 A exit 0
+replay1 pass2 devices: G H B C E D F A
+replay1 pass2 G exit 0
+replay1 pass2 H exit 0
+replay1 pass2 B exit 0
+replay1 pass2 C exit 0
+replay1 pass2 E exit 0
+replay1 pass2 D exit 0
+replay1 pass2 F exit 0
+replay1 pass2 A exit 0
+replay1 pass1 F exit 0

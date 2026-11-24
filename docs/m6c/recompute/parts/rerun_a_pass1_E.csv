@@ -1,0 +1,2 @@
+run,device,seq,effective_at,switch_at,online_ratio,offline_ratio,new_windows,new_above_rate,new_median,new_p95,old_windows,old_above_rate,old_median,old_p95,new_level12_within_7d
+rerun_a,E,4,1648940400,1649199600,2.9905474290454306,2.9904924541019686,1005,0.2208955223880597,0.5309473920920759,4.947066984491829,1006,0.09443339960238568,-0.12090041193756103,2.925766586860005,0
