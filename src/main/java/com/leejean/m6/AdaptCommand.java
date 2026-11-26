@@ -29,11 +29,15 @@ public class AdaptCommand implements Serializable {
     public int seq;
     /** 原始 JSON（决定依据原样保存）/ the raw JSON line. */
     public String raw;
+    // 以下两项只供标准化算子内部使用（命令原文已在 raw 里）；不进 JSON，否则转发命令所附的轮在 m1-out 上会多出字段，第三批全部开关
+    // 关闭时与标签 jar 不再逐位相同（第一组短重放查明）。/ Internal only, never serialized: m1-out must stay bit-identical.
     /** 触发通道（可无）/ trigger channels, if present. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public String triggers;
     /**
      * 数据层触发通道各自的进入偏离之日（第三批第一节，零级窗口锚定；聚合模块打开锚定时才有）/ entry days of the data triggers.
      */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public java.util.List<String> entryDays;
 
     public AdaptCommand() {
