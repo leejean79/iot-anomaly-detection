@@ -294,8 +294,9 @@ public class M2Job {
         // Channels that keep the freeze parameters at level 0: Humidity and Pressure by default; "none" re-estimates all.
         boolean[] adaptKeepChannels = com.leejean.m1.Channels.parseSet(params.get("adapt-keep-channels", "Humidity,Pressure"));
         // 零级窗口锚定（第三批第一节；默认关闭）/ anchored level-0 window (off by default)
-        String adaptAnchor = params.get("adapt-anchor", "off");
-        int adaptAnchorMinDays = params.getInt("adapt-anchor-min-days", 2);
+        // 第三批收口（1.58 版第三节）定为默认：锚定触发通道、最短七天（与聚合模块的推迟生效同用）/ batch-3 default
+        String adaptAnchor = params.get("adapt-anchor", "trigger");
+        int adaptAnchorMinDays = params.getInt("adapt-anchor-min-days", 7);
         // ---- 适应执行第二批（M6b 决定十三、十七）：一级重训参数与影子评分开关 / level-1 parameters and shadow scoring ----
         // 一级默认：训练窗口在生效之后、N 三天、冷启动（1.40 版裁决）。影子评分只在全量重放打开。
         int m3RetrainDays = params.getInt("m3-retrain-days", 3);
@@ -318,12 +319,14 @@ public class M2Job {
         m7Opts.put("retrain-days", Integer.toString(m3RetrainDays));
         m7Opts.put("retrain-side", m3RetrainSide);
         m7Opts.put("level2-days", Integer.toString(m3TrainDays + m3EarlyStopDays + m3ThreshDays));
+        // 丁档的推迟生效（第三批收口定为默认七天；--m7-anchor-defer-days 0 关闭）/ deferred effect, default 7 days
+        m7Opts.putIfAbsent("anchor-defer-days", "7");
         com.leejean.m7.FleetDecisionFunction.Params m7Params = com.leejean.m7.M7OfflineRunner.params(m7Opts);
         // 模型状态取自上下文模块的事件（1.47 版第三节、1.48 版第二项）/ model state from the context module's events
         m7Params.modelEvents = true;
-        // 二级重训期间的监测预案（第三批第四节）：交接文档写「随命令回路打开」，为使第三批全部开关关闭时与收口逐位相同，做成开关、
-        // 默认关闭 / level-2 contingency plan; a switch, off by default, so that all-off runs equal the closeout
-        m7Params.rebuildPlan = params.getBoolean("m7-rebuild-plan", false);
+        // 二级重训期间的监测预案（第三批第四节）：随命令回路打开（1.58 版第三节）；--m7-rebuild-plan false 可单独关闭
+        // Level-2 contingency plan: on with the command loop; --m7-rebuild-plan false turns it off.
+        m7Params.rebuildPlan = params.getBoolean("m7-rebuild-plan", adaptEnabled);
         // 锚定打开时零级命令带进入之日；振荡规则（第三批第三节；默认关闭）/ entry days when anchoring; oscillation rule
         m7Params.anchorEntryDays = !"off".equalsIgnoreCase(adaptAnchor.trim());
         if (m7Enabled && !(m3Enabled && m5bEnabled && m5aEnabled)) {
